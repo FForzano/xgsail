@@ -62,7 +62,7 @@ camera:
   autofocus: "continuous"     # continuous, manual, single
   codec: "h264"
   bitrate_mbps: 8             # ~3.6 GB/hour
-  segment_duration_min: 30    # Split video into 30-minute files
+  segment_duration_min: 5     # Split into 5-min chunks (corruption safety)
   overlay_timestamp: true     # Burn GPS timestamp into video
 
 sync:
