@@ -79,14 +79,13 @@ def enable_display():
     env = os.environ.copy()
     env['DISPLAY'] = ':0'
 
-    # Unblank display (DPMS on)
+    # Signal display helper to turn on display
     try:
-        subprocess.run(['xset', 'dpms', 'force', 'on'],
-                      env=env, capture_output=True, timeout=5)
-        subprocess.run(['xset', 's', 'reset'],
-                      env=env, capture_output=True, timeout=5)
-    except Exception:
-        pass
+        with open('/tmp/sailframes-display-control', 'w') as f:
+            f.write('on')
+        logger.info("Signaled display helper to turn on")
+    except Exception as e:
+        logger.warning(f"Could not signal display helper: {e}")
 
     # Start dashboard script (which opens browsers)
     dashboard_script = os.path.expanduser('~/sailframes-dashboard.sh')
@@ -119,23 +118,13 @@ def disable_display():
     except Exception:
         pass
 
-    # Try multiple methods to blank/disable display
-    # Method 1: DPMS force off (works on X11)
+    # Signal display helper to turn off display (Wayland requires in-session control)
     try:
-        subprocess.run(['xset', 'dpms', 'force', 'off'],
-                      env=env, capture_output=True, timeout=5)
-        logger.info("DPMS blanked display")
-    except Exception:
-        pass
-
-    # Method 2: Set backlight to 0 (Pi-specific, if available)
-    try:
-        for bl_pattern in ['/sys/class/backlight/*/brightness']:
-            for path in glob.glob(bl_pattern):
-                with open(path, 'w') as f:
-                    f.write('0')
-    except Exception:
-        pass
+        with open('/tmp/sailframes-display-control', 'w') as f:
+            f.write('off')
+        logger.info("Signaled display helper to turn off")
+    except Exception as e:
+        logger.warning(f"Could not signal display helper: {e}")
 
     display_enabled = False
 
