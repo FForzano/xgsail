@@ -58,6 +58,7 @@ def get_data_dir(config):
 
 
 def run(config):
+    global running
     cam_config = config['camera']
     width, height = cam_config['resolution']
     fps = cam_config['framerate']

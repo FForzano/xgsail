@@ -227,11 +227,11 @@ DASHBOARD_HTML = """
         .card h2 { font-size: 13px; color: #78909c; text-transform: uppercase; margin-bottom: 8px; }
         .value { font-size: 28px; font-weight: 700; color: #fff; }
         .unit { font-size: 14px; color: #78909c; }
-        .status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-        .status.on { background: #4caf50; }
-        .status.off { background: #f44336; }
+        .status { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-right: 8px; min-width: 36px; text-align: center; }
+        .status.on { background: #1976d2; color: #fff; }
+        .status.off { background: #455a64; color: #90a4ae; }
         .sub { font-size: 13px; color: #90a4ae; margin-top: 6px; }
-        .charging { color: #4caf50; }
+        .charging { color: #1976d2; }
         .discharging { color: #ff9800; }
         .services { margin-top: 12px; }
         .svc-row { padding: 6px 0; font-size: 14px; border-bottom: 1px solid #233; }
@@ -263,7 +263,7 @@ DASHBOARD_HTML = """
         <h2>Sensor Services</h2>
         {% for name, active in state.services.items() %}
         <div class="svc-row">
-            <span class="status {{ 'on' if active else 'off' }}"></span>
+            <span class="status {{ 'on' if active else 'off' }}">{{ '✓ ON' if active else '✗ OFF' }}</span>
             {{ name }}
         </div>
         {% endfor %}
