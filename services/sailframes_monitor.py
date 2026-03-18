@@ -1013,6 +1013,56 @@ def get_battery_sessions(limit=20):
     return sessions[:limit]
 
 
+def get_active_session():
+    """Check if there's an active battery session (not yet in sessions.csv)."""
+    if not BATTERY_DATA_DIR.exists():
+        return None
+
+    # Get session IDs from sessions.csv
+    completed_ids = set()
+    sessions_file = BATTERY_DATA_DIR / 'sessions.csv'
+    if sessions_file.exists():
+        with open(sessions_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                completed_ids.add(row['session_id'])
+
+    # Find session files that aren't in completed sessions
+    for session_file in sorted(BATTERY_DATA_DIR.glob('session_*.csv'), reverse=True):
+        session_id = session_file.stem.replace('session_', '')
+        if session_id not in completed_ids:
+            # Found an active session - read its data
+            samples = []
+            with open(session_file, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    samples.append(row)
+
+            if not samples:
+                continue
+
+            # Calculate session stats from samples
+            first = samples[0]
+            last = samples[-1]
+            start_time = datetime.fromisoformat(first['timestamp'].replace('Z', '+00:00'))
+            last_time = datetime.fromisoformat(last['timestamp'].replace('Z', '+00:00'))
+            duration = last_time - start_time
+
+            return {
+                'session_id': session_id,
+                'start_time_ny': format_time_ny(first['timestamp']),
+                'duration_minutes': round(duration.total_seconds() / 60),
+                'start_percent': float(first['percent']),
+                'current_percent': float(last['percent']),
+                'percent_used': round(float(first['percent']) - float(last['percent']), 1),
+                'sample_count': len(samples),
+                'current_voltage': float(last['voltage']),
+                'current_ma': float(last['current_ma']),
+            }
+
+    return None
+
+
 def get_session_data(session_id):
     """Get detailed data for a specific session."""
     log_file = BATTERY_DATA_DIR / f'session_{session_id}.csv'
@@ -1389,7 +1439,42 @@ BATTERY_HISTORY_HTML = """
     <p style="margin-top: 12px;"><a href="/battery">← All Sessions</a></p>
 
     {% else %}
-    <h2>Discharge Sessions</h2>
+    {% if active_session %}
+    <h2 style="color: #66bb6a;">⚡ Active Session (On Battery)</h2>
+    <div class="card" style="border: 2px solid #66bb6a;">
+        <div class="summary-grid">
+            <div class="summary-item">
+                <div class="summary-value">{{ active_session.duration_minutes }}m</div>
+                <div class="summary-label">Duration</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">{{ active_session.percent_used }}%</div>
+                <div class="summary-label">Used So Far</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">{{ active_session.start_percent|round|int }}%</div>
+                <div class="summary-label">Started At</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">{{ active_session.current_percent|round|int }}%</div>
+                <div class="summary-label">Current</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">{{ active_session.current_ma|round|int }}</div>
+                <div class="summary-label">mA Draw</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">{{ active_session.sample_count }}</div>
+                <div class="summary-label">Samples</div>
+            </div>
+        </div>
+        <div style="margin-top: 12px; font-size: 12px; color: #90a4ae;">
+            Started: {{ active_session.start_time_ny }} · Session will be saved when USB-C is connected
+        </div>
+    </div>
+    {% endif %}
+
+    <h2>Completed Sessions</h2>
     <div class="card">
         {% if sessions %}
         {% for s in sessions %}
@@ -1408,7 +1493,7 @@ BATTERY_HISTORY_HTML = """
         </div>
         {% endfor %}
         {% else %}
-        <div class="no-data">No battery sessions recorded yet.<br>Unplug USB-C to start tracking.</div>
+        <div class="no-data">No completed battery sessions yet.<br>Sessions are saved when USB-C is reconnected.</div>
         {% endif %}
     </div>
     {% endif %}
@@ -1421,7 +1506,8 @@ BATTERY_HISTORY_HTML = """
 def battery_history():
     """Battery history dashboard."""
     sessions = get_battery_sessions()
-    return render_template_string(BATTERY_HISTORY_HTML, sessions=sessions, session=None, top_processes=None)
+    active = get_active_session()
+    return render_template_string(BATTERY_HISTORY_HTML, sessions=sessions, session=None, top_processes=None, active_session=active)
 
 
 @app.route('/battery/<session_id>')
@@ -1437,6 +1523,7 @@ def battery_session_detail(session_id):
         BATTERY_HISTORY_HTML,
         sessions=None,
         session=session,
+        active_session=None,
         top_processes=data.get('top_processes', [])
     )
 
