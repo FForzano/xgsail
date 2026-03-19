@@ -842,7 +842,27 @@ DASHBOARD_HTML = """
         </div>
     </div>
 
-    <!-- Shutdown Button -->
+    <!-- WiFi Mode -->
+    <div class="card" style="margin-top: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h2 style="margin: 0;">📶 WiFi Mode</h2>
+                <div id="wifi-status" style="font-size: 12px; color: #78909c; margin-top: 4px;">Loading...</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span id="wifi-mode-label" style="font-size: 13px; color: #78909c;">Client</span>
+                <label style="position: relative; display: inline-block; width: 50px; height: 26px;">
+                    <input type="checkbox" id="wifi-toggle" onchange="toggleWiFi()" style="opacity: 0; width: 0; height: 0;">
+                    <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #455a64; transition: .3s; border-radius: 26px;"></span>
+                    <span id="wifi-slider" style="position: absolute; content: ''; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;"></span>
+                </label>
+                <span style="font-size: 13px; color: #4fc3f7;">AP</span>
+            </div>
+        </div>
+        <div id="wifi-details" style="margin-top: 8px; font-size: 12px; color: #546e7a;"></div>
+    </div>
+
+    <!-- System / Shutdown -->
     <div class="card" style="margin-top: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
@@ -1045,6 +1065,79 @@ DASHBOARD_HTML = """
                 btn.textContent = 'Zero Heel/Pitch';
             });
     }
+
+    // WiFi Mode Toggle
+    function loadWiFiStatus() {
+        fetch('/api/wifi/status')
+            .then(r => r.json())
+            .then(data => {
+                const toggle = document.getElementById('wifi-toggle');
+                const slider = document.getElementById('wifi-slider');
+                const label = document.getElementById('wifi-mode-label');
+                const status = document.getElementById('wifi-status');
+                const details = document.getElementById('wifi-details');
+
+                const isAP = data.current_mode === 'ap';
+                toggle.checked = isAP;
+
+                // Update slider position
+                slider.style.transform = isAP ? 'translateX(24px)' : 'translateX(0)';
+                slider.parentElement.previousElementSibling.style.backgroundColor = isAP ? '#1976d2' : '#455a64';
+
+                // Update labels
+                label.textContent = isAP ? 'AP' : 'Client';
+                label.style.color = isAP ? '#78909c' : '#78909c';
+
+                if (isAP) {
+                    status.textContent = 'Access Point: ' + data.ap_ssid;
+                    details.innerHTML = 'SSID: <strong>' + data.ap_ssid + '</strong> · Password: <strong>' + data.ap_password + '</strong> · IP: 192.168.4.1';
+                } else {
+                    status.textContent = 'Connected to: ' + (data.connection || data.client_ssid);
+                    details.innerHTML = 'IP: <strong>' + (data.ip_address || 'obtaining...') + '</strong>';
+                }
+
+                if (data.saved_mode !== data.current_mode) {
+                    details.innerHTML += ' <span style="color: #ff9800;">(boot: ' + data.saved_mode + ')</span>';
+                }
+            })
+            .catch(e => {
+                document.getElementById('wifi-status').textContent = 'Error loading WiFi status';
+            });
+    }
+
+    function toggleWiFi() {
+        const toggle = document.getElementById('wifi-toggle');
+        const newMode = toggle.checked ? 'ap' : 'client';
+
+        document.getElementById('wifi-status').textContent = 'Switching to ' + (newMode === 'ap' ? 'Access Point' : 'Client') + ' mode...';
+
+        fetch('/api/wifi/mode', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: newMode})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                if (newMode === 'ap') {
+                    alert('Switched to Access Point mode!\\n\\nSSID: s1\\nPassword: hello\\nIP: 192.168.4.1\\n\\nConnect to the s1 WiFi network to access dashboard.');
+                } else {
+                    alert('Switched to Client mode!\\n\\nConnecting to Home-IOT...\\nPage will reload when connected.');
+                }
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                alert('WiFi switch failed: ' + (data.error || 'Unknown error'));
+                loadWiFiStatus();  // Reload to get correct state
+            }
+        })
+        .catch(e => {
+            alert('WiFi switch error: ' + e);
+            loadWiFiStatus();
+        });
+    }
+
+    // Load WiFi status on page load
+    document.addEventListener('DOMContentLoaded', loadWiFiStatus);
     </script>
 </body>
 </html>
@@ -2638,6 +2731,95 @@ def api_imu_calibration_reset():
         logger.info("IMU calibration reset to zero")
         return jsonify({'success': True})
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── WiFi Mode API ──
+
+def get_wifi_status():
+    """Get current WiFi mode and connection status."""
+    try:
+        # Get current mode from script
+        result = subprocess.run(
+            ['/home/paul/sailframes/scripts/wifi-mode.sh', 'current'],
+            capture_output=True, text=True, timeout=5
+        )
+        current_mode = result.stdout.strip() if result.returncode == 0 else 'unknown'
+
+        # Get saved mode
+        mode_file = Path('/etc/sailframes/wifi-mode')
+        saved_mode = mode_file.read_text().strip() if mode_file.exists() else 'ap'
+
+        # Get connection details
+        result = subprocess.run(
+            ['nmcli', '-t', '-f', 'GENERAL.CONNECTION,IP4.ADDRESS', 'device', 'show', 'wlan0'],
+            capture_output=True, text=True, timeout=5
+        )
+
+        connection = None
+        ip_address = None
+        for line in result.stdout.split('\n'):
+            if line.startswith('GENERAL.CONNECTION:'):
+                connection = line.split(':', 1)[1]
+            elif line.startswith('IP4.ADDRESS'):
+                ip_address = line.split(':', 1)[1].split('/')[0] if ':' in line else None
+
+        return {
+            'current_mode': current_mode,
+            'saved_mode': saved_mode,
+            'connection': connection,
+            'ip_address': ip_address,
+            'ap_ssid': 's1',
+            'ap_password': 'hello',
+            'client_ssid': 'Home-IOT',
+        }
+    except Exception as e:
+        logger.error(f"WiFi status error: {e}")
+        return {'current_mode': 'unknown', 'error': str(e)}
+
+
+@app.route('/api/wifi/status')
+def api_wifi_status():
+    """Get current WiFi mode and status."""
+    return jsonify(get_wifi_status())
+
+
+@app.route('/api/wifi/mode', methods=['POST'])
+def api_wifi_mode():
+    """Switch WiFi mode (ap/client/toggle)."""
+    try:
+        data = request.get_json() or {}
+        mode = data.get('mode', 'toggle')
+
+        if mode not in ['ap', 'client', 'toggle']:
+            return jsonify({'success': False, 'error': 'Invalid mode. Use: ap, client, or toggle'}), 400
+
+        logger.info(f"Switching WiFi mode: {mode}")
+
+        result = subprocess.run(
+            ['sudo', '/home/paul/sailframes/scripts/wifi-mode.sh', mode],
+            capture_output=True, text=True, timeout=30
+        )
+
+        if result.returncode != 0:
+            return jsonify({
+                'success': False,
+                'error': result.stderr or 'WiFi mode switch failed'
+            }), 500
+
+        # Get new status
+        status = get_wifi_status()
+
+        return jsonify({
+            'success': True,
+            'mode': status['current_mode'],
+            'output': result.stdout,
+        })
+
+    except subprocess.TimeoutExpired:
+        return jsonify({'success': False, 'error': 'WiFi switch timed out'}), 500
+    except Exception as e:
+        logger.error(f"WiFi mode switch failed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
