@@ -8,9 +8,11 @@ class Timeline {
         this.speedSelect = document.getElementById('playback-speed');
         this.timeCurrent = document.getElementById('time-current');
         this.timeDuration = document.getElementById('time-duration');
+        this.timeAbsolute = document.getElementById('time-absolute');
 
         this._setupControls();
         this._setupTimeSync();
+        this._setupMapCollapse();
     }
 
     _setupControls() {
@@ -75,8 +77,13 @@ class Timeline {
             // Update slider position
             this.slider.value = e.detail.position * 100;
 
-            // Update current time display
+            // Update current time display (elapsed)
             this.timeCurrent.textContent = this._formatDuration(e.detail.elapsed);
+
+            // Update absolute time display
+            if (e.detail.time && this.timeAbsolute) {
+                this.timeAbsolute.textContent = this._formatAbsoluteTime(e.detail.time);
+            }
         });
 
         window.timeController.addEventListener('play', () => {
@@ -131,6 +138,69 @@ class Timeline {
             return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
         }
         return `${pad(minutes)}:${pad(seconds)}`;
+    }
+
+    _formatAbsoluteTime(date) {
+        if (!date) return '--:--:--';
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        const seconds = date.getSeconds().toString().padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    }
+
+    _setupMapCollapse() {
+        const mapPanel = document.getElementById('map-panel');
+        const btnCollapse = document.getElementById('btn-collapse-map');
+        const resizeHandle = document.getElementById('map-resize-handle');
+
+        if (!mapPanel || !btnCollapse) return;
+
+        // Toggle collapse
+        btnCollapse.addEventListener('click', () => {
+            mapPanel.classList.toggle('collapsed');
+            // Trigger map resize after animation
+            setTimeout(() => {
+                if (window.mapView && window.mapView.map) {
+                    window.mapView.map.invalidateSize();
+                }
+            }, 350);
+        });
+
+        // Resize functionality
+        if (resizeHandle) {
+            let isResizing = false;
+            let startX, startWidth;
+
+            resizeHandle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startX = e.clientX;
+                startWidth = mapPanel.offsetWidth;
+                resizeHandle.classList.add('resizing');
+                document.body.style.cursor = 'ew-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const delta = e.clientX - startX;
+                const newWidth = Math.max(200, Math.min(startWidth + delta, window.innerWidth * 0.6));
+                mapPanel.style.flexBasis = newWidth + 'px';
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    resizeHandle.classList.remove('resizing');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    // Trigger map resize
+                    if (window.mapView && window.mapView.map) {
+                        window.mapView.map.invalidateSize();
+                    }
+                }
+            });
+        }
     }
 }
 

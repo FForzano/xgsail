@@ -39,40 +39,77 @@
     </header>
 
     <main class="main">
-        <!-- Left panel: Map -->
-        <section class="panel map-panel">
+        <!-- Left panel: Map (collapsible) -->
+        <section class="panel map-panel" id="map-panel">
             <div class="panel-header">
                 <h2>Track</h2>
                 <div class="stats" id="map-stats">
                     <span class="stat"><label>Speed:</label> <span id="stat-speed">--</span> kn</span>
                     <span class="stat"><label>Course:</label> <span id="stat-course">--</span>&deg;</span>
                 </div>
+                <button id="btn-collapse-map" class="btn-collapse" title="Collapse map">&#x25C0;</button>
             </div>
             <div id="map" class="map-container"></div>
+            <div class="resize-handle" id="map-resize-handle"></div>
         </section>
 
         <!-- Right panel: Charts and Video -->
         <section class="panel data-panel">
-            <!-- Charts -->
+            <!-- Charts - All Measurements -->
             <div class="charts-container">
+                <!-- Row 1: Attitude & Wind -->
                 <div class="chart-row">
                     <div class="chart-box">
-                        <h3>Heel &amp; Pitch</h3>
+                        <h3>Heel &amp; Pitch (deg)</h3>
                         <canvas id="chart-attitude"></canvas>
                     </div>
                     <div class="chart-box">
-                        <h3>Wind</h3>
+                        <h3>Wind Speed &amp; Angle</h3>
                         <canvas id="chart-wind"></canvas>
                     </div>
                 </div>
+                <!-- Row 2: Speed & Heading -->
                 <div class="chart-row">
                     <div class="chart-box">
-                        <h3>Speed</h3>
+                        <h3>SOG (kn)</h3>
                         <canvas id="chart-speed"></canvas>
                     </div>
                     <div class="chart-box">
-                        <h3>Pressure</h3>
+                        <h3>Heading (deg)</h3>
+                        <canvas id="chart-heading"></canvas>
+                    </div>
+                </div>
+                <!-- Row 3: Acceleration -->
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <h3>Acceleration X/Y (m/s²)</h3>
+                        <canvas id="chart-accel-xy"></canvas>
+                    </div>
+                    <div class="chart-box">
+                        <h3>Acceleration Z (m/s²)</h3>
+                        <canvas id="chart-accel-z"></canvas>
+                    </div>
+                </div>
+                <!-- Row 4: Pressure & Temperature -->
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <h3>Pressure (hPa)</h3>
                         <canvas id="chart-pressure"></canvas>
+                    </div>
+                    <div class="chart-box">
+                        <h3>Temperature (°C)</h3>
+                        <canvas id="chart-temperature"></canvas>
+                    </div>
+                </div>
+                <!-- Row 5: Wind Details -->
+                <div class="chart-row">
+                    <div class="chart-box">
+                        <h3>Wind Compass (deg)</h3>
+                        <canvas id="chart-wind-compass"></canvas>
+                    </div>
+                    <div class="chart-box">
+                        <h3>Wind Sensor Temp &amp; Battery</h3>
+                        <canvas id="chart-wind-meta"></canvas>
                     </div>
                 </div>
             </div>
@@ -111,6 +148,9 @@
             <input type="range" id="timeline" class="timeline" min="0" max="100" value="0">
             <span id="time-duration" class="time-label">00:00:00</span>
         </div>
+        <div class="time-absolute">
+            <span id="time-absolute" class="time-label-absolute">--:--:-- UTC</span>
+        </div>
     </footer>
 
     <!-- Loading overlay -->
@@ -119,7 +159,55 @@
         <p>Loading session data...</p>
     </div>
 
+    <!-- Login overlay -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-box">
+            <h1 class="login-logo">SailFrames</h1>
+            <p class="login-subtitle">Race Analytics</p>
+            <form id="login-form">
+                <input type="password" id="login-password" placeholder="Enter password" autocomplete="current-password" autofocus>
+                <button type="submit">Enter</button>
+                <p id="login-error" class="login-error"></p>
+            </form>
+        </div>
+    </div>
+
     <!-- Scripts -->
+    <script>
+        // Simple password protection
+        (function() {
+            const PASS_HASH = '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'; // sha256('hello')
+            const AUTH_KEY = 'sailframes_auth';
+
+            // Check if already authenticated
+            if (sessionStorage.getItem(AUTH_KEY) === 'true') {
+                document.getElementById('login-overlay').classList.add('hidden');
+                return;
+            }
+
+            // Hash function
+            async function sha256(str) {
+                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+                return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+
+            // Handle login
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const password = document.getElementById('login-password').value;
+                const hash = await sha256(password);
+
+                if (hash === PASS_HASH) {
+                    sessionStorage.setItem(AUTH_KEY, 'true');
+                    document.getElementById('login-overlay').classList.add('hidden');
+                } else {
+                    document.getElementById('login-error').textContent = 'Incorrect password';
+                    document.getElementById('login-password').value = '';
+                    document.getElementById('login-password').focus();
+                }
+            });
+        })();
+    </script>
     <script src="/config.js"></script>
     <script src="/assets/js/utils/time-sync.js"></script>
     <script src="/assets/js/components/map-view.js"></script>

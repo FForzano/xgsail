@@ -1,12 +1,9 @@
 /**
  * VideoPlayer - HLS video playback synchronized with timeline
+ * Simplified: videos play independently, only sync on manual seek
  */
 class VideoPlayer {
     constructor() {
-        this.players = {
-            cockpit: null,
-            sails: null
-        };
         this.hlsInstances = {
             cockpit: null,
             sails: null
@@ -17,26 +14,59 @@ class VideoPlayer {
         };
         this.videoContainer = document.getElementById('video-container');
         this.streamInfo = null;
-        this.sessionStart = null;
-        this.isSeeking = false;
+        this.videosReady = { cockpit: false, sails: false };
 
-        this._setupTimeSync();
+        this._setupControls();
     }
 
-    _setupTimeSync() {
-        window.timeController.addEventListener('time-change', (e) => {
-            if (!this.isSeeking) {
-                this.syncToTime(e.detail.time);
+    _setupControls() {
+        // Sync only on manual timeline scrub
+        const timeline = document.getElementById('timeline');
+        if (timeline) {
+            timeline.addEventListener('change', () => {
+                const currentTime = window.timeController.getCurrentTime();
+                if (currentTime) {
+                    this._seekVideos(currentTime);
+                }
+            });
+        }
+
+        // Play/pause with main controls
+        const btnPlay = document.getElementById('btn-play');
+        if (btnPlay) {
+            btnPlay.addEventListener('click', () => {
+                // Small delay to let TimeController state update
+                setTimeout(() => {
+                    if (window.timeController.isPlaying()) {
+                        this._playAll();
+                    } else {
+                        this._pauseAll();
+                    }
+                }, 50);
+            });
+        }
+
+        // Keyboard space bar
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+                setTimeout(() => {
+                    if (window.timeController.isPlaying()) {
+                        this._playAll();
+                    } else {
+                        this._pauseAll();
+                    }
+                }, 50);
             }
         });
 
-        window.timeController.addEventListener('play', () => {
-            this.play();
-        });
-
-        window.timeController.addEventListener('pause', () => {
-            this.pause();
-        });
+        // Speed changes
+        const speedSelect = document.getElementById('playback-speed');
+        if (speedSelect) {
+            speedSelect.addEventListener('change', (e) => {
+                const rate = parseFloat(e.target.value);
+                this._setPlaybackRate(rate);
+            });
+        }
     }
 
     /**
@@ -84,97 +114,101 @@ class VideoPlayer {
             this.hlsInstances[camera].destroy();
         }
 
+        this.videosReady[camera] = false;
+
         if (Hls.isSupported()) {
             const hls = new Hls({
                 enableWorker: true,
-                lowLatencyMode: false
+                lowLatencyMode: false,
+                // Large buffer for smooth playback
+                maxBufferLength: 60,
+                maxMaxBufferLength: 120,
+                maxBufferSize: 120 * 1000 * 1000,
+                // Stability settings
+                fragLoadingTimeOut: 20000,
+                manifestLoadingTimeOut: 10000,
+                levelLoadingTimeOut: 10000
             });
 
             hls.loadSource(streamInfo.playlist_url);
             hls.attachMedia(video);
 
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                console.log(`HLS manifest loaded for ${camera}`);
+                console.log(`HLS ready: ${camera}`);
+                this.videosReady[camera] = true;
+
+                // Initial seek to current timeline position
+                const currentTime = window.timeController.getCurrentTime();
+                if (currentTime && streamInfo.start_time) {
+                    const streamStart = new Date(streamInfo.start_time).getTime();
+                    const offsetSeconds = (currentTime.getTime() - streamStart) / 1000;
+                    if (offsetSeconds >= 0 && offsetSeconds <= video.duration) {
+                        video.currentTime = offsetSeconds;
+                    }
+                }
             });
 
             hls.on(Hls.Events.ERROR, (event, data) => {
                 if (data.fatal) {
-                    console.error(`HLS fatal error for ${camera}:`, data);
+                    console.error(`HLS error ${camera}:`, data.type);
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                        hls.startLoad();
+                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                        hls.recoverMediaError();
+                    }
                 }
             });
 
             this.hlsInstances[camera] = hls;
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            // Native HLS support (Safari)
             video.src = streamInfo.playlist_url;
-        }
-
-        // Store stream start time for sync
-        if (streamInfo.start_time) {
-            video.dataset.startTime = streamInfo.start_time;
+            video.addEventListener('loadedmetadata', () => {
+                this.videosReady[camera] = true;
+            });
         }
     }
 
-    /**
-     * Sync video position to current time
-     */
-    syncToTime(time) {
+    _seekVideos(time) {
         if (!time || !this.streamInfo) return;
 
         for (const [camera, info] of Object.entries(this.streamInfo)) {
             if (!info || !info.start_time) continue;
 
             const video = this.videoElements[camera];
-            if (!video || video.readyState < 2) continue;
+            if (!video || !this.videosReady[camera]) continue;
 
             const streamStart = new Date(info.start_time).getTime();
-            const targetMs = time.getTime();
+            const offsetSeconds = (time.getTime() - streamStart) / 1000;
 
-            // Calculate offset from stream start
-            const offsetSeconds = (targetMs - streamStart) / 1000;
-
-            // Only seek if video is loaded and offset is valid
-            if (offsetSeconds >= 0 && offsetSeconds <= video.duration) {
-                // Avoid seeking if already close
-                if (Math.abs(video.currentTime - offsetSeconds) > 1) {
-                    this.isSeeking = true;
-                    video.currentTime = offsetSeconds;
-                    setTimeout(() => { this.isSeeking = false; }, 100);
-                }
+            if (offsetSeconds >= 0 && video.duration && offsetSeconds <= video.duration) {
+                video.currentTime = offsetSeconds;
             }
         }
     }
 
-    /**
-     * Play all videos
-     */
-    play() {
-        Object.values(this.videoElements).forEach(video => {
-            if (video && video.readyState >= 2) {
-                video.play().catch(() => {});
+    _playAll() {
+        // Sync position before playing
+        const currentTime = window.timeController.getCurrentTime();
+        if (currentTime) {
+            this._seekVideos(currentTime);
+        }
+
+        Object.entries(this.videoElements).forEach(([camera, video]) => {
+            if (video && this.videosReady[camera]) {
+                video.play().catch(e => console.warn(`Play failed ${camera}:`, e.message));
             }
         });
     }
 
-    /**
-     * Pause all videos
-     */
-    pause() {
+    _pauseAll() {
         Object.values(this.videoElements).forEach(video => {
-            if (video) {
-                video.pause();
-            }
+            if (video) video.pause();
         });
     }
 
-    /**
-     * Set playback rate
-     */
-    setPlaybackRate(rate) {
+    _setPlaybackRate(rate) {
         Object.values(this.videoElements).forEach(video => {
-            if (video) {
-                video.playbackRate = rate;
-            }
+            if (video) video.playbackRate = rate;
         });
     }
 
