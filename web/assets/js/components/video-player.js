@@ -1,6 +1,6 @@
 /**
  * VideoPlayer - HLS video playback synchronized with timeline
- * Simplified: videos play independently, only sync on manual seek
+ * Videos sync on play, seek, and periodically during playback to prevent drift
  */
 class VideoPlayer {
     constructor() {
@@ -15,6 +15,8 @@ class VideoPlayer {
         this.videoContainer = document.getElementById('video-container');
         this.streamInfo = null;
         this.videosReady = { cockpit: false, sails: false };
+        this.syncInterval = null;
+        this.isPlaying = false;
 
         this._setupControls();
     }
@@ -168,7 +170,7 @@ class VideoPlayer {
         }
     }
 
-    _seekVideos(time) {
+    _seekVideos(time, force = false) {
         if (!time || !this.streamInfo) return;
 
         for (const [camera, info] of Object.entries(this.streamInfo)) {
@@ -181,16 +183,23 @@ class VideoPlayer {
             const offsetSeconds = (time.getTime() - streamStart) / 1000;
 
             if (offsetSeconds >= 0 && video.duration && offsetSeconds <= video.duration) {
-                video.currentTime = offsetSeconds;
+                // Only seek if there's significant difference or forced
+                const diff = Math.abs(video.currentTime - offsetSeconds);
+                if (force || diff > 0.5) {
+                    video.currentTime = offsetSeconds;
+                    console.log(`Seek ${camera} to ${offsetSeconds.toFixed(1)}s (diff: ${diff.toFixed(1)}s)`);
+                }
             }
         }
     }
 
     _playAll() {
+        this.isPlaying = true;
+
         // Sync position before playing
         const currentTime = window.timeController.getCurrentTime();
         if (currentTime) {
-            this._seekVideos(currentTime);
+            this._seekVideos(currentTime, true);
         }
 
         Object.entries(this.videoElements).forEach(([camera, video]) => {
@@ -198,12 +207,56 @@ class VideoPlayer {
                 video.play().catch(e => console.warn(`Play failed ${camera}:`, e.message));
             }
         });
+
+        // Start periodic drift check
+        this._startDriftCheck();
     }
 
     _pauseAll() {
+        this.isPlaying = false;
+        this._stopDriftCheck();
+
         Object.values(this.videoElements).forEach(video => {
             if (video) video.pause();
         });
+    }
+
+    _startDriftCheck() {
+        this._stopDriftCheck();
+
+        // Check every 2 seconds for drift
+        this.syncInterval = setInterval(() => {
+            if (!this.isPlaying) return;
+
+            const currentTime = window.timeController.getCurrentTime();
+            if (!currentTime || !this.streamInfo) return;
+
+            // Check each video for drift
+            for (const [camera, info] of Object.entries(this.streamInfo)) {
+                if (!info || !info.start_time) continue;
+
+                const video = this.videoElements[camera];
+                if (!video || !this.videosReady[camera] || video.paused) continue;
+
+                const streamStart = new Date(info.start_time).getTime();
+                const expectedOffset = (currentTime.getTime() - streamStart) / 1000;
+                const actualOffset = video.currentTime;
+                const drift = Math.abs(expectedOffset - actualOffset);
+
+                // If drift > 1 second, correct it
+                if (drift > 1 && expectedOffset >= 0 && expectedOffset <= video.duration) {
+                    console.log(`Correcting ${camera} drift: ${drift.toFixed(1)}s`);
+                    video.currentTime = expectedOffset;
+                }
+            }
+        }, 2000);
+    }
+
+    _stopDriftCheck() {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
+        }
     }
 
     _setPlaybackRate(rate) {
@@ -216,6 +269,7 @@ class VideoPlayer {
      * Cleanup
      */
     destroy() {
+        this._stopDriftCheck();
         Object.values(this.hlsInstances).forEach(hls => {
             if (hls) hls.destroy();
         });
