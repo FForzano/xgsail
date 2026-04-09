@@ -102,10 +102,21 @@ def lambda_handler(event, context):
 
 
 def find_sessions_needing_cors():
-    """Find sessions with RTCM3 data that haven't been PPK processed."""
-    sessions = []
+    """Find sessions with RTCM3 data that need PPK processing.
 
-    # Scan processed manifests for sessions with ppk_status = awaiting_cors
+    Includes sessions that:
+    - Have ppk_status = awaiting_cors (waiting for CORS data)
+    - Have ppk_status = failed (may have failed due to missing hours, retry)
+    - Have RTCM3 data but no ppk_status yet
+    - Were processed but have very low fix rate (may improve with more CORS hours)
+    """
+    sessions = []
+    now_utc = datetime.now(timezone.utc)
+
+    # Only process sessions from the last 7 days
+    min_date = (now_utc - timedelta(days=7)).strftime('%Y-%m-%d')
+
+    # Scan processed manifests
     paginator = s3.get_paginator('list_objects_v2')
 
     for page in paginator.paginate(Bucket=DATA_BUCKET, Prefix='processed/'):
@@ -115,10 +126,38 @@ def find_sessions_needing_cors():
                     response = s3.get_object(Bucket=DATA_BUCKET, Key=obj['Key'])
                     manifest = json.loads(response['Body'].read().decode('utf-8'))
 
-                    # Check if session needs CORS data
+                    # Check date - skip old sessions
+                    session_date = manifest.get('date', '')[:10]
+                    if session_date < min_date:
+                        continue
+
+                    # Check if session needs CORS data / PPK processing
                     ppk_status = manifest.get('ppk_status', '')
+                    has_rtcm3 = 'rtcm3' in manifest.get('sensors', {})
+
+                    should_process = False
+                    reason = ''
+
                     if ppk_status in ['awaiting_cors', 'cors_downloading']:
-                        # Extract session info from key
+                        should_process = True
+                        reason = ppk_status
+                    elif ppk_status == 'failed' and has_rtcm3:
+                        # Retry failed sessions - might have been missing CORS hours
+                        should_process = True
+                        reason = 'failed_retry'
+                    elif ppk_status == '' and has_rtcm3:
+                        # New session with RTCM3 but no PPK yet
+                        should_process = True
+                        reason = 'new_rtcm3'
+                    elif ppk_status == 'completed':
+                        # Check if fix rate is very low - might improve with more hours
+                        stats = manifest.get('ppk_stats', {})
+                        fix_rate = stats.get('fix_rate', 100)
+                        if fix_rate < 10 and has_rtcm3:
+                            should_process = True
+                            reason = f'low_fix_rate_{fix_rate}'
+
+                    if should_process:
                         parts = obj['Key'].split('/')
                         device_id = parts[1]
                         folder = parts[2]
@@ -129,17 +168,20 @@ def find_sessions_needing_cors():
                             'folder': folder,
                             'date': date,
                             'start_time': manifest.get('start_time'),
-                            'end_time': manifest.get('end_time')
+                            'end_time': manifest.get('end_time'),
+                            'reason': reason
                         })
+                        logger.info(f"Queued {device_id}/{folder} for PPK ({reason})")
+
                 except Exception as e:
                     logger.warning(f"Error reading manifest {obj['Key']}: {e}")
 
-    logger.info(f"Found {len(sessions)} sessions needing CORS data")
+    logger.info(f"Found {len(sessions)} sessions needing CORS/PPK processing")
     return sessions
 
 
 def process_single_session(device_id: str, folder: str, date: str):
-    """Download CORS data for a single session."""
+    """Download CORS data for a single session and trigger PPK if ready."""
     logger.info(f"Processing CORS download for {device_id}/{folder}")
 
     # Parse date
@@ -151,52 +193,83 @@ def process_single_session(device_id: str, folder: str, date: str):
     year = dt.year
     doy = dt.timetuple().tm_yday  # Day of year
 
-    # Check if CORS data already exists
+    # Get session time bounds from manifest to determine required CORS hours
+    start_hour = None
+    end_hour = None
+    try:
+        manifest_key = f"processed/{device_id}/{folder}/manifest.json"
+        response = s3.get_object(Bucket=DATA_BUCKET, Key=manifest_key)
+        manifest = json.loads(response['Body'].read().decode('utf-8'))
+        start_time = manifest.get('start_time', '')
+        end_time = manifest.get('end_time', '')
+        if start_time:
+            start_hour = int(start_time[11:13])
+        if end_time:
+            end_hour = int(end_time[11:13])
+        logger.info(f"Session hours needed: {start_hour}-{end_hour} UTC")
+    except Exception as e:
+        logger.warning(f"Could not get session times from manifest: {e}")
+
+    # Always try to download latest CORS data (updates any missing hours)
     cors_key = f"cors/{CORS_STATION}/{year}/{doy:03d}/"
-    existing = check_cors_exists(cors_key)
-
-    if existing:
-        logger.info(f"CORS data already exists at {cors_key}")
-        # Update manifest and trigger PPK
-        update_manifest_ppk_status(device_id, folder, 'cors_ready')
-
-        # Trigger PPK processing (was previously missing here)
-        trigger_ppk_processing(device_id, folder, date)
-
-        return {
-            'session': f"{device_id}/{folder}",
-            'status': 'cors_ready',
-            'cors_key': cors_key
-        }
-
-    # Download CORS data
     try:
         downloaded = download_cors_data(year, doy)
-
-        if downloaded:
-            update_manifest_ppk_status(device_id, folder, 'cors_ready')
-
-            # Trigger PPK processing
-            trigger_ppk_processing(device_id, folder, date)
-
-            return {
-                'session': f"{device_id}/{folder}",
-                'status': 'cors_downloaded',
-                'cors_key': cors_key,
-                'files': downloaded
-            }
-        else:
-            # CORS data not yet available (typically ~1 hour delay)
-            update_manifest_ppk_status(device_id, folder, 'awaiting_cors')
-            return {
-                'session': f"{device_id}/{folder}",
-                'status': 'cors_not_available',
-                'message': 'CORS data not yet available, will retry'
-            }
+        logger.info(f"Downloaded {len(downloaded)} CORS files")
     except Exception as e:
         logger.error(f"Error downloading CORS data: {e}")
         update_manifest_ppk_status(device_id, folder, 'cors_error', str(e))
         raise
+
+    # Check if required CORS hours are available
+    if start_hour is not None and end_hour is not None:
+        available_hours = get_available_cors_hours(year, doy)
+        needed_hours = set(range(start_hour, end_hour + 1))
+        missing_hours = needed_hours - available_hours
+
+        if missing_hours:
+            missing_letters = [chr(ord('a') + h) for h in sorted(missing_hours)]
+            logger.info(f"Missing CORS hours: {sorted(missing_hours)} (letters: {missing_letters})")
+
+            # Check if data might be available soon (within ~2 hours of current time)
+            now_utc = datetime.now(timezone.utc)
+            latest_missing = max(missing_hours)
+            # CORS data is available ~1 hour after the hour ends
+            expected_available = now_utc.hour - 1
+
+            if latest_missing > expected_available:
+                logger.info(f"CORS hour {latest_missing} not yet available (current UTC hour: {now_utc.hour})")
+                update_manifest_ppk_status(device_id, folder, 'awaiting_cors',
+                                          error=f"Waiting for CORS hours {missing_letters}")
+                return {
+                    'session': f"{device_id}/{folder}",
+                    'status': 'awaiting_cors',
+                    'missing_hours': list(missing_hours),
+                    'message': f'Waiting for CORS hours {missing_letters} (available ~1hr after hour ends)'
+                }
+            else:
+                # Hours should be available but aren't - might be NOAA delay
+                logger.warning(f"CORS hours {missing_letters} should be available but are missing")
+                update_manifest_ppk_status(device_id, folder, 'awaiting_cors',
+                                          error=f"CORS hours {missing_letters} delayed")
+                return {
+                    'session': f"{device_id}/{folder}",
+                    'status': 'awaiting_cors',
+                    'missing_hours': list(missing_hours),
+                    'message': f'CORS hours {missing_letters} delayed, will retry'
+                }
+        else:
+            logger.info(f"All required CORS hours available: {sorted(needed_hours)}")
+
+    # All required hours available (or couldn't determine) - trigger PPK
+    update_manifest_ppk_status(device_id, folder, 'cors_ready')
+    trigger_ppk_processing(device_id, folder, date)
+
+    return {
+        'session': f"{device_id}/{folder}",
+        'status': 'cors_ready',
+        'cors_key': cors_key,
+        'files_downloaded': len(downloaded) if downloaded else 0
+    }
 
 
 def check_cors_exists(prefix: str) -> bool:
@@ -210,6 +283,52 @@ def check_cors_exists(prefix: str) -> bool:
         return response.get('KeyCount', 0) > 0
     except Exception:
         return False
+
+
+def get_available_cors_hours(year: int, doy: int) -> set:
+    """Get set of available CORS hourly files (as hour numbers 0-23).
+
+    Returns:
+        Set of integers representing available hours (e.g., {0, 1, 2, ..., 12})
+    """
+    station = CORS_STATION.lower()
+    cors_prefix = f"cors/{station}/{year}/{doy:03d}/"
+
+    available = set()
+    has_full_day = False
+
+    try:
+        response = s3.list_objects_v2(
+            Bucket=DATA_BUCKET,
+            Prefix=cors_prefix
+        )
+
+        for obj in response.get('Contents', []):
+            key = obj['Key']
+            filename = key.split('/')[-1]
+            base = filename.replace('.gz', '')
+
+            # Match observation files (end in .XXo where XX is year)
+            if len(base) >= 5 and base.endswith('o'):
+                letter = base[-5]
+                if letter == '0':
+                    # Full day file covers all hours
+                    has_full_day = True
+                    logger.info(f"Found full-day observation file: {filename}")
+                elif letter.isalpha() and letter >= 'a' and letter <= 'x':
+                    hour = ord(letter) - ord('a')
+                    available.add(hour)
+
+        if has_full_day:
+            # Full day file covers all 24 hours
+            available = set(range(24))
+
+        logger.info(f"Available CORS hours for DOY {doy}: {sorted(available)}")
+
+    except Exception as e:
+        logger.error(f"Error checking CORS hours: {e}")
+
+    return available
 
 
 def download_cors_data(year: int, doy: int) -> list:
