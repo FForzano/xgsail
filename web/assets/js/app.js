@@ -161,9 +161,9 @@ async function loadSession(deviceId, date) {
     currentSessionDate = date;
 
     try {
-        // Load session data (including 10Hz GPS for high-resolution track)
+        // Load session data (1Hz sensors for charts — PPK loaded separately for map)
         const response = await fetch(
-            `${API_BASE}/api/data/${deviceId}/${date}?sensors=gps,gps_10hz,imu,wind,pressure,ppk`
+            `${API_BASE}/api/data/${deviceId}/${date}?sensors=gps,imu,wind,pressure`
         );
 
         if (!response.ok) throw new Error('Failed to fetch session data');
@@ -194,37 +194,57 @@ async function loadSession(deviceId, date) {
                 aws_kn: p.wind.aws_kn
             }));
 
-        // Extract PPK data for map overlay
-        const ppkData = sessionData.data
-            .filter(p => p.ppk)
-            .map(p => ({
-                t: p.t,
-                lat: p.ppk.lat,
-                lon: p.ppk.lon,
-                quality: p.ppk.quality,
-                sdn: p.ppk.sdn,
-                sde: p.ppk.sde,
-                sdu: p.ppk.sdu,
-                sats: p.ppk.sats
-            }));
-
-        // Extract 10Hz GPS data for high-resolution track
-        const gps10HzData = sessionData.data
-            .filter(p => p.gps_10hz)
-            .map(p => ({
-                t: p.t,
-                lat: p.gps_10hz.lat,
-                lon: p.gps_10hz.lon,
-                speed_kn: p.gps_10hz.speed_kn,
-                course: p.gps_10hz.course
-            }));
-
         // Update components
         mapView.setData(gpsData);
-        mapView.setGPS10HzData(gps10HzData);
-        mapView.setPPKData(ppkData);
         mapView.setWindData(windData);
         chartPanel.setData(sessionData);
+
+        // Load 10Hz GPS separately (don't merge with 1Hz data — breaks chart timestamps)
+        try {
+            const resp10Hz = await fetch(
+                `${API_BASE}/api/data/${deviceId}/${date}?sensors=gps_10hz`
+            );
+            if (resp10Hz.ok) {
+                const data10Hz = await resp10Hz.json();
+                const gps10HzData = (data10Hz.data || [])
+                    .filter(p => p.gps_10hz)
+                    .map(p => ({
+                        t: p.t,
+                        lat: p.gps_10hz.lat,
+                        lon: p.gps_10hz.lon,
+                        speed_kn: p.gps_10hz.speed_kn,
+                        course: p.gps_10hz.course
+                    }));
+                mapView.setGPS10HzData(gps10HzData);
+            }
+        } catch (e) {
+            console.log('No 10Hz GPS data available');
+        }
+
+        // Load PPK data separately (different timestamps would break chart)
+        try {
+            const respPPK = await fetch(
+                `${API_BASE}/api/data/${deviceId}/${date}?sensors=ppk`
+            );
+            if (respPPK.ok) {
+                const dataPPK = await respPPK.json();
+                const ppkData = (dataPPK.data || [])
+                    .filter(p => p.ppk)
+                    .map(p => ({
+                        t: p.t,
+                        lat: p.ppk.lat,
+                        lon: p.ppk.lon,
+                        quality: p.ppk.quality,
+                        sdn: p.ppk.sdn,
+                        sde: p.ppk.sde,
+                        sdu: p.ppk.sdu,
+                        sats: p.ppk.sats
+                    }));
+                mapView.setPPKData(ppkData);
+            }
+        } catch (e) {
+            console.log('No PPK data available');
+        }
 
         // Fetch NOAA buoy data for session time range
         await loadBuoyData(sessionData.start_time, sessionData.end_time);

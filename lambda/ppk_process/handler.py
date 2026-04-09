@@ -66,9 +66,6 @@ def lambda_handler(event, context):
 
         logger.info(f"Starting PPK processing for {device_id}/{folder}")
 
-        # Update status to processing
-        update_manifest_ppk_status(device_id, folder, 'processing')
-
         # Get session info from manifest for CORS file selection and RTCM3 file
         session_hour = None
         session_end_hour = None
@@ -91,6 +88,31 @@ def lambda_handler(event, context):
                 logger.info(f"RTCM3 file from manifest: {rtcm3_s3_key}")
         except Exception as e:
             logger.warning(f"Could not get session info from manifest: {e}")
+
+        # Check CORS availability BEFORE doing any heavy processing
+        if session_hour is not None and session_end_hour is not None:
+            cors_available, missing_hours = check_cors_hours_available(
+                date, cors_station, session_hour, session_end_hour
+            )
+            if not cors_available:
+                missing_letters = [chr(ord('a') + h) for h in missing_hours]
+                logger.info(f"CORS hours not available: {missing_hours} (letters: {missing_letters})")
+                update_manifest_ppk_status(
+                    device_id, folder, 'awaiting_cors',
+                    error=f"Missing CORS hours: {missing_letters}"
+                )
+                return {
+                    'statusCode': 202,
+                    'body': json.dumps({
+                        'status': 'awaiting_cors',
+                        'session': f"{device_id}/{folder}",
+                        'missing_hours': missing_hours,
+                        'message': f'Waiting for CORS hours {missing_letters}'
+                    })
+                }
+
+        # Update status to processing
+        update_manifest_ppk_status(device_id, folder, 'processing')
 
         # Create temp directory for processing
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -280,6 +302,55 @@ def download_rover_data(device_id: str, folder: str, tmpdir: Path, rtcm3_s3_key:
 
     logger.info(f"Downloaded rover data: {local_path.stat().st_size} bytes")
     return local_path
+
+
+def check_cors_hours_available(date: str, station: str, start_hour: int, end_hour: int) -> tuple:
+    """Check if required CORS hours are available in S3.
+
+    Returns:
+        Tuple of (all_available: bool, missing_hours: list)
+    """
+    dt = datetime.strptime(date[:10], '%Y-%m-%d')
+    year = dt.year
+    doy = dt.timetuple().tm_yday
+
+    cors_prefix = f"cors/{station}/{year}/{doy:03d}/"
+
+    available_hours = set()
+    has_full_day = False
+
+    try:
+        response = s3.list_objects_v2(
+            Bucket=DATA_BUCKET,
+            Prefix=cors_prefix
+        )
+
+        for obj in response.get('Contents', []):
+            key = obj['Key']
+            filename = key.split('/')[-1]
+            base = filename.replace('.gz', '')
+
+            if len(base) >= 5 and base.endswith('o'):
+                letter = base[-5]
+                if letter == '0':
+                    has_full_day = True
+                elif letter.isalpha() and letter >= 'a' and letter <= 'x':
+                    hour = ord(letter) - ord('a')
+                    available_hours.add(hour)
+
+        if has_full_day:
+            available_hours = set(range(24))
+
+    except Exception as e:
+        logger.error(f"Error checking CORS hours: {e}")
+        return False, list(range(start_hour, end_hour + 1))
+
+    needed_hours = set(range(start_hour, end_hour + 1))
+    missing_hours = sorted(needed_hours - available_hours)
+
+    logger.info(f"CORS hours needed: {sorted(needed_hours)}, available: {sorted(available_hours)}, missing: {missing_hours}")
+
+    return len(missing_hours) == 0, missing_hours
 
 
 def download_cors_data(date: str, station: str, tmpdir: Path,
