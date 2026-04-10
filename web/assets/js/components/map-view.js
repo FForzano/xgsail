@@ -334,8 +334,10 @@ class MapView {
             this.ppkDataIndex[key] = i;
         });
 
-        // Draw PPK track
-        const latlngs = this.ppkData.map(p => [p.lat, p.lon]);
+        // Filter to only fix (Q=1) and float (Q=2) quality points
+        // Single (Q=5) solutions can have 2-30m errors and cause wild outliers
+        const goodPoints = this.ppkData.filter(p => p.quality === 1 || p.quality === 2);
+        const latlngs = goodPoints.map(p => [p.lat, p.lon]);
         this.ppkTrackLayer.setLatLngs(latlngs);
 
         // Update toggle buttons with data info
@@ -428,18 +430,23 @@ class MapView {
 
         // PPK toggle
         if (ppkToggle && this.ppkData.length > 0) {
-            const floatPts = this.ppkData.filter(p => p.quality === 2).length;
             const fixPts = this.ppkData.filter(p => p.quality === 1).length;
-            const total = this.ppkData.length;
-            const avgSdn = this.ppkData.reduce((s, p) => s + (p.sdn || 0), 0) / total;
-            const avgSde = this.ppkData.reduce((s, p) => s + (p.sde || 0), 0) / total;
+            const floatPts = this.ppkData.filter(p => p.quality === 2).length;
+            const singlePts = this.ppkData.filter(p => p.quality !== 1 && p.quality !== 2).length;
+            const goodPts = fixPts + floatPts;
+
+            // Calculate accuracy only from good points
+            const goodPoints = this.ppkData.filter(p => p.quality === 1 || p.quality === 2);
+            const avgSdn = goodPoints.length > 0 ? goodPoints.reduce((s, p) => s + (p.sdn || 0), 0) / goodPoints.length : 0;
+            const avgSde = goodPoints.length > 0 ? goodPoints.reduce((s, p) => s + (p.sde || 0), 0) / goodPoints.length : 0;
             const hAcc = Math.sqrt(avgSdn * avgSdn + avgSde * avgSde);
 
-            let label = `GNSS PPK 1Hz: ${total} pts`;
+            let label = `GNSS PPK: ${goodPts} pts shown`;
             if (fixPts > 0) label += `, ${fixPts} fix`;
             if (floatPts > 0) label += `, ${floatPts} float`;
-            if (hAcc < 1) label += `, ~${(hAcc * 100).toFixed(1)}cm`;
-            else label += `, ~${hAcc.toFixed(1)}m`;
+            if (singlePts > 0) label += ` (${singlePts} single hidden)`;
+            if (hAcc > 0 && hAcc < 1) label += `, ~${(hAcc * 100).toFixed(1)}cm`;
+            else if (hAcc >= 1) label += `, ~${hAcc.toFixed(1)}m`;
 
             ppkToggle.title = label;
             ppkToggle.disabled = false;
