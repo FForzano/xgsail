@@ -391,7 +391,7 @@ TaskHandle_t uploadTaskHandle = NULL;
 unsigned long lastUploadCheck = 0;
 const unsigned long UPLOAD_CHECK_INTERVAL_MS = 30000;  // Check every 30 seconds
 int uploadRetryCount = 0;
-const int MAX_UPLOAD_RETRIES = 3;
+const int MAX_UPLOAD_RETRIES = 2;
 unsigned long lastUploadAttempt = 0;
 const unsigned long UPLOAD_RETRY_DELAY_MS = 300000;  // Wait 5 minutes between retries after failure
 
@@ -726,9 +726,9 @@ void logWind() {
 
   sdWriting = true;
   unsigned long e = millis() - logStart;
-  // Apply 180° correction - Calypso sensor reports opposite direction
-  // Also apply any user-configured wind_offset
-  int correctedAwa = (wind.angle_deg + 180 + config.wind_offset) % 360;
+  // Apply user-configured wind_offset only (no 180° correction needed)
+  int correctedAwa = (wind.angle_deg + config.wind_offset) % 360;
+  if (correctedAwa < 0) correctedAwa += 360;
   windFile.printf("%lu,%s,%.2f,%.2f,%d,%d\n",
     e, gps.utc_time, wind.speed_kts, wind.speed_mps, correctedAwa, wind.battery);
   totalBytes += 60;
@@ -2061,8 +2061,8 @@ void logIMU() {
 // DISPLAY
 // ============================================================
 
-// Display mode: 1 = D1 (simple big numbers), 2 = D2 (full sailing data)
-int displayMode = 2;  // D2 for full sailing dashboard
+// Display mode: 1 = D1 (simple big numbers), 2 = D2 (nav + wind), 3 = D3 (wind focus)
+int displayMode = 3;  // D3 for wind + nav dashboard
 
 // Previous values for efficient redraw (only update what changed)
 static float prevSOG = -1, prevCOG = -1, prevHeel = -1, prevPitch = -1;
@@ -2212,7 +2212,7 @@ void updateDisplayD2() {
 #if ENABLE_WIND
   if (wind.connected && wind.lastUpdate > 0 && millis() - wind.lastUpdate < 5000) {
     aws = wind.speed_kts;
-    awa = wind.angle_deg + 180 + config.wind_offset;
+    awa = wind.angle_deg + config.wind_offset;
     if (awa < 0) awa += 360;
     if (awa >= 360) awa -= 360;
     float awaRad = awa * PI / 180.0;
@@ -2233,37 +2233,33 @@ void updateDisplayD2() {
     tft.fillScreen(COLOR_BG);
     d2LayoutDrawn = true;
 
-    // VAKAROS-STYLE: White bg, HUGE black numbers
+    // VAKAROS-STYLE: White bg, HUGE bold black numbers
     // Top bar: BLACK bg, WHITE text
     // Bottom bar: BLACK bg, WHITE text
     // Layout:
     // [BLACK: REC | SAT x HDOP x.x]  (30px)
-    // [    COG 000                ]  (150px)
-    // [    SOG 0.0                ]  (150px)
-    // [AWS 0.0 | AWA 000          ]  (50px)
-    // [TWS 0.0 | TWA 000          ]  (50px)
-    // [BLACK: H P BAT WIND WiFi   ]  (50px)
+    // [    COG 000                ]  (190px)
+    // [    SOG 00                 ]  (190px)
+    // [AWS 0.0 | AWA 000          ]  (35px)
+    // [BLACK: H P BAT WIND WiFi   ]  (35px)
 
     // BLACK bars for top and bottom
     tft.fillRect(0, 0, SCREEN_WIDTH, 30, TFT_BLACK);
-    tft.fillRect(0, 430, SCREEN_WIDTH, 50, TFT_BLACK);
+    tft.fillRect(0, 445, SCREEN_WIDTH, 35, TFT_BLACK);
 
     // Dividers - light grey lines
     uint16_t lineColor = tft.color565(180, 180, 180);
-    tft.drawFastHLine(0, 180, SCREEN_WIDTH, lineColor);
-    tft.drawFastHLine(0, 330, SCREEN_WIDTH, lineColor);
-    tft.drawFastHLine(0, 380, SCREEN_WIDTH, lineColor);
+    tft.drawFastHLine(0, 220, SCREEN_WIDTH, lineColor);
+    tft.drawFastHLine(0, 410, SCREEN_WIDTH, lineColor);
 
     // Labels for main data - dark grey on white
     uint16_t labelColor = tft.color565(100, 100, 100);
     tft.setTextColor(labelColor, COLOR_BG);
     tft.setTextDatum(TL_DATUM);
     tft.drawString("COG", 5, 35, 2);
-    tft.drawString("SOG", 5, 185, 2);
-    tft.drawString("AWS", 5, 335, 2);
-    tft.drawString("AWA", SCREEN_WIDTH/2 + 5, 335, 2);
-    tft.drawString("TWS", 5, 385, 2);
-    tft.drawString("TWA", SCREEN_WIDTH/2 + 5, 385, 2);
+    tft.drawString("SOG", 5, 225, 2);
+    tft.drawString("AWS", 5, 415, 2);
+    tft.drawString("AWA", SCREEN_WIDTH/2 + 5, 415, 2);
 
     // Reset prev values
     prevSOG = prevCOG = prevHeel = prevPitch = -999;
@@ -2271,13 +2267,16 @@ void updateDisplayD2() {
     prevBattery = prevDispSats = prevRecState = -1;
   }
 
-  // Status bar - with SAT and HDOP labels
+  // Status bar - with fix type, SAT count, HDOP
   int dispSats = (gps.satellites >= 0 && gps.satellites <= 50) ? gps.satellites : 0;
   static float prevHDOP = -1;
-  if (dispSats != prevDispSats || recState != prevRecState || abs(gps.hdop - prevHDOP) > 0.1) {
+  static int prevFixQ = -1;
+  if (dispSats != prevDispSats || recState != prevRecState ||
+      abs(gps.hdop - prevHDOP) > 0.1 || gps.fix_quality != prevFixQ) {
     prevDispSats = dispSats;
     prevRecState = recState;
     prevHDOP = gps.hdop;
+    prevFixQ = gps.fix_quality;
 
     // TOP BAR: WHITE text on BLACK background
     // Recording state (left side)
@@ -2293,77 +2292,74 @@ void updateDisplayD2() {
     tft.setTextDatum(TL_DATUM);
     tft.drawString(recStr, 5, 7, 2);
 
-    // SAT + HDOP (right side)
-    tft.setTextDatum(TL_DATUM);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawString("SAT", 100, 7, 2);
-    snprintf(buf, sizeof(buf), "%2d  ", dispSats);
-    tft.drawString(buf, 135, 7, 2);
+    // Fix type (0=none, 1=GPS, 2=DGPS/SBAS, 4=RTK fix, 5=RTK float)
+    const char* fixStr;
+    switch (gps.fix_quality) {
+      case 1: fixStr = "GPS  "; break;
+      case 2: fixStr = "SBAS "; break;
+      case 4: fixStr = "RTK  "; break;
+      case 5: fixStr = "FLOAT"; break;
+      default: fixStr = "---  "; break;
+    }
+    tft.drawString(fixStr, 100, 7, 2);
 
-    tft.drawString("HDOP", 175, 7, 2);
-    snprintf(buf, sizeof(buf), "%.1f  ", gps.hdop);
-    tft.drawString(buf, 220, 7, 2);
+    // SAT count
+    tft.drawString("SAT", 150, 7, 2);
+    snprintf(buf, sizeof(buf), "%2d ", dispSats);
+    tft.drawString(buf, 185, 7, 2);
+
+    // HDOP
+    tft.drawString("HDOP", 210, 7, 2);
+    snprintf(buf, sizeof(buf), "%.1f ", gps.hdop);
+    tft.drawString(buf, 250, 7, 2);
 
     // WiFi status on top bar
     if (wifiConnected) {
-      tft.drawString("WiFi ", 270, 7, 2);
+      tft.drawString("WiFi", 290, 7, 2);
     } else {
-      tft.drawString("     ", 270, 7, 2);
+      tft.drawString("    ", 290, 7, 2);
     }
   }
 
-  // COG - MASSIVE number using setTextSize(2) on Font 7 (48px * 2 = 96px)
+  // COG - HUGE clean number using setTextSize(2) on Font 8 (75px * 2 = 150px)
   if (abs(gps.course - prevCOG) > 0.5) {
     prevCOG = gps.course;
+    tft.fillRect(0, 50, SCREEN_WIDTH, 165, COLOR_BG);
     tft.setTextColor(TFT_BLACK, COLOR_BG);
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(2);
-    snprintf(buf, sizeof(buf), "%03d ", (int)gps.course);
-    tft.drawString(buf, SCREEN_WIDTH/2, 105, 7);
+    snprintf(buf, sizeof(buf), "%03d", (int)gps.course);
+    tft.drawString(buf, SCREEN_WIDTH/2, 125, 8);
     tft.setTextSize(1);
   }
 
-  // SOG - MASSIVE number using setTextSize(2) on Font 7
-  if (abs(gps.speed_kts - prevSOG) > 0.05) {
+  // SOG - HUGE clean number, no decimal (whole knots)
+  int sogInt = (int)(gps.speed_kts + 0.5);
+  if (sogInt != (int)(prevSOG + 0.5)) {
     prevSOG = gps.speed_kts;
+    tft.fillRect(0, 240, SCREEN_WIDTH, 165, COLOR_BG);
     tft.setTextColor(TFT_BLACK, COLOR_BG);
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(2);
-    snprintf(buf, sizeof(buf), "%.1f ", gps.speed_kts);
-    tft.drawString(buf, SCREEN_WIDTH/2, 255, 7);
+    snprintf(buf, sizeof(buf), "%d", sogInt);
+    tft.drawString(buf, SCREEN_WIDTH/2, 315, 8);
     tft.setTextSize(1);
   }
 
-  // AWS | AWA row (Font 4 = 26px, larger than before)
+  // AWS | AWA row (Font 4 = 26px)
   if (abs(aws - prevAWS2) > 0.3) {
     prevAWS2 = aws;
     tft.setTextColor(TFT_BLACK, COLOR_BG);
     tft.setTextDatum(MC_DATUM);
     snprintf(buf, sizeof(buf), "%.1f  ", aws);
-    tft.drawString(buf, SCREEN_WIDTH/4, 355, 4);
+    tft.drawString(buf, SCREEN_WIDTH/4, 430, 4);
   }
   if (abs(awa - prevAWA2) > 1) {
     prevAWA2 = awa;
     tft.setTextColor(TFT_BLACK, COLOR_BG);
     tft.setTextDatum(MC_DATUM);
     snprintf(buf, sizeof(buf), "%03d ", (int)awa);
-    tft.drawString(buf, 3*SCREEN_WIDTH/4, 355, 4);
-  }
-
-  // TWS | TWA row (Font 4)
-  if (abs(tws - prevTWS) > 0.3) {
-    prevTWS = tws;
-    tft.setTextColor(TFT_BLACK, COLOR_BG);
-    tft.setTextDatum(MC_DATUM);
-    snprintf(buf, sizeof(buf), "%.1f  ", tws);
-    tft.drawString(buf, SCREEN_WIDTH/4, 405, 4);
-  }
-  if (abs(twa - prevTWA) > 1) {
-    prevTWA = twa;
-    tft.setTextColor(TFT_BLACK, COLOR_BG);
-    tft.setTextDatum(MC_DATUM);
-    snprintf(buf, sizeof(buf), "%03d ", (int)twa);
-    tft.drawString(buf, 3*SCREEN_WIDTH/4, 405, 4);
+    tft.drawString(buf, 3*SCREEN_WIDTH/4, 430, 4);
   }
 
   // Bottom status bar - NO fillRect, just overwrite text
@@ -2386,49 +2382,257 @@ void updateDisplayD2() {
     prevPitch = imu.pitch;
     prevBattery = battery.percent;
 
-    // BOTTOM BAR: Compact layout - WHITE on BLACK
-    // Format: H+7 P-2 87% W Home 3/10
+    // BOTTOM BAR: Single formatted string - WHITE on BLACK
+    // Clear entire bottom bar first
+    tft.fillRect(0, 445, SCREEN_WIDTH, 35, TFT_BLACK);
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
-    int x = 5;
+    int y = 452;
 
-    // Heel (compact: "H+7")
-    snprintf(buf, sizeof(buf), "H%+.0f", imu.heel);
-    tft.drawString(buf, x, 447, 2);
-    x += 45;
+    // Line 1: H P BAT
+    char line1[40];
+    snprintf(line1, sizeof(line1), "H%+.0f P%+.0f BAT%d%%",
+             imu.heel, imu.pitch, battery.percent);
+    tft.drawString(line1, 3, y, 2);
 
-    // Pitch (compact: "P-2")
-    snprintf(buf, sizeof(buf), "P%+.0f", imu.pitch);
-    tft.drawString(buf, x, 447, 2);
-    x += 45;
-
-    // Battery (compact: "87%")
-    snprintf(buf, sizeof(buf), "%d%%", battery.percent);
-    tft.drawString(buf, x, 447, 2);
-    x += 40;
-
-    // Wind status (compact: "W" or "-")
+    // Line 1 right side: WiFi + upload status
+    char right[20];
 #if ENABLE_WIND
-    tft.drawString(wind.connected ? "W" : "-", x, 447, 2);
-    x += 18;
+    const char* windInd = wind.connected ? "W " : "";
+#else
+    const char* windInd = "";
+#endif
+    const char* wifiInd = wifiConnected ? getWifiIndicator() : "";
+
+    if (uploading && uploadTotal > 0) {
+      snprintf(right, sizeof(right), "%s%s %d/%d", windInd, wifiInd, uploadCount, uploadTotal);
+    } else if (pendingUploads > 0) {
+      snprintf(right, sizeof(right), "%s%s ^%d", windInd, wifiInd, pendingUploads);
+    } else {
+      snprintf(right, sizeof(right), "%s%s", windInd, wifiInd);
+    }
+    tft.setTextDatum(TR_DATUM);
+    tft.drawString(right, SCREEN_WIDTH - 3, y, 2);
+    tft.setTextDatum(TL_DATUM);
+  }
+}
+
+// ============================================================
+// D3: WIND + NAV - 7 values all at Font 8 (75px)
+// ============================================================
+static float prevD3AWS = -1, prevD3AWA = -1, prevD3TWS = -1, prevD3TWA = -1;
+static float prevD3TWD = -1, prevD3SOG = -1, prevD3COG = -1;
+static int prevD3RecState = -1, prevD3Sats = -1, prevD3Bat = -1;
+static bool d3LayoutDrawn = false;
+
+void updateDisplayD3() {
+  if (!oledOK) return;
+
+  unsigned long now = millis();
+  if (now - lastDisplayUpdate < DISPLAY_UPDATE_INTERVAL) return;
+  lastDisplayUpdate = now;
+
+  char buf[32];
+
+  // Calculate true wind from apparent wind + boat speed
+  float aws = 0, awa = 0, tws = 0, twa = 0, twd = 0;
+#if ENABLE_WIND
+  if (wind.connected && wind.lastUpdate > 0 && millis() - wind.lastUpdate < 5000) {
+    aws = wind.speed_kts;
+    awa = wind.angle_deg + config.wind_offset;
+    if (awa < 0) awa += 360;
+    if (awa >= 360) awa -= 360;
+    float awaRad = awa * PI / 180.0;
+    if (awaRad > PI) awaRad -= 2 * PI;
+    float sog = gps.speed_kts;
+    tws = sqrt(aws*aws + sog*sog - 2*aws*sog*cos(awaRad));
+    float twaRad = atan2(aws * sin(awaRad), aws * cos(awaRad) - sog);
+    twa = twaRad * 180.0 / PI;
+    if (twa < 0) twa += 360;
+    twd = gps.course + twa;
+    if (twd >= 360) twd -= 360;
+    if (twd < 0) twd += 360;
+  }
 #endif
 
-    // WiFi SSID indicator (P, Home, WiFi, or blank)
-    const char* wifiInd = wifiConnected ? getWifiIndicator() : "";
-    snprintf(buf, sizeof(buf), "%-4s", wifiInd);
-    tft.drawString(buf, x, 447, 2);
-    x += 45;
+  // Row geometry: 4 rows × 2 cols, each row 105px
+  // y positions: row top, label at top+2, value centered at top+58
+  const int ROW_H = 105;
+  const int TOP_BAR = 30;
+  const int R1 = TOP_BAR;            // 30
+  const int R2 = TOP_BAR + ROW_H;    // 135
+  const int R3 = TOP_BAR + ROW_H*2;  // 240
+  const int R4 = TOP_BAR + ROW_H*3;  // 345
+  const int BOT_BAR = TOP_BAR + ROW_H*4; // 450
+  const int HALF = SCREEN_WIDTH / 2;
 
-    // Upload status: "3/10" when uploading, "^5" for pending, blank otherwise
-    if (uploading && uploadTotal > 0) {
-      snprintf(buf, sizeof(buf), "%d/%d ", uploadCount, uploadTotal);
-    } else if (pendingUploads > 0) {
-      snprintf(buf, sizeof(buf), "^%d   ", pendingUploads);
-    } else {
-      snprintf(buf, sizeof(buf), "     ");
+  // Draw layout ONCE
+  if (!d3LayoutDrawn) {
+    tft.fillScreen(COLOR_BG);
+    d3LayoutDrawn = true;
+
+    // Layout (480 tall):
+    // [BLACK: REC | SAT | BAT]         30px
+    // [  AWS       |  AWA     ]       105px
+    // [  TWS       |  TWA     ]       105px
+    // [  SOG       |  COG     ]       105px
+    // [  TWD  full width      ]       105px
+    // [BLACK: H P WiFi status ]        30px
+
+    tft.fillRect(0, 0, SCREEN_WIDTH, TOP_BAR, TFT_BLACK);
+    tft.fillRect(0, BOT_BAR, SCREEN_WIDTH, 30, TFT_BLACK);
+
+    uint16_t lineColor = tft.color565(180, 180, 180);
+    tft.drawFastHLine(0, R2, SCREEN_WIDTH, lineColor);
+    tft.drawFastHLine(0, R3, SCREEN_WIDTH, lineColor);
+    tft.drawFastHLine(0, R4, SCREEN_WIDTH, lineColor);
+    tft.drawFastVLine(HALF, R1, ROW_H * 3, lineColor);  // vertical for first 3 rows
+
+    uint16_t labelColor = tft.color565(100, 100, 100);
+    tft.setTextColor(labelColor, COLOR_BG);
+    tft.setTextDatum(TL_DATUM);
+    tft.drawString("AWS", 5, R1 + 2, 2);
+    tft.drawString("AWA", HALF + 5, R1 + 2, 2);
+    tft.drawString("TWS", 5, R2 + 2, 2);
+    tft.drawString("TWA", HALF + 5, R2 + 2, 2);
+    tft.drawString("SOG", 5, R3 + 2, 2);
+    tft.drawString("COG", HALF + 5, R3 + 2, 2);
+    tft.drawString("TWD", 5, R4 + 2, 2);
+
+    prevD3AWS = prevD3AWA = prevD3TWS = prevD3TWA = -999;
+    prevD3TWD = prevD3SOG = prevD3COG = -999;
+    prevD3RecState = prevD3Sats = prevD3Bat = -1;
+  }
+
+  // Top status bar
+  int dispSats = (gps.satellites >= 0 && gps.satellites <= 50) ? gps.satellites : 0;
+  if (dispSats != prevD3Sats || recState != prevD3RecState || battery.percent != prevD3Bat) {
+    prevD3Sats = dispSats;
+    prevD3RecState = recState;
+    prevD3Bat = battery.percent;
+
+    tft.fillRect(0, 0, SCREEN_WIDTH, TOP_BAR, TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(TL_DATUM);
+
+    const char* recStr;
+    switch (recState) {
+      case REC_IDLE: recStr = gps.valid ? "READY" : "NO GPS"; break;
+      case REC_ARMED: recStr = "ARMING"; break;
+      case REC_RECORDING: recStr = "REC"; break;
+      case REC_STOPPING: recStr = "STOP"; break;
+      default: recStr = ""; break;
     }
-    tft.drawString(buf, x, 447, 2);
+    tft.drawString(recStr, 5, 7, 2);
+
+    snprintf(buf, sizeof(buf), "SAT %d", dispSats);
+    tft.drawString(buf, 100, 7, 2);
+
+    snprintf(buf, sizeof(buf), "BAT %d%%", battery.percent);
+    tft.setTextDatum(TR_DATUM);
+    tft.drawString(buf, SCREEN_WIDTH - 5, 7, 2);
+    tft.setTextDatum(TL_DATUM);
+  }
+
+  // Helper: value y-center for each row = row_top + 58 (label 16px + gap + 75px/2)
+  // Clear area: row_top + 20 to row_top + 100 (80px tall, fits 75px font)
+
+  // AWS (row 1 left)
+  if (abs(aws - prevD3AWS) > 0.2) {
+    prevD3AWS = aws;
+    tft.fillRect(0, R1 + 20, HALF - 2, 80, COLOR_BG);
+    tft.setTextColor(TFT_BLACK, COLOR_BG);
+    tft.setTextDatum(MC_DATUM);
+    snprintf(buf, sizeof(buf), "%.1f", aws);
+    tft.drawString(buf, HALF / 2, R1 + 58, 8);
+  }
+
+  // AWA (row 1 right)
+  if (abs(awa - prevD3AWA) > 1) {
+    prevD3AWA = awa;
+    tft.fillRect(HALF + 2, R1 + 20, HALF - 2, 80, COLOR_BG);
+    tft.setTextColor(TFT_BLACK, COLOR_BG);
+    tft.setTextDatum(MC_DATUM);
+    snprintf(buf, sizeof(buf), "%03d", (int)awa);
+    tft.drawString(buf, HALF + HALF / 2, R1 + 58, 8);
+  }
+
+  // TWS (row 2 left)
+  if (abs(tws - prevD3TWS) > 0.2) {
+    prevD3TWS = tws;
+    tft.fillRect(0, R2 + 20, HALF - 2, 80, COLOR_BG);
+    tft.setTextColor(TFT_BLACK, COLOR_BG);
+    tft.setTextDatum(MC_DATUM);
+    snprintf(buf, sizeof(buf), "%.1f", tws);
+    tft.drawString(buf, HALF / 2, R2 + 58, 8);
+  }
+
+  // TWA (row 2 right)
+  if (abs(twa - prevD3TWA) > 1) {
+    prevD3TWA = twa;
+    tft.fillRect(HALF + 2, R2 + 20, HALF - 2, 80, COLOR_BG);
+    tft.setTextColor(TFT_BLACK, COLOR_BG);
+    tft.setTextDatum(MC_DATUM);
+    snprintf(buf, sizeof(buf), "%03d", (int)twa);
+    tft.drawString(buf, HALF + HALF / 2, R2 + 58, 8);
+  }
+
+  // SOG (row 3 left)
+  if (abs(gps.speed_kts - prevD3SOG) > 0.2) {
+    prevD3SOG = gps.speed_kts;
+    tft.fillRect(0, R3 + 20, HALF - 2, 80, COLOR_BG);
+    tft.setTextColor(TFT_BLACK, COLOR_BG);
+    tft.setTextDatum(MC_DATUM);
+    snprintf(buf, sizeof(buf), "%.1f", gps.speed_kts);
+    tft.drawString(buf, HALF / 2, R3 + 58, 8);
+  }
+
+  // COG (row 3 right)
+  if (abs(gps.course - prevD3COG) > 0.5) {
+    prevD3COG = gps.course;
+    tft.fillRect(HALF + 2, R3 + 20, HALF - 2, 80, COLOR_BG);
+    tft.setTextColor(TFT_BLACK, COLOR_BG);
+    tft.setTextDatum(MC_DATUM);
+    snprintf(buf, sizeof(buf), "%03d", (int)gps.course);
+    tft.drawString(buf, HALF + HALF / 2, R3 + 58, 8);
+  }
+
+  // TWD (row 4 full width)
+  if (abs(twd - prevD3TWD) > 1) {
+    prevD3TWD = twd;
+    tft.fillRect(0, R4 + 20, SCREEN_WIDTH, 80, COLOR_BG);
+    tft.setTextColor(TFT_BLACK, COLOR_BG);
+    tft.setTextDatum(MC_DATUM);
+    snprintf(buf, sizeof(buf), "%03d", (int)twd);
+    tft.drawString(buf, SCREEN_WIDTH / 2, R4 + 58, 8);
+  }
+
+  // Bottom bar: Heel + WiFi/upload status
+  static unsigned long lastD3Status = 0;
+  if (millis() - lastD3Status > 2000) {
+    lastD3Status = millis();
+    tft.fillRect(0, BOT_BAR, SCREEN_WIDTH, 30, TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(TL_DATUM);
+
+    char line[32];
+    snprintf(line, sizeof(line), "H%+.0f P%+.0f BAT%d%%", imu.heel, imu.pitch, battery.percent);
+    tft.drawString(line, 3, BOT_BAR + 7, 2);
+
+    // Right side: upload status + WiFi
+    char right[20];
+    const char* wifiInd = wifiConnected ? getWifiIndicator() : "";
+    if (uploading && uploadTotal > 0) {
+      snprintf(right, sizeof(right), "%d/%d %s", uploadCount, uploadTotal, wifiInd);
+    } else if (pendingUploads > 0) {
+      snprintf(right, sizeof(right), "^%d %s", pendingUploads, wifiInd);
+    } else {
+      snprintf(right, sizeof(right), "%s", wifiInd);
+    }
+    tft.setTextDatum(TR_DATUM);
+    tft.drawString(right, SCREEN_WIDTH - 3, BOT_BAR + 7, 2);
+    tft.setTextDatum(TL_DATUM);
   }
 }
 
@@ -2437,8 +2641,10 @@ void updateDisplayD2() {
 void updateDisplay() {
   if (displayMode == 1) {
     updateDisplayD1();
-  } else {
+  } else if (displayMode == 2) {
     updateDisplayD2();
+  } else {
+    updateDisplayD3();
   }
 }
 
@@ -3265,10 +3471,17 @@ void processCommand(String cmd, bool fromTelnet) {
 
   } else if (cmd == "disconnect") {
     if (wifiConnected) {
-      WiFi.disconnect(true);
+      tprintln("Disconnecting WiFi...");
+      // Set flag first to stop Core 1 from using WiFi services
       wifiConnected = false;
+      delay(100);  // Let any pending WiFi operations complete
+      if (telnetClient && telnetClient.connected()) {
+        telnetClient.stop();
+      }
+      telnetServer.end();
+      WiFi.disconnect(true);
       connectedSSID[0] = '\0';
-      tprintln("WiFi disconnected");
+      Serial.println("[WIFI] Disconnected via command");
     } else {
       tprintln("Not connected");
     }
@@ -3533,7 +3746,7 @@ void processCommand(String cmd, bool fromTelnet) {
     pBatteryChar = nullptr;
     pDataChar = nullptr;
     wind.connected = false;
-    NimBLEDevice::deinit(true);
+    NimBLEDevice::deinit(false);
     bleInitialized = false;
     delay(500);
     tprintf("Heap after: %u bytes\n", ESP.getFreeHeap());
@@ -3548,7 +3761,7 @@ void processCommand(String cmd, bool fromTelnet) {
     tprintf("Heap before: %u bytes\n", ESP.getFreeHeap());
     if (bleInitialized) {
       tprintln("Deinitializing first...");
-      NimBLEDevice::deinit(true);
+      NimBLEDevice::deinit(false);
       bleInitialized = false;
       delay(500);
     }
@@ -3581,7 +3794,10 @@ void processCommand(String cmd, bool fromTelnet) {
 #endif
 
   } else if (cmd == "display") {
-    displayMode = (displayMode == 1) ? 2 : 1;
+    displayMode = (displayMode >= 3) ? 1 : displayMode + 1;
+    // Force layout redraw on mode switch
+    d2LayoutDrawn = false;
+    d3LayoutDrawn = false;
     tprintf("Display mode: D%d\n", displayMode);
     updateDisplay();
 
@@ -3962,16 +4178,24 @@ void uploadTaskFunc(void* param) {
 
     // Check various upload triggers
     if (triggerUpload && !logging) {
-      // Recording just stopped - immediate upload attempt
+      // Recording just stopped - attempt upload (but respect recent WiFi failures)
       triggerUpload = false;
-      shouldUpload = true;
-      uploadRetryCount = 0;  // Reset retry counter for new session
-      Serial.println("[UPLOAD] Triggered: recording stopped");
+      if (uploadRetryCount >= MAX_UPLOAD_RETRIES && now - lastUploadAttempt < UPLOAD_RETRY_DELAY_MS) {
+        Serial.println("[UPLOAD] Recording stopped but WiFi backing off — will retry later");
+      } else {
+        shouldUpload = true;
+        uploadRetryCount = 0;  // Reset retry counter for new session
+        Serial.println("[UPLOAD] Triggered: recording stopped");
+      }
     }
     else if (!logging && !uploading) {
       // Skip if no WiFi configured
       if (config.wifi_count == 0 || !strlen(config.upload_url)) {
         // No WiFi configured, skip
+      }
+      // Skip if no pending files (don't connect WiFi for nothing)
+      else if (pendingUploads == 0) {
+        // Nothing to upload — don't connect WiFi
       }
       // Only upload when stationary (speed < 0.5 kt for 30 seconds)
       else if (gps.speed_kts >= 0.5) {
@@ -3996,7 +4220,7 @@ void uploadTaskFunc(void* param) {
               }
             } else {
               shouldUpload = true;
-              Serial.println("[UPLOAD] Triggered: periodic check (stationary)");
+              Serial.printf("[UPLOAD] Triggered: periodic check (%d pending)\n", pendingUploads);
             }
           }
         }
@@ -4058,22 +4282,44 @@ void uploadTaskFunc(void* param) {
           uploadRetryCount = 0;  // Reset on successful cycle
           Serial.println("[UPLOAD] Cycle complete");
 
-          // Disconnect WiFi after upload to return to normal mode
-          // (frees radio for BLE wind sensor, stops repeated empty cycles)
-          if (uploadTotal == 0) {
+          // After upload cycle, recount pending to get accurate number
+          pendingUploads = 0;  // Assume 0 until next countPendingUploads() confirms
+          int remaining = countFilesToUpload("/sf");
+
+          if (remaining == 0) {
+            // All done — disconnect WiFi and stop cycling
             Serial.println("[UPLOAD] All files uploaded — disconnecting WiFi");
-            WiFi.disconnect(true);
+
+            // CRITICAL: Set flag BEFORE disconnect to prevent race condition
+            // Core 1 main loop checks this flag before calling OTA/telnet handlers
             wifiConnected = false;
+            vTaskDelay(pdMS_TO_TICKS(100));  // Let Core 1 exit any WiFi calls
+
+            // Stop telnet services before WiFi teardown
+            if (telnetClient && telnetClient.connected()) {
+              telnetClient.stop();
+            }
+            telnetServer.end();
+
+            WiFi.disconnect(true);
             connectedSSID[0] = '\0';
+          } else {
+            Serial.printf("[UPLOAD] %d files remaining — will retry\n", remaining);
+            pendingUploads = remaining;
           }
         }
       } else {
         Serial.println("[UPLOAD] WiFi connect failed");
         uploadRetryCount++;
+        if (uploadRetryCount >= MAX_UPLOAD_RETRIES) {
+          Serial.println("[UPLOAD] Max WiFi retries — backing off 25 min");
+        }
       }
 
       // Reset stationary timer to avoid rapid retries
       stationaryStart = 0;
+      // After WiFi failure, force backoff by updating lastUploadAttempt
+      lastUploadAttempt = now;
     }
 
     vTaskDelay(pdMS_TO_TICKS(5000));  // Check every 5 seconds
