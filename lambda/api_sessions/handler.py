@@ -140,12 +140,15 @@ def list_sessions() -> list:
                         manifest.get('date')
                     )
 
-                    # Calculate duration
-                    if manifest.get('start_time') and manifest.get('end_time'):
-                        from datetime import datetime
-                        start = datetime.fromisoformat(manifest['start_time'].replace('Z', '+00:00'))
-                        end = datetime.fromisoformat(manifest['end_time'].replace('Z', '+00:00'))
-                        manifest['duration_minutes'] = int((end - start).total_seconds() / 60)
+                    # Calculate duration (both seconds and minutes for compatibility)
+                    if not manifest.get('duration_sec'):
+                        if manifest.get('start_time') and manifest.get('end_time'):
+                            from datetime import datetime
+                            start = datetime.fromisoformat(manifest['start_time'].replace('Z', '+00:00'))
+                            end = datetime.fromisoformat(manifest['end_time'].replace('Z', '+00:00'))
+                            duration_sec = int((end - start).total_seconds())
+                            manifest['duration_sec'] = duration_sec
+                            manifest['duration_minutes'] = duration_sec // 60
 
                     sessions.append(manifest)
                 except Exception as e:

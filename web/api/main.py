@@ -316,15 +316,36 @@ def list_sessions():
             parts = key.split("/")
             device_id = parts[1] if len(parts) > 2 else "unknown"
             date = parts[2] if len(parts) > 2 else "unknown"
+
+            # Calculate duration from start_time/end_time if not in manifest
+            duration_sec = manifest.get("duration_sec")
+            if not duration_sec:
+                start_time = manifest.get("start_time")
+                end_time = manifest.get("end_time")
+                if start_time and end_time:
+                    try:
+                        from datetime import datetime
+                        start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                        end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+                        duration_sec = int((end_dt - start_dt).total_seconds())
+                    except (ValueError, TypeError):
+                        duration_sec = 0
+                else:
+                    duration_sec = 0
+
             sessions.append({
                 "device_id": device_id,
                 "date": date,
                 "start_time": manifest.get("start_time"),
                 "end_time": manifest.get("end_time"),
-                "duration_sec": manifest.get("duration_sec"),
+                "duration_sec": duration_sec,
+                "duration_minutes": round(duration_sec / 60) if duration_sec else 0,
                 "sensors": manifest.get("sensors", []),
                 "has_video": manifest.get("has_video", False),
                 "has_analysis": manifest.get("has_analysis", False),
+                "boat": manifest.get("boat"),
+                "name": manifest.get("name"),
+                "session_id": manifest.get("session_id"),
             })
         except Exception:
             continue
@@ -363,7 +384,11 @@ def get_sensor_data(
     sensor_data = {}
     for sensor in sensors.split(","):
         sensor = sensor.strip()
-        key = f"{DATA_PREFIX}/{device_id}/{date}/{sensor}.json"
+        # PPK data is stored as ppk_gps.json, not ppk.json
+        if sensor == "ppk":
+            key = f"{DATA_PREFIX}/{device_id}/{date}/ppk_gps.json"
+        else:
+            key = f"{DATA_PREFIX}/{device_id}/{date}/{sensor}.json"
         try:
             data = _load_json(key)
             records = data if isinstance(data, list) else data.get("data", [])
@@ -568,6 +593,83 @@ def delete_session(device_id: str, date: str):
         "device_id": device_id,
         "date": date,
         "files_deleted": deleted_count,
+    }
+
+
+@app.post("/api/sessions/cleanup")
+def cleanup_sessions(
+    max_duration_minutes: int = Query(15, description="Delete sessions shorter than this"),
+    require_boat: bool = Query(True, description="Delete sessions with no boat selected"),
+    dry_run: bool = Query(True, description="Preview without deleting"),
+):
+    """Bulk delete sessions that are too short or have no boat assigned.
+
+    By default runs in dry_run mode - set dry_run=false to actually delete.
+    """
+    # Get all sessions
+    keys = _list_keys(f"{DATA_PREFIX}/")
+    manifests = [k for k in keys if k.endswith("manifest.json")]
+
+    to_delete = []
+    kept = []
+
+    for key in manifests:
+        try:
+            manifest = _load_json(key)
+            parts = key.split("/")
+            device_id = parts[1] if len(parts) > 2 else "unknown"
+            date = parts[2] if len(parts) > 2 else "unknown"
+
+            duration_sec = manifest.get("duration_sec", 0)
+            duration_minutes = duration_sec / 60 if duration_sec else 0
+            boat = manifest.get("boat")
+
+            should_delete = False
+            reason = []
+
+            # Check duration
+            if duration_minutes < max_duration_minutes:
+                should_delete = True
+                reason.append(f"duration {duration_minutes:.1f}min < {max_duration_minutes}min")
+
+            # Check boat (only if require_boat is True and session is long enough)
+            if require_boat and not boat and duration_minutes >= max_duration_minutes:
+                should_delete = True
+                reason.append("no boat selected")
+
+            session_info = {
+                "device_id": device_id,
+                "date": date,
+                "duration_minutes": round(duration_minutes, 1),
+                "boat": boat,
+                "name": manifest.get("name"),
+            }
+
+            if should_delete:
+                session_info["reason"] = ", ".join(reason)
+                to_delete.append(session_info)
+            else:
+                kept.append(session_info)
+
+        except Exception:
+            continue
+
+    deleted_count = 0
+    if not dry_run:
+        for session in to_delete:
+            prefix = f"{DATA_PREFIX}/{session['device_id']}/{session['date']}/"
+            deleted_count += _delete_s3_prefix(prefix)
+
+    return {
+        "dry_run": dry_run,
+        "criteria": {
+            "max_duration_minutes": max_duration_minutes,
+            "require_boat": require_boat,
+        },
+        "to_delete": to_delete,
+        "to_delete_count": len(to_delete),
+        "kept_count": len(kept),
+        "files_deleted": deleted_count if not dry_run else 0,
     }
 
 

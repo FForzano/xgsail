@@ -86,6 +86,7 @@ export default function SessionsHome() {
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [expandedPpk, setExpandedPpk] = useState(new Set());
+  const [cleaning, setCleaning] = useState(false);
 
   const fetchSessions = () => {
     setLoading(true);
@@ -172,6 +173,77 @@ export default function SessionsHome() {
     } finally {
       setDeleting(null);
     }
+  };
+
+  const handleCleanup = async () => {
+    const MAX_DURATION_MIN = 15;
+
+    // Find sessions to delete:
+    // - Short sessions (< 15 min) regardless of boat
+    // - Long sessions (>= 15 min) with no boat assigned
+    const toDelete = sessions.filter((s) => {
+      // Must have duration data to consider for cleanup
+      if (s.duration_sec === undefined || s.duration_sec === null) return false;
+
+      const durationMin = s.duration_sec / 60;
+      const isShort = durationMin < MAX_DURATION_MIN;
+      const isLongWithNoBoat = durationMin >= MAX_DURATION_MIN && !s.boat;
+
+      return isShort || isLongWithNoBoat;
+    });
+
+    if (toDelete.length === 0) {
+      alert(
+        "No sessions to cleanup.\n\nAll sessions are:\n• 15+ minutes with a boat assigned"
+      );
+      return;
+    }
+
+    // Build confirmation message
+    const reasons = toDelete.map((s) => {
+      const durationMin = Math.round((s.duration_sec || 0) / 60);
+      const sessionPath = s.session_id ? `${s.date}-${s.session_id}` : s.date;
+      if (durationMin < MAX_DURATION_MIN) {
+        return `• ${s.device_id}/${sessionPath} (${durationMin}min < 15min)`;
+      }
+      return `• ${s.device_id}/${sessionPath} (no boat)`;
+    });
+
+    const preview = reasons.slice(0, 15).join("\n");
+    const moreText = toDelete.length > 15 ? `\n... and ${toDelete.length - 15} more` : "";
+
+    const confirmed = window.confirm(
+      `Found ${toDelete.length} sessions to delete:\n\n${preview}${moreText}\n\nDelete these sessions permanently?`
+    );
+
+    if (!confirmed) return;
+
+    setCleaning(true);
+    let deleted = 0;
+    let errors = 0;
+
+    for (const s of toDelete) {
+      const sessionPath = s.session_id ? `${s.date}-${s.session_id}` : s.date;
+      try {
+        const resp = await fetch(
+          `${API_URL}/api/sessions/${s.device_id}/${sessionPath}`,
+          { method: "DELETE" }
+        );
+        if (resp.ok) {
+          deleted++;
+        } else {
+          errors++;
+          console.error(`Failed to delete ${s.device_id}/${sessionPath}:`, resp.status);
+        }
+      } catch (err) {
+        errors++;
+        console.error(`Error deleting ${s.device_id}/${sessionPath}:`, err);
+      }
+    }
+
+    setCleaning(false);
+    alert(`Cleanup complete!\n\nDeleted: ${deleted}\nErrors: ${errors}`);
+    fetchSessions();
   };
 
   const handleStartEdit = (session, field) => {
@@ -420,8 +492,47 @@ export default function SessionsHome() {
   const isDeleting = (session) =>
     deleting === `${session.device_id}-${session.sessionPath}`;
 
+  // Count sessions that would be cleaned up
+  // - Short sessions (< 15 min) regardless of boat
+  // - Long sessions (>= 15 min) with no boat assigned
+  const cleanupCount = useMemo(() => {
+    const MAX_DURATION_MIN = 15;
+    return sessions.filter((s) => {
+      if (s.duration_sec === undefined || s.duration_sec === null) return false;
+      const durationMin = s.duration_sec / 60;
+      const isShort = durationMin < MAX_DURATION_MIN;
+      const isLongWithNoBoat = durationMin >= MAX_DURATION_MIN && !s.boat;
+      return isShort || isLongWithNoBoat;
+    }).length;
+  }, [sessions]);
+
   return (
     <div>
+      {/* Cleanup button */}
+      {!loading && !error && sessions.length > 0 && (
+        <div style={{ marginBottom: 16, display: "flex", gap: 12, alignItems: "center" }}>
+          <button
+            onClick={handleCleanup}
+            disabled={cleaning || cleanupCount === 0}
+            style={{
+              padding: "8px 16px",
+              fontSize: 13,
+              background: cleanupCount > 0 ? "#dc2626" : "var(--bg-secondary)",
+              color: cleanupCount > 0 ? "#fff" : "var(--text-secondary)",
+              border: "none",
+              borderRadius: 6,
+              cursor: cleaning || cleanupCount === 0 ? "not-allowed" : "pointer",
+              opacity: cleaning ? 0.7 : 1,
+            }}
+          >
+            {cleaning ? "Cleaning..." : `🧹 Cleanup (${cleanupCount})`}
+          </button>
+          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+            Delete sessions &lt;15min or without boat assigned
+          </span>
+        </div>
+      )}
+
       {loading ? (
         <div className="loading">Loading sessions...</div>
       ) : error ? (
