@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SailFrames - Session Viewer</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+
+    <!-- HLS.js -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js"></script>
+
+    <!-- Day.js -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/duration.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/utc.js"></script>
+
+    <link rel="stylesheet" href="./assets/css/main.css?v=8">
+</head>
+<body>
+    <header class="header">
+        <a href="./" class="logo-link"><h1 class="logo">SailFrames</h1></a>
+        <a href="./race.html" class="nav-link" style="margin-left: 16px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem;">Race Dashboard</a>
+        <div class="session-selector">
+            <select id="session-select">
+                <option value="">Select a session...</option>
+            </select>
+            <button id="btn-cleanup" class="btn-cleanup" title="Delete short sessions or sessions without boat">🧹 Cleanup</button>
+        </div>
+        <div class="session-meta" id="session-meta" style="display: none;">
+            <div class="meta-field">
+                <label for="session-name">Name:</label>
+                <input type="text" id="session-name" placeholder="Session name..." maxlength="50">
+            </div>
+            <div class="meta-field">
+                <label for="boat-select">Boat:</label>
+                <select id="boat-select">
+                    <option value="">Select boat...</option>
+                    <option value="Sonar 23">Sonar 23</option>
+                    <option value="Tesla">Tesla</option>
+                </select>
+            </div>
+            <button id="btn-save-meta" class="btn-save-meta" title="Save changes">Save</button>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- Left panel: Video + Map -->
+        <section class="panel map-panel" id="map-panel">
+            <!-- Video (compact, on top) -->
+            <div class="video-container video-compact" id="video-container" style="display: none;">
+                <video id="video-cockpit" muted controls playsinline></video>
+            </div>
+            <div class="panel-header">
+                <h2>Track</h2>
+                <div class="track-toggles">
+                    <button class="track-toggle active" id="toggle-gps-track" title="GNSS 1Hz: ~2-5m accuracy" style="--track-color: #1d9bf0;">GNSS 1Hz</button>
+                    <button class="track-toggle disabled" id="toggle-gps10hz-track" title="GNSS 10Hz: no data" disabled style="--track-color: #22d3ee;">GNSS 10Hz</button>
+                    <button class="track-toggle disabled" id="toggle-ppk-track" title="GNSS PPK 1Hz: no data" disabled style="--track-color: #f59e0b;">GNSS PPK 1Hz</button>
+                </div>
+                <div class="stats" id="map-stats">
+                    <span class="stat"><label>SOG:</label> <span id="stat-speed">--</span> kn</span>
+                    <span class="stat"><label>COG:</label> <span id="stat-course">--</span>&deg;</span>
+                    <span class="stat"><label>GPS:</label> <span id="stat-gps-fix">--</span></span>
+                    <span class="stat"><label>PPK:</label> <span id="stat-ppk-quality">--</span></span>
+                </div>
+                </div>
+            <!-- Wind data overlay -->
+            <div class="wind-overlay" id="wind-overlay">
+                <div class="wind-section apparent">
+                    <div class="wind-title">Apparent</div>
+                    <div class="wind-arrow" id="wind-arrow-apparent"></div>
+                    <div class="wind-values">
+                        <span class="wind-value"><label>AWA:</label> <span id="stat-awa">--</span>&deg;</span>
+                        <span class="wind-value"><label>AWS:</label> <span id="stat-aws">--</span> kn</span>
+                    </div>
+                </div>
+                <div class="wind-section true">
+                    <div class="wind-title">True</div>
+                    <div class="wind-arrow" id="wind-arrow-true"></div>
+                    <div class="wind-values">
+                        <span class="wind-value"><label>TWA:</label> <span id="stat-twa">--</span>&deg;</span>
+                        <span class="wind-value"><label>TWS:</label> <span id="stat-tws">--</span> kn</span>
+                        <span class="wind-value"><label>TWD:</label> <span id="stat-twd">--</span>&deg;</span>
+                    </div>
+                </div>
+            </div>
+            <div id="map" class="map-container">
+                <!-- Map expand button (floating inside map) -->
+                <button id="btn-expand-map" class="btn-expand-map" title="Expand map to fullscreen">⤢</button>
+            </div>
+            <div class="resize-handle" id="map-resize-handle"></div>
+        </section>
+
+        <!-- Right panel: Unified Chart -->
+        <section class="panel data-panel">
+            <div class="unified-chart-container">
+                <!-- Measurement toggles -->
+                <div class="chart-controls">
+                    <div class="chart-toggles" id="chart-toggles">
+                        <button class="toggle-btn" data-series="heel" style="--series-color: #1d9bf0;">Heel</button>
+                        <button class="toggle-btn active" data-series="pitch" style="--series-color: #ffad1f;">Pitch</button>
+                        <button class="toggle-btn" data-series="aws" style="--series-color: #00ba7c;">AWS</button>
+                        <button class="toggle-btn" data-series="awa" style="--series-color: #f4212e;">AWA</button>
+                        <button class="toggle-btn" data-series="tws" style="--series-color: #22d3ee;">TWS</button>
+                        <button class="toggle-btn" data-series="twa" style="--series-color: #f97316;">TWA</button>
+                        <button class="toggle-btn active" data-series="twd" style="--series-color: #a855f7;">TWD</button>
+                        <button class="toggle-btn" data-series="sog" style="--series-color: #e879f9;">SOG</button>
+                        <button class="toggle-btn" data-series="heading" style="--series-color: #38bdf8;">Heading</button>
+                        <button class="toggle-btn" data-series="course" style="--series-color: #fbbf24;">Course</button>
+                        <button class="toggle-btn" data-series="accelX" style="--series-color: #fb7185;">Accel X</button>
+                        <button class="toggle-btn" data-series="accelY" style="--series-color: #4ade80;">Accel Y</button>
+                        <button class="toggle-btn" data-series="turnRate" style="--series-color: #c084fc;">Turn Rate</button>
+                        <button class="toggle-btn" data-series="pressure" style="--series-color: #a78bfa;">Pressure</button>
+                        <button class="toggle-btn" data-series="temp" style="--series-color: #ef4444;">Temp</button>
+                        <span class="toggle-divider">|</span>
+                        <button class="toggle-btn" data-series="sat" style="--series-color: #10b981;" title="Number of satellites used for fix">Satellites</button>
+                        <button class="toggle-btn" data-series="hdop" style="--series-color: #f59e0b;" title="Horizontal Dilution of Precision (lower is better)">HDOP</button>
+                        <button class="toggle-btn" data-series="gpsAccuracy" style="--series-color: #8b5cf6;" title="Real-time GPS accuracy estimate (meters)">GPS Accuracy</button>
+                        <button class="toggle-btn" data-series="ppkAccuracy" style="--series-color: #ec4899;" title="PPK post-processed accuracy estimate (meters)">PPK Accuracy</button>
+                        <span class="toggle-divider">|</span>
+                        <button class="toggle-btn" data-series="buoyCastleWind" style="--series-color: #17bf63;">Castle TWS</button>
+                        <button class="toggle-btn" data-series="buoyCastleDir" style="--series-color: #17bf63;">Castle TWD</button>
+                        <button class="toggle-btn" data-series="buoyBostonWind" style="--series-color: #e0245e;">Boston 16NM TWS</button>
+                        <button class="toggle-btn" data-series="buoyBostonDir" style="--series-color: #e0245e;">Boston 16NM TWD</button>
+                        <button class="toggle-btn" data-series="buoyMassBay" style="--series-color: #ffad1f;">Mass Bay TWS</button>
+                        <button class="toggle-btn" data-series="buoyMassBayDir" style="--series-color: #ffad1f;">Mass Bay TWD</button>
+                        <button class="toggle-btn" data-series="buoyLogan" style="--series-color: #06b6d4;">Logan TWS</button>
+                        <button class="toggle-btn" data-series="buoyLoganDir" style="--series-color: #06b6d4;">Logan TWD</button>
+                    </div>
+                    <div class="zoom-controls">
+                        <button class="zoom-btn" id="btn-zoom-out" title="Zoom Out">−</button>
+                        <button class="zoom-btn" id="btn-zoom-reset" title="Reset Zoom">⟲</button>
+                        <button class="zoom-btn" id="btn-zoom-in" title="Zoom In">+</button>
+                        <span class="zoom-label" id="zoom-label">100%</span>
+                    </div>
+                </div>
+                <!-- Single unified chart -->
+                <div class="chart-box unified-chart">
+                    <canvas id="chart-unified"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Timeline -->
+    <footer class="timeline-container">
+        <div class="playback-controls">
+            <button id="btn-play" class="btn-control">
+                <span class="icon-play">&#9654;</span>
+                <span class="icon-pause" style="display:none;">&#10074;&#10074;</span>
+            </button>
+            <select id="playback-speed">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="4">4x</option>
+                <option value="8">8x</option>
+            </select>
+        </div>
+        <div class="timeline-wrapper">
+            <span id="time-current" class="time-label">00:00:00</span>
+            <div class="timeline-track">
+                <div class="video-coverage" id="video-coverage"></div>
+                <input type="range" id="timeline" class="timeline" min="0" max="100" value="0">
+            </div>
+            <span id="time-duration" class="time-label">00:00:00</span>
+        </div>
+        <div class="time-absolute">
+            <span id="time-absolute" class="time-label-absolute">--:--:-- UTC</span>
+        </div>
+        <div class="trim-controls">
+            <button id="btn-trim-before" class="btn-trim" disabled title="Set start to current position">Trim Before</button>
+            <button id="btn-trim-after" class="btn-trim" disabled title="Set end to current position">Trim After</button>
+            <button id="btn-trim-reset" class="btn-trim btn-trim-reset" style="display:none" title="Reset to original bounds">Reset</button>
+        </div>
+    </footer>
+
+    <!-- Loading overlay -->
+    <div id="loading" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p>Loading session data...</p>
+    </div>
+
+    <script src="./config.js?v=3"></script>
+    <script src="./assets/js/utils/time-sync.js?v=3"></script>
+    <script src="./assets/js/components/map-view.js?v=8"></script>
+    <script src="./assets/js/components/chart-panel.js?v=11"></script>
+    <script src="./assets/js/components/video-player.js?v=6"></script>
+    <script src="./assets/js/components/timeline.js?v=6"></script>
+    <script src="./assets/js/app.js?v=9"></script>
+</body>
+</html>

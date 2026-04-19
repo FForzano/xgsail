@@ -3,250 +3,1357 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SailFrames - Race Analytics</title>
+    <title>SailFrames - Open Source Sailboat Racing Analytics</title>
+    <meta name="description" content="Free, open-source sailboat racing data logger and analytics platform. Sub-meter GPS accuracy with PPK post-processing. Hardware designs, firmware, and cloud analytics - all Apache 2.0 licensed.">
+    <meta name="keywords" content="sailing analytics, race data, GPS tracking, PPK GNSS, open source sailing, sailboat racing, performance analysis">
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-          crossorigin="">
+    <!-- Open Graph -->
+    <meta property="og:title" content="SailFrames - Open Source Sailboat Racing Analytics">
+    <meta property="og:description" content="Free, open-source sailboat racing data logger with sub-meter GPS accuracy. Hardware + software + cloud - all open source.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://sailframes.com">
 
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>*</text></svg>">
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-            crossorigin=""></script>
-
-    <!-- HLS.js -->
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js"></script>
-
-    <!-- Day.js -->
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/duration.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/utc.js"></script>
-
-    <link rel="stylesheet" href="./assets/css/main.css?v=8">
+    <link rel="stylesheet" href="./assets/css/main.css?v=9">
+    <link rel="stylesheet" href="./assets/css/landing.css?v=2">
 </head>
-<body>
-    <header class="header">
-        <a href="/" class="logo-link"><h1 class="logo">SailFrames</h1></a>
-        <div class="session-selector">
-            <select id="session-select">
-                <option value="">Select a session...</option>
-            </select>
-            <button id="btn-cleanup" class="btn-cleanup" title="Delete short sessions or sessions without boat">🧹 Cleanup</button>
+<body class="landing-page">
+    <!-- Navigation -->
+    <nav class="nav">
+        <a href="/" class="nav-logo">SailFrames</a>
+        <div class="nav-links">
+            <a href="#features" class="nav-link">Features</a>
+            <a href="#hardware" class="nav-link">Hardware</a>
+            <a href="#docs" class="nav-link">Documentation</a>
+            <a href="https://github.com/sailframes/core" class="nav-link" target="_blank">GitHub</a>
+            <a href="./race.html" class="nav-link primary">Race Dashboard</a>
         </div>
-        <div class="session-meta" id="session-meta" style="display: none;">
-            <div class="meta-field">
-                <label for="session-name">Name:</label>
-                <input type="text" id="session-name" placeholder="Session name..." maxlength="50">
-            </div>
-            <div class="meta-field">
-                <label for="boat-select">Boat:</label>
-                <select id="boat-select">
-                    <option value="">Select boat...</option>
-                    <option value="Sonar 23">Sonar 23</option>
-                    <option value="Tesla">Tesla</option>
-                </select>
-            </div>
-            <button id="btn-save-meta" class="btn-save-meta" title="Save changes">Save</button>
-        </div>
-    </header>
+    </nav>
 
-    <main class="main">
-        <!-- Left panel: Video + Map -->
-        <section class="panel map-panel" id="map-panel">
-            <!-- Video (compact, on top) -->
-            <div class="video-container video-compact" id="video-container" style="display: none;">
-                <video id="video-cockpit" muted controls playsinline></video>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span>100% Free & Open Source</span>
             </div>
-            <div class="panel-header">
-                <h2>Track</h2>
-                <div class="track-toggles">
-                    <button class="track-toggle active" id="toggle-gps-track" title="GNSS 1Hz: ~2-5m accuracy" style="--track-color: #1d9bf0;">GNSS 1Hz</button>
-                    <button class="track-toggle disabled" id="toggle-gps10hz-track" title="GNSS 10Hz: no data" disabled style="--track-color: #22d3ee;">GNSS 10Hz</button>
-                    <button class="track-toggle disabled" id="toggle-ppk-track" title="GNSS PPK 1Hz: no data" disabled style="--track-color: #f59e0b;">GNSS PPK 1Hz</button>
-                </div>
-                <div class="stats" id="map-stats">
-                    <span class="stat"><label>SOG:</label> <span id="stat-speed">--</span> kn</span>
-                    <span class="stat"><label>COG:</label> <span id="stat-course">--</span>&deg;</span>
-                    <span class="stat"><label>GPS:</label> <span id="stat-gps-fix">--</span></span>
-                    <span class="stat"><label>PPK:</label> <span id="stat-ppk-quality">--</span></span>
-                </div>
-                </div>
-            <!-- Wind data overlay -->
-            <div class="wind-overlay" id="wind-overlay">
-                <div class="wind-section apparent">
-                    <div class="wind-title">Apparent</div>
-                    <div class="wind-arrow" id="wind-arrow-apparent"></div>
-                    <div class="wind-values">
-                        <span class="wind-value"><label>AWA:</label> <span id="stat-awa">--</span>&deg;</span>
-                        <span class="wind-value"><label>AWS:</label> <span id="stat-aws">--</span> kn</span>
-                    </div>
-                </div>
-                <div class="wind-section true">
-                    <div class="wind-title">True</div>
-                    <div class="wind-arrow" id="wind-arrow-true"></div>
-                    <div class="wind-values">
-                        <span class="wind-value"><label>TWA:</label> <span id="stat-twa">--</span>&deg;</span>
-                        <span class="wind-value"><label>TWS:</label> <span id="stat-tws">--</span> kn</span>
-                        <span class="wind-value"><label>TWD:</label> <span id="stat-twd">--</span>&deg;</span>
-                    </div>
-                </div>
+            <h1 class="hero-title">Sailboat Racing Analytics for Everyone</h1>
+            <p class="hero-subtitle">
+                The first sailing analytics platform with sub-meter GPS accuracy using PPK post-processing.
+                Complete hardware designs, firmware, and cloud analytics - all Apache 2.0 licensed.
+            </p>
+            <p class="hero-location">
+                Built and tested on the water at <a href="https://courageoussailing.org" target="_blank">Courageous Sailing</a> and <a href="https://piersparksailing.org" target="_blank">Piers Park Sailing Center</a> in Boston Harbor. Yes, the hardware has been dropped overboard. It still works.
+            </p>
+            <div class="hero-buttons">
+                <a href="./race.html" class="btn btn-primary">
+                    <span>Race Dashboard</span>
+                    <span>&#8594;</span>
+                </a>
+                <a href="./session.html" class="btn btn-secondary">
+                    <span>Sessions</span>
+                </a>
+                <a href="./session.html" class="btn btn-secondary">
+                    <span>Timeline</span>
+                </a>
+                <a href="https://github.com/sailframes/core" class="btn btn-github" target="_blank">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span>View on GitHub</span>
+                </a>
             </div>
-            <div id="map" class="map-container">
-                <!-- Map expand button (floating inside map) -->
-                <button id="btn-expand-map" class="btn-expand-map" title="Expand map to fullscreen">⤢</button>
-            </div>
-            <div class="resize-handle" id="map-resize-handle"></div>
-        </section>
+        </div>
+    </section>
 
-        <!-- Right panel: Unified Chart -->
-        <section class="panel data-panel">
-            <div class="unified-chart-container">
-                <!-- Measurement toggles -->
-                <div class="chart-controls">
-                    <div class="chart-toggles" id="chart-toggles">
-                        <button class="toggle-btn" data-series="heel" style="--series-color: #1d9bf0;">Heel</button>
-                        <button class="toggle-btn active" data-series="pitch" style="--series-color: #ffad1f;">Pitch</button>
-                        <button class="toggle-btn" data-series="aws" style="--series-color: #00ba7c;">AWS</button>
-                        <button class="toggle-btn" data-series="awa" style="--series-color: #f4212e;">AWA</button>
-                        <button class="toggle-btn" data-series="tws" style="--series-color: #22d3ee;">TWS</button>
-                        <button class="toggle-btn" data-series="twa" style="--series-color: #f97316;">TWA</button>
-                        <button class="toggle-btn active" data-series="twd" style="--series-color: #a855f7;">TWD</button>
-                        <button class="toggle-btn" data-series="sog" style="--series-color: #e879f9;">SOG</button>
-                        <button class="toggle-btn" data-series="heading" style="--series-color: #38bdf8;">Heading</button>
-                        <button class="toggle-btn" data-series="course" style="--series-color: #fbbf24;">Course</button>
-                        <button class="toggle-btn" data-series="accelX" style="--series-color: #fb7185;">Accel X</button>
-                        <button class="toggle-btn" data-series="accelY" style="--series-color: #4ade80;">Accel Y</button>
-                        <button class="toggle-btn" data-series="turnRate" style="--series-color: #c084fc;">Turn Rate</button>
-                        <button class="toggle-btn" data-series="pressure" style="--series-color: #a78bfa;">Pressure</button>
-                        <button class="toggle-btn" data-series="temp" style="--series-color: #ef4444;">Temp</button>
-                        <span class="toggle-divider">|</span>
-                        <button class="toggle-btn" data-series="sat" style="--series-color: #10b981;" title="Number of satellites used for fix">Satellites</button>
-                        <button class="toggle-btn" data-series="hdop" style="--series-color: #f59e0b;" title="Horizontal Dilution of Precision (lower is better)">HDOP</button>
-                        <button class="toggle-btn" data-series="gpsAccuracy" style="--series-color: #8b5cf6;" title="Real-time GPS accuracy estimate (meters)">GPS Accuracy</button>
-                        <button class="toggle-btn" data-series="ppkAccuracy" style="--series-color: #ec4899;" title="PPK post-processed accuracy estimate (meters)">PPK Accuracy</button>
-                        <span class="toggle-divider">|</span>
-                        <button class="toggle-btn" data-series="buoyCastleWind" style="--series-color: #17bf63;">Castle TWS</button>
-                        <button class="toggle-btn" data-series="buoyCastleDir" style="--series-color: #17bf63;">Castle TWD</button>
-                        <button class="toggle-btn" data-series="buoyBostonWind" style="--series-color: #e0245e;">Boston 16NM TWS</button>
-                        <button class="toggle-btn" data-series="buoyBostonDir" style="--series-color: #e0245e;">Boston 16NM TWD</button>
-                        <button class="toggle-btn" data-series="buoyMassBay" style="--series-color: #ffad1f;">Mass Bay TWS</button>
-                        <button class="toggle-btn" data-series="buoyMassBayDir" style="--series-color: #ffad1f;">Mass Bay TWD</button>
-                        <button class="toggle-btn" data-series="buoyLogan" style="--series-color: #06b6d4;">Logan TWS</button>
-                        <button class="toggle-btn" data-series="buoyLoganDir" style="--series-color: #06b6d4;">Logan TWD</button>
-                    </div>
-                    <div class="zoom-controls">
-                        <button class="zoom-btn" id="btn-zoom-out" title="Zoom Out">−</button>
-                        <button class="zoom-btn" id="btn-zoom-reset" title="Reset Zoom">⟲</button>
-                        <button class="zoom-btn" id="btn-zoom-in" title="Zoom In">+</button>
-                        <span class="zoom-label" id="zoom-label">100%</span>
-                    </div>
-                </div>
-                <!-- Single unified chart -->
-                <div class="chart-box unified-chart">
-                    <canvas id="chart-unified"></canvas>
-                </div>
-            </div>
-        </section>
-    </main>
+    <!-- Features Section -->
+    <section class="section" id="features">
+        <div class="section-header">
+            <div class="section-label">Features</div>
+            <h2 class="section-title">Everything You Need for Race Analysis</h2>
+            <p class="section-subtitle">
+                Comprehensive sensor data collection, cloud sync, and web-based analytics designed specifically for sailboat racing.
+            </p>
+        </div>
 
-    <!-- Timeline -->
-    <footer class="timeline-container">
-        <div class="playback-controls">
-            <button id="btn-play" class="btn-control">
-                <span class="icon-play">&#9654;</span>
-                <span class="icon-pause" style="display:none;">&#10074;&#10074;</span>
-            </button>
-            <select id="playback-speed">
-                <option value="0.5">0.5x</option>
-                <option value="1" selected>1x</option>
-                <option value="2">2x</option>
-                <option value="4">4x</option>
-                <option value="8">8x</option>
-            </select>
-        </div>
-        <div class="timeline-wrapper">
-            <span id="time-current" class="time-label">00:00:00</span>
-            <div class="timeline-track">
-                <div class="video-coverage" id="video-coverage"></div>
-                <input type="range" id="timeline" class="timeline" min="0" max="100" value="0">
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">*</div>
+                <h3 class="feature-title">PPK GNSS Positioning</h3>
+                <p class="feature-desc">
+                    Sub-meter accuracy using Post-Processed Kinematic GNSS with free NOAA CORS base station data.
+                    No base station hardware required - just download the corrections after your race.
+                </p>
             </div>
-            <span id="time-duration" class="time-label">00:00:00</span>
+
+            <div class="feature-card">
+                <div class="feature-icon">*</div>
+                <h3 class="feature-title">Multi-Sensor Fusion</h3>
+                <p class="feature-desc">
+                    GPS, IMU (heel/pitch), ultrasonic wind sensor, and barometric pressure - all synchronized
+                    and logged at high sample rates for complete race reconstruction.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">*</div>
+                <h3 class="feature-title">Fleet-Wide Tracking</h3>
+                <p class="feature-desc">
+                    Log 6 boats simultaneously on the same course with E1-E6 fleet trackers. Compare performance,
+                    analyze position changes, and review boat-on-boat tactics.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">*</div>
+                <h3 class="feature-title">Web-Based Analytics</h3>
+                <p class="feature-desc">
+                    No app installation required. Post-race analysis available from any device with a browser.
+                    Session viewer and multi-boat race replay dashboard included.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">*</div>
+                <h3 class="feature-title">Automatic Cloud Sync</h3>
+                <p class="feature-desc">
+                    Data automatically uploads to AWS S3 when you return to the yacht club Wi-Fi.
+                    No manual file transfers or SD card juggling required.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">*</div>
+                <h3 class="feature-title">Daily Install/Remove</h3>
+                <p class="feature-desc">
+                    Designed for boats without permanent modifications. IP67 enclosures with suction cup mounts
+                    allow installation in under 30 seconds per device.
+                </p>
+            </div>
         </div>
-        <div class="time-absolute">
-            <span id="time-absolute" class="time-label-absolute">--:--:-- UTC</span>
+    </section>
+
+    <!-- Hardware Section -->
+    <section class="section section-dark" id="hardware">
+        <div class="section-header">
+            <div class="section-label">Hardware</div>
+            <h2 class="section-title">E1 Fleet Tracker</h2>
+            <p class="section-subtitle">
+                Low-cost ESP32-based data logger with PPK-capable quad-band GNSS. Six units (E1-E6) currently deployed for fleet racing.
+            </p>
         </div>
-        <div class="trim-controls">
-            <button id="btn-trim-before" class="btn-trim" disabled title="Set start to current position">Trim Before</button>
-            <button id="btn-trim-after" class="btn-trim" disabled title="Set end to current position">Trim After</button>
-            <button id="btn-trim-reset" class="btn-trim btn-trim-reset" style="display:none" title="Reset to original bounds">Reset</button>
+
+        <div class="hardware-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="hardware-card">
+                <div class="hardware-header">
+                    <span class="hardware-badge fleet">Production Hardware</span>
+                    <h3 class="hardware-name">E1-E6 Fleet Trackers</h3>
+                    <p class="hardware-desc">PPK-capable GPS, IMU, TFT display, and optional wind sensor. Custom PCB design.</p>
+                </div>
+                <div class="hardware-specs">
+                    <div class="spec-row">
+                        <span class="spec-label">MCU</span>
+                        <span class="spec-value">ESP32 DevKit V1 (dual-core 240MHz)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">GPS</span>
+                        <span class="spec-value">Waveshare LG290P (quad-band, PPK)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">IMU</span>
+                        <span class="spec-value">BNO085 9-DOF (heel/pitch)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Wind</span>
+                        <span class="spec-value">Calypso Ultrasonic Mini (BLE)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Display</span>
+                        <span class="spec-value">Hosyond 3.5" TFT (480x320, sunlight)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Storage</span>
+                        <span class="spec-value">microSD (CSV + RTCM3 binary)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Power</span>
+                        <span class="spec-value">6000mAh LiPo (10+ hr runtime)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Connectivity</span>
+                        <span class="spec-value">Wi-Fi (auto-upload) + BLE (wind)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Enclosure</span>
+                        <span class="spec-value">YETLEBOX IP67 ABS (clear lid)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">PCB</span>
+                        <span class="spec-value">Custom 2-layer (KiCad, JLCPCB)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hardware-card">
+                <div class="hardware-header">
+                    <span class="hardware-badge primary">In Development</span>
+                    <h3 class="hardware-name">Open Source Ultrasonic Wind Sensor</h3>
+                    <p class="hardware-desc">Fully open source alternative to commercial ultrasonic anemometers.</p>
+                </div>
+                <div class="hardware-specs">
+                    <div class="spec-row">
+                        <span class="spec-label">Status</span>
+                        <span class="spec-value">Active Development</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">MCU</span>
+                        <span class="spec-value">STM32L4 (low power ARM)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Transducers</span>
+                        <span class="spec-value">4x 40kHz ultrasonic (orthogonal)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Measurement</span>
+                        <span class="spec-value">Time-of-flight differential</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Output</span>
+                        <span class="spec-value">Wind speed + direction (1Hz)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Connectivity</span>
+                        <span class="spec-value">BLE 5.0 (compatible with E1)</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Power</span>
+                        <span class="spec-value">Solar + LiPo battery</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">Enclosure</span>
+                        <span class="spec-value">3D printed, IPX7 rated</span>
+                    </div>
+                    <div class="spec-row">
+                        <span class="spec-label">License</span>
+                        <span class="spec-value">Apache 2.0 (hardware + firmware)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Open Source Banner -->
+        <div class="oss-banner">
+            <h3 class="oss-title">100% Open Source Hardware & Software</h3>
+            <p class="oss-desc">
+                KiCad schematics, PCB layouts, Arduino firmware, React frontend,
+                AWS Lambda functions - every single line of code and every circuit trace is Apache 2.0 licensed.
+            </p>
+            <div class="oss-buttons">
+                <a href="https://github.com/sailframes/core" class="btn btn-github" target="_blank">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span>Browse Source Code</span>
+                </a>
+                <a href="https://github.com/sailframes/core/tree/main/edge-e/hardware" class="btn btn-secondary" target="_blank">
+                    View PCB Designs
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Access Section -->
+    <section class="section">
+        <div class="section-header">
+            <div class="section-label">Get Started</div>
+            <h2 class="section-title">Explore Your Data</h2>
+            <p class="section-subtitle">
+                Jump into the dashboards to view session recordings and race replays.
+            </p>
+        </div>
+
+        <div class="access-grid">
+            <a href="./race.html" class="access-card">
+                <div class="access-icon">*</div>
+                <h3 class="access-title">Race Dashboard</h3>
+                <p class="access-desc">
+                    Multi-boat race visualization for your fleet. Compare 6 boats simultaneously,
+                    view the leaderboard, and replay position changes throughout the race.
+                </p>
+                <span class="access-arrow">&#8594;</span>
+            </a>
+
+            <a href="./session.html" class="access-card">
+                <div class="access-icon">*</div>
+                <h3 class="access-title">Sessions</h3>
+                <p class="access-desc">
+                    Browse all recorded sailing sessions. Select any session to view
+                    GPS track, sensor data, and wind measurements.
+                </p>
+                <span class="access-arrow">&#8594;</span>
+            </a>
+
+            <a href="./session.html" class="access-card">
+                <div class="access-icon">*</div>
+                <h3 class="access-title">Timeline Dashboard</h3>
+                <p class="access-desc">
+                    Analyze individual sessions with synchronized timeline scrubbing.
+                    Replay any moment with GPS track, IMU, and wind data.
+                </p>
+                <span class="access-arrow">&#8594;</span>
+            </a>
+
+            <a href="https://github.com/sailframes/core" class="access-card" target="_blank">
+                <div class="access-icon">*</div>
+                <h3 class="access-title">Build Your Own</h3>
+                <p class="access-desc">
+                    Clone the repository, order the PCBs from JLCPCB, flash the firmware,
+                    and deploy your own fleet. Complete build instructions in the docs.
+                </p>
+                <span class="access-arrow">&#8594;</span>
+            </a>
+        </div>
+    </section>
+
+    <!-- Documentation Section -->
+    <section class="section section-dark" id="docs">
+        <div class="section-header">
+            <div class="section-label">Documentation</div>
+            <h2 class="section-title">Complete Technical Reference</h2>
+            <p class="section-subtitle">
+                Everything you need to understand, build, and extend SailFrames.
+            </p>
+        </div>
+
+        <div class="docs-container">
+            <!-- Table of Contents -->
+            <div class="toc">
+                <h3 class="toc-title">Contents</h3>
+                <ul class="toc-list">
+                    <li><a href="#doc-overview">System Overview</a></li>
+                    <li><a href="#doc-architecture">Architecture & Data Flow</a></li>
+                    <li><a href="#doc-ppk">PPK GNSS Explained</a></li>
+                    <li><a href="#doc-e1-hardware">E1 Hardware Build Guide</a></li>
+                    <li><a href="#doc-e1-firmware">E1 Firmware Reference</a></li>
+                    <li><a href="#doc-sensors">Sensor Configuration</a></li>
+                    <li><a href="#doc-wind">Wind Sensor Integration</a></li>
+                    <li><a href="#doc-cloud">Cloud Infrastructure</a></li>
+                    <li><a href="#doc-api">API Reference</a></li>
+                    <li><a href="#doc-analytics">Analytics Engine</a></li>
+                    <li><a href="#doc-troubleshooting">Troubleshooting</a></li>
+                </ul>
+            </div>
+
+            <!-- System Overview -->
+            <div class="doc-section" id="doc-overview">
+                <h2 class="doc-title">System Overview</h2>
+                <div class="doc-content">
+                    <p>
+                        SailFrames is a complete sailboat racing data logging and analytics platform designed for
+                        competitive sailors who want detailed performance data without expensive commercial solutions.
+                    </p>
+
+                    <h3>Deployment</h3>
+                    <p>
+                        SailFrames is currently deployed at <strong>Courageous Sailing</strong> and <strong>Piers Park Sailing Center</strong>
+                        in Boston Harbor, Massachusetts. Six E1 fleet trackers (E1-E6) are used for J/80 and Sonar fleet racing.
+                    </p>
+
+                    <h3>Key Differentiators</h3>
+                    <ul>
+                        <li><strong>PPK GNSS:</strong> First sailing platform using Post-Processed Kinematic positioning with free NOAA CORS data</li>
+                        <li><strong>Multi-sensor hardware:</strong> Dedicated IMU, wind, pressure sensors (not phone-only)</li>
+                        <li><strong>Fleet-wide logging:</strong> 6 boats on same course, same time, synchronized timestamps</li>
+                        <li><strong>Open source:</strong> Apache 2.0 license, full hardware and software stack</li>
+                        <li><strong>No permanent install:</strong> Daily install/remove in under 30 seconds</li>
+                    </ul>
+
+                    <h3>Data Captured</h3>
+                    <p>Every session records:</p>
+                    <ul>
+                        <li><strong>GPS:</strong> Position, SOG, COG, satellites, HDOP at 1Hz</li>
+                        <li><strong>Raw GNSS:</strong> RTCM3 binary observations for PPK post-processing</li>
+                        <li><strong>IMU:</strong> Heel, pitch, acceleration, gyro at 20Hz</li>
+                        <li><strong>Wind:</strong> AWA, AWS, TWA, TWS, TWD at 1Hz (E1 with Calypso sensor)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Architecture -->
+            <div class="doc-section" id="doc-architecture">
+                <h2 class="doc-title">Architecture & Data Flow</h2>
+                <div class="doc-content">
+                    <p>
+                        SailFrames uses a hybrid edge-cloud architecture where data is collected on the boat,
+                        stored locally during sailing, and synced to AWS when returning to shore.
+                    </p>
+
+                    <div class="architecture-diagram">
+                        <div class="arch-title">Data Flow Pipeline</div>
+                        <div class="arch-flow">
+                            <div class="arch-box">
+                                <div class="arch-box-label">On Boat</div>
+                                <div class="arch-box-value">Sensors</div>
+                            </div>
+                            <div class="arch-arrow">&#8594;</div>
+                            <div class="arch-box">
+                                <div class="arch-box-label">Edge Device</div>
+                                <div class="arch-box-value">E1-E6</div>
+                            </div>
+                            <div class="arch-arrow">&#8594;</div>
+                            <div class="arch-box">
+                                <div class="arch-box-label">Local Storage</div>
+                                <div class="arch-box-value">SD Card</div>
+                            </div>
+                            <div class="arch-arrow">&#8594;</div>
+                            <div class="arch-box highlight">
+                                <div class="arch-box-label">Yacht Club WiFi</div>
+                                <div class="arch-box-value">Auto Upload</div>
+                            </div>
+                            <div class="arch-arrow">&#8594;</div>
+                            <div class="arch-box">
+                                <div class="arch-box-label">Cloud</div>
+                                <div class="arch-box-value">AWS S3</div>
+                            </div>
+                            <div class="arch-arrow">&#8594;</div>
+                            <div class="arch-box">
+                                <div class="arch-box-label">Processing</div>
+                                <div class="arch-box-value">Lambda</div>
+                            </div>
+                            <div class="arch-arrow">&#8594;</div>
+                            <div class="arch-box">
+                                <div class="arch-box-label">Frontend</div>
+                                <div class="arch-box-value">Web Dashboard</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3>Repository Structure</h3>
+                    <pre><code>sailframes/core/
+&#9500;&#9472;&#9472; edge-e/                # ESP32 fleet trackers (E1-E6)
+&#9474;   &#9500;&#9472;&#9472; hardware/          # KiCad PCB designs
+&#9474;   &#9492;&#9472;&#9472; firmware/          # Arduino firmware (sailframes_e1.ino)
+&#9500;&#9472;&#9472; wind_sensor/           # Open source ultrasonic wind sensor (in dev)
+&#9474;   &#9500;&#9472;&#9472; hardware/          # STM32 + ultrasonic transducers
+&#9474;   &#9492;&#9472;&#9472; firmware/          # STM32 firmware
+&#9500;&#9472;&#9472; web/                   # Dashboard web application
+&#9474;   &#9500;&#9472;&#9472; api/               # FastAPI backend
+&#9474;   &#9492;&#9472;&#9472; frontend/          # React frontend
+&#9500;&#9472;&#9472; processing/            # Analytics engine
+&#9474;   &#9500;&#9472;&#9472; maneuvers.py       # Tack/gybe detection
+&#9474;   &#9500;&#9472;&#9472; straight_lines.py  # Upwind/downwind segmentation
+&#9474;   &#9500;&#9472;&#9472; wind.py            # Wind direction calculation
+&#9474;   &#9500;&#9472;&#9472; polar.py           # Polar diagram generation
+&#9474;   &#9492;&#9472;&#9472; vmg.py             # VMG computation
+&#9500;&#9472;&#9472; lambda/                # AWS Lambda functions
+&#9500;&#9472;&#9472; infrastructure/        # AWS CDK/Terraform
+&#9492;&#9472;&#9472; scripts/               # Utility scripts</code></pre>
+
+                    <h3>S3 Bucket Structure</h3>
+                    <p>All fleet data is stored in a single S3 bucket:</p>
+                    <pre><code>s3://sailframes-fleet-data-prod/
+&#9500;&#9472;&#9472; raw/
+&#9474;   &#9500;&#9472;&#9472; E1/                # E1 device data
+&#9474;   &#9474;   &#9492;&#9472;&#9472; 2026-04-01/
+&#9474;   &#9474;       &#9500;&#9472;&#9472; E1_20260401_140000_nav.csv
+&#9474;   &#9474;       &#9500;&#9472;&#9472; E1_20260401_140000_imu.csv
+&#9474;   &#9474;       &#9500;&#9472;&#9472; E1_20260401_140000_wind.csv
+&#9474;   &#9474;       &#9492;&#9472;&#9472; E1_20260401_140000_raw.rtcm3
+&#9474;   &#9500;&#9472;&#9472; E2/                # E2 device data
+&#9474;   &#9500;&#9472;&#9472; E3/                # E3 device data
+&#9474;   &#9500;&#9472;&#9472; E4/                # E4 device data
+&#9474;   &#9500;&#9472;&#9472; E5/                # E5 device data
+&#9474;   &#9492;&#9472;&#9472; E6/                # E6 device data
+&#9492;&#9472;&#9472; processed/             # Post-processed data
+    &#9492;&#9472;&#9472; sessions/
+        &#9492;&#9472;&#9472; 2026-04-01/
+            &#9492;&#9472;&#9472; session.json</code></pre>
+                </div>
+            </div>
+
+            <!-- PPK GNSS -->
+            <div class="doc-section" id="doc-ppk">
+                <h2 class="doc-title">PPK GNSS Explained</h2>
+                <div class="doc-content">
+                    <p>
+                        Post-Processed Kinematic (PPK) positioning is what makes SailFrames unique. Instead of using
+                        real-time corrections (RTK), we log raw GNSS observations and process them after the race
+                        using base station data from NOAA's free CORS network.
+                    </p>
+
+                    <h3>How PPK Works</h3>
+                    <ol>
+                        <li><strong>Log raw observations:</strong> The LG290P GPS logs pseudorange and carrier phase measurements from all visible satellites</li>
+                        <li><strong>Download CORS data:</strong> After sailing, download base station data from <code>geodesy.noaa.gov/UFCORS</code> (free, available ~1 hour after recording)</li>
+                        <li><strong>Process in RTKLIB:</strong> Combine rover observations + base observations + navigation data to compute a fixed solution</li>
+                        <li><strong>Result:</strong> Sub-meter accuracy without any base station hardware</li>
+                    </ol>
+
+                    <h3>Why PPK Instead of RTK?</h3>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Factor</th>
+                            <th>RTK</th>
+                            <th>PPK</th>
+                        </tr>
+                        <tr>
+                            <td>Base station required</td>
+                            <td>Yes, on shore or boat</td>
+                            <td>No, uses NOAA CORS network</td>
+                        </tr>
+                        <tr>
+                            <td>Real-time corrections</td>
+                            <td>Yes, via radio/cellular</td>
+                            <td>No, post-processed</td>
+                        </tr>
+                        <tr>
+                            <td>Range from base</td>
+                            <td>&lt;10km typical</td>
+                            <td>50+km from CORS station</td>
+                        </tr>
+                        <tr>
+                            <td>Connectivity</td>
+                            <td>Must maintain link</td>
+                            <td>None required on water</td>
+                        </tr>
+                        <tr>
+                            <td>Accuracy</td>
+                            <td>1-2cm (if link maintained)</td>
+                            <td>&lt;1m (reliable)</td>
+                        </tr>
+                    </table>
+
+                    <h3>RTKLIB Processing</h3>
+                    <p>To process raw observations:</p>
+                    <pre><code># Load .rtcm3 directly in RTKPOST
+# Configure: Positioning Mode = Kinematic, Frequencies = L1+L2+L5
+# Load rover obs, base obs (from CORS), and navigation file
+# Process and export to CSV</code></pre>
+
+                    <h3>CORS Base Stations Near Boston</h3>
+                    <ul>
+                        <li><strong>MAWO</strong> - Woburn, MA (closest)</li>
+                        <li><strong>MBHV</strong> - Brookhaven, MA</li>
+                        <li><strong>MANC</strong> - North Chelmsford, MA</li>
+                    </ul>
+                    <p>Download from: <a href="https://geodesy.noaa.gov/UFCORS/" target="_blank">geodesy.noaa.gov/UFCORS</a></p>
+
+                    <h3>Raw Observation Messages</h3>
+                    <p>The E1 logs these RTCM3 messages for PPK:</p>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Message</th>
+                            <th>Content</th>
+                            <th>Rate</th>
+                        </tr>
+                        <tr>
+                            <td>1077</td>
+                            <td>GPS MSM7 (pseudorange + phase + doppler + CNR)</td>
+                            <td>Every epoch</td>
+                        </tr>
+                        <tr>
+                            <td>1087</td>
+                            <td>GLONASS MSM7</td>
+                            <td>Every epoch</td>
+                        </tr>
+                        <tr>
+                            <td>1097</td>
+                            <td>Galileo MSM7</td>
+                            <td>Every epoch</td>
+                        </tr>
+                        <tr>
+                            <td>1127</td>
+                            <td>BeiDou MSM7</td>
+                            <td>Every epoch</td>
+                        </tr>
+                        <tr>
+                            <td>1019</td>
+                            <td>GPS ephemeris</td>
+                            <td>~30 seconds</td>
+                        </tr>
+                        <tr>
+                            <td>1020</td>
+                            <td>GLONASS ephemeris</td>
+                            <td>Periodic</td>
+                        </tr>
+                        <tr>
+                            <td>1042</td>
+                            <td>BeiDou ephemeris</td>
+                            <td>Periodic</td>
+                        </tr>
+                        <tr>
+                            <td>1046</td>
+                            <td>Galileo ephemeris</td>
+                            <td>Periodic</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- E1 Hardware -->
+            <div class="doc-section" id="doc-e1-hardware">
+                <h2 class="doc-title">E1 Hardware Build Guide</h2>
+                <div class="doc-content">
+                    <p>
+                        The E1 is a low-cost fleet tracker with PPK-capable GPS, designed for mass deployment across a racing fleet.
+                        Six units (E1-E6) are currently in production use.
+                    </p>
+
+                    <h3>Bill of Materials</h3>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Component</th>
+                            <th>Part</th>
+                            <th>Interface</th>
+                        </tr>
+                        <tr>
+                            <td>MCU</td>
+                            <td>ELEGOO ESP32 DevKit V1</td>
+                            <td>USB-C (CP2102)</td>
+                        </tr>
+                        <tr>
+                            <td>GPS</td>
+                            <td>Waveshare LG290P</td>
+                            <td>UART2 (GPIO16/17)</td>
+                        </tr>
+                        <tr>
+                            <td>IMU</td>
+                            <td>GY-BNO08X (BNO085)</td>
+                            <td>I2C (GPIO21/22) @ 0x4A</td>
+                        </tr>
+                        <tr>
+                            <td>Display</td>
+                            <td>Hosyond 3.5" TFT (ST7796U)</td>
+                            <td>VSPI</td>
+                        </tr>
+                        <tr>
+                            <td>SD Card Module</td>
+                            <td>Standard SPI module</td>
+                            <td>HSPI (separate bus)</td>
+                        </tr>
+                        <tr>
+                            <td>Power Module</td>
+                            <td>DWEII USB-C 5V 2A Boost</td>
+                            <td>5V to VIN</td>
+                        </tr>
+                        <tr>
+                            <td>Battery</td>
+                            <td>906090 3.7V 6000mAh LiPo</td>
+                            <td>JST PH 2.0mm</td>
+                        </tr>
+                        <tr>
+                            <td>Enclosure</td>
+                            <td>YETLEBOX IP67 ABS</td>
+                            <td>5.9"x3.9"x2.8" clear lid</td>
+                        </tr>
+                        <tr>
+                            <td>Custom PCB</td>
+                            <td>2-layer from JLCPCB</td>
+                            <td>60.5 x 91.5mm</td>
+                        </tr>
+                    </table>
+
+                    <h3>Wiring Summary</h3>
+                    <p><strong>IMPORTANT:</strong> TFT and SD card use SEPARATE SPI buses to prevent display flicker.</p>
+
+                    <pre><code># LG290P GPS (UART2) - NOT GPIO21/22!
+TXD3 &#8594; GPIO16 (ESP32 RX2)
+RXD3 &#8594; GPIO17 (ESP32 TX2)
+5V   &#8594; 5V from boost module
+GND  &#8594; GND
+
+# BNO085 IMU (I2C)
+SDA  &#8594; GPIO21
+SCL  &#8594; GPIO22
+VCC  &#8594; 3V3
+GND  &#8594; GND
+
+# TFT Display ST7796U (VSPI bus)
+MOSI &#8594; GPIO23 (VSPI_MOSI)
+MISO &#8594; GPIO25 (swapped with BL)
+CLK  &#8594; GPIO18 (VSPI_CLK)
+CS   &#8594; GPIO5
+DC   &#8594; GPIO2
+RST  &#8594; GPIO4
+BL   &#8594; GPIO19 (swapped with MISO)
+VCC  &#8594; 3V3
+GND  &#8594; GND
+
+# SD Card Module (HSPI bus - SEPARATE)
+CLK  &#8594; GPIO14 (HSPI_CLK)
+MISO &#8594; GPIO35 (input-only pin)
+MOSI &#8594; GPIO13 (HSPI_MOSI)
+CS   &#8594; GPIO27
+VCC  &#8594; 3V3
+GND  &#8594; GND
+
+# Battery Monitoring
+VBAT &#8594; R1 (100K) &#8594; GPIO34 &#8594; R2 (100K) &#8594; GND</code></pre>
+
+                    <h3>PCB Design Files</h3>
+                    <p>
+                        Complete KiCad project available in <code>edge-e/hardware/kicad_sailframes-e1/</code>.
+                        Gerbers ready for JLCPCB fabrication (60.5 x 91.5mm, 2-layer, green solder mask).
+                    </p>
+
+                    <h3>Arduino IDE Setup</h3>
+                    <ol>
+                        <li>Install ESP32 board support (v3.3.7+)</li>
+                        <li>Select: DOIT ESP32 DEVKIT V1</li>
+                        <li>Partition Scheme: <strong>Huge APP (3MB No OTA)</strong></li>
+                        <li>Install libraries: TFT_eSPI, NimBLE-Arduino</li>
+                        <li>Configure TFT_eSPI User_Setup.h (see firmware docs)</li>
+                    </ol>
+
+                    <h4>Critical: GPIO12 Strapping Pin</h4>
+                    <p>
+                        <strong>Do NOT use GPIO12</strong> for any external connection. GPIO12 controls flash voltage
+                        at boot - if pulled HIGH, ESP32 fails to start. Use GPIO35 (input-only) for SD MISO instead.
+                    </p>
+                </div>
+            </div>
+
+            <!-- E1 Firmware -->
+            <div class="doc-section" id="doc-e1-firmware">
+                <h2 class="doc-title">E1 Firmware Reference</h2>
+                <div class="doc-content">
+                    <p>
+                        The E1 firmware (<code>sailframes_e1.ino</code>) handles sensor acquisition, display updates,
+                        SD logging, and Wi-Fi upload.
+                    </p>
+
+                    <h3>Key Features</h3>
+                    <ul>
+                        <li>NMEA parsing (GGA/RMC/GSA/GSV from LG290P)</li>
+                        <li>RTCM3 binary logging for PPK post-processing</li>
+                        <li>BNO085 IMU at 20Hz (GAME_ROTATION_VECTOR mode)</li>
+                        <li>TFT display with large speed/COG numbers</li>
+                        <li>Battery monitoring via ADC</li>
+                        <li>Wi-Fi auto-upload to S3 on known network detection</li>
+                        <li>GPS speed-triggered auto-recording (starts >2kt, stops after 5min <0.5kt)</li>
+                        <li>Calypso wind sensor BLE integration (E1 primary)</li>
+                    </ul>
+
+                    <h3>Serial/Telnet Commands</h3>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Command</th>
+                            <th>Description</th>
+                        </tr>
+                        <tr>
+                            <td><code>start</code></td>
+                            <td>Start recording session</td>
+                        </tr>
+                        <tr>
+                            <td><code>stop</code></td>
+                            <td>Stop recording session</td>
+                        </tr>
+                        <tr>
+                            <td><code>upload</code></td>
+                            <td>Manually trigger Wi-Fi upload</td>
+                        </tr>
+                        <tr>
+                            <td><code>clearmarkers</code></td>
+                            <td>Delete .uploaded markers to retry failed uploads</td>
+                        </tr>
+                        <tr>
+                            <td><code>status</code></td>
+                            <td>Show sensor status (GPS, IMU, SD, WiFi, RTCM frame count)</td>
+                        </tr>
+                        <tr>
+                            <td><code>gps</code></td>
+                            <td>Show GPS debug info</td>
+                        </tr>
+                        <tr>
+                            <td><code>gpsraw</code></td>
+                            <td>Show raw GPS data stream (10 seconds)</td>
+                        </tr>
+                        <tr>
+                            <td><code>gpscfg</code></td>
+                            <td>Reconfigure LG290P (resend PQTM commands)</td>
+                        </tr>
+                        <tr>
+                            <td><code>config</code></td>
+                            <td>Show current configuration</td>
+                        </tr>
+                    </table>
+
+                    <h3>SD Card File Structure</h3>
+                    <pre><code>/sf/
+&#9500;&#9472;&#9472; 20260405_225030/                    # Session folder (GPS datetime)
+&#9474;   &#9500;&#9472;&#9472; E1_20260405_225030_nav.csv      # Parsed NMEA
+&#9474;   &#9500;&#9472;&#9472; E1_20260405_225030_imu.csv      # IMU data
+&#9474;   &#9500;&#9472;&#9472; E1_20260405_225030_raw.rtcm3    # Raw RTCM3 for PPK
+&#9474;   &#9492;&#9472;&#9472; E1_20260405_225030_wind.csv     # Wind sensor (if connected)
+&#9492;&#9472;&#9472; config.txt                           # Device configuration</code></pre>
+
+                    <h3>TFT_eSPI Configuration</h3>
+                    <p>In <code>User_Setup.h</code>:</p>
+                    <pre><code>#define ST7796_DRIVER
+#define TFT_WIDTH  320
+#define TFT_HEIGHT 480
+#define TFT_MOSI  23
+#define TFT_MISO  25   // Swapped with BL
+#define TFT_SCLK  18
+#define TFT_CS     5
+#define TFT_DC     2
+#define TFT_RST    4
+#define TFT_BL    19   // Swapped with MISO</code></pre>
+
+                    <h3>LG290P GPS Configuration</h3>
+                    <p>The firmware configures the LG290P at boot for NMEA + RTCM3 output:</p>
+                    <pre><code>// NMEA messages
+sendPQTM("PQTMCFGMSGRATE,W,GGA,1");
+sendPQTM("PQTMCFGMSGRATE,W,RMC,1");
+sendPQTM("PQTMCFGMSGRATE,W,GSA,1");
+sendPQTM("PQTMCFGMSGRATE,W,GSV,1");
+
+// RTCM3 MSM7 for PPK
+sendPQTM("PQTMCFGRTCM,W,7,0,-90,07,06,1,0");
+sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1019,1");  // GPS ephemeris
+sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1020,1");  // GLONASS ephemeris
+sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1042,1");  // BeiDou ephemeris
+sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1046,1");  // Galileo ephemeris
+
+sendPQTM("PQTMSAVEPAR");  // Save to NVM
+sendPQTM("PQTMHOT");      // Hot restart</code></pre>
+                </div>
+            </div>
+
+            <!-- Sensors -->
+            <div class="doc-section" id="doc-sensors">
+                <h2 class="doc-title">Sensor Configuration</h2>
+                <div class="doc-content">
+                    <h3>BNO085 IMU</h3>
+                    <p>
+                        Use GAME_ROTATION_VECTOR mode (6-DOF, no magnetometer) for heel and pitch on a boat.
+                        The magnetometer is unreliable due to lead keel, stainless rigging, and engine interference.
+                    </p>
+
+                    <h4>Calibration</h4>
+                    <ul>
+                        <li><strong>Startup tare:</strong> Record current orientation as "zero" when mounted and boat is level</li>
+                        <li><strong>Gyro:</strong> Auto-zeros on startup (hold still 2-3 seconds)</li>
+                        <li><strong>Accelerometer:</strong> Gravity reference handles heel/pitch automatically</li>
+                    </ul>
+
+                    <h4>Common Issues</h4>
+                    <ul>
+                        <li><strong>I2C errors:</strong> BNO085 requires 400kHz I2C due to clock stretching</li>
+                        <li><strong>10-20 degree heading drift:</strong> Normal due to magnetometer interference - use GPS COG instead</li>
+                    </ul>
+
+                    <h3>LG290P GPS</h3>
+                    <p>
+                        The Waveshare LG290P is a quad-band (L1/L2/L5/L6) GNSS receiver capable of PPK post-processing.
+                        At ~$109 with antenna, it's the most affordable PPK-capable module available.
+                    </p>
+
+                    <h4>Configuration</h4>
+                    <p>Use QGNSS on Windows for full configuration (PyGPSClient has limited LG290P support).</p>
+                    <pre><code>$PQTMCFGRTCM,W,7,0,-90,07,06,1,0*     # Enable MSM7 for all constellations
+$PQTMCFGMSGRATE,W,RTCM3-1019,1*       # GPS ephemeris
+$PQTMCFGMSGRATE,W,RTCM3-1020,1*       # GLONASS ephemeris
+$PQTMCFGMSGRATE,W,RTCM3-1042,1*       # BeiDou ephemeris
+$PQTMCFGMSGRATE,W,RTCM3-1046,1*       # Galileo ephemeris
+$PQTMCFGCNST,W,1,1,1,1,1,1*           # Enable all constellations
+$PQTMSAVEPAR*                          # Save to NVM</code></pre>
+                </div>
+            </div>
+
+            <!-- Wind Sensor -->
+            <div class="doc-section" id="doc-wind">
+                <h2 class="doc-title">Wind Sensor Integration</h2>
+                <div class="doc-content">
+                    <h3>Current: Calypso Ultrasonic Mini</h3>
+                    <p>
+                        E1 currently uses the Calypso Ultrasonic Mini anemometer, which connects via Bluetooth LE 5.1.
+                    </p>
+
+                    <h4>Mounting</h4>
+                    <ul>
+                        <li>Mount the sensor with the bow-mark pointing forward</li>
+                        <li>Use a suction cup mount + extension pole for no permanent modifications</li>
+                        <li>Only one device can connect at a time (disconnect phone apps first)</li>
+                    </ul>
+
+                    <h4>AWA Correction</h4>
+                    <p>
+                        <strong>Known issue:</strong> The Calypso Mini reports AWA 180 degrees inverted from expected.
+                        SailFrames automatically applies a correction: <code>(raw_awa + 180) % 360</code>
+                    </p>
+
+                    <h3>In Development: Open Source Ultrasonic Wind Sensor</h3>
+                    <p>
+                        We're developing a fully open source ultrasonic wind sensor as an alternative to expensive
+                        commercial units, with comparable accuracy.
+                    </p>
+
+                    <h4>Design Goals</h4>
+                    <ul>
+                        <li>4x 40kHz ultrasonic transducers in orthogonal arrangement</li>
+                        <li>STM32L4 microcontroller (low power ARM Cortex-M4)</li>
+                        <li>Time-of-flight differential measurement for wind speed/direction</li>
+                        <li>BLE 5.0 output compatible with E1 firmware</li>
+                        <li>Solar + LiPo battery for extended runtime</li>
+                        <li>3D printed enclosure, IPX7 water resistance</li>
+                        <li>Full Apache 2.0 license (hardware + firmware)</li>
+                    </ul>
+
+                    <p>
+                        Progress tracked in <code>wind_sensor/</code> directory. Contributions welcome!
+                    </p>
+
+                    <h3>Wind Data Fields</h3>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Field</th>
+                            <th>Description</th>
+                            <th>Source</th>
+                        </tr>
+                        <tr>
+                            <td>AWA</td>
+                            <td>Apparent Wind Angle</td>
+                            <td>Direct from sensor (corrected)</td>
+                        </tr>
+                        <tr>
+                            <td>AWS</td>
+                            <td>Apparent Wind Speed</td>
+                            <td>Direct from sensor</td>
+                        </tr>
+                        <tr>
+                            <td>TWA</td>
+                            <td>True Wind Angle</td>
+                            <td>Calculated from AWA, AWS, SOG</td>
+                        </tr>
+                        <tr>
+                            <td>TWS</td>
+                            <td>True Wind Speed</td>
+                            <td>Calculated from AWA, AWS, SOG</td>
+                        </tr>
+                        <tr>
+                            <td>TWD</td>
+                            <td>True Wind Direction</td>
+                            <td>Calculated from TWA + COG</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Cloud Infrastructure -->
+            <div class="doc-section" id="doc-cloud">
+                <h2 class="doc-title">Cloud Infrastructure</h2>
+                <div class="doc-content">
+                    <h3>AWS Services Used</h3>
+                    <ul>
+                        <li><strong>S3:</strong> <code>sailframes-fleet-data-prod</code> - All raw and processed data</li>
+                        <li><strong>Lambda:</strong> Post-upload processing, analytics, weather integration</li>
+                        <li><strong>API Gateway:</strong> REST API for web dashboard</li>
+                        <li><strong>CloudFront:</strong> CDN for web assets</li>
+                    </ul>
+
+                    <h3>E1 Direct HTTP Upload</h3>
+                    <p>
+                        Due to ESP32 TLS limitations, E1 devices upload directly to S3 via HTTP (not HTTPS).
+                        This requires a bucket policy allowing unauthenticated PUT:
+                    </p>
+                    <pre><code>{
+    "Sid": "FleetDirectHTTPUpload",
+    "Effect": "Allow",
+    "Principal": "*",
+    "Action": "s3:PutObject",
+    "Resource": "arn:aws:s3:::sailframes-fleet-data-prod/raw/*"
+}</code></pre>
+
+                    <p>
+                        <strong>Why HTTP?</strong> ESP32 Arduino Core 3.3.7 has broken TLS (mbedTLS BIGNUM allocation
+                        failure during RSA operations). Fleet data (GPS, IMU) is not sensitive.
+                    </p>
+
+                    <h3>Lambda Processing</h3>
+                    <p>S3 triggers Lambda on new uploads:</p>
+                    <ol>
+                        <li>Parse CSV files, validate data</li>
+                        <li>Merge multi-file sessions</li>
+                        <li>Calculate derived fields (TWA, TWS, TWD, VMG)</li>
+                        <li>Store processed JSON for web dashboard</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- API Reference -->
+            <div class="doc-section" id="doc-api">
+                <h2 class="doc-title">API Reference</h2>
+                <div class="doc-content">
+                    <p>The FastAPI backend provides REST endpoints for the web dashboard.</p>
+
+                    <h3>Sessions</h3>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Method</th>
+                            <th>Endpoint</th>
+                            <th>Description</th>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td><code>/api/sessions</code></td>
+                            <td>List all sessions with metadata</td>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td><code>/api/sessions/{device}/{date}</code></td>
+                            <td>Get session data (GPS, IMU, wind)</td>
+                        </tr>
+                        <tr>
+                            <td>PUT</td>
+                            <td><code>/api/sessions/{device}/{date}</code></td>
+                            <td>Update session metadata (name, boat)</td>
+                        </tr>
+                        <tr>
+                            <td>DELETE</td>
+                            <td><code>/api/sessions/{device}/{date}</code></td>
+                            <td>Delete session</td>
+                        </tr>
+                    </table>
+
+                    <h3>Races</h3>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Method</th>
+                            <th>Endpoint</th>
+                            <th>Description</th>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td><code>/api/races</code></td>
+                            <td>List all races/regattas</td>
+                        </tr>
+                        <tr>
+                            <td>POST</td>
+                            <td><code>/api/races</code></td>
+                            <td>Create new race</td>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td><code>/api/races/{race_id}</code></td>
+                            <td>Get race details with boat assignments</td>
+                        </tr>
+                        <tr>
+                            <td>PUT</td>
+                            <td><code>/api/races/{race_id}</code></td>
+                            <td>Update race (boats, finish order)</td>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td><code>/api/races/{race_id}/data</code></td>
+                            <td>Get multi-boat race data for replay</td>
+                        </tr>
+                    </table>
+
+                    <h3>Weather</h3>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Method</th>
+                            <th>Endpoint</th>
+                            <th>Description</th>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td><code>/api/buoys</code></td>
+                            <td>Get NOAA buoy data (44013, BHBM3)</td>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td><code>/api/tides</code></td>
+                            <td>Get tide predictions (station 8443970)</td>
+                        </tr>
+                    </table>
+
+                    <h3>Example Response</h3>
+                    <pre><code>GET /api/sessions/E1/2026-04-01
+
+{
+  "device_id": "E1",
+  "date": "2026-04-01",
+  "name": "J/80 Spring Series Race 3",
+  "boat": "Sonar 23",
+  "duration_seconds": 5432,
+  "start_time": "2026-04-01T14:00:00Z",
+  "gps": {
+    "url": "https://s3.../E1_20260401_140000_nav.csv",
+    "points": 5432
+  },
+  "imu": {
+    "url": "https://s3.../E1_20260401_140000_imu.csv",
+    "points": 108640
+  },
+  "wind": {
+    "url": "https://s3.../E1_20260401_140000_wind.csv",
+    "points": 5432
+  }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Analytics Engine -->
+            <div class="doc-section" id="doc-analytics">
+                <h2 class="doc-title">Analytics Engine</h2>
+                <div class="doc-content">
+                    <p>
+                        The <code>processing/</code> module contains the analytics engine for computing
+                        sailing-specific metrics from raw sensor data.
+                    </p>
+
+                    <h3>Modules</h3>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Module</th>
+                            <th>Purpose</th>
+                        </tr>
+                        <tr>
+                            <td><code>wind.py</code></td>
+                            <td>True wind calculation from apparent wind + boat motion</td>
+                        </tr>
+                        <tr>
+                            <td><code>vmg.py</code></td>
+                            <td>Velocity Made Good toward upwind/downwind targets</td>
+                        </tr>
+                        <tr>
+                            <td><code>maneuvers.py</code></td>
+                            <td>Tack/gybe detection using COG + IMU yaw rate</td>
+                        </tr>
+                        <tr>
+                            <td><code>straight_lines.py</code></td>
+                            <td>Upwind/downwind leg segmentation</td>
+                        </tr>
+                        <tr>
+                            <td><code>polar.py</code></td>
+                            <td>Polar diagram generation from logged data</td>
+                        </tr>
+                        <tr>
+                            <td><code>stats.py</code></td>
+                            <td>Violin plots, STD, correlations</td>
+                        </tr>
+                    </table>
+
+                    <h3>Maneuver Detection</h3>
+                    <p>Tacks and gybes are detected using multiple signals:</p>
+                    <ol>
+                        <li><strong>COG change:</strong> >60 degree heading change within 30 seconds</li>
+                        <li><strong>IMU yaw rate:</strong> High turn rate confirms maneuver timing</li>
+                        <li><strong>TWA flip:</strong> Sign change in TWA confirms tack vs gybe</li>
+                    </ol>
+
+                    <h3>VMG Calculation</h3>
+                    <pre><code># VMG = SOG * cos(angle to target)
+# For upwind: target is TWD (wind direction)
+# For downwind: target is TWD + 180
+
+import math
+
+def calc_vmg(sog, cog, twd, upwind=True):
+    target = twd if upwind else (twd + 180) % 360
+    angle_diff = abs(cog - target)
+    if angle_diff > 180:
+        angle_diff = 360 - angle_diff
+    vmg = sog * math.cos(math.radians(angle_diff))
+    return vmg</code></pre>
+
+                    <h3>Sensor-to-Feature Mapping</h3>
+                    <table class="doc-table">
+                        <tr>
+                            <th>Feature</th>
+                            <th>GPS</th>
+                            <th>IMU</th>
+                            <th>Wind</th>
+                        </tr>
+                        <tr>
+                            <td>SOG / COG</td>
+                            <td>Direct</td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>VMG</td>
+                            <td>SOG</td>
+                            <td></td>
+                            <td>TWD</td>
+                        </tr>
+                        <tr>
+                            <td>Heel / Pitch</td>
+                            <td></td>
+                            <td>Direct</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Maneuver Detection</td>
+                            <td>COG change</td>
+                            <td>Yaw rate</td>
+                            <td>TWA flip</td>
+                        </tr>
+                        <tr>
+                            <td>Polar Diagram</td>
+                            <td>SOG + COG</td>
+                            <td></td>
+                            <td>TWD</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Troubleshooting -->
+            <div class="doc-section" id="doc-troubleshooting">
+                <h2 class="doc-title">Troubleshooting</h2>
+                <div class="doc-content">
+                    <h3>Common Issues</h3>
+
+                    <h4>E1 Won't Boot After Wiring SD Card</h4>
+                    <p>
+                        <strong>Symptom:</strong> ESP32 fails to start, no serial output
+                    </p>
+                    <p>
+                        <strong>Cause:</strong> GPIO12 (strapping pin) is pulled HIGH by SD card module
+                    </p>
+                    <p>
+                        <strong>Fix:</strong> Use GPIO35 for SD MISO, not GPIO12
+                    </p>
+
+                    <h4>TFT Display Flickers During SD Writes</h4>
+                    <p>
+                        <strong>Symptom:</strong> Display blanks momentarily when logging to SD
+                    </p>
+                    <p>
+                        <strong>Cause:</strong> TFT and SD sharing same SPI bus
+                    </p>
+                    <p>
+                        <strong>Fix:</strong> Use separate buses - TFT on VSPI, SD on HSPI
+                    </p>
+
+                    <h4>E1 Wi-Fi Upload Fails with TLS Error</h4>
+                    <p>
+                        <strong>Symptom:</strong> "mbedTLS RSA BIGNUM memory allocation failed"
+                    </p>
+                    <p>
+                        <strong>Cause:</strong> ESP32 Arduino Core 3.3.7 TLS is broken
+                    </p>
+                    <p>
+                        <strong>Fix:</strong> Use HTTP direct to S3, not HTTPS. See E1_HTTP_UPLOAD_SETUP.md
+                    </p>
+
+                    <h4>Wind Sensor Shows Wrong Direction</h4>
+                    <p>
+                        <strong>Symptom:</strong> AWA reports wind from opposite side
+                    </p>
+                    <p>
+                        <strong>Cause:</strong> Calypso Mini 180 degree inversion
+                    </p>
+                    <p>
+                        <strong>Fix:</strong> Apply <code>(raw_awa + 180) % 360</code> correction (already in firmware)
+                    </p>
+
+                    <h4>GPS Takes Forever to Get Fix</h4>
+                    <p>
+                        <strong>Symptom:</strong> 60+ seconds to first fix
+                    </p>
+                    <p>
+                        <strong>Possible causes:</strong>
+                    </p>
+                    <ul>
+                        <li>Cold start (device off >2-4 days): Normal, wait for fix</li>
+                        <li>Poor sky view: Move antenna to better location</li>
+                        <li>LG290P: SBAS helps, no A-GNSS service available</li>
+                    </ul>
+
+                    <h4>BLE Wind Sensor Won't Connect</h4>
+                    <p>
+                        <strong>Symptom:</strong> "Device not found" or connection timeout
+                    </p>
+                    <p>
+                        <strong>Cause:</strong> Another device (phone app) is connected
+                    </p>
+                    <p>
+                        <strong>Fix:</strong> Disconnect phone, only one BLE connection allowed
+                    </p>
+
+                    <h3>Debug Commands</h3>
+                    <pre><code># E1: Serial monitor commands
+status     # Show all sensor status
+gps        # GPS debug info
+gpsraw     # Raw GPS stream (10s)
+gpscfg     # Reconfigure LG290P
+upload     # Trigger upload manually
+clearmarkers  # Reset upload state</code></pre>
+
+                    <h3>Getting Help</h3>
+                    <p>
+                        If you can't resolve an issue, open an issue on GitHub with:
+                    </p>
+                    <ul>
+                        <li>Device ID (E1-E6)</li>
+                        <li>Firmware version</li>
+                        <li>Relevant log output</li>
+                        <li>Steps to reproduce</li>
+                    </ul>
+                    <p>
+                        <a href="https://github.com/sailframes/core/issues" target="_blank">github.com/sailframes/core/issues</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <div class="footer-logo">SailFrames</div>
+                <p class="footer-desc">
+                    Open-source sailboat racing analytics. Sub-meter GPS accuracy, multi-sensor fusion,
+                    fleet-wide tracking - all Apache 2.0 licensed.
+                </p>
+                <p class="footer-location">
+                    Built and tested at <a href="https://courageoussailing.org" target="_blank">Courageous Sailing</a> & <a href="https://piersparksailing.org" target="_blank">Piers Park Sailing Center</a>, Boston Harbor.
+                </p>
+                <div class="footer-social">
+                    <a href="https://github.com/sailframes/core" target="_blank" title="GitHub">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    </a>
+                </div>
+            </div>
+
+            <div class="footer-column">
+                <h4>Product</h4>
+                <ul>
+                    <li><a href="./session.html">Session Viewer</a></li>
+                    <li><a href="./race.html">Race Dashboard</a></li>
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#hardware">Hardware</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-column">
+                <h4>Documentation</h4>
+                <ul>
+                    <li><a href="#doc-overview">Overview</a></li>
+                    <li><a href="#doc-ppk">PPK GNSS</a></li>
+                    <li><a href="#doc-e1-hardware">E1 Build Guide</a></li>
+                    <li><a href="#doc-wind">Wind Sensor</a></li>
+                    <li><a href="#doc-api">API Reference</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-column">
+                <h4>Community</h4>
+                <ul>
+                    <li><a href="https://github.com/sailframes/core" target="_blank">GitHub</a></li>
+                    <li><a href="https://github.com/sailframes/core/issues" target="_blank">Issues</a></li>
+                    <li><a href="https://github.com/sailframes/core/discussions" target="_blank">Discussions</a></li>
+                    <li><a href="https://github.com/sailframes/core/blob/main/LICENSE" target="_blank">License (Apache 2.0)</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <span>Copyright 2026 SailFrames Contributors. Apache 2.0 License.</span>
+            <span>Built with sensors, code, and salt water.</span>
         </div>
     </footer>
-
-    <!-- Loading overlay -->
-    <div id="loading" class="loading-overlay" style="display: none;">
-        <div class="spinner"></div>
-        <p>Loading session data...</p>
-    </div>
-
-    <!-- Login overlay -->
-    <div id="login-overlay" class="login-overlay">
-        <div class="login-box">
-            <h1 class="login-logo">SailFrames</h1>
-            <p class="login-subtitle">Race Analytics</p>
-            <form id="login-form">
-                <input type="password" id="login-password" placeholder="Enter password" autocomplete="current-password" autofocus>
-                <button type="submit">Enter</button>
-                <p id="login-error" class="login-error"></p>
-            </form>
-        </div>
-    </div>
-
-    <!-- Scripts (v2 = buoy data support) -->
-    <script>
-        // Simple password protection
-        (function() {
-            const PASS_HASH = '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'; // sha256('hello')
-            const AUTH_KEY = 'sailframes_auth';
-
-            // Check if already authenticated
-            if (sessionStorage.getItem(AUTH_KEY) === 'true') {
-                document.getElementById('login-overlay').classList.add('hidden');
-                return;
-            }
-
-            // Hash function
-            async function sha256(str) {
-                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-                return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-            }
-
-            // Handle login
-            document.getElementById('login-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const password = document.getElementById('login-password').value;
-                const hash = await sha256(password);
-
-                if (hash === PASS_HASH) {
-                    sessionStorage.setItem(AUTH_KEY, 'true');
-                    document.getElementById('login-overlay').classList.add('hidden');
-                } else {
-                    document.getElementById('login-error').textContent = 'Incorrect password';
-                    document.getElementById('login-password').value = '';
-                    document.getElementById('login-password').focus();
-                }
-            });
-        })();
-    </script>
-    <script src="./config.js?v=3"></script>
-    <script src="./assets/js/utils/time-sync.js?v=3"></script>
-    <script src="./assets/js/components/map-view.js?v=8"></script>
-    <script src="./assets/js/components/chart-panel.js?v=11"></script>
-    <script src="./assets/js/components/video-player.js?v=6"></script>
-    <script src="./assets/js/components/timeline.js?v=6"></script>
-    <script src="./assets/js/app.js?v=9"></script>
 </body>
 </html>

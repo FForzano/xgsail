@@ -29,18 +29,21 @@
 </head>
 <body class="race-dashboard">
     <header class="header">
-        <a href="/" class="logo-link"><h1 class="logo">SailFrames</h1></a>
+        <a href="./" class="logo-link"><h1 class="logo">SailFrames</h1></a>
         <div class="race-controls">
-            <select id="regatta-select">
-                <option value="">All Regattas</option>
+            <select id="regatta-select" title="Regatta Series">
+                <option value="">Select Regatta...</option>
             </select>
-            <select id="race-select">
-                <option value="">Select a race...</option>
+            <select id="raceday-select" title="Race Day">
+                <option value="">Select Day...</option>
+            </select>
+            <select id="race-select" title="Race">
+                <option value="">Select Race...</option>
             </select>
             <button id="btn-new-race" class="btn-primary" title="Create new race">+ New Race</button>
             <button id="btn-edit-race" class="btn-secondary" title="Edit race" disabled>Edit</button>
         </div>
-        <a href="/" class="nav-link">Session View</a>
+        <a href="./session.html" class="nav-link">Session View</a>
     </header>
 
     <main class="main race-main">
