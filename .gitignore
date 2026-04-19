@@ -42,3 +42,6 @@ Thumbs.db
 # AWS credentials (never commit)
 .aws/
 credentials.json
+
+# E1 SD card config (contains WiFi passwords)
+edge-e/firmware/e1_sd_card/config.txt
