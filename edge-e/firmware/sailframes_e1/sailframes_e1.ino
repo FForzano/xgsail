@@ -294,7 +294,7 @@ TFT_eSPI tft = TFT_eSPI();
 #define COLOR_WARN      TFT_YELLOW
 #define COLOR_ERROR     TFT_RED
 #define COLOR_DIVIDER   0x4208  // Dark gray
-Adafruit_BNO08x bno08x(-1);  // No reset pin
+Adafruit_BNO08x bno08x;  // No hardware reset pin
 Adafruit_DPS310 dps;         // DPS310 pressure/temperature sensor
 sh2_SensorValue_t sensorValue;
 File navFile, imuFile, rawFile, windFile, presFile;
@@ -816,16 +816,65 @@ void setup() {
   }
 
   Wire.begin(SDA_PIN, SCL_PIN);
-  Wire.setClock(400000);  // 400kHz required for BNO085
+  Wire.setBufferSize(512);  // BNO085 SHTP needs larger buffer
+  Wire.setClock(100000);  // Start slow for reliable init
+  delay(100);  // Let I2C bus stabilize
 
-  // I2C Scanner - quick check for expected devices only
-  Serial.println("[I2C] Checking devices...");
+  // BNO085 needs up to 1 second to boot after power-on
+  Serial.println("[I2C] Waiting for BNO085 boot (1s)...");
+  delay(1000);
+
+  // I2C Scanner - check all addresses to debug
+  Serial.println("[I2C] Scanning bus...");
+  for (uint8_t addr = 0x08; addr < 0x78; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf("[I2C] Found device at 0x%02X\n", addr);
+    }
+  }
+
+  // Check expected devices
+  Serial.println("[I2C] Checking expected devices...");
   Wire.beginTransmission(BNO085_ADDR);
   bool bnoFound = (Wire.endTransmission() == 0);
   Wire.beginTransmission(DPS310_ADDR);
   bool dpsFound = (Wire.endTransmission() == 0);
   Serial.printf("[I2C] BNO085 0x4B: %s\n", bnoFound ? "YES" : "NO");
   Serial.printf("[I2C] DPS310 0x77: %s\n", dpsFound ? "YES" : "NO");
+
+  // IMU — BNO085 (init early, before SPI peripherals)
+  Serial.println("[IMU] Initializing BNO085...");
+  bool imuInitOK = bno08x.begin_I2C(BNO085_ADDR, &Wire);
+
+  if (imuInitOK) {
+    imuOK = true;
+    Wire.setClock(400000);  // Switch to fast mode after init
+    Serial.println("[IMU] BNO085 detected, enabling reports");
+    if (!bno08x.enableReport(SH2_GAME_ROTATION_VECTOR, IMU_INTERVAL_MS * 1000)) {
+      Serial.println("[IMU] WARNING: Failed to enable game rotation vector");
+    }
+    if (!bno08x.enableReport(SH2_ROTATION_VECTOR, IMU_INTERVAL_MS * 1000)) {
+      Serial.println("[IMU] WARNING: Failed to enable rotation vector");
+    }
+    if (!bno08x.enableReport(SH2_ACCELEROMETER, IMU_INTERVAL_MS * 1000)) {
+      Serial.println("[IMU] WARNING: Failed to enable accelerometer");
+    }
+    if (!bno08x.enableReport(SH2_GYROSCOPE_CALIBRATED, IMU_INTERVAL_MS * 1000)) {
+      Serial.println("[IMU] WARNING: Failed to enable gyroscope");
+    }
+    if (!bno08x.enableReport(SH2_LINEAR_ACCELERATION, IMU_INTERVAL_MS * 1000)) {
+      Serial.println("[IMU] WARNING: Failed to enable linear acceleration");
+    }
+    if (!bno08x.enableReport(SH2_STABILITY_CLASSIFIER, 500000)) {
+      Serial.println("[IMU] WARNING: Failed to enable stability classifier");
+    }
+    if (!bno08x.enableReport(SH2_MAGNETIC_FIELD_CALIBRATED, IMU_INTERVAL_MS * 1000)) {
+      Serial.println("[IMU] WARNING: Failed to enable magnetometer");
+    }
+    Serial.println("[IMU] BNO085 OK");
+  } else {
+    Serial.println("[IMU] BNO085 not found!");
+  }
 
   // Set up CS pins before any SPI init
   pinMode(TFT_CS_PIN, OUTPUT);
@@ -910,46 +959,7 @@ void setup() {
   // Reset text size for rest of display
   tft.setTextSize(1);
 
-  // IMU — BNO085
-  Serial.println("[IMU] Initializing BNO085...");
-  if (bno08x.begin_I2C(BNO085_ADDR, &Wire)) {
-    imuOK = true;
-    Serial.println("[IMU] BNO085 detected, enabling reports");
-    // Enable Game Rotation Vector for heel/pitch (no magnetometer drift)
-    if (!bno08x.enableReport(SH2_GAME_ROTATION_VECTOR, IMU_INTERVAL_MS * 1000)) {
-      Serial.println("[IMU] WARNING: Failed to enable game rotation vector");
-    }
-    // Enable Rotation Vector for heading (includes magnetometer)
-    if (!bno08x.enableReport(SH2_ROTATION_VECTOR, IMU_INTERVAL_MS * 1000)) {
-      Serial.println("[IMU] WARNING: Failed to enable rotation vector");
-    }
-    // Also enable accelerometer for raw data
-    if (!bno08x.enableReport(SH2_ACCELEROMETER, IMU_INTERVAL_MS * 1000)) {
-      Serial.println("[IMU] WARNING: Failed to enable accelerometer");
-    }
-    // Enable gyroscope for turning rate (tack/gybe detection)
-    if (!bno08x.enableReport(SH2_GYROSCOPE_CALIBRATED, IMU_INTERVAL_MS * 1000)) {
-      Serial.println("[IMU] WARNING: Failed to enable gyroscope");
-    }
-    // Enable linear acceleration (gravity removed) for impact/wave detection
-    if (!bno08x.enableReport(SH2_LINEAR_ACCELERATION, IMU_INTERVAL_MS * 1000)) {
-      Serial.println("[IMU] WARNING: Failed to enable linear acceleration");
-    }
-    // Enable stability classifier for motion state detection
-    if (!bno08x.enableReport(SH2_STABILITY_CLASSIFIER, 500000)) {  // 500ms, doesn't need high rate
-      Serial.println("[IMU] WARNING: Failed to enable stability classifier");
-    }
-    // Enable magnetometer for interference analysis (helps understand heading drift)
-    if (!bno08x.enableReport(SH2_MAGNETIC_FIELD_CALIBRATED, IMU_INTERVAL_MS * 1000)) {
-      Serial.println("[IMU] WARNING: Failed to enable magnetometer");
-    }
-    Serial.println("[IMU] BNO085 OK");
-  } else {
-    Serial.println("[IMU] BNO085 not found!");
-  }
-
   // DPS310 Pressure/Temperature sensor
-  delay(100);  // Brief delay after BNO085 before initializing next I2C device
   Serial.println("[PRES] Initializing DPS310...");
   if (dps.begin_I2C(DPS310_ADDR, &Wire)) {
     presOK = true;
@@ -2074,7 +2084,7 @@ void logIMU() {
 // ============================================================
 
 // Display mode: 1 = D1 (simple big numbers), 2 = D2 (nav + wind), 3 = D3 (wind focus)
-int displayMode = 3;  // D3 for wind + nav dashboard
+int displayMode = 2;  // D2 Vakaros-style nav + wind
 
 // Previous values for efficient redraw (only update what changed)
 static float prevSOG = -1, prevCOG = -1, prevHeel = -1, prevPitch = -1;
