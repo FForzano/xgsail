@@ -98,7 +98,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.04.29.4"
+#define FW_VERSION    "2026.04.29.5"
 
 #define GPS_BAUD      460800  // LG290P configured rate
 #define SERIAL_BAUD   115200
@@ -2266,29 +2266,29 @@ void updateDisplayD2() {
     tft.fillScreen(COLOR_BG);
     d2LayoutDrawn = true;
 
-    // VAKAROS-STYLE: White bg, HUGE bold black numbers
+    // VAKAROS-STYLE: White bg, bold black numbers
     // Top bar: BLACK bg, WHITE text
     // Bottom bar: BLACK bg, WHITE text (includes wind data if enabled)
-    // Layout (always HUGE numbers):
+    // Layout:
     // [BLACK: REC | SAT x HDOP x.x]  (30px)
-    // [    COG 000                ]  (200px) - HUGE Font 8 x3
-    // [    SOG 00                 ]  (200px) - HUGE Font 8 x3
+    // [COG  000                   ]  (190px) - Font 8 x2
+    // [SOG  00                    ]  (190px) - Font 8 x2
     // [BLACK: H P [AWS AWA] BAT W ]  (50px)
 
     // BLACK bars for top and bottom
     tft.fillRect(0, 0, SCREEN_WIDTH, 30, TFT_BLACK);
-    tft.fillRect(0, 430, SCREEN_WIDTH, 50, TFT_BLACK);
+    tft.fillRect(0, 440, SCREEN_WIDTH, 40, TFT_BLACK);
 
     // Divider between COG and SOG
     uint16_t lineColor = tft.color565(180, 180, 180);
-    tft.drawFastHLine(0, 230, SCREEN_WIDTH, lineColor);
+    tft.drawFastHLine(0, 220, SCREEN_WIDTH, lineColor);
 
-    // Labels for COG and SOG
+    // Labels for COG and SOG - LARGE (Font 4 = 26px)
     uint16_t labelColor = tft.color565(100, 100, 100);
     tft.setTextColor(labelColor, COLOR_BG);
     tft.setTextDatum(TL_DATUM);
-    tft.drawString("COG", 5, 35, 2);
-    tft.drawString("SOG", 5, 235, 2);
+    tft.drawString("COG", 5, 35, 4);
+    tft.drawString("SOG", 5, 225, 4);
 
     // Reset prev values
     prevSOG = prevCOG = prevHeel = prevPitch = -999;
@@ -2350,30 +2350,30 @@ void updateDisplayD2() {
     }
   }
 
-  // COG - MAXIMUM SIZE (Font 8 x3 = 225px)
-  // COG area: 30-230 (200px), center at 130
+  // COG - Font 8 x2 = 150px
+  // COG area: 30-220 (190px), center at 125
   if (abs(gps.course - prevCOG) > 0.5) {
     prevCOG = gps.course;
-    tft.fillRect(0, 50, SCREEN_WIDTH, 175, COLOR_BG);
+    tft.fillRect(0, 60, SCREEN_WIDTH, 155, COLOR_BG);
     tft.setTextColor(TFT_BLACK, COLOR_BG);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(3);
+    tft.setTextSize(2);
     snprintf(buf, sizeof(buf), "%03d", (int)gps.course);
-    tft.drawString(buf, SCREEN_WIDTH/2, 130, 8);
+    tft.drawString(buf, SCREEN_WIDTH/2, 125, 8);
     tft.setTextSize(1);
   }
 
-  // SOG - MAXIMUM SIZE (Font 8 x3 = 225px)
-  // SOG area: 230-430 (200px), center at 330
+  // SOG - Font 8 x2 = 150px
+  // SOG area: 220-440 (190px), center at 315
   int sogInt = (int)(gps.speed_kts + 0.5);
   if (sogInt != (int)(prevSOG + 0.5)) {
     prevSOG = gps.speed_kts;
-    tft.fillRect(0, 250, SCREEN_WIDTH, 175, COLOR_BG);
+    tft.fillRect(0, 250, SCREEN_WIDTH, 155, COLOR_BG);
     tft.setTextColor(TFT_BLACK, COLOR_BG);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(3);
+    tft.setTextSize(2);
     snprintf(buf, sizeof(buf), "%d", sogInt);
-    tft.drawString(buf, SCREEN_WIDTH/2, 330, 8);
+    tft.drawString(buf, SCREEN_WIDTH/2, 320, 8);
     tft.setTextSize(1);
   }
 
