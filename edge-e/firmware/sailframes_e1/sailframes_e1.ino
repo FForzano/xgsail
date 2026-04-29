@@ -98,7 +98,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.04.29.5"
+#define FW_VERSION    "2026.04.29.6"
 
 #define GPS_BAUD      460800  // LG290P configured rate
 #define SERIAL_BAUD   115200
@@ -2351,7 +2351,7 @@ void updateDisplayD2() {
   }
 
   // COG - Font 8 x2 = 150px
-  // COG area: 30-220 (190px), center at 125
+  // COG area: 30-220 (190px), center at 130 (moved down to not overlap label)
   if (abs(gps.course - prevCOG) > 0.5) {
     prevCOG = gps.course;
     tft.fillRect(0, 60, SCREEN_WIDTH, 155, COLOR_BG);
@@ -2359,7 +2359,7 @@ void updateDisplayD2() {
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(2);
     snprintf(buf, sizeof(buf), "%03d", (int)gps.course);
-    tft.drawString(buf, SCREEN_WIDTH/2, 125, 8);
+    tft.drawString(buf, SCREEN_WIDTH/2, 130, 8);
     tft.setTextSize(1);
   }
 
