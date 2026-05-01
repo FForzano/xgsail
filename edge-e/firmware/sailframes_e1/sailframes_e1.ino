@@ -98,7 +98,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.04.30.2"
+#define FW_VERSION    "2026.05.01.3"
 
 #define GPS_BAUD      460800  // LG290P configured rate
 #define SERIAL_BAUD   115200
@@ -109,7 +109,8 @@
 #define GPS_FIX_TIMEOUT_MS  300000
 #define DISPLAY_UPDATE_MS   500   // TFT can handle faster updates (no I2C contention)
 #define FLUSH_INTERVAL_MS   10000
-#define IMU_INTERVAL_MS     50
+#define IMU_INTERVAL_MS     1000   // 1 Hz (was 50ms/20Hz - overkill for sailing)
+#define PRES_INTERVAL_MS    10000  // 0.1 Hz (every 10 sec - weather trends only)
 
 // Wind sensor (Calypso Mini BLE)
 #define ENABLE_WIND         true
@@ -2309,14 +2310,17 @@ void updateDisplayD2() {
     prevFixQ = gps.fix_quality;
 
     // TOP BAR: WHITE text on BLACK background
+    // Clear entire top bar first to prevent any ghosting
+    tft.fillRect(0, 0, SCREEN_WIDTH, 30, TFT_BLACK);
+
     // Recording state (left side)
     const char* recStr;
     switch (recState) {
-      case REC_IDLE: recStr = gps.valid ? "READY   " : "NO GPS  "; break;
-      case REC_ARMED: recStr = "ARMING  "; break;
-      case REC_RECORDING: recStr = "REC     "; break;
-      case REC_STOPPING: recStr = "STOPPING"; break;
-      default: recStr = "        "; break;
+      case REC_IDLE: recStr = gps.valid ? "READY" : "NO GPS"; break;
+      case REC_ARMED: recStr = "ARM"; break;
+      case REC_RECORDING: recStr = "REC"; break;
+      case REC_STOPPING: recStr = "STOP"; break;
+      default: recStr = "---"; break;
     }
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setTextDatum(TL_DATUM);
@@ -2325,30 +2329,24 @@ void updateDisplayD2() {
     // Fix type (0=none, 1=GPS, 2=DGPS/SBAS, 4=RTK fix, 5=RTK float)
     const char* fixStr;
     switch (gps.fix_quality) {
-      case 1: fixStr = "GPS  "; break;
-      case 2: fixStr = "SBAS "; break;
-      case 4: fixStr = "RTK  "; break;
-      case 5: fixStr = "FLOAT"; break;
-      default: fixStr = "---  "; break;
+      case 1: fixStr = "GPS"; break;
+      case 2: fixStr = "SBAS"; break;
+      case 4: fixStr = "RTK"; break;
+      case 5: fixStr = "FLT"; break;
+      default: fixStr = "---"; break;
     }
     tft.drawString(fixStr, 100, 7, 2);
 
     // SAT count
-    tft.drawString("SAT", 150, 7, 2);
-    snprintf(buf, sizeof(buf), "%2d ", dispSats);
-    tft.drawString(buf, 185, 7, 2);
+    tft.drawString("SAT", 145, 7, 2);
+    snprintf(buf, sizeof(buf), "%2d", dispSats);
+    tft.drawString(buf, 180, 7, 2);
 
     // HDOP
     tft.drawString("HDOP", 210, 7, 2);
-    snprintf(buf, sizeof(buf), "%.1f ", gps.hdop);
+    snprintf(buf, sizeof(buf), "%.1f", gps.hdop);
     tft.drawString(buf, 250, 7, 2);
-
-    // WiFi status on top bar
-    if (wifiConnected) {
-      tft.drawString("WiFi", 290, 7, 2);
-    } else {
-      tft.drawString("    ", 290, 7, 2);
-    }
+    // WiFi status removed from top bar - shown on bottom bar instead
   }
 
   // COG - Font 8 x2 = 150px
@@ -3205,12 +3203,25 @@ void uploadDirectory(const char* dirname) {
       file.close();  // Close file handle before upload
 
       if (!name.endsWith(".uploaded") && !isUploaded(filepath)) {
-        // Feed watchdog before upload
-        yield();
-        delay(100);
+        // Skip RTCM3 files unless on Home-IOT WiFi (too large for mobile upload)
+        if (name.endsWith(".rtcm3") && strcmp(connectedSSID, "Home-IOT") != 0) {
+          Serial.printf("[UPLOAD] Skipping RTCM3 on %s (Home-IOT only): %s\n", connectedSSID, name.c_str());
+          // Don't mark as uploaded - will upload when on Home-IOT
+        } else {
+          // Check if boat started moving - abort upload to allow recording to start
+          if (gps.speed_kts >= config.start_speed_knots || recState == REC_ARMED) {
+            Serial.println("[UPLOAD] Boat moving, aborting upload to allow recording");
+            root.close();
+            return;  // Exit uploadDirectory immediately
+          }
 
-        if (uploadFile(filepath)) {
-          markUploaded(filepath);
+          // Feed watchdog before upload
+          yield();
+          delay(100);
+
+          if (uploadFile(filepath)) {
+            markUploaded(filepath);
+          }
         }
 
         // Longer pause between uploads to prevent crashes
@@ -4108,15 +4119,22 @@ void updateRecordingState() {
         // Speed dropped, reset
         recState = REC_IDLE;
         Serial.println("[REC] Speed dropped, back to idle");
+      } else if (uploading) {
+        // Don't start recording while upload is in progress - SD card conflict
+        Serial.println("[REC] Upload in progress, waiting to start recording...");
+        // Stay in ARMED state, will retry next cycle
       } else if (now - armStartTime >= startDelay) {
         // Sustained speed — start recording
         sessionCount++;
-        if (xSemaphoreTake(sdMutex, pdMS_TO_TICKS(1000))) {
+        if (xSemaphoreTake(sdMutex, pdMS_TO_TICKS(2000))) {
           startLogging();
           xSemaphoreGive(sdMutex);
+          recState = REC_RECORDING;
+          Serial.printf("[REC] Recording STARTED — session %d\n", sessionCount);
+        } else {
+          // Mutex timeout - upload may be holding it, stay in ARMED
+          Serial.println("[REC] SD busy, retrying...");
         }
-        recState = REC_RECORDING;
-        Serial.printf("[REC] Recording STARTED — session %d\n", sessionCount);
       }
       break;
 
@@ -4435,9 +4453,9 @@ void loop() {
     lastIMU = now;
   }
 
-  // Pressure sensor (same interval as IMU for gust detection)
+  // Pressure sensor (0.1 Hz - weather trends only, not gust detection)
   static unsigned long lastPres = 0;
-  if (presOK && now - lastPres >= IMU_INTERVAL_MS) {
+  if (presOK && now - lastPres >= PRES_INTERVAL_MS) {
     readPressure();
     if (logging) logPressure();
     lastPres = now;

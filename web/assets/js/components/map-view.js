@@ -44,7 +44,8 @@ class MapView {
         this.map = L.map(this.container, {
             center: [42.35, -71.05], // Boston Harbor default
             zoom: 13,
-            zoomControl: true
+            zoomControl: true,
+            maxZoom: 20  // Allow deep zoom regardless of tile layer limits
         });
 
         // Base layers
@@ -66,7 +67,8 @@ class MapView {
             }),
             'ESRI Ocean': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
                 attribution: '&copy; Esri, GEBCO, NOAA, National Geographic',
-                maxZoom: 13,
+                maxNativeZoom: 13,  // Tiles only exist up to zoom 13
+                maxZoom: 20,        // Allow overzoom (stretches tiles)
             }),
             'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 attribution: '&copy; Esri',

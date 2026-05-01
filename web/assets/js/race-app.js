@@ -132,6 +132,7 @@ function initMap() {
         center: [42.36, -71.05],  // Boston Harbor
         zoom: 14,
         zoomControl: true,
+        maxZoom: 20,  // Allow deep zoom regardless of tile layer limits
     });
 
     // Base layers
@@ -153,7 +154,8 @@ function initMap() {
         }),
         'ESRI Ocean': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
             attribution: '&copy; Esri, GEBCO, NOAA, National Geographic',
-            maxZoom: 13,
+            maxNativeZoom: 13,  // Tiles only exist up to zoom 13
+            maxZoom: 20,        // Allow overzoom (stretches tiles)
         }),
         'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '&copy; Esri',

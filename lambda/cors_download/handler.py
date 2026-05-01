@@ -366,8 +366,22 @@ def download_cors_data(year: int, doy: int) -> list:
         url = f"{base_url}{filename}"
         s3_key = f"cors/{station}/{year}/{doy:03d}/{filename}"
 
+        # Skip if file already exists in S3
         try:
-            logger.info(f"Attempting to download: {url}")
+            s3.head_object(Bucket=DATA_BUCKET, Key=s3_key)
+            logger.debug(f"CORS file already exists, skipping: {s3_key}")
+            downloaded.append({
+                'file': filename,
+                's3_key': s3_key,
+                'size': 0,
+                'cached': True
+            })
+            continue
+        except s3.exceptions.ClientError:
+            pass  # File doesn't exist, proceed to download
+
+        try:
+            logger.info(f"Downloading: {url}")
 
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'SailFrames-PPK/1.0')
