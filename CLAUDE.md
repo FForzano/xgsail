@@ -237,7 +237,7 @@ Future Expansion:
   - NimBLE-Arduino 2.4.0 (wind sensor BLE) — avoid 2.5.0
   - Adafruit BusIO 1.17.4
   - Adafruit GFX Library 1.12.6
-  - Adafruit BNO08x 1.2.6
+  - Adafruit BNO08x 1.2.5
   - Adafruit DPS310 1.1.3
 - **Arduino IDE:** ESP32 board package 3.3.7 — avoid 3.3.8 (causes I2C/GPIO issues)
 - **Partition scheme:** Minimal SPIFFS (1.9MB APP with OTA, 128KB SPIFFS) — leaves room for OTA partition
