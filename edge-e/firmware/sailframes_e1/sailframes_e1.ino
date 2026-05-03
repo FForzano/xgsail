@@ -98,7 +98,16 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.03.04"
+#define FW_VERSION    "2026.05.03.05"
+
+// Telnet listener is OFF by default. The 2026.05.03.04 fleet test confirmed
+// (via diag heartbeat) that handleTelnet() blocks Core 1 inside LWIP when
+// Core 0 is doing concurrent HTTP uploads — even with the wifiBusy gate,
+// because Core 1 may already be INSIDE handleTelnet when the upload fires
+// and the gate only prevents new entries. Easiest robust fix: don't run
+// the listener during automated post-sail uploads. Set telnetEnabled=true
+// at runtime via the serial 'telneton' command if you need to debug live.
+#define TELNET_ENABLED_DEFAULT  false
 
 // ArduinoOTA registers an mDNS multicast UDP listener. On ESP32 Arduino
 // Core 3.3.7 with NimBLE active for the wind sensor, the mDNS init at
@@ -352,6 +361,8 @@ float imuPitchOffset = 0.0;
 // Telnet server for remote console
 WiFiServer telnetServer(23);
 WiFiClient telnetClient;
+bool telnetEnabled = TELNET_ENABLED_DEFAULT;
+bool telnetServerRunning = false;
 String telnetBuffer = "";
 unsigned long logStart = 0, lastDisp = 0, lastFlush = 0, lastIMU = 0, lastWind = 0;
 unsigned long lastWindScan = 0;
@@ -1946,10 +1957,16 @@ void setupOTA() {
 void startTelnetServer() {
   telnetServer.begin();
   telnetServer.setNoDelay(true);
+  telnetServerRunning = true;
   Serial.println("[TELNET] Server started on port 23");
 }
 
 void handleTelnet() {
+  // Bail if the listener was never started OR if Core 0 is mid-upload.
+  // telnetServer.hasClient() goes through LWIP and deadlocks under
+  // sustained Core 0 traffic (firmware 2026.05.03.04 fleet hang).
+  if (!telnetServerRunning || wifiBusy) return;
+
   // Check for new clients
   if (telnetServer.hasClient()) {
     if (!telnetClient || !telnetClient.connected()) {
@@ -3435,9 +3452,16 @@ bool connectWiFi() {
 
       wifiConnected = true;
 
-      // Start OTA and Telnet services
+      // Start OTA. Telnet listener stays off by default — its WiFiServer/
+      // WiFiClient calls into LWIP deadlock Core 1 when Core 0 is doing
+      // concurrent HTTP uploads (firmware 2026.05.03.04 fleet hang).
+      // Enable at runtime with serial command 'telneton'.
       setupOTA();
-      startTelnetServer();
+      if (telnetEnabled) {
+        startTelnetServer();
+      } else {
+        Serial.println("[TELNET] Listener disabled (use 'telneton' to enable)");
+      }
 
       // No display update - connection is silent, status shown in status bar
 
@@ -3590,6 +3614,24 @@ void processCommand(String cmd, bool fromTelnet) {
     if (f.available()) tprintln("... (truncated at 50 lines)");
     f.close();
 
+  } else if (cmd == "telneton") {
+    telnetEnabled = true;
+    if (wifiConnected && !telnetServerRunning) {
+      startTelnetServer();
+      tprintln("Telnet listener enabled and started");
+    } else {
+      tprintln("Telnet enabled — will start on next WiFi connect");
+    }
+  } else if (cmd == "telnetoff") {
+    telnetEnabled = false;
+    if (telnetServerRunning) {
+      if (telnetClient && telnetClient.connected()) telnetClient.stop();
+      telnetServer.end();
+      telnetServerRunning = false;
+      tprintln("Telnet listener stopped");
+    } else {
+      tprintln("Telnet was not running");
+    }
   } else if (cmd == "upload") {
     if (!sdOK) {
       tprintln("SD card not available");
@@ -4180,6 +4222,8 @@ void processCommand(String cmd, bool fromTelnet) {
     tprintln("  cat <file> - Show file contents");
     tprintln("  upload     - Manual upload to S3");
     tprintln("  cleanup    - Delete uploaded files");
+    tprintln("  telneton   - Enable telnet listener (off by default)");
+    tprintln("  telnetoff  - Disable telnet listener");
     tprintln("  wifi       - Connect to WiFi");
     tprintln("  disconnect - Disconnect WiFi");
     tprintln("  reboot     - Restart device");
