@@ -98,7 +98,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.03.06"
+#define FW_VERSION    "2026.05.03.07"
 
 // Telnet listener is OFF by default. The 2026.05.03.04 fleet test confirmed
 // (via diag heartbeat) that handleTelnet() blocks Core 1 inside LWIP when
@@ -2381,7 +2381,7 @@ void updateDisplayD2() {
     // [BLACK: REC | SAT x HDOP x.x]  (30px)
     // [COG  000                   ]  (190px) - Font 8 x2
     // [SOG  00                    ]  (190px) - Font 8 x2
-    // [BLACK: H P [AWS AWA] BAT W ]  (50px)
+    // [BLACK: H P AWS AWA / BAT% W | WiFi N R ]  (50px, two rows)
 
     // BLACK bars for top and bottom
     tft.fillRect(0, 0, SCREEN_WIDTH, 30, TFT_BLACK);
@@ -2487,6 +2487,7 @@ void updateDisplayD2() {
   static bool prevWifiConnected = false;
   static unsigned long lastStatusUpdate = 0;
 
+  static int prevPendingN = -1, prevPendingR = -1;
   bool statusChanged = (wind.connected != prevWindConnected) ||
                        (wifiConnected != prevWifiConnected) ||
                        (abs(imu.heel - prevHeel) > 0.5) ||
@@ -2494,6 +2495,8 @@ void updateDisplayD2() {
                        (abs(aws - prevAWS2) > 0.3) ||
                        (abs(awa - prevAWA2) > 1) ||
                        (battery.percent != prevBattery) ||
+                       (pendingUploads != prevPendingN) ||
+                       (pendingRTCM != prevPendingR) ||
                        (millis() - lastStatusUpdate > 2000);
 
   if (statusChanged) {
@@ -2505,47 +2508,52 @@ void updateDisplayD2() {
     prevAWS2 = aws;
     prevAWA2 = awa;
     prevBattery = battery.percent;
+    prevPendingN = pendingUploads;
+    prevPendingR = pendingRTCM;
 
     // BOTTOM BAR: Two rows - WHITE on BLACK
     // Clear entire bottom bar first (50px tall)
     tft.fillRect(0, 430, SCREEN_WIDTH, 50, TFT_BLACK);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
-    // Row 1 (y=438): Wind data (if enabled) or Heel/Pitch
+    // Row 1 (y=440): Heel + Pitch always; AWS + AWA appended when wind connected.
+    // Single row keeps heel/pitch visible even with the wind sensor active.
+    char row1[48];
     if (config.wind_enabled && wind.connected) {
-      // Show AWS and AWA prominently
-      char windLine[40];
-      snprintf(windLine, sizeof(windLine), "AWS %.1f kt  AWA %03d", aws, (int)awa);
-      tft.setTextDatum(MC_DATUM);
-      tft.drawString(windLine, SCREEN_WIDTH/2, 440, 2);
+      snprintf(row1, sizeof(row1), "H%+.0f P%+.0f  AWS%.1f AWA%03d",
+               imu.heel, imu.pitch, aws, (int)awa);
     } else {
-      // Show Heel and Pitch
-      char hpLine[30];
-      snprintf(hpLine, sizeof(hpLine), "H %+.0f   P %+.0f", imu.heel, imu.pitch);
-      tft.setTextDatum(MC_DATUM);
-      tft.drawString(hpLine, SCREEN_WIDTH/2, 440, 2);
+      snprintf(row1, sizeof(row1), "H %+.0f   P %+.0f", imu.heel, imu.pitch);
     }
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString(row1, SCREEN_WIDTH/2, 440, 2);
 
-    // Row 2 (y=458): BAT + WiFi/upload status
+    // Row 2 (y=458):
+    //   Left:  "BAT N% W"   (W appears immediately after BAT% when wind connected)
+    //   Right: WiFi indicator + upload counts (no W here — was blocking the counts)
     tft.setTextDatum(TL_DATUM);
-    char batStr[20];
-    snprintf(batStr, sizeof(batStr), "BAT %d%%", battery.percent);
-    tft.drawString(batStr, 5, 456, 2);
-
-    // Right side: WiFi + upload status
-    char right[25];
+    char left[24];
 #if ENABLE_WIND
-    const char* windInd = (config.wind_enabled && wind.connected) ? "W " : "";
+    bool windInd = (config.wind_enabled && wind.connected);
 #else
-    const char* windInd = "";
+    bool windInd = false;
 #endif
+    if (windInd) {
+      snprintf(left, sizeof(left), "BAT %d%% W", battery.percent);
+    } else {
+      snprintf(left, sizeof(left), "BAT %d%%", battery.percent);
+    }
+    tft.drawString(left, 5, 456, 2);
+
+    // Right side: WiFi + upload counts only.
+    char right[25];
     const char* wifiInd = wifiConnected ? getWifiIndicator() : "";
 
     if (uploading && uploadTotal > 0) {
-      snprintf(right, sizeof(right), "%s%s %d/%d", windInd, wifiInd, uploadCount, uploadTotal);
+      snprintf(right, sizeof(right), "%s %d/%d", wifiInd, uploadCount, uploadTotal);
     } else if (pendingUploads > 0 || pendingRTCM > 0) {
       // N = sessions with non-RTCM3 files pending, R = sessions with RTCM3 pending
-      char counts[24];
+      char counts[16];
       if (pendingUploads > 0 && pendingRTCM > 0) {
         snprintf(counts, sizeof(counts), "N%d R%d", pendingUploads, pendingRTCM);
       } else if (pendingUploads > 0) {
@@ -2553,9 +2561,9 @@ void updateDisplayD2() {
       } else {
         snprintf(counts, sizeof(counts), "R%d", pendingRTCM);
       }
-      snprintf(right, sizeof(right), "%s%s %s", windInd, wifiInd, counts);
+      snprintf(right, sizeof(right), "%s %s", wifiInd, counts);
     } else {
-      snprintf(right, sizeof(right), "%s%s", windInd, wifiInd);
+      snprintf(right, sizeof(right), "%s", wifiInd);
     }
     tft.setTextDatum(TR_DATUM);
     tft.drawString(right, SCREEN_WIDTH - 5, 456, 2);
