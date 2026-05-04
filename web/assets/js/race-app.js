@@ -678,20 +678,20 @@ function fmtSourceLabel(buoy) {
     if (src === 'nws')   return 'NWS';
     if (src === 'synoptic') {
         const net = (buoy.network || '').toUpperCase();
-        const SYN_NET_LABELS = {
-            'WXFLOW': 'Tempest',
-            'TEMPEST': 'Tempest',
-            'CWOP': 'CWOP',
-            'NWS/FAA': 'METAR',
-            'ASOSAWOS': 'METAR',
-            'NWSCOOP': 'COOP',
-            'RAWS': 'RAWS',
-            'BUOY': 'NDBC',
-            'NDBC': 'NDBC',
-            'AMUNDOS': 'AMUNDOS',
-        };
-        const tag = SYN_NET_LABELS[net] || (net ? net : 'Synoptic');
-        return `Syn·${tag}`;
+        // Map Synoptic's network short names to a 1-token tag suitable
+        // for the dropdown column. Order matters — earliest match wins.
+        if (net.includes('TEMPEST') || net.includes('WXFLOW')) return 'Syn·Tempest';
+        if (net.includes('CWOP') || net.includes('APRS'))      return 'Syn·CWOP';
+        if (net.includes('ASOS') || net.includes('AWOS') ||
+            net.includes('METAR') || net.includes('NWS/FAA'))  return 'Syn·METAR';
+        if (net.includes('RAWS'))                              return 'Syn·RAWS';
+        if (net.includes('WEATHERSTEM'))                       return 'Syn·WxStem';
+        if (net.includes('DAVIS') || net.includes('WLINK'))    return 'Syn·Davis';
+        if (net === 'NTC' || net.includes('TIDES'))            return 'Syn·NOAA·NTC';
+        if (net.includes('BUOY') || net.includes('NDBC') ||
+            net.includes('CMAN'))                              return 'Syn·NDBC';
+        if (net.includes('SCHOOL'))                            return 'Syn·SchoolNet';
+        return net ? `Syn·${net.length > 10 ? net.slice(0, 9) + '…' : net}` : 'Synoptic';
     }
     return src;
 }

@@ -135,6 +135,11 @@ def lambda_handler(event, context):
                     "type": buoy["type"],
                     "has_data": buoy["has_data"],
                     "data_points": buoy["data_points"],
+                    # Expose source + network so the dashboard can render
+                    # an honest "source" column in the wind picker
+                    # (NDBC / METAR / Syn·Tempest / Syn·CWOP / etc.).
+                    "source": buoy.get("source", "ndbc"),
+                    "network": buoy.get("network", ""),
                 }
 
             return {
@@ -636,6 +641,43 @@ def fetch_metar_data_for_timerange(station_id: str, start_ts: float, end_ts: flo
     return []
 
 
+def fetch_synoptic_networks() -> dict:
+    """Fetch the Synoptic mesonet network catalog once per container.
+    Returns {mnet_id (int): shortname (str)}. Cached 24h since networks
+    rarely change. Returns {} on any failure (the integration just shows
+    "Synoptic" in the source column without the network suffix)."""
+    if not SYNOPTIC_TOKEN:
+        return {}
+    cache_key = "synoptic_networks"
+    if cache_key in _cache:
+        cached_time, cached_data = _cache[cache_key]
+        if datetime.utcnow().timestamp() - cached_time < 86400:
+            return cached_data
+
+    url = f"https://api.synopticdata.com/v2/networks?token={SYNOPTIC_TOKEN}"
+    try:
+        req = Request(url, headers={"User-Agent": "SailFrames/1.0"})
+        with urlopen(req, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception as e:
+        logger.warning(f"Synoptic networks fetch failed: {e}")
+        _cache[cache_key] = (datetime.utcnow().timestamp(), {})
+        return {}
+
+    networks = {}
+    for net in payload.get("MNET", []):
+        try:
+            nid = int(net.get("ID"))
+            shortname = (net.get("SHORTNAME") or "").strip()
+            if shortname:
+                networks[nid] = shortname
+        except (ValueError, TypeError):
+            continue
+    _cache[cache_key] = (datetime.utcnow().timestamp(), networks)
+    logger.info(f"Synoptic networks cached: {len(networks)} entries")
+    return networks
+
+
 def fetch_synoptic_stations(start_ts: float, end_ts: float) -> dict:
     """Query Synoptic Mesonet for all stations with wind sensors in the
     Boston Harbor bbox over the requested window. Returns a dict shaped
@@ -679,6 +721,9 @@ def fetch_synoptic_stations(start_ts: float, end_ts: float) -> dict:
         logger.warning(f"Synoptic non-OK response: {summary.get('RESPONSE_MESSAGE')}")
         _cache[cache_key] = (datetime.utcnow().timestamp(), {})
         return {}
+
+    # Resolve MNET_ID → short name once for the whole batch
+    networks_map = fetch_synoptic_networks()
 
     result = {}
     for station in payload.get("STATION", []):
@@ -729,9 +774,14 @@ def fetch_synoptic_stations(start_ts: float, end_ts: float) -> dict:
 
         name = station.get("NAME") or sid
         network = ""
-        mnet = station.get("MNET")
-        if isinstance(mnet, dict):
-            network = mnet.get("SHORTNAME", "") or mnet.get("LONGNAME", "")
+        # Synoptic returns MNET_ID as a numeric ID; resolve to a network
+        # short name via the cached networks catalog.
+        mnet_id = station.get("MNET_ID")
+        try:
+            nid = int(mnet_id)
+            network = networks_map.get(nid, "")
+        except (TypeError, ValueError):
+            pass
 
         # Mark marine/sailing-center stations in a distinct color so they
         # stand out in the picker.
