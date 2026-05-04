@@ -1,29 +1,33 @@
 # SailFrames — Sailboat Racing Data Logger
+
 ## Project Context for Claude Code
+
+**Note:** S1 (Raspberry Pi single-boat analysis device) was shelved.
+All S1 hardware/software notes live in `docs/S1_LEGACY.md`. This file
+is focused on the deployed system: ESP32 **E1** fleet trackers (×6) and
+the web race dashboard.
 
 ---
 
 ## Project Overview
 
 **SailFrames** is an open-source sailboat racing data logger and analytics platform.
+
 - **License:** Apache 2.0
 - **GitHub org:** github.com/sailframes
 - **Main repo:** github.com/sailframes/core
-- **Domain:** sailframes.com (registered via AWS)
-- **Cloud:** AWS
-- **S3 Bucket:** `sailframes-fleet-data-prod` (unified bucket for both S1 and E1 devices)
-- **Fleet:** 6 boats — Sonar 23 and J/80 class, Boston Harbor
+- **Domain:** sailframes.com (AWS-hosted)
+- **Cloud:** AWS (S3 + Lambda + CloudFront + Route 53)
+- **S3 bucket:** `sailframes-fleet-data-prod`
+- **Fleet:** 6 boats — Sonar 23 / J/80 class, Boston Harbor
 
-The system has two hardware tiers:
-- **S1** (primary analysis boat): Raspberry Pi 5, high-precision sensors, camera, sunlight-readable display
-- **E1** (fleet tracker, ×20 regatta boats): ESP32, PPK-capable GNSS, IMU, OLED, SD logging
+The fleet captures GPS + IMU + (some) wind during races, uploads to S3
+post-sail, and provides a web dashboard for race replay and analytics.
 
-The system captures GPS, IMU, wind, pressure, and camera data during races,
-syncs to AWS after each session, and provides web-based race analysis and replay.
-
-**Strategic differentiator:** SailFrames is the first sailing analytics platform
-using PPK (Post-Processed Kinematic) GNSS, leveraging free NOAA CORS base station
-data via RTKLIB for sub-meter accuracy without any base station hardware.
+**Strategic differentiator:** SailFrames is the first sailing analytics
+platform using PPK (Post-Processed Kinematic) GNSS — leveraging free NOAA
+CORS base station data via RTKLIB for sub-meter accuracy with no base
+station hardware.
 
 ---
 
@@ -31,78 +35,25 @@ data via RTKLIB for sub-meter accuracy without any base station hardware.
 
 ```
 sailframes/core/
-├── CLAUDE.md              # This file — project context for Claude Code
-├── edge-s/                # Raspberry Pi edge device (S1 = first gen)
-│   ├── services/          # Sensor acquisition (GPS, IMU, wind, pressure, camera)
-│   ├── scripts/           # Install, start, stop, Wi-Fi mode, GPS config
-│   ├── config/            # Device config (sailframes.yaml)
-│   └── tests/             # Sensor connectivity tests
-├── edge-e/                # ESP32 edge device (E1 = first gen)
-│   ├── hardware/          # KiCad PCB designs (schematic complete, layout pending)
+├── CLAUDE.md              # This file — E1 + web project context
+├── docs/
+│   └── S1_LEGACY.md       # Shelved Raspberry Pi notes
+├── edge-e/                # ESP32 device (E1 = first gen)
+│   ├── hardware/          # KiCad PCB v1.1 (Gerbers ordered)
 │   └── firmware/          # ESP32 Arduino firmware (sailframes_e1.ino)
-├── web/                   # Dashboard web application
+├── edge-s/                # LEGACY — Raspberry Pi (see docs/S1_LEGACY.md)
+├── web/                   # Race dashboard
 │   ├── api/               # FastAPI backend
-│   └── frontend/          # React frontend
-├── processing/            # Data processing / analytics engine
-│   ├── maneuvers.py       # Tack/gybe detection + per-maneuver metrics
-│   ├── straight_lines.py  # Upwind/downwind leg segmentation + stats
-│   ├── wind.py            # Wind direction calculation + fallback estimation
-│   ├── polar.py           # Polar diagram generation
-│   ├── vmg.py             # VMG computation
-│   ├── stats.py           # Violin plot data, STD, correlations
-│   └── models.py          # Data schemas (session, boat, maneuver, leg)
-├── lambda/                # AWS Lambda functions (post-race processing)
-├── export/                # Report & social media export
-│   ├── pdf_report.py
-│   ├── social_video.py    # FFmpeg vertical video w/ data overlay
-│   └── graph_export.py    # PNG/clipboard export
-├── infrastructure/        # AWS CDK/Terraform
-├── scripts/               # Utility scripts
-├── services/              # Systemd service definitions
-├── config/                # Shared configuration
-└── tests/                 # Integration tests
+│   ├── assets/            # JS / CSS for dashboard pages
+│   ├── *.html             # race.html, sessions.html, etc.
+│   └── frontend/          # (legacy React, mostly deprecated)
+├── processing/            # Python analytics (maneuvers, polar, stats)
+├── lambda/                # AWS Lambda (post-upload processing, APIs)
+├── infrastructure/        # CDK/Terraform + deploy.sh
+├── scripts/               # Utility scripts (flash-e1.sh, sync, repro)
+├── export/                # Report / video export
+└── .github/workflows/     # CI: firmware-e1.yml builds the .bin on push
 ```
-
----
-
-## S1 Hardware Stack (Raspberry Pi Analysis Boat)
-
-| Component | Part | Interface | Notes |
-|---|---|---|---|
-| SBC | Raspberry Pi 5 | — | Primary compute |
-| GPS | u-blox ZED-F9P | USB (CH340 serial) | Dual-band L1+L5, PPK-capable, 10Hz nav rate |
-| IMU | GY-BNO08X (BNO085) | I2C @ 0x4A | 9DOF AHRS, 400kHz I2C required |
-| Wind | Calypso Ultrasonic Portable Mini | BLE 5.1 | Wireless only, open-source protocol, 1Hz, IPX8 |
-| Pressure | Adafruit DPS310 | I2C @ 0x77 (STEMMA QT) | Needs Gore-Tex vent in sealed enclosure |
-| Camera | Pi Camera 3 Wide (IMX708) | CSI (22-pin MIPI) | Requires Pi 5 adapter cable |
-| Display | Newhaven NHD-5.0-HDMI-N-RSXP | HDMI | 1100-nit sunlight-readable, 800×480, 5V/560mA |
-| Power | 50,000mAh USB-C power bank | USB-C | Replaced PiSugar 3 Plus (pogo-pin vibration issues) |
-| Storage (boot) | SanDisk Extreme 128GB microSD (A2) | — | Near-read-only boot volume |
-| Storage (data) | Foresee XP1000F 128GB NVMe | M.2 2280 M-key | In Lemorele slim NVMe enclosure, mounted at `/data` |
-| Enclosure | QILIPSU IP67 | — | Daily install/remove, no permanent boat modifications |
-
-**Future / Considering:**
-- OAK-D Pro Wide — 3D sail shape analysis (adds ~2-4W power draw)
-
-### S1 I2C Address Map (No Conflicts)
-
-| Device | Address | Status |
-|---|---|---|
-| BNO085 IMU | 0x4A | Active |
-| DPS310 Pressure | 0x77 | Active |
-
-Note: PiSugar battery hat (0x57, 0x68) removed due to vibration issues.
-1602 LCD (0x27) replaced by Newhaven HDMI display.
-
-Verify all devices after wiring:
-```bash
-sudo i2cdetect -y 1
-# Expected: 0x4a, 0x77
-```
-
-**DS3231 RTC not needed:** The SparkFun ZED-F9P board has a rechargeable backup
-battery that enables warm-start GPS fix in 1-5 seconds. Combined with GPS time
-sync via chrony, the Pi clock syncs within seconds of boot.
 
 ---
 
@@ -110,214 +61,175 @@ sync via chrony, the Pi clock syncs within seconds of boot.
 
 | Component | Part | Interface | Notes |
 |---|---|---|---|
-| MCU | ELEGOO ESP32 DevKit V1 (CP2102) | USB-C | Dual-core 240MHz, Wi-Fi + BLE |
-| GPS | Waveshare LG290P GNSS module | UART2 (GPIO16 RX2, GPIO17 TX2) | Quad-band, PPK-capable, ~$109 with antenna |
-| IMU | GY-BNO08X (BNO085) | I2C (GPIO21 SDA, GPIO22 SCL) @ 0x4A | Heel/pitch, use GAME_ROTATION_VECTOR mode |
+| MCU | ELEGOO ESP32 DevKit V1 (CP2102) | USB-C | Dual-core 240 MHz, Wi-Fi + BLE |
+| GPS | Waveshare LG290P GNSS module | UART2 (GPIO16/17) | Quad-band, PPK-capable, ~$109 with antenna |
+| IMU | GY-BNO08X (BNO085) | I2C (GPIO21/22) @ 0x4A | Heel/pitch, GAME_ROTATION_VECTOR mode |
 | Display | Hosyond 3.5" IPS TFT (ST7796U) | SPI VSPI (480×320) | Sunlight-readable, white background |
 | Storage | microSD module | SPI HSPI (separate bus) | CSV + raw RTCM3 binary for PPK |
-| Power | DWEII USB-C 5V 2A Boost Charger | 5V output to ESP32 VIN | Integrated LiPo charging + protection |
-| Battery | 906090 3.7V 6000mAh LiPo | JST PH 2.0mm connector | ~10+ hours runtime |
-| Enclosure | YETLEBOX IP67 ABS 5.9"×3.9"×2.8" clear lid | — | Daily install/remove |
+| Power | DWEII USB-C 5V 2A boost charger | 5V → ESP32 VIN | LiPo charging + protection + boost |
+| Battery | 906090 3.7V 6000 mAh LiPo | JST PH 2.0 mm | ~10+ hours runtime |
+| Enclosure | YETLEBOX IP67 ABS clear lid | — | Daily install/remove |
+| Wind (one boat) | Calypso Ultrasonic Portable Mini | BLE 5.1 | Apparent wind; only on E1 currently |
 
-### E1 Power Management
+Future expansion (PCB headers): wind UART1 (GPIO32/33), I2C connectors
+for DPS310 / extras, GPIO header (D26, D15, VP, VN).
 
-**DWEII USB-C Boost Charger:** All-in-one module with LiPo charging, protection,
-and 5V boost output. Replaces PowerBoost 1000C.
+### Power Management
 
-**Hardware power switch:** SPDT slide switch between boost module 5V output and
-ESP32 VIN controls power to the entire system.
-
-**Battery monitoring:** GPIO34 reads battery voltage via voltage divider (2× 100KΩ,
-ratio 2:1). Direct connection to battery B+ terminal through boost module.
-
-| Pin | Function | Notes |
-|-----|----------|-------|
-| GPIO34 | Battery voltage (ADC) | Via 2:1 voltage divider (2× 100KΩ) |
-
-**Battery percentage displayed** on TFT display bottom bar.
+- DWEII boost charger handles LiPo charge + 5V boost
+- SPDT slide switch on boost-output → ESP32 VIN
+- Battery monitoring: GPIO34 ADC via 2× 100KΩ voltage divider
+- Battery % shown on bottom bar of TFT
 
 ### E1 Wiring Summary
 
-**IMPORTANT:** TFT and SD card use SEPARATE SPI buses to prevent display flicker
-during SD card operations.
+**TFT (VSPI) and SD (HSPI) MUST be on separate SPI buses** — sharing one
+bus causes severe display flicker during SD writes.
 
 ```
 LG290P GPS (UART2):
-  TXD3 → GPIO16 (ESP32 RX2)     ⚠️ UART2, NOT GPIO21/22 (I2C)
-  RXD3 → GPIO17 (ESP32 TX2)
-  5V   → 5V from boost module
-  GND  → GND
+  TXD3 → GPIO16 (RX2)  ⚠ NOT GPIO21/22 (those are I2C)
+  RXD3 → GPIO17 (TX2)
+  5V → boost-module 5V, GND → GND
 
-BNO085 IMU (I2C bus):
-  SDA  → GPIO21
-  SCL  → GPIO22
-  VCC  → 3V3 from ESP32
-  GND  → GND
+BNO085 IMU (I2C):
+  SDA → GPIO21,  SCL → GPIO22
+  VCC → 3V3 from ESP32, GND → GND
 
-TFT Display ST7796U (VSPI bus):
-  MOSI → GPIO23 (VSPI_MOSI)
-  MISO → GPIO25 (VSPI_MISO) ← swapped with BL
-  CLK  → GPIO18 (VSPI_CLK)
-  CS   → GPIO5  (TFT_CS)
-  DC   → GPIO2  (TFT_DC)
-  RST  → GPIO4  (TFT_RST)
-  BL   → GPIO19 (TFT_BL)   ← swapped with MISO
-  VCC  → 3V3
-  GND  → GND
+TFT ST7796U (VSPI):
+  MOSI → GPIO23, MISO → GPIO25 (swapped with BL),
+  CLK → GPIO18, CS → GPIO5, DC → GPIO2, RST → GPIO4,
+  BL → GPIO19 (swapped with MISO),  VCC → 3V3, GND → GND
 
-SD Card Module (HSPI bus - SEPARATE from TFT):
-  CLK  → GPIO14 (HSPI_CLK)
-  MISO → GPIO35 (HSPI_MISO, input-only pin)
-  MOSI → GPIO13 (HSPI_MOSI)
-  CS   → GPIO27 (SD_CS)
-  VCC  → 3V3
-  GND  → GND
+SD card module (HSPI — SEPARATE from TFT):
+  CLK → GPIO14, MISO → GPIO35 (input-only, avoids GPIO12 strapping issue),
+  MOSI → GPIO13, CS → GPIO27, VCC → 3V3, GND → GND
 
-Power + Battery:
-  DWEII Boost OUT+ → SPDT switch → ESP32 VIN
-  DWEII Boost OUT- → GND
-  Battery B+ → DWEII B+, also → voltage divider (2× 100KΩ) → GPIO34
-  Battery B- → DWEII B-
-  Voltage divider: VBAT → R1(100K) → GPIO34 → R2(100K) → GND
+Battery:
+  Boost OUT+ → SPDT switch → ESP32 VIN
+  Boost OUT- → GND
+  LiPo B+ → boost B+, also → 100K → GPIO34 → 100K → GND
+  LiPo B- → boost B-
 
-Future Expansion:
-  Wind Sensor UART1: GPIO32 (WIND_RX), GPIO33 (WIND_TX)
-  I2C Expansion: GPIO21 (SDA), GPIO22 (SCL) - shared bus
-  GPIO Expansion: GPIO26, GPIO15, VP (GPIO36), VN (GPIO39)
+Future expansion:
+  Wind UART1: GPIO32 (RX), GPIO33 (TX)
+  I2C expansion: shared bus on GPIO21/22
+  GPIO expansion: GPIO26, GPIO15, VP (GPIO36), VN (GPIO39)
 ```
 
-### E1 KiCad PCB Design (v1.1)
+### KiCad PCB v1.1
 
-**Status:** Complete — Gerbers ordered from JLCPCB (April 18, 2026)
-
-**Board specs:** 60.5 × 91.5 mm, 2-layer, 1.6mm thickness, green solder mask
-
-**Schematic connectors:**
-| Ref | Component | Pins | Notes |
-|-----|-----------|------|-------|
-| U1 | ESP32 DevKit V1 | 30 | Main MCU module |
-| U2 | Hosyond 3.5" TFT | 14 | ST7796U display |
-| J1 | SD Card Module | 6 | HSPI bus |
-| J2 | LG290P GPS | 4 | UART2 + power |
-| J3 | BNO085 IMU | 10 | I2C, unused pins X |
-| J4 | DPS310 Pressure | 4 | I2C (future) |
-| J5 | Boost Module | 4 | GND, SW_5V, VBAT, GND |
-| J6 | I2C Connector A | 4 | Expansion |
-| J7 | I2C Connector B | 4 | Expansion |
-| J8 | Wind Sensor | 4 | UART1 (future) |
-| J9 | GPIO Expansion | 6 | D26, D15, VP, VN |
-| J10 | Battery | 2 | JST PH 2.0mm |
-| SW1 | Power Switch | 3 | SPDT slide switch |
-| R1,R2 | Voltage Divider | - | 100KΩ 0805 SMD |
-| R3,R4 | I2C Pull-ups | - | 4.7KΩ 0805 SMD |
-
-**Key design decisions:**
-- TFT on VSPI, SD on HSPI (separate buses eliminate display flicker)
-- GPIO35 for SD MISO (input-only pin, avoids GPIO12 strapping issue)
-- Ground pour on B.Cu (bottom layer) for EMI shielding and return paths
-- 4× M2.5 mounting holes at corners for standoff mounting
-- Freerouting autorouter + manual cleanup
-
+**Status:** Gerbers ordered from JLCPCB (April 18, 2026).
+**Specs:** 60.5 × 91.5 mm, 2-layer, 1.6 mm, green solder mask.
 **Files:** `edge-e/hardware/kicad_sailframes-e1/`
 
-### E1 Firmware (sailframes_e1.ino)
+Connectors: ESP32 DevKit V1 (U1), TFT (U2), SD module (J1),
+LG290P GPS (J2), BNO085 (J3), DPS310 (J4 future), boost module (J5),
+I2C expansion (J6/J7), wind sensor (J8), GPIO expansion (J9),
+battery JST (J10), SPDT power switch (SW1), voltage divider 2×100KΩ
+(R1/R2), I2C pull-ups 2×4.7KΩ (R3/R4).
 
-- NMEA parsing (GGA/RMC/GSA/GSV sentences from LG290P)
-- RTCM3 binary parsing and logging for PPK post-processing
-- BNO085 reading at 20Hz with heel/pitch calculation
-- SD logging: CSV (human-readable) + raw RTCM3 binary (`.rtcm3` files)
-- TFT display: large speed/COG numbers, status bar at bottom
-- Battery monitoring via ADC (voltage divider on GPIO34)
-- Wi-Fi auto-upload to AWS S3 on yacht club network detection
-- GPS speed-triggered auto-recording (starts >2kt, stops after 5min <0.5kt)
-- Power button recording control (short press toggles recording)
-- Configuration loaded from SD card `config.txt`
-- **Libraries (tested versions):**
-  - TFT_eSPI (display)
-  - NimBLE-Arduino 2.4.0 (wind sensor BLE) — avoid 2.5.0
-  - Adafruit BusIO 1.17.4
-  - Adafruit GFX Library 1.12.6
-  - Adafruit BNO08x 1.2.5
-  - Adafruit DPS310 1.1.3
-- **Arduino IDE:** ESP32 board package 3.3.7 — avoid 3.3.8 (causes I2C/GPIO issues)
-- **Partition scheme:** Minimal SPIFFS (1.9MB APP with OTA, 128KB SPIFFS) — leaves room for OTA partition
+Layout: ground pour on B.Cu for EMI, 4× M2.5 mounting holes at corners,
+Freerouting + manual cleanup.
 
-**TFT Display Layout (Vakaros-style, white background):**
-- Main area: Large speed (kt) and COG (°) in black
-- Status bar: SAT count, HDOP, WiFi SSID, upload progress
-- Bottom bar: Heel, Pitch, Battery %, Wind indicator
+---
 
-**TFT Configuration (User_Setup.h):**
-```cpp
-#define ST7796_DRIVER
-#define TFT_WIDTH  320
-#define TFT_HEIGHT 480
-#define TFT_MOSI  23
-#define TFT_MISO  25   // Swapped with BL
-#define TFT_SCLK  18
-#define TFT_CS     5
-#define TFT_DC     2
-#define TFT_RST    4
-#define TFT_BL    19   // Swapped with MISO
-```
+## E1 Firmware (`edge-e/firmware/sailframes_e1/sailframes_e1.ino`)
 
-**Serial/Telnet Commands:**
+- NMEA parsing (GGA/RMC/GSA/GSV) from LG290P
+- Raw RTCM3 binary capture for PPK post-processing
+- BNO085 reads at 1 Hz (was 20 Hz, reduced — sailing doesn't need 20 Hz)
+- DPS310 pressure at 0.1 Hz (weather trends; not gust detection)
+- SD logging: CSV (human-readable) + raw `.rtcm3` binary
+- TFT: speed/COG huge, status bar, Vakaros-style white background
+- Battery monitoring (GPIO34 ADC + voltage divider)
+- Wi-Fi auto-upload to S3 over plain HTTP on yacht-club / Home-IOT detection
+- GPS-speed-triggered auto-recording (start >2 kt, stop after sustained <0.5 kt)
+- Power-button toggle of recording
+- Configuration via SD `config.txt`
+
+### Pinned library / core versions (do NOT auto-update)
+
+- ESP32 board package **3.3.7** (3.3.8 breaks I2C and TFT)
+- TFT_eSPI (latest)
+- NimBLE-Arduino **2.4.0** (2.5.0 has BLE/WiFi switching issues)
+- Adafruit BusIO 1.17.4
+- Adafruit GFX 1.12.6
+- Adafruit BNO08x 1.2.5
+- Adafruit DPS310 1.1.3
+
+**Partition scheme:** `Minimal SPIFFS (1.9 MB APP with OTA / 128 KB SPIFFS)`.
+This keeps OTA partitions for any future firmware-pull mechanism. Do NOT
+use `huge_app` — it disables OTA.
+
+### TFT layout (D2)
+
+Row 1 (y=440, font 2): heel + pitch + AWS + AWA when wind connected;
+heel + pitch alone when no wind sensor. Single row.
+
+Row 2 (y=458): left = `BAT N% [W]`, right = WiFi indicator + upload counts.
+Counts split into:
+- `N` = sessions with non-RTCM3 files still pending
+- `R` = sessions with RTCM3 files still pending
+
+### Serial / telnet commands
+
 | Command | Description |
 |---------|-------------|
-| `start` | Start recording session |
-| `stop` | Stop recording session |
-| `upload` | Manually trigger Wi-Fi upload |
-| `clearmarkers` | Delete `.uploaded` marker files to retry failed uploads |
-| `status` | Show current sensor status (GPS, IMU, SD, WiFi, RTCM frame count) |
-| `gps` | Show GPS debug info |
-| `gpsraw` | Show raw GPS data stream (10 seconds) |
-| `gpscfg` | Reconfigure LG290P (resend PQTM commands) |
-| `config` | Show current configuration |
+| `start` / `stop` | Manual start/stop recording |
+| `recstate` | Show recording state |
+| `upload` | Trigger Wi-Fi upload |
+| `clearmarkers` | Delete `.uploaded` markers (retry uploads) |
+| `cleanup` | Delete already-uploaded files |
+| `status` | GPS/IMU/SD/WiFi/RTCM frame count |
+| `gps` / `gpsraw` / `gpscfg` | GPS debug |
+| `config` | Show config |
+| `telneton` / `telnetoff` | Enable/disable runtime telnet listener |
 
-**E1 SD Card Directory Structure:**
+Telnet listener defaults **OFF** — its `WiFiServer.hasClient()` calls
+deadlocked Core 1 inside LWIP under upload contention (firmware
+2026.05.03.04 fleet hang). Enable with `telneton` for live debug.
+
+### SD card layout
+
 ```
 /sf/
-├── 20260405_225030/                    # Session folder (GPS datetime)
-│   ├── E1_20260405_225030_nav.csv      # Parsed NMEA (lat,lon,sog,cog,sat,hdop,fix)
-│   ├── E1_20260405_225030_imu.csv      # IMU (heel,pitch,accel,gyro)
-│   ├── E1_20260405_225030_raw.rtcm3    # Raw RTCM3 binary for PPK
-│   └── E1_20260405_225030_wind.csv     # Wind sensor data (if enabled)
-├── session_001/                         # Fallback if no GPS datetime
-│   └── ...
-└── config.txt                           # Device configuration
+├── 20260405_225030/                # Session folder (GPS datetime)
+│   ├── E1_20260405_225030_nav.csv  # NMEA parsed
+│   ├── E1_20260405_225030_imu.csv
+│   ├── E1_20260405_225030_raw.rtcm3
+│   ├── E1_20260405_225030_wind.csv
+│   └── E1_20260405_225030_pres.csv
+├── boot.log                         # Reset reason / heap per boot
+├── config.txt
+└── wind_mac.txt                     # Calypso MAC; presence = wind enabled
 ```
 
-Session folders use GPS datetime when available (`YYYYMMDD_HHMMSS`), falling back
-to sequential `session_NNN` if GPS date/time is not valid at recording start.
+### `boot.log` format (since 2026.05.03.08)
 
-### E1 Wi-Fi Upload Architecture
+Each boot appends one line: `boot fw=<ver> reset=<reason> heap=<free> min_heap=<min>`
+where `reset` is one of `POWERON / SW / PANIC / TASK_WDT / INT_WDT / BROWNOUT / DEEPSLEEP / EXT`.
 
-**IMPORTANT:** ESP32 Arduino Core 3.3.7 has broken TLS (mbedTLS BIGNUM allocation
-failures during RSA operations). The E1 uploads directly to S3 via HTTP, bypassing
+---
+
+## E1 Wi-Fi Upload Architecture
+
+ESP32 Arduino Core 3.3.7 has broken TLS (mbedTLS BIGNUM allocation
+failures). The E1 uploads **directly to S3 over plain HTTP**, bypassing
 API Gateway entirely.
 
-| Method | Endpoint |
-|--------|----------|
-| Direct S3 PUT | `http://{bucket}.s3.{region}.amazonaws.com/raw/E1/{date}/{filename}` |
+**Endpoint:**
+```
+http://{bucket}.s3.{region}.amazonaws.com/raw/E1/{date}/{filename}
+```
 
-**Upload flow:**
-1. E1 connects to known Wi-Fi network at yacht club
-2. Tests DNS and TCP connectivity to S3 (port 80, no TLS)
-3. Uploads files directly to S3 via HTTP PUT
-4. S3 bucket policy allows unauthenticated PUT to `raw/E1/*` paths
+**Flow:**
+1. E1 connects to known Wi-Fi (yacht club / Home-IOT)
+2. DNS + TCP test to S3 on port 80
+3. HTTP PUT direct to S3
+4. Bucket policy allows unauthenticated PUT to `raw/E1/*` paths
 
-**S3 Path Format:**
-- `raw/E1/{date}/{filename}` (e.g., `raw/E1/2026-04-07/E1_20260407_143022_nav.csv`)
-- Date extracted from session folder name or GPS time
-
-**Why HTTP instead of HTTPS:**
-- ESP32 TLS is fundamentally broken in Arduino Core 3.3.7 (mbedTLS bug)
-- Even with 49KB contiguous heap, RSA operations fail with BIGNUM errors
-- Fleet data (GPS, IMU) is not sensitive
-- S3 supports HTTP natively
-- No need for API Gateway or presigned URLs
-
-**S3 Bucket Policy Required (all fleet devices):**
+**S3 bucket policy snippet:**
 ```json
 {
   "Sid": "FleetDirectHTTPUpload",
@@ -328,845 +240,364 @@ API Gateway entirely.
 }
 ```
 
-**Upload marker files:**
-- After successful upload, creates `filename.uploaded` marker
-- Prevents re-uploading same file on subsequent upload runs
-- Use `clearmarkers` command to delete markers and retry failed uploads
+**Markers:** After each successful PUT we create `<filename>.uploaded` so
+retries skip done files. `clearmarkers` over serial wipes them.
 
-### E1 BLE/Wi-Fi Radio Conflict
+**Why HTTP, not HTTPS:** ESP32 TLS is fundamentally broken in 3.3.7
+("RSA - public key operation failed: BIGNUM - Memory allocation failed").
+Fleet data isn't sensitive; S3 supports HTTP natively. See
+`infrastructure/aws/E1_HTTP_UPLOAD_SETUP.md`.
 
-**Issue:** ESP32 has a single shared radio for BLE and Wi-Fi. Both cannot operate
-simultaneously with full reliability.
+### BLE / Wi-Fi shared-radio coexistence
 
-**Current behavior:** BLE (wind sensor) is fully deinitialized before Wi-Fi uploads,
-then reinitialized after. Now that uploads use plain HTTP (not HTTPS), this is
-somewhat conservative but still recommended for reliability.
+ESP32 has a single shared radio. Under heavy WiFi (large RTCM3 PUTs),
+NimBLE scan calls can stall indefinitely. The firmware:
 
-**Future optimization:** Since uploads now use HTTP (no TLS memory pressure), it
-may be possible to keep BLE active during uploads. Testing needed.
+1. `pauseBLEForWiFi()` at the start of `connectWiFi()` — stops in-flight
+   scans and disconnects any wind client.
+2. `checkWindConnection()` early-returns when `wifiConnected || uploading
+   || triggerUpload`.
+3. `wifiBusy` flag gates Core 1 LWIP-touching paths during upload (telnet
+   stop, stale-flag teardown, teardown branch).
 
-**Solution — BLE deinit sequence before Wi-Fi operations:**
-```cpp
-// 1. Disconnect BLE client first
-if (pWindClient && pWindClient->isConnected()) {
-    pWindClient->disconnect();
-    delay(100);
-}
+**Required deinit order if you ever reintroduce BLE deinit:** disconnect
+WiFi BEFORE BLE. `NimBLEDevice::deinit(false)` only — `deinit(true)` causes
+heap corruption.
 
-// 2. Disconnect Wi-Fi if connected (before BLE deinit!)
-if (WiFi.status() == WL_CONNECTED) {
-    WiFi.disconnect(true);
-    delay(200);
-}
+### Watchdog + diagnostic heartbeat
 
-// 3. Fully deinitialize BLE stack
-NimBLEDevice::deinit(false);  // MUST use false, not true!
-bleInitialized = false;
-delay(500);
-
-// 4. Now safe to use Wi-Fi
-WiFi.begin(ssid, password);
-```
-
-**Important:** `NimBLEDevice::deinit(true)` causes heap corruption crashes.
-Always use `deinit(false)` which preserves some internal state safely.
+- Task watchdog timeout: 300 s (was 120 s; bumped after a 660 KB RTCM3 PUT
+  could take >120 s on weak signal). Both `loopTask` and `uploadTaskFunc`
+  subscribed to it.
+- A separate `diagnosticsTask` on Core 0 prints every 5 s:
+  `[DIAG] uptime=Ns heap=H sect=<section> iter=<count> (+delta)`.
+  When `loopTask` hangs, the diag heartbeat keeps printing — the last
+  `sect=` value names the section Core 1 was inside. This pinpointed the
+  `handleTelnet` hang in firmware 2026.05.03.04.
 
 ---
 
 ## GNSS Strategy
 
-### Tiered Approach
-
 | Tier | Receiver | Use | Cost | Accuracy |
 |---|---|---|---|---|
-| S1 | u-blox ZED-F9P | Primary analysis boat | ~$250 | Sub-meter (PPK) |
-| E1 | Quectel LG290P (Waveshare) | Fleet trackers (×20) | ~$109 | Sub-meter (PPK) |
+| Fleet (E1 ×6) | Quectel LG290P (Waveshare) | All 6 boats | ~$109 | Sub-meter (PPK) |
 
-Both receivers log raw observations for PPK post-processing. The LG290P is the
-cheapest PPK-capable module available (~$109 quad-band with antenna via Waveshare).
+LG290P logs raw RTCM3 observations during racing. Post-race we download
+NOAA CORS base data (`geodesy.noaa.gov/UFCORS`, free, ~1 hr after
+recording) and process in RTKLIB.
 
-### PPK Post-Processing Workflow
+### LG290P configuration
 
-1. Log raw GNSS observations during race (UBX-RXM-RAWX/SFRBX on ZED-F9P; raw binary on LG290P)
-2. Download CORS base station data from NOAA: `geodesy.noaa.gov/UFCORS` (free, available ~1hr after recording)
-3. Process in RTKLIB (RTKPOST): rover obs + base obs + nav data → fixed solution
-4. No base station hardware needed — uses existing NOAA infrastructure
+The Waveshare LG290P uses Quectel's PQTM commands. Best configured via
+**QGNSS on Windows** — PyGPSClient on macOS has limited support.
 
-### ZED-F9P Configuration
+USB-C: PC config (CH343 USB-serial). UART SH1.0: ESP32 connection at
+460800 baud. RST button: single press reboots; no factory reset.
 
-Connected via CH340 USB-serial (COM4 in u-center on Windows).
-Dual-frequency L1+L5. 10Hz nav rate confirmed.
-
-**Message Configuration:**
-
-| Message | Purpose | Required For |
-|---------|---------|--------------|
-| NMEA GGA | Position, fix quality, satellites | Dashboard, CSV logging |
-| NMEA RMC | Speed, course, date/time | Dashboard, CSV logging |
-| NMEA GSV | Satellites in view per constellation | Dashboard constellation display |
-| NMEA GSA | Satellites used for fix per constellation | Dashboard "in use" count |
-| UBX-RXM-RAWX | Raw measurements (pseudorange, carrier phase) | RTKLIB post-processing |
-| UBX-RXM-SFRBX | Navigation message subframes | RTKLIB (ephemeris data) |
-
-**Configure via u-center:**
-1. Connect to GPS via USB
-2. Go to UBX → CFG → MSG
-3. Enable messages for USB port (rate = 1)
-4. Go to UBX → CFG → PRT → ensure USB has UBX protocol output enabled
-5. Go to UBX → CFG → CFG → Save to Flash
-
-**Or run configuration script:**
-```bash
-python3 edge-s/scripts/configure_gps.py /dev/sailframes-gps
+RTCM3 PPK config (saved to NVM):
+```
+$PQTMCFGRTCM,W,7,0,-90,07,06,1,0*       # MSM7 for all constellations
+$PQTMCFGMSGRATE,W,RTCM3-1019,1*         # GPS ephemeris
+$PQTMCFGMSGRATE,W,RTCM3-1020,1*         # GLONASS ephemeris
+$PQTMCFGMSGRATE,W,RTCM3-1042,1*         # BeiDou ephemeris
+$PQTMCFGMSGRATE,W,RTCM3-1046,1*         # Galileo ephemeris
+$PQTMCFGMSGRATE,W,RTCM3-1006,10*        # Station ref every 10 epochs
+$PQTMCFGCNST,W,1,1,1,1,1,1*             # Enable all constellations
+$PQTMSAVEPAR*
+$PQTMHOT*
 ```
 
-### Raw UBX Logging for RTKLIB
+**PQTMCFGMSGRATE syntax:** firmware AANR01A06S uses TWO parameters
+(message, rate). Three-parameter form returns `ERROR,1`.
 
-The GPS service automatically logs raw UBX data for PPK:
-- **Location:** `/mnt/sailframes-data/YYYY-MM-DD/ubx/raw_*.ubx`
-- **Contains:** All serial data (NMEA + UBX binary messages)
-- **Rotation:** Hourly file rotation
-- **Usage with RTKLIB:**
-  ```bash
-  # Convert to RINEX
-  convbin raw_20260330_140000.ubx -r ubx -o sail.obs
-  # Or load .ubx directly in RTKPOST
-  ```
+**E1 firmware sends RTCM3 config at every boot** (not relying on QGNSS
+pre-config), so devices replaced from spare stock work without manual
+configuration.
 
-### AssistNow Predictive Orbits (ZED-F9P)
+RTCM3 messages output:
+- 1077 / 1087 / 1097 / 1127 — GPS / GLO / GAL / BDS MSM7 (every epoch)
+- 1019 / 1020 / 1042 / 1046 — ephemerides (~30 s)
+- 1006 — station reference (every 10 epochs)
 
-Free via u-blox Thingstream registration. Provides up to 14-day orbit predictions
-for ~5-10 second TTFF. Valuable given daily install/remove pattern where every boot
-is a cold or warm start. Legacy developer tokens phasing out by May 2028.
+### PPK post-processing
 
-**Note:** Quectel LG290P has no equivalent free A-GNSS service. SBAS helps acquisition.
+1. Race produces `*.rtcm3` files on SD
+2. Download CORS base data from NOAA UFCORS for that day
+3. RTKLIB (RTKPOST): rover .rtcm3 + base obs + nav → fixed solution
+4. No base station hardware needed — uses free NOAA infrastructure
 
-### LG290P Configuration (E1)
+### Dashboard GPS display
 
-The Waveshare LG290P module uses Quectel's PQTM command protocol. Configuration
-is best done via **QGNSS on Windows** — PyGPSClient on macOS has limited support.
-
-**Hardware connections:**
-- USB-C port: For PC configuration (CH343 USB-serial chip)
-- UART SH1.0 connector: For ESP32 connection (TXD3/RXD3 at 460800 baud)
-- RST button: Single press reboots; no factory reset function
-
-**RTCM3 PPK configuration (saved to NVM via QGNSS):**
-```
-$PQTMCFGRTCM,W,7,0,-90,07,06,1,0*     # Enable MSM7 for all constellations
-$PQTMCFGMSGRATE,W,RTCM3-1019,1*       # GPS ephemeris
-$PQTMCFGMSGRATE,W,RTCM3-1020,1*       # GLONASS ephemeris
-$PQTMCFGMSGRATE,W,RTCM3-1042,1*       # BeiDou ephemeris
-$PQTMCFGMSGRATE,W,RTCM3-1046,1*       # Galileo ephemeris
-$PQTMCFGMSGRATE,W,RTCM3-1006,10*      # Station reference every 10 epochs
-$PQTMCFGCNST,W,1,1,1,1,1,1*           # Enable all constellations (GPS,GLO,GAL,BDS,QZSS,NavIC)
-$PQTMSAVEPAR*                          # Save to NVM
-$PQTMHOT*                              # Hot restart
-```
-
-**Firmware syntax note (AANR01A06S):** The `PQTMCFGMSGRATE` command uses TWO
-parameters (message, rate) — NOT three. Adding an offset parameter causes `ERROR,1`.
-
-**E1 firmware configures both NMEA and RTCM3 at boot:**
-```cpp
-void configureLG290P() {
-    // NMEA messages
-    sendPQTM("PQTMCFGMSGRATE,W,GGA,1");
-    sendPQTM("PQTMCFGMSGRATE,W,RMC,1");
-    sendPQTM("PQTMCFGMSGRATE,W,GSA,1");
-    sendPQTM("PQTMCFGMSGRATE,W,GSV,1");
-
-    // RTCM3 MSM7 for PPK (configured at every boot, saved to NVM)
-    sendPQTM("PQTMCFGRTCM,W,7,0,-90,07,06,1,0");  // Enable MSM7
-    sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1019,1");    // GPS ephemeris
-    sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1020,1");    // GLONASS ephemeris
-    sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1042,1");    // BeiDou ephemeris
-    sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1046,1");    // Galileo ephemeris
-    sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1006,10");   // Station reference
-
-    sendPQTM("PQTMSAVEPAR");  // Save to NVM
-    sendPQTM("PQTMHOT");      // Hot restart
-}
-```
-
-The firmware sends RTCM configuration at every boot to ensure PPK data is captured
-regardless of prior QGNSS configuration state. Commands and responses are logged
-to Serial for debugging.
-
-**RTCM3 messages output after configuration:**
-| RTCM3 ID | Content | Rate |
-|----------|---------|------|
-| 1077 | GPS MSM7 (pseudorange + phase + doppler + CNR) | Every epoch |
-| 1087 | GLONASS MSM7 | Every epoch |
-| 1097 | Galileo MSM7 | Every epoch |
-| 1127 | BeiDou MSM7 | Every epoch |
-| 1019 | GPS ephemeris | Periodic (~30s) |
-| 1020 | GLONASS ephemeris | Periodic |
-| 1042 | BeiDou ephemeris | Periodic |
-| 1046 | Galileo ephemeris | Periodic |
-| 1006 | Station reference position | Every 10 epochs |
-
-### GPS Warm/Hot Start
-
-The ZED-F9P has a rechargeable backup battery that preserves satellite data:
-
-| Start Type | Conditions | Time to Fix |
-|------------|------------|-------------|
-| Hot start | Power off < 4 hours, same location | 1-2 sec |
-| Warm start | Power off < 2-4 days | 25-30 sec |
-| Cold start | Power off > 2-4 days, or moved >100km | 30-60 sec |
-
-### Antenna Evaluation
-
-Comparing u-blox ANN-MB-00 vs. Beitian BT-560:
-- **Method:** Per-satellite C/N0 comparison outdoors with matched satellite IDs
-- **Tool:** RXM-RAWX view in u-center (not MON-RF, which reflects aggregate receiver state)
-- **Note:** MON-RF AGC and noise floor are dominated by RF environment, not antenna characteristics
-
-### Dashboard GPS Display
-
-- **Satellites in use for fix:** From GSA sentences (actually contributing to position)
-- **Satellites in view:** From GSV sentences (visible but may not be used)
-- **Per-constellation breakdown:** GPS, GLONASS, Galileo, BeiDou with color coding
+- Satellites in fix: from GSA sentences (actually contributing)
+- Satellites in view: from GSV sentences (visible, may not be used)
+- Per-constellation: GPS / GLONASS / Galileo / BeiDou color-coded
 
 ---
 
 ## BNO085 IMU Configuration
 
-### Recommended Mode: GAME_ROTATION_VECTOR
-
-Use 6DOF mode (accel + gyro, no magnetometer) for heel and pitch on a boat:
+### Recommended mode: GAME_ROTATION_VECTOR (6DOF, no magnetometer)
 
 ```python
 import adafruit_bno08x
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_GAME_ROTATION_VECTOR)
-# Read with bno.game_quaternion instead of bno.quaternion
 ```
 
-**Why:** Full 9DOF ROTATION_VECTOR includes magnetometer, which is unreliable on
-sailboats (lead keel, stainless rigging, engine cause 10-20° heading drift).
-Magnetometer interference can also corrupt roll/pitch outputs. GPS COG provides
-more reliable heading above 2-3 knots.
+The 9DOF ROTATION_VECTOR includes the magnetometer, which is unreliable
+on a sailboat (lead keel, stainless rigging, engine causing 10–20°
+heading drift; can also corrupt roll/pitch). GPS COG is more reliable
+above ~2 kt.
 
 ### Calibration
 
-- **Startup tare:** Record current orientation as "zero" when device is mounted
-  and boat is level at dock. Accounts for mounting angle inside enclosure.
-- **Daily boat changes:** Require software calibration routine keyed to known
-  heading at startup rather than physical alignment
-- **Gyro:** Auto-zeros on startup (hold still 2-3 seconds)
-- **Accelerometer:** Gravity reference handles heel/pitch automatically
-- **Log calibration accuracy bits** for post-race data quality assessment
+- Startup tare to record current orientation as zero (accounts for mounting)
+- Daily boat changes — software calibration keyed to known heading
+- Gyro auto-zeros on startup (hold still 2-3 s)
+- Accelerometer gravity reference handles heel/pitch automatically
+- Log calibration accuracy bits for post-race quality assessment
 
 ---
 
-## S1 OS & Software Environment
+## Web Race Dashboard (`web/race.html`)
 
-- **OS:** Raspberry Pi OS Bookworm (64-bit)
-- **Python:** 3.11+, async preferred
-- **Config file:** `/boot/firmware/config.txt` (Bookworm location)
-- **Camera stack:** `rpicam-*` commands (libcamera is deprecated on Bookworm)
-- **Storage:** All writes directed to NVMe `/data` mount; SD card as near-read-only boot volume
+Single-page dashboard for live + post-race fleet visualization. Hosted at
+sailframes.com behind CloudFront.
 
-### Required I2C config (`/boot/firmware/config.txt`)
-```ini
-dtparam=i2c_arm=on
-dtparam=i2c_arm_baudrate=400000   # Required for BNO085 clock stretching fix
-```
+**Tier 1 (shipped):** map with boat tracks + markers, leaderboard ranked
+by along-course distance, three stacked time-axis comparison charts
+(Speed / Heel / NOAA TWD), playback scrubber + cursor on all charts,
+team-color toggles.
 
-### Key Python Libraries
-```bash
-pip install adafruit-circuitpython-bno08x --break-system-packages
-pip install adafruit-circuitpython-dps310 --break-system-packages
-pip install bleak              # BLE for Calypso wind sensor
-pip install pyserial           # ZED-F9P UART fallback
-```
+**Tier 2 (shipped):** course-aware ranking — `(legsCompleted DESC,
+distToNext ASC)` — VMG to next mark, gap to leader in meters, mark
+roundings precomputed at race load (35 m radius).
 
-### GPS Time Sync (chrony + gpsd)
+**Tier 2.5 (shipped):** NOAA wind integration. Castle Island (CSIM3)
+primary, Logan (KBOS) and Boston 16NM (44013) selectable. TWD/TWS badge
+in panel header, TWD curve in 3rd chart, raceAvgTWD-driven layline
+overlay on map (J/80 upwind tack angle 42°), per-boat TWA in leaderboard
+tile, vector-mean TWD interpolation (handles 0/360 wraparound).
 
-The system uses GPS time to keep the clock accurate while offline (on the water).
+**Tier 3 (shipped):**
+- Wind rose marker on map at NOAA station, rotates with TWD
+- J/80 polar table embedded (Seapilot, 7 TWS × 10 TWA), bilinear interp,
+  synthesized optimal-beat row prepended; %polar in leaderboard
+- Per-boat detail drawer (click boat marker or leaderboard row) — slides
+  in from right with motion / IMU / onboard wind / NOAA wind / polar /
+  next-mark stats. Esc or × closes.
 
-**Key settings in `/etc/chrony/conf.d/gps.conf`:**
-```ini
-# GPS via gpsd shared memory
-refclock SHM 0 refid GPS precision 1e-1 offset 0.0 delay 0.2 poll 3 trust
-makestep 1 -1   # Allow large time corrections (important after power loss)
-local stratum 10
-```
+**Pre-race ops (shipped 2026-05-03 night):**
+- Layline toggle (Leaflet topright control)
+- Wind source segmented picker (toolbar): Castle Is / Logan / 16NM
+- Polar overlay toggle in speed-chart header
+- Legs button → modal with per-leg per-boat summary table
+- Maneuvers button → modal with tacks/gybes detection + per-team
+  summary (avg loss, avg duration) and per-maneuver detail
 
-**Verify GPS time source:**
-```bash
-chronyc sources    # Shows GPS as #* or #+ when active
-chronyc tracking   # Shows time sync status
-gpspipe -w -n 3    # Verify GPS is receiving data
-```
+### Mark types in the editor
 
-**Behavior:**
-- When online: Uses NTP servers (more accurate)
-- When offline: Falls back to GPS (~50ms accuracy via NMEA)
-- On boot with wrong clock: Auto-corrects from GPS within seconds
+- `windward` (top)
+- `leeward` (bottom, single)
+- `gate_port` + `gate_stbd` (paired bottom gate; fleet picks one to round)
+- `offset` (small mark just below windward, common in modern J/80 racing)
+- `custom`
 
-### Persistent Journald (Debug Logs)
+### Deployment
 
-Logs are stored persistently to survive reboots, enabling post-sail debugging.
+Web changes go through:
+1. `git push origin main`
+2. `aws s3 cp <changed files> s3://sailframes-web-prod/...
+   --cache-control max-age=60 --profile sailframes`
+3. `aws cloudfront create-invalidation --distribution-id EFO342DVGM3QS
+   --paths /<files>`
 
-**Configuration:** `/etc/systemd/journald.conf.d/sailframes.conf`
-```ini
-[Journal]
-Storage=persistent      # Survives reboots
-Compress=yes            # Save disk space
-SystemMaxUse=500M       # Max disk usage
-SystemKeepFree=100M     # Keep disk space free
-MaxRetentionSec=2week   # Keep 2 weeks of logs
-MaxFileSec=1day         # Rotate daily
-MaxLevelStore=debug     # Store all log levels
-SyncIntervalSec=1m      # Sync every minute (balance safety vs SD wear)
-```
-
-**Post-sail debugging commands:**
-```bash
-# List all boots (previous sail sessions)
-journalctl --list-boots
-
-# View logs from previous boot
-journalctl -b -1
-
-# View errors/warnings from previous boot
-journalctl -b -1 -p warning
-
-# View sailframes services from a specific time
-journalctl --since "2026-03-24 13:00" --until "2026-03-24 16:00" -u "sailframes*"
-
-# View kernel messages (power issues, USB disconnects)
-journalctl -b -1 -k | grep -iE "usb|power|voltage|under"
-
-# Export logs for analysis
-journalctl --since "2026-03-24" --output=json > /tmp/sail-logs.json
-```
+(The full `infrastructure/deploy.sh` also rebuilds Lambda — overkill for
+HTML/JS-only changes.)
 
 ---
 
-## S1 Sensor Wiring Summary
+## Data Flow
 
-### BNO085 (GY-BNO08X breakout)
 ```
-VCC  → 3.3V
-GND  → GND
-SCL  → SCL1 (GPIO3, Pin 5)
-SDA  → SDA1 (GPIO2, Pin 3)
-ADO  → unconnected  (I2C addr 0x4A)
-CS   → unconnected  (I2C mode)
-PS0  → unconnected
-PS1  → unconnected
-```
+[On boat]
+  Sensors → ESP32 firmware → SD card
 
-### DPS310 (Adafruit breakout)
-```
-VIN  → 3.3V
-GND  → GND
-SCL  → SCL1 (shared bus)
-SDA  → SDA1 (shared bus)
-SDO  → unconnected (addr 0x77)
-CS   → unconnected
-```
-Connect via STEMMA QT cable: Black=GND, Red=3.3V, Blue=SDA, Yellow=SCL
+[Post sail]
+  E1 → WiFi (HTTP) → s3://sailframes-fleet-data-prod/raw/E1/{date}/
 
-### ZED-F9P GPS
-Preferred: USB → any Pi 5 USB port → `/dev/ttyACM0` or `/dev/sailframes-gps` symlink
-Fallback UART: TX→GPIO15(RX), RX→GPIO14(TX)
+[AWS pipeline]
+  S3 ObjectCreated → Lambda (process_upload) → processed JSON
+  CORS download Lambda → GPS rinex/nav → PPK-ready bundle
+  NOAA buoy fetch Lambda → /api/buoys/data
 
-**USB auto-detection:** The GPS service automatically scans `/dev/ttyACM*` and `/dev/ttyUSB*`
-if the preferred device is not found.
-
-**Udev rule for persistent symlink** (`/etc/udev/rules.d/99-sailframes-gps.rules`):
-```
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1546", ATTRS{idProduct}=="01a9", SYMLINK+="sailframes-gps"
+[Web]
+  Browser → CloudFront → S3-static (race.html, JS, CSS)
+  Browser → CloudFront → API Gateway → Lambda → S3/processed JSON
 ```
 
-### Calypso Wind Sensor
-BLE only — no wires. Pi 5 built-in Bluetooth.
-- BLE 5.1, open-source protocol
-- Hardware open source: contact info@calypsoinstruments.com
-- 1Hz sample rate, apparent wind direction + speed
-- Must orient bow-mark toward bow when installing
+**S3 path format (E1):** `raw/{device_id}/{date}/{filename}.csv`
+e.g. `raw/E1/2026-04-01/E1_20260401_140000_nav.csv`.
 
-### Newhaven Display (NHD-5.0-HDMI-N-RSXP)
-```
-Pi 5 micro-HDMI0 ──── HDMI cable ────► Display HDMI input
-Pi 5 GPIO Pin 2 (5V) ──────────────► Display VDD (5V power)
-Pi 5 GPIO GND (Pin 6) ─────────────► Display GND
-Pi 5 GPIO 18 (PWM) ────────────────► Display PWM (optional dimming)
-```
+**Race-data API:** `GET /api/races/{race_id}/data?sensors=gps,imu,wind`
+returns `{boats: {device_id: {boat, sensors: {gps: [...], imu: [...], wind: [...]}}}}`.
 
-**Raspberry Pi 5 config** — add to `/boot/firmware/cmdline.txt` (append to existing line):
-```
-video=HDMI-A-1:800x480@60D
-```
-
-The `D` flag forces the display to be enabled even without proper EDID data.
-The old `hdmi_group`/`hdmi_mode` settings in config.txt do NOT work with Pi 5's KMS driver.
-
-Mount display face-up behind clear enclosure lid. At 1100 nits, readable in direct sunlight.
+**NOAA buoys API:** `GET /api/buoys/data?start_ts=...&end_ts=...` returns
+`{buoys: {STATIONID: {data_points: [...], lat, lon, name, color}}}`.
+Stations: 44013 / CSIM3 (Castle Island) / 44029 / BUZM3 / NTKM3 / KBOS (Logan).
 
 ---
 
-## Pi Camera 3 Wide
-
-- Sensor: IMX708, 4608×2592, 10-bit RGGB
-- Requires **22-pin Pi 5 adapter cable** (not the stock 15-pin cable)
-- Detect: `rpicam-hello --list-cameras`
-- Expected output: `imx708_wide [4608x2592]`
-- Config override if not autodetected: `dtoverlay=imx708,cam0` in config.txt
-
-### Autofocus Configuration
-
-Pi Camera Module 3 defaults to manual focus (AfMode=0), causing out-of-focus recordings.
-The camera service sets autofocus in the initial video configuration:
-
-```python
-video_config = picam2.create_video_configuration(
-    controls={
-        "AfMode": 2,      # 0=Manual, 1=Auto, 2=Continuous
-        "AfSpeed": 1,     # 0=Normal, 1=Fast
-        "AfRange": 0,     # 0=Normal, 1=Macro, 2=Full
-    }
-)
-# After start, trigger continuous AF:
-picam2.set_controls({"AfTrigger": 1})
-```
-
-### Camera Power Management
-
-Camera is the dominant power consumer. Strategy:
-- **Maneuver-triggered recording:** Camera off by default, GPS-predictive turn-on near marks
-- **Rolling pre-buffer:** Keeps camera running but only saves on trigger
-- **Target 1080p/15fps** instead of 4K to reduce power and storage
-
-### Camera Mounting
-
-Lens-through-lid approach: drill ~8mm hole in enclosure lid, seal with marine silicone.
-GoPro Hero 5 as supplemental recorder with GPS timestamp sync.
-
-### Camera Preview During Recording
-
-Dashboard preview extracts frames from **completed** video segments
-(not the currently recording file). MP4 moov atom is written at end of file.
-- Preview shows frame from most recent completed 5-minute segment
-- During first segment: "preview available after first segment completes"
-- When not recording: uses `rpicam-still` for live capture
-
----
-
-## Power Budget (Approximate)
-
-| Component | Draw |
-|---|---|
-| Pi 5 (typical load) | 3–5W |
-| ZED-F9P | ~0.5W |
-| Camera 3 Wide (active) | ~1–2W |
-| Newhaven display (1100 nit) | ~2.8W |
-| BNO085 | negligible |
-| DPS310 | negligible |
-| Wi-Fi AP mode | +0.1–0.2W |
-| **Total** | **~7–10W** |
-
-50,000mAh USB-C power bank (~185Wh):
-- With display + camera: ~18–26 hours (covers multiple race days)
-- With display, no camera: ~24+ hours
-
-**Power saving tips:**
-- Duty-cycle camera (burst recording on maneuver detection)
-- PWM dim display in overcast conditions
-- Record raw video, do CV/ML analysis in AWS post-race
-- Disable second HDMI: add `hdmi_blanking=2` to config.txt
-
----
-
-## Networking & Dashboard
-
-- Pi 5 runs as **Wi-Fi Access Point** (hostapd) during races
-- Dashboard served on port 8080 (Flask + Jinja2 templates)
-- Crew connects via browser — no app install required
-- Each boat = isolated network, no inter-boat interference
-- Wi-Fi client config via netplan YAML for `wlan0`
-- Post-race: sync to AWS S3
-
-### Dashboard Pages
-
-| Page | URL | Purpose |
-|------|-----|---------|
-| Main | `/` | Live sensor data, recording controls, system status |
-| GPS Details | `/gps` | Detailed GPS info, constellation tracking |
-| Battery History | `/battery` | Battery logging sessions |
-| Video Review | `/video` | Browse and play recorded videos |
-| Data Management | `/data` | View storage usage, delete old data by date |
-| Race Dashboard | `/race.html` | Multi-boat race replay, leaderboard, comparative charts |
-
-### Recording Controls
-
-- **Start Recording:** Starts all sensor services and cameras
-- **Stop Recording:** Stops cameras only; sensors keep running for live dashboard data
-- Confirmation dialog before stopping to prevent accidental data loss
-- Sensors continue logging CSV data; only video recording stops
-
-### Data Management Page (`/data`)
-
-- Lists all dates with recorded data
-- Shows storage breakdown: GPS, IMU, Pressure, Wind (CSV) + Video (MP4)
-- Color-coded sensor tags with file counts and sizes
-- Delete button per date with confirmation
-- Cannot delete today's data (services may be writing)
-
-### Data Directory Structure
-
-```
-/mnt/sailframes-data/
-├── 2026-03-30/
-│   ├── gps/
-│   │   └── track_20260330_140000.csv    # Parsed position data
-│   ├── ubx/
-│   │   └── raw_20260330_140000.ubx      # Raw UBX for RTKLIB
-│   ├── imu/
-│   │   └── imu_20260330_140000.csv
-│   ├── pressure/
-│   │   └── pressure_20260330_140000.csv
-│   ├── wind/
-│   │   └── wind_20260330_140000.csv
-│   └── video/
-│       ├── cockpit/
-│       │   └── cockpit_20260330_140000.mp4
-│       └── sails/
-│           └── sails_20260330_140000.mp4
-```
-
----
-
-## Enclosure & Mounting
-
-### S1 Enclosure (QILIPSU IP67)
-- Daily install/remove on boat — no permanent cables, under 30 seconds
-- Display mounted face-up against clear enclosure lid
-- DPS310 requires Gore-Tex pressure vent (Amphenol LTW VENT-PS1, ~$2-5)
-- Camera: lens-through-lid approach (~8mm hole, marine silicone seal)
-- NVMe SSD in Lemorele slim enclosure mounted internally
-
-### E1 Enclosure (YETLEBOX IP67 ABS)
-- Clear lid for OLED visibility
-- 5.9"×3.9"×2.8" — fits ESP32 + all breakout modules
-
-### Wind Sensor Mounting
-- RecPro suction cup mount + 1/4"-20 compatible extension pole
-- Carbon fiber or aluminum, no permanent boat modifications
-
----
-
-## Analytics Platform Roadmap
-
-### Sensor-to-Feature Mapping
-
-| Feature | ZED-F9P GPS | BNO085 IMU | Calypso Mini | DPS310 | Camera |
-|---|---|---|---|---|---|
-| SOG / COG | ✅ direct | | | | |
-| VMG | ✅ SOG | | ✅ TWD | | |
-| Polar diagram | ✅ SOG+COG | | ✅ TWD | | |
-| Heel angle | | ✅ direct | | | |
-| Pitch angle | | ✅ direct | | | |
-| Turning rate | | ✅ direct (yaw) | | | |
-| Maneuver detection | ✅ COG change | ✅ yaw rate trigger | ✅ TWA flip confirms | | |
-| Wind direction | | | ✅ direct | | |
-| TWA | ✅ COG | | ✅ TWD | | |
-| Barometric pressure | | | | ✅ direct | |
-| Distance to start | ✅ position | | | | |
-| Sail shape analysis | | | | | ✅ CV/ML |
-| Video sync | ✅ timestamps | | | | ✅ footage |
-
-### Build Phases
-
-**Phase 1 — Data Foundation:** Boat profiles, session management, data import/export,
-raw data storage schema. Sensor data flowing from device → S3 → database.
-
-**Phase 2 — Core Analytics:** Wind calculation, maneuver detection, straight line
-segmentation, all per-maneuver and per-leg metrics. Computational heart.
-
-**Phase 3 — Visualization:** Polar diagram, wind graph, session summary, maneuver
-charts (SOG/VMG/heel/pitch/turning rate/TWA/distance loss), map player with
-trajectory replay.
-
-**Phase 4 — Statistical Analysis:** Violin plots, STD plots, correlation plots
-with trendlines, straight line tables with sorting/filtering. Multi-boat comparison.
-
-**Phase 5 — Video Integration:** Video upload, timestamp sync with offset,
-synchronized playback with data graphs, frame-by-frame controls.
-
-**Phase 6 — Advanced Tools:** Rig analyzer (canvas drawing + measurement), social
-video export, PDF reports, leaderboard.
-
-**Phase 7 — SailFrames Originals:** Sail shape analysis from camera, fleet-wide
-6-boat comparison, real-time on-boat dashboard, NOAA/weather integration,
-GOES satellite imagery overlay, current field reconstruction from fleet GPS data.
-
-### Data Flow
-
-```
-[On Boat]
-  Sensors → services/ → local storage (NVMe/SD)
-  Wi-Fi AP → live dashboard to crew phones
-
-[Post Race]
-  S1 data → S3 upload (scripts/sailframes-sync.sh) → s3://sailframes-fleet-data-prod/raw/{device}/{date}/{sensor}/
-  E1 data → API Gateway → upload Lambda → s3://sailframes-fleet-data-prod/raw/{device}/{date}/
-  S3 → Lambda trigger (process_upload) → processed JSON
-  Processed results → PostgreSQL
-  Weather APIs → Lambda → PostgreSQL
-
-[Web App]
-  Browser → web/frontend/ (React)
-  React → web/api/ (FastAPI) → PostgreSQL + S3
-  Video player ↔ data graphs (synchronized via timestamps)
-  Export → PDF, PNG, social video (FFmpeg)
-```
-
-**S3 Path Formats:**
-- S1: `raw/{device_id}/{date}/{sensor_type}/{filename}.csv` (e.g., `raw/sailframes-01/2026-04-01/gps/track_20260401_140000.csv`)
-- E1: `raw/{device_id}/{date}/{filename}.csv` (e.g., `raw/E1/2026-04-01/E1_20260401_140000_nav.csv`)
-
-### Claude Code Session Strategy
-
-Parallel sessions, each scoped to a module:
-
-| Session | Directory | Scope |
-|---|---|---|
-| 1 | `processing/` | Maneuver detection, straight line segmentation, wind calc, VMG, polar, stats |
-| 2 | `web/api/` | FastAPI backend: boat profiles, sessions, data serving |
-| 3 | `web/frontend/` | React: charts, map player, video player, violin plots |
-| 4 | `export/` | PDF reports, social video, graph export |
-| 5 | `aws/` | S3 sync, Lambda pipelines, weather integration |
-
-All sessions read this CLAUDE.md automatically. If one session changes an API
-contract or data schema, update this file so other sessions pick it up.
-
----
-
-## Known Issues & Gotchas
-
-1. **BNO085 I2C clock stretching** — must set baudrate=400000 in config.txt.
-   Default 100kHz causes intermittent read errors. 400kHz is the fix (not slower).
-
-2. **Pi 4 vs Pi 5** — project uses Pi 5. Pi 4 images do NOT boot on Pi 5.
-   Reflash with Pi Imager selecting Pi 5 as target device.
-
-3. **Camera cable** — Pi Camera 3 Wide ships with 15-pin cable.
-   Pi 5 requires 22-pin adapter cable. Must swap before connecting.
-
-4. **DPS310 in sealed enclosure** — without a pressure vent, the sensor
-   reads internal enclosure pressure, not ambient. Gore-Tex vent is required.
-
-5. **Calypso wind sensor BLE** — only one device can connect at a time.
-   Pi 5 BLE client will claim the connection; disconnect other devices first.
-
-6. **Monitor service file descriptors** — excessive subprocess calls can exhaust
-   file descriptors (~1024 per process). Service status checks are limited to
-   every 60 seconds to prevent "Too many open files" crashes.
-
-7. **Camera busy during recording** — Pi Camera can only be accessed by one
-   process. Dashboard preview extracts frames from completed segments instead
-   of direct capture when camera service is recording.
-
-8. **DOP reflects geometry, not accuracy** — Good HDOP/VDOP values indicate
-   favorable satellite geometry but do not guarantee positional accuracy,
-   especially indoors.
-
-9. **E1 GPIO conflict** — GPS UART must use GPIO16/17 (UART2), NOT GPIO21/22
-   which are the I2C bus shared by BNO085 and OLED. Edit net labels on schematic
-   sheet, not component symbol definition.
-
-10. **KiCad Footprint Editor** — access from the KiCad main project launcher,
-    not from within the schematic editor.
-
-11. **ESP32 BLE/Wi-Fi radio conflict** — ESP32 has a single shared radio for BLE
-    and Wi-Fi. Both cannot operate reliably simultaneously. Must fully deinitialize
-    BLE before Wi-Fi uploads, then reinitialize BLE after. See E1 Wi-Fi Upload section.
-
-12. **NimBLEDevice::deinit(true) crashes** — calling `deinit(true)` causes heap
-    corruption and crashes. Always use `deinit(false)`. Also: disconnect Wi-Fi
-    BEFORE deinitializing BLE, not after.
-
-13. **macOS Spotlight files on SD card** — when SD card is inserted into Mac,
-    Spotlight creates `.Spotlight-V100` and `.fseventsd` directories. These are
-    harmless but appear in file listings. The firmware skips hidden files during upload.
-
-14. **LG290P PQTM command syntax** — firmware AANR01A06S uses two-parameter syntax
-    for `PQTMCFGMSGRATE` (message, rate). Three-parameter syntax (with offset)
-    returns `ERROR,1`. PyGPSClient on macOS has limited LG290P support — use QGNSS
-    on Windows for configuration.
-
-15. **API Gateway 29-second timeout** — Lambda functions behind API Gateway have
-    a hard 29-second timeout. Large file uploads fail with HTTP -3 (SEND_PAYLOAD_FAILED).
-    Solution: use presigned S3 URLs for files ≥1MB.
-
-16. **E1 GPS session folder naming** — Session folders use GPS date/time when available
-    (e.g., `/sf/20260405_225030/`). The validation checks: (a) year portion of date
-    is not "00" (default), and (b) GPS has valid fix. Previously failed for days 1-9
-    of month and times 00:00-09:59 UTC due to incorrect first-character check.
-
-17. **E1 deep sleep removed** — Software deep sleep had issues: button still pressed
-    caused immediate wake, GPS module stayed powered. Replaced with hardware slide
-    switch on PowerBoost 1000C EN pin for reliable power control.
-
-18. **ESP32 TLS broken in Arduino Core 3.3.7** — mbedTLS has BIGNUM memory allocation
-    failures during RSA operations, even with ~49KB contiguous heap. Error: "RSA - The
-    public key operation failed : BIGNUM - Memory allocation failed (err: -17040)".
-    **Workaround:** E1 uploads directly to S3 via HTTP (no TLS). Bucket policy allows
-    unauthenticated PUT to `raw/E1/*` paths. See `infrastructure/aws/E1_HTTP_UPLOAD_SETUP.md`.
-
-19. **Calypso wind sensor 180° AWA inversion** — The Calypso Mini ultrasonic anemometer
-    reports Apparent Wind Angle (AWA) 180° inverted from the expected direction. With the
-    sensor mounted bow-mark forward, it reports wind from the opposite side. **Fixed:**
-    Both E1 firmware and S1 wind service now apply `(raw_awa + 180) % 360` correction
-    when logging and displaying wind data. Historical data in S3 was corrected using
-    `scripts/correct_wind_awa.py`.
-
-20. **ESP32 GPIO12 is a strapping pin** — GPIO12 controls flash voltage at boot.
-    If pulled HIGH during boot, ESP32 fails to start. **Do not use GPIO12** for SD card
-    MISO or any external connection. Use GPIO35 (input-only) for MISO instead.
-
-21. **TFT + SD SPI bus contention** — Sharing single SPI bus between TFT display and
-    SD card causes severe display flickering during SD writes. **Solution:** Use separate
-    SPI buses — TFT on VSPI (GPIO18/19/23), SD on HSPI (GPIO14/35/13). This completely
-    eliminates flicker.
-
-22. **ESP32 partition scheme for E1 firmware** — Use `Minimal SPIFFS (1.9MB APP with OTA/128KB SPIFFS)`
-    in Arduino IDE: Tools → Partition Scheme → Minimal SPIFFS. This keeps OTA partitions
-    available (required for over-the-air firmware updates) while fitting the firmware.
-    Do NOT use `huge_app` — it disables OTA.
-
-23. **ESP32 Arduino Core 3.3.8 breaks I2C and TFT** — Do not update to ESP32 board package
-    3.3.8. Causes I2C bus failures (devices not detected) and TFT display issues. Stick
-    with 3.3.7. If accidentally updated, downgrade with:
-    `arduino-cli core install esp32:esp32@3.3.7`
-
-24. **NimBLE-Arduino 2.5.0 compatibility** — Avoid NimBLE-Arduino 2.5.0, stick with 2.4.0.
-    Version 2.5.0 may have API changes affecting BLE/WiFi radio switching. Downgrade with:
-    `arduino-cli lib install "NimBLE-Arduino@2.4.0"`
+## Known Issues & Gotchas (E1 + shared)
+
+1. **DPS310 in sealed enclosure** — without a pressure vent the sensor
+   reads internal pressure. Gore-Tex vent (Amphenol LTW VENT-PS1) required
+   if the box is sealed.
+
+2. **Calypso wind sensor BLE** — only one device can connect at a time.
+   The boat's E1 will claim it; disconnect other phones/laptops first.
+
+3. **DOP reflects geometry, not accuracy** — Good HDOP/VDOP indicates
+   favorable satellite geometry but doesn't guarantee positional accuracy.
+
+4. **E1 GPIO conflict** — GPS UART must use GPIO16/17 (UART2), NOT
+   GPIO21/22 which are I2C. Edit net labels on the schematic sheet, not
+   the component symbol.
+
+5. **KiCad Footprint Editor** — access from the KiCad project launcher,
+   not from the schematic editor.
+
+6. **ESP32 BLE/Wi-Fi radio conflict** — single shared radio. Pause BLE
+   scans before WiFi work; see `pauseBLEForWiFi()` in firmware.
+
+7. **NimBLEDevice::deinit(true) crashes** — heap corruption. Always
+   `deinit(false)`. Disconnect WiFi BEFORE deinitializing BLE if you ever
+   need to deinit at all.
+
+8. **macOS Spotlight files on SD card** — Mac creates `.Spotlight-V100`
+   and `.fseventsd`. Firmware skips hidden files during upload. Disable
+   indexing on the volume:
+   `sudo mdutil -i off /Volumes/E1; touch /Volumes/E1/.metadata_never_index`.
+
+9. **LG290P PQTM command syntax** — firmware AANR01A06S uses two-parameter
+   `PQTMCFGMSGRATE` (message, rate). Three-parameter form returns
+   `ERROR,1`. PyGPSClient on macOS has limited support — use QGNSS on
+   Windows for first-time configuration.
+
+10. **API Gateway 29-second timeout** — Lambdas behind API Gateway have a
+    hard 29 s timeout. Large uploads via API Gateway fail with HTTP -3.
+    E1 sidesteps this by uploading direct to S3 over HTTP.
+
+11. **E1 GPS session folder naming** — uses GPS datetime when valid year
+    + fix; falls back to `session_NNN` otherwise. Previously failed for
+    days 1–9 / hours 00–09 UTC due to a first-character-only check; fixed.
+
+12. **E1 deep sleep removed** — software deep sleep had button-still-pressed
+    + GPS-stays-powered issues. Hardware SPDT slide switch now controls
+    power.
+
+13. **ESP32 TLS broken in Arduino Core 3.3.7** — mbedTLS BIGNUM allocation
+    failures during RSA. Cannot reliably do HTTPS. E1 uploads to S3 over
+    plain HTTP; bucket policy permits it for `raw/E1/*`.
+
+14. **Calypso wind sensor 180° AWA inversion** — with the bow-mark
+    forward, raw AWA is 180° off. Both E1 firmware and historical data
+    apply `(raw_awa + 180) % 360`. `scripts/correct_wind_awa.py`
+    backfilled S3.
+
+15. **ESP32 GPIO12 is a strapping pin** — controls flash voltage at boot.
+    Pull HIGH at boot → ESP32 fails. Do NOT use GPIO12 for SD MISO. Use
+    GPIO35 (input-only) instead.
+
+16. **TFT + SD SPI bus contention** — sharing one SPI bus causes display
+    flicker during SD writes. TFT on VSPI, SD on HSPI. Eliminates flicker.
+
+17. **ESP32 partition scheme for E1** — `Minimal SPIFFS (1.9 MB APP with
+    OTA / 128 KB SPIFFS)`. Do NOT use `huge_app` — it disables OTA.
+
+18. **ESP32 Arduino Core 3.3.8 breaks I2C and TFT** — devices not detected,
+    display issues. Stick with 3.3.7. Downgrade with
+    `arduino-cli core install esp32:esp32@3.3.7`.
+
+19. **NimBLE-Arduino 2.5.0 BLE/WiFi switching issues** — use 2.4.0.
+    `arduino-cli lib install "NimBLE-Arduino@2.4.0"`.
+
+20. **`handleTelnet` deadlock under upload contention** (fixed
+    2026.05.03.05) — `WiFiServer.hasClient()` calls share LWIP locks with
+    Core 0's HTTP uploads and deadlock under sustained traffic. Telnet
+    listener defaults OFF; enable with `telneton`.
+
+21. **Simultaneous fleet reboots during slow uploads** (mitigated
+    2026.05.03.08) — wdt could fire on a single 660 KB+ RTCM3 PUT at
+    weak signal. Bumped wdt to 300 s. `boot.log` on SD now records reset
+    reasons so future similar events are self-documenting.
 
 ---
 
 ## Weather Data Integration
 
-- GOES-16/19 imagery on AWS S3 (`s3://noaa-goes16/`, `s3://noaa-goes19/`)
-- Use `goes2go` Python library for easy access
-- Boston NWS office (BOX) provides regional GOES crops
-- Useful layers: visible (sea breeze), water vapor, GeoColor composite
-- Can overlay GPS tracks on GOES imagery for post-race analysis
-- NOAA NDBC buoys: 44013, BHBM3
-- NOAA Tides and Currents: station 8443970
-- Open-Meteo for weather forecasts
-
----
-
-## Competitive Landscape
-
-SailFrames exists in a field with several commercial and open-source alternatives
-for sailing performance analysis. Key differentiators for SailFrames:
-- **PPK GNSS** — no other platform uses post-processed kinematic positioning
-- **Multi-sensor hardware** — dedicated IMU, wind, pressure, camera (not phone-only)
-- **Fleet-wide simultaneous logging** — 6+ boats on same course, same time
-- **Open source** — Apache 2.0, full hardware and software stack
-- **No permanent install** — daily install/remove under 30 seconds
-
-**Note:** Do not include competitor brand names in SailFrames documentation or code.
-Competitive analysis is maintained separately.
+- **NOAA NDBC buoys:** 44013 (Boston 16NM), CSIM3 (Castle Island), 44029,
+  BUZM3, NTKM3
+- **METAR:** KBOS (Logan)
+- **GOES-16/19 imagery:** `s3://noaa-goes16/`, `s3://noaa-goes19/`
+  via `goes2go` Python library (Boston BOX office offers regional crops)
+- **NOAA Tides & Currents:** station 8443970
+- **Open-Meteo** for forecasts
+- **NOAA UFCORS** for free PPK base data
 
 ---
 
 ## Tools & Resources
 
-- **GNSS:** u-center (ZED-F9P config/logging), QGNSS (LG290P config, Windows only),
-  RTKLIB (PPK post-processing), GNSS View app (satellite visibility diagnostics),
-  pyubx2 (UBX binary parsing), NOAA UFCORS (free base station data)
-- **Development:** Arduino IDE (ESP32), KiCad (schematic + PCB),
-  Freerouting (autorouter), JLCPCB (PCB fabrication)
-- **Cloud/data:** AWS S3, AWS Lambda, PostgreSQL
-- **Reference texts:** Groves 2013 (GNSS/INS integration), Kaplan & Hegarty,
-  Teunissen & Montenbruck, Markley & Crassidis (attitude estimation), Madgwick
+- **GNSS:** QGNSS (LG290P config, Windows), RTKLIB (PPK post-processing),
+  NOAA UFCORS, GNSS View app, pyubx2
+- **Firmware development:** Arduino IDE, KiCad (schematic + PCB),
+  Freerouting, JLCPCB
+- **Cloud:** AWS S3, Lambda, CloudFront, Route 53, CloudFormation
+- **Reference texts:** Groves 2013 (GNSS/INS), Kaplan & Hegarty,
+  Teunissen & Montenbruck, Markley & Crassidis (attitude estimation),
+  Madgwick
 
 ---
 
-## Project History
+## Competitive Landscape (placeholder)
 
-- Originally named **TrimLog** (trimlog.com taken)
-- Renamed to **SailFrames** — global find-and-replace done across all 18 files
-- March 2026: Reorganized as monorepo `sailframes/core`
-  - `edge-s/` — Raspberry Pi software (S1 = first generation device)
-  - `edge-e/` — ESP32 hardware/firmware (E1 = first generation device)
-  - Added `web/`, `lambda/`, `infrastructure/`, `processing/`, `export/`
-- March 19, 2026: Initial CLAUDE.md created from Claude.ai project conversations
-- March 23, 2026: Added analytics platform roadmap (7 phases)
-- March 29, 2026: E1 KiCad schematic completed, firmware written
-- March 30, 2026: Added raw UBX logging, data management page, GPS constellation tracking
-- March 30, 2026: Updated CLAUDE.md — added E1 hardware/firmware/wiring, PPK strategy,
-  Newhaven display, NVMe storage, power bank, BNO085 calibration, analytics roadmap,
-  removed competitor brand names, corrected stale hardware references
-- April 4, 2026: E1 Wi-Fi upload fixes and LG290P configuration
-  - Fixed ESP32 BLE/Wi-Fi radio conflict (must deinit BLE before Wi-Fi uploads)
-  - Implemented presigned S3 URLs for large files (bypass API Gateway timeout)
-  - Switched to HTTP for S3 uploads (faster, no TLS overhead for non-sensitive data)
-  - Added `clearmarkers` command to retry failed uploads
-  - Documented LG290P RTCM3 configuration via QGNSS (PyGPSClient has limited support)
-  - Added NimBLEDevice::deinit(false) requirement (deinit(true) causes heap corruption)
-- April 5, 2026: E1 power management and RTCM3 fixes
-  - Removed software deep sleep (replaced with hardware power switch on PowerBoost EN pin)
-  - Enabled battery monitoring (GPIO34 ADC via voltage divider, GPIO35 LBO warning)
-  - OLED display: battery % instead of MAG heading, satellites show "in fix/in view"
-  - Firmware now sends RTCM3 configuration commands at boot (not relying on QGNSS pre-config)
-  - Fixed GPS session folder naming for days 1-9 and times 00:00-09:59 UTC
-  - Added `sendPQTM()` response logging for debugging configuration issues
-  - Clarified BLE/WiFi conflict is specifically about TLS memory pressure
-- April 7, 2026: E1 direct S3 HTTP upload (TLS workaround)
-  - Discovered ESP32 Arduino Core 3.3.7 has broken TLS (mbedTLS BIGNUM allocation failure)
-  - Bypassed API Gateway entirely — E1 now uploads directly to S3 via HTTP
-  - Added S3 bucket policy allowing unauthenticated PUT to `raw/E1/*` paths
-  - Removed all TLS/HTTPS from upload path (testS3Connection replaces testAPIGatewayConnection)
-  - Created `infrastructure/aws/E1_HTTP_UPLOAD_SETUP.md` deployment guide
-- April 8, 2026: Calypso wind sensor 180° AWA correction
-  - Discovered Calypso Mini reports AWA 180° inverted (wind from opposite side)
-  - Fixed E1 firmware (`logWind()` and OLED display) to apply 180° correction
-  - Fixed S1 wind service (`sailframes_wind.py`) to apply 180° correction
-  - Created `scripts/correct_wind_awa.py` to fix historical data in S3
-  - Corrected 64 raw CSV files and 10 processed wind.json files in S3
-- April 10-12, 2026: E1 hardware redesign and PCB v1.0
-  - Replaced OLED with Hosyond 3.5" TFT (ST7796U) for sunlight readability
-  - Moved SD card to HSPI bus (GPIO14/35/13/27) to eliminate TFT flicker
-  - TFT on VSPI (GPIO23/25/18/5/2/4/19) — MISO and BL pins swapped to match soldered wiring
-  - Replaced PowerBoost 1000C with DWEII USB-C 5V 2A boost charger
-  - Added 6000mAh LiPo battery with JST PH 2.0mm connector
-  - Designed complete KiCad PCB with all connectors and expansion headers
-  - Added future expansion: Wind sensor UART1 (GPIO32/33), I2C connectors, GPIO header
-  - Battery voltage divider changed to 2× 100KΩ (from 200Ω)
-  - Ordered PCB from JLCPCB (60.5 × 91.5 mm, 2-layer, ~$9.50 + shipping)
-- April 18, 2026: E1 PCB v1.1 layout finalization
-  - Added ground pour on B.Cu (bottom copper) for improved EMI shielding
-  - Added 4× M2.5 mounting holes at board corners
-  - Consolidated custom footprints into `e1.pretty/` library
-  - Generated final Gerbers and ordered from JLCPCB (FedEx DDP shipping)
-- April 18, 2026: Race Dashboard for J/80 Spring Series
-  - Built multi-boat race visualization for 6-boat fleet (E1-E6)
-  - Added Race/Regatta data models to `processing/models.py`
-  - Created `/web/api/race.py` with CRUD endpoints and multi-boat data loading
-  - Created `/web/race.html` dashboard with Leaflet map and Chart.js charts
-  - Features: colored boat tracks, live leaderboard, speed comparison chart
-  - Playback controls (0.5x-8x speed), timeline scrubbing
-  - Race editor modal with boat assignments and drag-and-drop finish order
-  - Auto-match sessions by time overlap with race window
-  - Fixed E1 WiFi upload on battery (reduced TX power from 19.5dBm to 15dBm,
-    later restored to 19.5dBm in 2026.05.03.09 — slow uploads at marginal
-    signal were the bigger problem)
-- April 19, 2026: Library version compatibility documentation
-  - Documented tested library versions that work together
-  - ESP32 board package 3.3.8 causes I2C and TFT failures — use 3.3.7
-  - NimBLE-Arduino 2.5.0 may have issues — use 2.4.0
-  - Added Known Issues #23 and #24 for library version warnings
+Differentiators worth preserving in product framing:
+- PPK GNSS — only platform doing post-processed kinematic on the fleet
+- Multi-sensor hardware (IMU + barometer + wind + camera-future)
+- Fleet-wide simultaneous logging (×6 on the same course)
+- Open source (Apache 2.0)
+- No permanent install — under 30 second daily install/remove
+
+Competitor brand names are kept out of code/docs; competitive analysis
+lives separately.
 
 ---
 
-*Last updated: April 19, 2026 — Library version compatibility documentation*
+## Project History (E1-relevant, pruned)
+
+- **2026-03:** Repo reorganized as monorepo. `edge-e/` (ESP32) added.
+- **2026-03-29:** E1 KiCad schematic complete, firmware written.
+- **2026-04-04:** E1 BLE/WiFi fixes, presigned S3 URLs, HTTP uploads,
+  `clearmarkers`, LG290P RTCM3 config via QGNSS.
+- **2026-04-07:** TLS broken in Arduino Core 3.3.7 → direct-to-S3 HTTP
+  uploads. Bucket policy for unauthenticated `raw/E1/*` PUT.
+- **2026-04-08:** Calypso 180° AWA correction (firmware + historical S3).
+- **2026-04-10–12:** TFT replaces OLED, separate SPI buses, DWEII boost
+  charger, 6000 mAh LiPo, complete KiCad PCB v1.0.
+- **2026-04-18:** PCB v1.1 (ground pour, mounting holes), Gerbers ordered.
+  Race dashboard built (Leaflet + Chart.js, multi-boat).
+- **2026-04-19:** Library version pinning documented (Core 3.3.7,
+  NimBLE 2.4.0).
+- **2026-05-01–03:** Fleet hang firefight resolved via diag heartbeat —
+  `handleTelnet` LWIP deadlock isolated and disabled by default
+  (2026.05.03.05). Reset-reason logging added (.08). TX power restored
+  to 19.5 dBm (.09). All 6 devices verified stable.
+- **2026-05-03:** Race dashboard Tier 2 → 3 (course-aware leaderboard,
+  VMG, NOAA wind integration, polar overlay, per-boat drawer, layline
+  toggle, wind source picker, leg + maneuver modals).
+
+---
+
+*Last updated: 2026-05-04 — S1 Pi notes split into `docs/S1_LEGACY.md`;
+this file refocused on the deployed E1 fleet + web dashboard.*
