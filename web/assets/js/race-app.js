@@ -60,6 +60,11 @@ let windMarker = null;             // legacy single-marker (kept for compatibili
 let windMarkers = {};              // stationId → Leaflet marker (multi-station rendering)
 let windStationStats = {};         // stationId → { meanTWD, stdTWD, minTWS, maxTWS, avgTWS, sampleCount }
 let _windDropdownOutsideListener = null;  // ref-tracked so re-renders don't leak handlers
+
+// Set of station IDs to show in dropdown + on map. Computed every picker
+// render to dedupe stations that point at the same physical sensor through
+// multiple aggregator paths (e.g. KBOS direct vs SYN_KBOS via Synoptic).
+let visibleStationIds = new Set();
 // Preferred-first ordering for the auto-pick. Synoptic SYN_* stations
 // are added dynamically below if/when they appear in the API response.
 const PRIMARY_WIND_STATIONS = ['CSIM3', 'KBOS', '44013'];
@@ -663,6 +668,85 @@ function fmtStationStats(stats) {
     return `${Math.round(stats.meanTWD).toString().padStart(3, '0')}°±${Math.round(stats.stdTWD)}°  ${tws}`;
 }
 
+// Compact "source" label for the dropdown column. NDBC/METAR/NWS render as-is;
+// Synoptic stations get the underlying mesonet network when available so the
+// user can tell a Tempest from a CWOP from a Logan-via-Synoptic mirror.
+function fmtSourceLabel(buoy) {
+    const src = (buoy.source || 'ndbc').toLowerCase();
+    if (src === 'ndbc')  return 'NDBC';
+    if (src === 'metar') return 'METAR';
+    if (src === 'nws')   return 'NWS';
+    if (src === 'synoptic') {
+        const net = (buoy.network || '').toUpperCase();
+        const SYN_NET_LABELS = {
+            'WXFLOW': 'Tempest',
+            'TEMPEST': 'Tempest',
+            'CWOP': 'CWOP',
+            'NWS/FAA': 'METAR',
+            'ASOSAWOS': 'METAR',
+            'NWSCOOP': 'COOP',
+            'RAWS': 'RAWS',
+            'BUOY': 'NDBC',
+            'NDBC': 'NDBC',
+            'AMUNDOS': 'AMUNDOS',
+        };
+        const tag = SYN_NET_LABELS[net] || (net ? net : 'Synoptic');
+        return `Syn·${tag}`;
+    }
+    return src;
+}
+
+// Dedupe stations that point at the same physical sensor reachable via
+// multiple aggregators (e.g. KBOS direct + SYN_KBOS via Synoptic, or any
+// Synoptic mirror of an NDBC buoy). Group by lat/lon proximity (≤200 m)
+// and keep the highest-priority source per group:
+//   ndbc > metar > nws > synoptic
+// Hidden duplicates stay in raceBuoyData (data preserved) but disappear
+// from the picker and the map markers so the screen isn't double-marked.
+function recomputeVisibleStations() {
+    const SOURCE_PRIORITY = { ndbc: 0, metar: 1, nws: 2, synoptic: 3 };
+    const stations = Object.entries(raceBuoyData)
+        .filter(([sid, _b]) => windStationStats[sid])
+        .map(([sid, b]) => ({
+            id: sid,
+            lat: typeof b.lat === 'number' ? b.lat : null,
+            lon: typeof b.lon === 'number' ? b.lon : null,
+            source: (b.source || 'ndbc').toLowerCase(),
+        }))
+        .filter(s => s.lat != null && s.lon != null);
+
+    const groups = [];
+    for (const s of stations) {
+        let placed = false;
+        for (const g of groups) {
+            const ref = g[0];
+            if (haversineMeters(s.lat, s.lon, ref.lat, ref.lon) <= 200) {
+                g.push(s);
+                placed = true;
+                break;
+            }
+        }
+        if (!placed) groups.push([s]);
+    }
+
+    const visible = new Set();
+    for (const g of groups) {
+        if (g.length === 1) {
+            visible.add(g[0].id);
+            continue;
+        }
+        g.sort((a, b) => {
+            const pa = SOURCE_PRIORITY[a.source] ?? 99;
+            const pb = SOURCE_PRIORITY[b.source] ?? 99;
+            return pa - pb;
+        });
+        visible.add(g[0].id);
+        // Note: g.slice(1) are hidden duplicates — their data stays in
+        // raceBuoyData, just not surfaced in the UI.
+    }
+    visibleStationIds = visible;
+}
+
 // Wind-source dropdown. Triggered by a single button showing the
 // currently selected station + its summary; click to expand the menu
 // listing every station with usable wind data, each row showing the
@@ -673,15 +757,24 @@ function renderWindSourcePicker() {
     if (!host) return;
 
     computeAllWindStats();
+    recomputeVisibleStations();
 
     const stations = Object.entries(raceBuoyData)
-        .filter(([sid, _b]) => windStationStats[sid])
+        .filter(([sid, _b]) => windStationStats[sid] && visibleStationIds.has(sid))
         .map(([sid, b]) => ({
             id: sid,
             name: b.name || sid,
             color: b.color || '#888',
+            source: fmtSourceLabel(b),
             stats: windStationStats[sid],
         }));
+
+    // If the auto-pick selected a station that's now hidden as a duplicate,
+    // promote to the corresponding visible peer.
+    if (selectedWindStationId && !visibleStationIds.has(selectedWindStationId) && stations.length) {
+        selectedWindStationId = stations[0].id;
+        rebuildWindFromSelected();
+    }
 
     const order = (sid) => {
         const i = PRIMARY_WIND_STATIONS.indexOf(sid);
@@ -713,7 +806,7 @@ function renderWindSourcePicker() {
         <span class="wind-dropdown-prefix">WIND</span>
         <span class="wind-dropdown-current">
           <span class="wind-dropdown-current-name">${shortStationLabel(selected.id, selected.name)}</span>
-          <span class="wind-dropdown-current-stats">${fmtStationStats(selected.stats)}</span>
+          <span class="wind-dropdown-current-stats">${fmtStationStats(selected.stats)} · ${selected.source}</span>
         </span>
         <span class="wind-dropdown-arrow" aria-hidden="true">▾</span>
       </button>
@@ -724,6 +817,7 @@ function renderWindSourcePicker() {
                   aria-selected="${s.id === selectedWindStationId}">
             <span class="wind-option-dot" style="background:${s.color}"></span>
             <span class="wind-option-name">${shortStationLabel(s.id, s.name)}</span>
+            <span class="wind-option-source">${s.source}</span>
             <span class="wind-option-stats">${fmtStationStats(s.stats)}</span>
             <span class="wind-option-count">${s.stats.sampleCount}</span>
           </button>
@@ -1015,6 +1109,8 @@ function updateAllWindMarkers(targetTimeMs) {
     const present = new Set();
     for (const [sid, buoy] of Object.entries(raceBuoyData)) {
         if (!windStationStats[sid]) continue;
+        // Skip stations hidden as duplicates of higher-priority sources.
+        if (!visibleStationIds.has(sid)) continue;
         if (buoy.lat == null || buoy.lon == null) continue;
         present.add(sid);
         const sample = stationWindAt(sid, targetTimeMs);

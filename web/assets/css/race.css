@@ -731,7 +731,7 @@ body.course-editing .boat-legend {
 
 .wind-dropdown-option {
     display: grid;
-    grid-template-columns: 14px 1fr auto auto;
+    grid-template-columns: 14px 1fr 60px auto auto;
     align-items: center;
     gap: 0.5rem;
     background: transparent;
@@ -760,7 +760,17 @@ body.course-editing .boat-legend {
     border: 1px solid rgba(255,255,255,0.15);
 }
 
-.wind-option-name { font-size: 0.85rem; }
+.wind-option-name { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wind-option-source {
+    font-size: 0.62rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 6px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 3px;
+    text-align: center;
+}
 .wind-option-stats { font-size: 0.72rem; color: var(--text-secondary); }
 .wind-option-count { font-size: 0.65rem; color: var(--text-secondary); opacity: 0.7; min-width: 22px; text-align: right; }
 
