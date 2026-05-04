@@ -17,18 +17,20 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>*</text></svg>">
 
     <link rel="stylesheet" href="./assets/css/main.css?v=9">
-    <link rel="stylesheet" href="./assets/css/landing.css?v=2">
+    <link rel="stylesheet" href="./assets/css/landing.css?v=3">
 </head>
 <body class="landing-page">
     <!-- Navigation -->
     <nav class="nav">
         <a href="/" class="nav-logo">SailFrames</a>
-        <div class="nav-links">
+        <button class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
+        <div class="nav-links" id="nav-links">
             <a href="#features" class="nav-link">Features</a>
+            <a href="#dashboard-features" class="nav-link">Dashboard</a>
             <a href="#hardware" class="nav-link">Hardware</a>
             <a href="#docs" class="nav-link">Documentation</a>
             <a href="https://github.com/sailframes/core" class="nav-link" target="_blank">GitHub</a>
-            <a href="./race.html" class="nav-link primary">Race Dashboard</a>
+            <a href="./race.html" class="nav-link primary">Race Dashboard &rarr;</a>
         </div>
     </nav>
 
@@ -38,7 +40,8 @@
             <h1 class="hero-title">Sailboat Racing Analytics for Everyone</h1>
             <p class="hero-subtitle">
                 The first open source sailing analytics platform with centimeter-level GPS accuracy (2-30cm) using PPK post-processing.
-                Complete hardware designs, firmware, and cloud analytics - all Apache 2.0 licensed.
+                Six-boat fleet tracking, NOAA wind integration, polar-based performance metrics, and automatic
+                tack/gybe detection — all Apache 2.0 licensed. Hardware, firmware, and cloud included.
             </p>
             <p class="hero-location">
                 Built and tested on the water at <a href="https://courageoussailing.org" target="_blank">Courageous Sailing</a> and <a href="https://piersparksailing.org" target="_blank">Piers Park Sailing Center</a> in Boston Harbor. Yes, the hardware has been dropped overboard. It still works.
@@ -124,6 +127,114 @@
                 <p class="feature-desc">
                     Designed for boats without permanent modifications. IP67 enclosures with suction cup mounts
                     allow installation in under 30 seconds per device.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Race Dashboard Features -->
+    <section class="section" id="dashboard-features">
+        <div class="section-header">
+            <div class="section-label">Race Dashboard</div>
+            <h2 class="section-title">Built for actual racing</h2>
+            <p class="section-subtitle">
+                The web dashboard isn't a generic tracker. Every metric is one a racing
+                sailor asks during a debrief. All values update live as you scrub the
+                playback cursor across the race.
+            </p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">&#9873;</div>
+                <h3 class="feature-title">Course-aware leaderboard</h3>
+                <p class="feature-desc">
+                    Boats ranked by along-course progress &mdash; legs completed first,
+                    distance to next mark as the tiebreaker. Mark roundings detected
+                    automatically (35&nbsp;m radius). Gap to leader shown in metres.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">&#9650;</div>
+                <h3 class="feature-title">VMG, TWA &amp; tack indicator</h3>
+                <p class="feature-desc">
+                    For every boat: Velocity Made Good toward the next mark,
+                    True Wind Angle, and which tack they're on (port / starboard).
+                    Live in the leaderboard tile and in the per-boat detail drawer.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">&#9788;</div>
+                <h3 class="feature-title">NOAA wind integration</h3>
+                <p class="feature-desc">
+                    Castle Island, Logan Airport, and Boston 16&nbsp;NM wind data fetched
+                    automatically for every race. Switchable source with one tap.
+                    Vector-mean TWD (no 0&deg;/360&deg; wraparound artefacts) drives
+                    laylines, polar lookup, and TWA.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">&#10148;</div>
+                <h3 class="feature-title">Layline overlay</h3>
+                <p class="feature-desc">
+                    Port and starboard laylines drawn from each upwind mark using
+                    NOAA TWD and the J/80 upwind tack angle. Toggleable from the
+                    map &mdash; visible during analysis, hideable for clean
+                    debrief screens.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">&#x25B0;</div>
+                <h3 class="feature-title">Polar-based performance</h3>
+                <p class="feature-desc">
+                    The published J/80 polar (7&nbsp;TWS &times; 10&nbsp;TWA) embedded with
+                    bilinear interpolation. The leaderboard shows %&nbsp;polar per boat
+                    in real time, with a dashed target-speed overlay on the speed chart.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">&#8634;</div>
+                <h3 class="feature-title">Tack &amp; gybe detection</h3>
+                <p class="feature-desc">
+                    Maneuvers extracted automatically from heading change &amp; speed
+                    dip. Per-team summary table with average speed loss and
+                    duration; per-maneuver detail with TWA in/out and recovery
+                    speed for granular debriefing.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">&#8644;</div>
+                <h3 class="feature-title">Leg-by-leg summary</h3>
+                <p class="feature-desc">
+                    Time, average SOG, average %&nbsp;polar, and distance per leg per
+                    boat &mdash; sorted to highlight who won each leg.
+                    Identifies tactical decisions race-by-race.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">&#9737;</div>
+                <h3 class="feature-title">Per-boat detail drawer</h3>
+                <p class="feature-desc">
+                    Tap any boat (map marker or leaderboard row) for full live
+                    telemetry: motion, IMU, onboard wind, NOAA wind, polar
+                    target/%&nbsp;polar, and next-mark distance/bearing/VMG/ETA.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">&#9742;</div>
+                <h3 class="feature-title">Mobile-friendly view</h3>
+                <p class="feature-desc">
+                    iPhone-optimised layout below 900&nbsp;px: Map / Standings /
+                    Charts tabs, slide-down menu, full-screen per-boat drawer.
+                    Same data, designed for thumb navigation on the dock.
                 </p>
             </div>
         </div>
@@ -268,11 +379,12 @@
 
         <div class="access-grid">
             <a href="./race.html" class="access-card">
-                <div class="access-icon">*</div>
+                <div class="access-icon">&#9873;</div>
                 <h3 class="access-title">Race Dashboard</h3>
                 <p class="access-desc">
-                    Multi-boat race visualization for your fleet. Compare 6 boats simultaneously,
-                    view the leaderboard, and replay position changes throughout the race.
+                    Multi-boat race replay with course-aware leaderboard, VMG, TWA,
+                    %&nbsp;polar, NOAA wind, layline overlay, leg + maneuver tables,
+                    and a per-boat detail drawer. Mobile and desktop layouts.
                 </p>
                 <span class="access-arrow">&#8594;</span>
             </a>
@@ -1353,5 +1465,27 @@ clearmarkers  # Reset upload state</code></pre>
             <span>Built with sensors, code, and salt water.</span>
         </div>
     </footer>
+
+    <script>
+        // Mobile nav toggle
+        (function () {
+            var btn = document.getElementById('nav-toggle');
+            var links = document.getElementById('nav-links');
+            if (!btn || !links) return;
+            btn.addEventListener('click', function () {
+                var open = links.classList.toggle('open');
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                btn.textContent = open ? '×' : '☰';
+            });
+            // Auto-close menu when an in-page link is tapped
+            links.addEventListener('click', function (e) {
+                if (e.target.matches('a') && links.classList.contains('open')) {
+                    links.classList.remove('open');
+                    btn.setAttribute('aria-expanded', 'false');
+                    btn.textContent = '☰';
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

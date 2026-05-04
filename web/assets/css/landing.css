@@ -755,7 +755,25 @@ body.landing-page {
     font-size: 1.5rem;
 }
 
-/* Responsive */
+/* Hamburger toggle (hidden on desktop, shown ≤900 px) */
+.nav-toggle {
+    display: none;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-toggle:active { background: rgba(255, 255, 255, 0.05); }
+
+/* Responsive — tablets */
 @media (max-width: 1000px) {
     .hardware-grid {
         grid-template-columns: 1fr;
@@ -775,38 +793,111 @@ body.landing-page {
     }
 }
 
-@media (max-width: 768px) {
+/* Phones (iPhone SE width up through tablet portrait) */
+@media (max-width: 900px) {
+    /* Nav becomes a logo + hamburger; links collapse into a slide-down panel */
     .nav {
-        padding: 12px 20px;
+        padding: 10px 16px;
+    }
+
+    .nav-toggle {
+        display: inline-flex;
     }
 
     .nav-links {
-        gap: 16px;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: rgba(15, 20, 25, 0.97);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--border);
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        padding: 8px 0;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.22s ease-out;
+    }
+
+    .nav-links.open {
+        max-height: 80vh;
+    }
+
+    .nav-link {
+        padding: 14px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 1rem;
+    }
+
+    .nav-link.primary {
+        margin: 12px 16px;
+        border-radius: 8px;
+        text-align: center;
+        border-bottom: none;
     }
 
     .hero {
-        padding: 120px 20px 60px;
+        padding: 100px 20px 50px;
     }
 
     .hero-title {
-        font-size: 2.5rem;
+        font-size: 2.4rem;
+        line-height: 1.15;
     }
 
     .hero-subtitle {
-        font-size: 1.1rem;
+        font-size: 1.05rem;
+    }
+
+    .hero-location {
+        font-size: 0.95rem;
+    }
+
+    .hero-buttons {
+        gap: 10px;
+    }
+
+    .btn {
+        padding: 12px 20px;
+        font-size: 0.95rem;
     }
 
     .stats-bar {
         flex-wrap: wrap;
-        gap: 30px;
+        gap: 24px;
+        padding: 28px 20px;
     }
 
     .section {
-        padding: 60px 20px;
+        padding: 56px 20px;
     }
 
     .section-title {
-        font-size: 2rem;
+        font-size: 1.85rem;
+    }
+
+    .section-subtitle {
+        font-size: 1rem;
+    }
+
+    .features-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .feature-card {
+        padding: 22px;
+    }
+
+    .docs-container {
+        grid-template-columns: 1fr;
+    }
+
+    .toc {
+        position: static;
+        margin-bottom: 24px;
     }
 
     .footer-content {
@@ -815,8 +906,33 @@ body.landing-page {
 
     .footer-bottom {
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
         text-align: center;
+        padding: 16px;
+    }
+}
+
+/* Very narrow (iPhone SE etc.) */
+@media (max-width: 420px) {
+    .hero-title { font-size: 2rem; }
+    .hero-subtitle { font-size: 1rem; }
+    .section-title { font-size: 1.6rem; }
+    .btn { width: 100%; justify-content: center; }
+    .hero-buttons { flex-direction: column; align-items: stretch; }
+}
+
+/* Make code blocks + tables in the docs section not blow out on mobile */
+@media (max-width: 900px) {
+    .doc-section pre,
+    .doc-section code,
+    .doc-section table {
+        max-width: 100%;
+        overflow-x: auto;
+        word-break: break-word;
+        font-size: 0.85rem;
+    }
+    .doc-section pre {
+        white-space: pre;
     }
 }
 
