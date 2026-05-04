@@ -24,7 +24,7 @@
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/utc.js"></script>
 
     <link rel="stylesheet" href="./assets/css/main.css?v=9">
-    <link rel="stylesheet" href="./assets/css/race.css?v=9">
+    <link rel="stylesheet" href="./assets/css/race.css?v=10">
     <script src="./config.js"></script>
 </head>
 <body class="race-dashboard">
@@ -110,6 +110,10 @@
         <section class="panel race-panel" id="race-panel">
             <div class="panel-header">
                 <h2>Leaderboard</h2>
+                <div class="wind-badge" id="wind-badge" title="True wind direction / speed (NOAA)" style="display:none">
+                    <span class="wind-dir" id="wind-dir">---°</span>
+                    <span class="wind-speed" id="wind-speed">-- kn</span>
+                </div>
                 <div class="elapsed-time" id="elapsed-time">00:00:00</div>
             </div>
             <div class="leaderboard" id="leaderboard">
@@ -199,6 +203,6 @@
     </div>
 
     <!-- Scripts -->
-    <script type="module" src="./assets/js/race-app.js?v=11"></script>
+    <script type="module" src="./assets/js/race-app.js?v=12"></script>
 </body>
 </html>

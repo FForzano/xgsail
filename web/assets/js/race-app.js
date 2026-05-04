@@ -45,6 +45,21 @@ let speedChart = null;
 let heelChart = null;
 let windChart = null;
 let playCursorSeconds = 0;
+
+// Wind data from nearby NOAA stations (Castle Island CSIM3, Logan KBOS,
+// Boston 16NM 44013). One boat has an onboard Calypso; the rest don't.
+// CSIM3 is ~3 km from Boston Harbor sailing waters with marine
+// instrumentation, so it's the right authoritative TWD/TWS source for
+// fleet-wide tactical metrics (laylines, TWA, wind badge).
+let raceBuoyData = {};            // {stationId: {data_points, lat, lon, name, color, ...}}
+let weatherWindSamples = [];       // sorted [{tMs, twd, tws}] from primary source
+let weatherWindSource = null;      // "Castle Island" / "Logan" / null
+let raceAvgTWD = null;             // average TWD across the race window, for laylines
+let laylineLayer = null;           // Leaflet layer group holding rendered laylines
+const PRIMARY_WIND_STATIONS = ['CSIM3', 'KBOS', '44013'];  // try in order
+
+// J/80 typical upwind tack angle (degrees off true wind). Used for laylines.
+const J80_UPWIND_TACK_ANGLE = 42;
 let availableSessions = {};  // device_id -> [session paths]
 let pendingGpxFiles = {};   // device_id -> File (staged GPX uploads)
 
@@ -203,6 +218,64 @@ function clearBoatLayers() {
         }
     }
     boatLayers = {};
+    if (laylineLayer) {
+        map.removeLayer(laylineLayer);
+        laylineLayer = null;
+    }
+}
+
+// Project a point (lat, lon, bearingDegrees, distMeters) to a destination
+// lat/lon. Earth-radius approximation, flat-earth-friendly for ≤10 km legs.
+function destinationPoint(lat, lon, bearingDeg, distM) {
+    const R = 6371000;
+    const φ1 = lat * Math.PI / 180;
+    const λ1 = lon * Math.PI / 180;
+    const θ = bearingDeg * Math.PI / 180;
+    const dR = distM / R;
+    const φ2 = Math.asin(Math.sin(φ1) * Math.cos(dR) +
+                          Math.cos(φ1) * Math.sin(dR) * Math.cos(θ));
+    const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(dR) * Math.cos(φ1),
+                                Math.cos(dR) - Math.sin(φ1) * Math.sin(φ2));
+    return [φ2 * 180 / Math.PI, λ2 * 180 / Math.PI];
+}
+
+// Draw port + starboard upwind laylines from each upcoming windward mark.
+// "Windward" is determined relative to the race-average TWD: if the mark
+// is in the upper half-plane relative to the wind (mark bearing within
+// ±90° of TWD as seen from the start), it counts. Length is scaled to be
+// visible across a typical Boston Harbor course (~3 km).
+function renderLaylines() {
+    if (laylineLayer) { map.removeLayer(laylineLayer); laylineLayer = null; }
+    if (raceAvgTWD == null || !currentRace?.course?.length) return;
+    const marksById = buildMarksById(currentRace);
+    const startAnchor = startMidpoint(currentRace);
+    if (!startAnchor) return;
+
+    laylineLayer = L.featureGroup().addTo(map);
+    const LAYLINE_M = 3000;
+
+    for (const markId of currentRace.course) {
+        const m = marksById[markId];
+        if (!m) continue;
+        // Is this an upwind mark? Bearing from startAnchor to mark vs. wind FROM bearing.
+        const brgFromStart = bearingDegrees(startAnchor.lat, startAnchor.lon, m.lat, m.lon);
+        const offset = ((brgFromStart - raceAvgTWD + 540) % 360) - 180;
+        if (Math.abs(offset) > 90) continue;  // mark is downwind of start, skip
+        // Starboard layline FROM mark extends downwind by +tack_angle from TWD+180.
+        const stbBearing = (raceAvgTWD + 180 - J80_UPWIND_TACK_ANGLE + 360) % 360;
+        const portBearing = (raceAvgTWD + 180 + J80_UPWIND_TACK_ANGLE) % 360;
+        const stbEnd = destinationPoint(m.lat, m.lon, stbBearing, LAYLINE_M);
+        const portEnd = destinationPoint(m.lat, m.lon, portBearing, LAYLINE_M);
+
+        const styleStb = { color: '#22d3ee', weight: 1.5, opacity: 0.55, dashArray: '6,6' };
+        const stylePort = { color: '#ef4444', weight: 1.5, opacity: 0.55, dashArray: '6,6' };
+        L.polyline([[m.lat, m.lon], stbEnd], styleStb)
+            .bindTooltip('Starboard layline', { sticky: true })
+            .addTo(laylineLayer);
+        L.polyline([[m.lat, m.lon], portEnd], stylePort)
+            .bindTooltip('Port layline', { sticky: true })
+            .addTo(laylineLayer);
+    }
 }
 
 function createBoatIcon(color, rotation = 0) {
@@ -286,6 +359,83 @@ function precomputeRoundingsForLayer(layer, courseSeq, marksById) {
         }
     }
     layer.roundingTimes = times;
+}
+
+// --- Weather-station wind (Tier 2 wind / TWD / laylines) ---
+
+async function loadRaceWindData(startTime, endTime) {
+    weatherWindSamples = [];
+    weatherWindSource = null;
+    raceAvgTWD = null;
+    raceBuoyData = {};
+    if (!startTime || !endTime) return;
+    try {
+        const startTs = new Date(startTime).getTime() / 1000;
+        const endTs = new Date(endTime).getTime() / 1000;
+        const resp = await fetch(`${API_BASE}/api/buoys/data?start_ts=${startTs}&end_ts=${endTs}`);
+        if (!resp.ok) {
+            console.warn('[Wind] buoys/data HTTP', resp.status);
+            return;
+        }
+        const data = await resp.json();
+        raceBuoyData = data.buoys || {};
+
+        // Pick the first station from PRIMARY_WIND_STATIONS that has wind samples.
+        for (const sid of PRIMARY_WIND_STATIONS) {
+            const buoy = raceBuoyData[sid];
+            if (!buoy?.data_points?.length) continue;
+            const samples = [];
+            for (const dp of buoy.data_points) {
+                if (dp.wind_dir == null || dp.wind_speed_kts == null) continue;
+                const tMs = (dp.timestamp ? new Date(dp.timestamp).getTime() : (dp.ts * 1000));
+                if (!Number.isFinite(tMs)) continue;
+                samples.push({ tMs, twd: dp.wind_dir, tws: dp.wind_speed_kts });
+            }
+            if (samples.length === 0) continue;
+            samples.sort((a, b) => a.tMs - b.tMs);
+            weatherWindSamples = samples;
+            weatherWindSource = buoy.name || sid;
+            // Average TWD via vector mean (so 359° and 1° average to 0°, not 180°).
+            let sx = 0, sy = 0;
+            for (const s of samples) {
+                sx += Math.sin(s.twd * Math.PI / 180);
+                sy += Math.cos(s.twd * Math.PI / 180);
+            }
+            raceAvgTWD = (Math.atan2(sx, sy) * 180 / Math.PI + 360) % 360;
+            console.log(`[Wind] using ${weatherWindSource}, ${samples.length} samples, avg TWD ${raceAvgTWD.toFixed(0)}°`);
+            break;
+        }
+        if (!weatherWindSamples.length) {
+            console.warn('[Wind] no usable wind samples from any primary station');
+        }
+    } catch (e) {
+        console.error('[Wind] load failed', e);
+    }
+}
+
+// Linear interp of TWD/TWS at a given time. TWD interpolated as a vector
+// (sin/cos average) so wraparound across 0/360 is handled correctly.
+function windAt(timeMs) {
+    if (!weatherWindSamples.length) return null;
+    if (timeMs <= weatherWindSamples[0].tMs) return weatherWindSamples[0];
+    const last = weatherWindSamples[weatherWindSamples.length - 1];
+    if (timeMs >= last.tMs) return last;
+    // Binary search
+    let lo = 0, hi = weatherWindSamples.length - 1;
+    while (lo + 1 < hi) {
+        const mid = (lo + hi) >> 1;
+        if (weatherWindSamples[mid].tMs <= timeMs) lo = mid; else hi = mid;
+    }
+    const a = weatherWindSamples[lo], b = weatherWindSamples[hi];
+    const span = b.tMs - a.tMs;
+    if (span <= 0) return a;
+    const f = (timeMs - a.tMs) / span;
+    const ar = a.twd * Math.PI / 180, br = b.twd * Math.PI / 180;
+    const sx = Math.sin(ar) * (1 - f) + Math.sin(br) * f;
+    const sy = Math.cos(ar) * (1 - f) + Math.cos(br) * f;
+    const twd = (Math.atan2(sx, sy) * 180 / Math.PI + 360) % 360;
+    const tws = a.tws * (1 - f) + b.tws * f;
+    return { tMs: timeMs, twd, tws };
 }
 
 function precomputeAllRoundings() {
@@ -415,6 +565,21 @@ function updateBoatPositions(timeSeconds) {
     // Refresh leaderboard + chart play cursors at playback time
     renderLeaderboard();
     updatePlayCursor(timeSeconds);
+    updateWindBadge(targetTime);
+}
+
+function updateWindBadge(targetTimeMs) {
+    const badge = document.getElementById('wind-badge');
+    if (!badge) return;
+    const sample = windAt(targetTimeMs);
+    if (!sample) {
+        badge.style.display = 'none';
+        return;
+    }
+    badge.style.display = 'flex';
+    badge.title = `True wind from ${weatherWindSource || 'NOAA'} (interpolated)`;
+    document.getElementById('wind-dir').textContent = `${sample.twd.toFixed(0).padStart(3, '0')}°`;
+    document.getElementById('wind-speed').textContent = `${sample.tws.toFixed(1)} kn`;
 }
 
 function fitMapToBounds() {
@@ -520,11 +685,16 @@ function renderLeaderboard() {
         const color = BOAT_COLORS[item.deviceId] || '#888888';
         const posClass = pos <= 3 ? `p${pos}` : '';
 
-        // Bottom-line stats: VMG (when course defined) and gap (or LEAD).
+        // Bottom-line stats: VMG · TWA · gap (or LEAD).
         const subParts = [];
         if (item.vmg !== null && item.vmg !== undefined) {
             const sign = item.vmg >= 0 ? '+' : '';
             subParts.push(`VMG ${sign}${item.vmg.toFixed(1)}`);
+        }
+        if (item.twa !== null && item.twa !== undefined) {
+            // Show TWA as e.g. "P 38°" or "S 42°" — easier to read than signed degrees
+            const tack = item.twa < 0 ? 'P' : 'S';
+            subParts.push(`${tack} ${Math.abs(item.twa).toFixed(0)}°`);
         }
         if (item.gap === null || item.gap === undefined) {
             // leader
@@ -564,6 +734,7 @@ function calculatePositions() {
     const startAnchor = startMidpoint(currentRace);
     const startTimeMs = currentRace ? new Date(currentRace.start_time).getTime() : 0;
     const targetTimeMs = startTimeMs + (playCursorSeconds * 1000);
+    const windNow = windAt(targetTimeMs);
 
     for (const [deviceId, boatData] of Object.entries(raceData.boats)) {
         if (boatData.error || !boatData.sensors?.gps?.length) continue;
@@ -608,6 +779,17 @@ function calculatePositions() {
         const displayName = boat?.team_name || boat?.boat_name || deviceId;
         const subtitle = boat?.team_name && boat?.boat_name ? boat.boat_name : deviceId;
 
+        // True Wind Angle (signed, port = negative). Requires NOAA wind.
+        let twa = null;
+        if (windNow && point) {
+            const cog = point.course || 0;
+            // TWA = signed angle between boat heading and wind FROM bearing.
+            // wind_from is where wind comes from; boat sails at COG, so
+            // angle off the bow that the wind comes from is (TWD - COG)
+            // normalised to [-180, 180].
+            twa = ((windNow.twd - cog + 540) % 360) - 180;
+        }
+
         positions.push({
             deviceId,
             displayName,
@@ -620,6 +802,7 @@ function calculatePositions() {
             distToNext,
             nextMarkName,
             vmg,
+            twa,
             gap: null,  // filled in below
         });
     }
@@ -729,11 +912,12 @@ function initSpeedChart() {
         options: COMPARISON_CHART_OPTIONS('Heel (°)', -30, 30),
     });
 
+    // Wind chart uses NOAA TWD instead of per-boat AWS. Single curve.
     const windCtx = document.getElementById('wind-chart').getContext('2d');
     windChart = new Chart(windCtx, {
         type: 'line',
         data: { datasets: [] },
-        options: COMPARISON_CHART_OPTIONS('AWS (kn)', 0, 25),
+        options: COMPARISON_CHART_OPTIONS('TWD (°)', 0, 360),
     });
 }
 
@@ -781,7 +965,10 @@ function updateSpeedChart() {
 
         speedSets.push(baseDataset(buildSeries(boatData.sensors.gps, 'speed_kn', raceStartMs)));
         heelSets.push(baseDataset(buildSeries(boatData.sensors.imu, 'heel', raceStartMs)));
-        windSets.push(baseDataset(buildSeries(boatData.sensors.wind, 'aws_kn', raceStartMs)));
+        // Wind chart: not per-boat. Filled from NOAA below; per-boat dataset
+        // here is just a placeholder so the toggle dot still affects this
+        // chart visually (kept hidden). Avoids visual clutter.
+        windSets.push({ ...baseDataset([]), hidden: true });
 
         // One shared toggle controls all three charts for this boat.
         const toggle = document.createElement('button');
@@ -808,7 +995,34 @@ function updateSpeedChart() {
 
     speedChart.data.datasets = speedSets;
     heelChart.data.datasets = heelSets;
+
+    // Wind chart: NOAA Castle Island (or fallback) TWD as a single white
+    // curve over the race window. Independent of any boat's onboard sensor.
+    if (weatherWindSamples.length) {
+        const twdSeries = weatherWindSamples
+            .filter(s => s.tMs >= raceStartMs)
+            .map(s => ({ x: (s.tMs - raceStartMs) / 1000, y: s.twd }));
+        windSets.push({
+            label: '__noaa_twd__',
+            data: twdSeries,
+            borderColor: '#e2e8f0',
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.1,
+            spanGaps: false,
+        });
+    }
     windChart.data.datasets = windSets;
+
+    // Update the wind-chart label to reflect the source
+    const windHeader = document.querySelector('#analytics-panel .chart-section:nth-child(3) h3');
+    if (windHeader) {
+        windHeader.textContent = weatherWindSource
+            ? `Wind direction (${weatherWindSource})`
+            : 'Wind direction (no NOAA data)';
+    }
+
     speedChart.update();
     heelChart.update();
     windChart.update();
@@ -1094,11 +1308,18 @@ async function loadRaceData(raceId) {
         // boat. Cheap to do once, drives the leaderboard ranking and VMG.
         precomputeAllRoundings();
 
+        // Fetch nearby NOAA wind (Castle Island / Logan / Boston 16NM).
+        // Awaited so laylines + the wind chart can use it on first render.
+        await loadRaceWindData(currentRace.start_time, currentRace.end_time);
+
         // Render legend and leaderboard
         renderBoatLegend();
         renderLeaderboard();
 
-        // Update speed chart
+        // Lay out laylines from the next windward mark using race-average TWD.
+        renderLaylines();
+
+        // Update speed/heel/wind charts (wind chart now uses NOAA TWD)
         updateSpeedChart();
 
         // Reset playback
