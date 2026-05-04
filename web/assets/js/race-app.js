@@ -56,10 +56,78 @@ let weatherWindSamples = [];       // sorted [{tMs, twd, tws}] from primary sour
 let weatherWindSource = null;      // "Castle Island" / "Logan" / null
 let raceAvgTWD = null;             // average TWD across the race window, for laylines
 let laylineLayer = null;           // Leaflet layer group holding rendered laylines
+let windMarker = null;             // Leaflet marker rendering current TWD/TWS arrow
 const PRIMARY_WIND_STATIONS = ['CSIM3', 'KBOS', '44013'];  // try in order
 
 // J/80 typical upwind tack angle (degrees off true wind). Used for laylines.
 const J80_UPWIND_TACK_ANGLE = 42;
+
+// J/80 polar table (Seapilot format, 2018 publication).
+// Columns: TWS in knots. Rows: target boat speed in knots at each (TWA, TWS).
+// Source: https://www.seapilot.com/wp-content/uploads/2018/05/J80.txt
+const J80_TWS = [6, 8, 10, 12, 14, 16, 20];
+const J80_TWA_TABLE = [52.5, 60, 75, 90, 105, 120, 135, 150, 165, 180];
+const J80_BSPEED_TABLE = [
+    [5.514, 6.369, 6.818, 7.039, 7.178, 7.261, 7.311],  // 52.5°
+    [5.787, 6.677, 7.125, 7.344, 7.492, 7.575, 7.670],  // 60°
+    [6.235, 7.013, 7.473, 7.830, 8.024, 8.164, 8.345],  // 75°
+    [6.733, 7.380, 7.726, 7.957, 8.303, 8.613, 8.923],  // 90°
+    [6.775, 7.537, 8.031, 8.326, 8.582, 8.812, 9.197],  // 105°
+    [6.381, 7.326, 8.021, 8.573, 8.999, 9.273, 9.753],  // 120°
+    [5.605, 6.634, 7.317, 7.881, 8.439, 8.935, 9.813],  // 135°
+    [3.928, 5.127, 5.953, 6.638, 7.190, 7.658, 8.557],  // 150°
+    [2.996, 3.970, 4.897, 5.706, 6.375, 6.934, 7.763],  // 165°
+    [2.799, 3.752, 4.617, 5.450, 6.115, 6.727, 7.632],  // 180°
+];
+const J80_BEAT_ANGLE = [45.2, 41.4, 40.4, 40.0, 39.8, 39.9, 39.9];
+const J80_BEAT_VMG   = [3.550, 4.224, 4.561, 4.765, 4.880, 4.951, 4.960];
+
+// Bilinear-interp target boat speed for given TWA (signed) and TWS.
+function polarTargetSpeed(twaSigned, tws) {
+    if (twaSigned == null || tws == null || !Number.isFinite(tws) || tws <= 0) return null;
+    // Polar is symmetric port/starboard
+    let a = Math.abs(twaSigned);
+    if (a > 180) a = 360 - a;
+
+    // Clamp TWS to polar range
+    const twsArr = J80_TWS;
+    const tt = Math.max(twsArr[0], Math.min(twsArr[twsArr.length - 1], tws));
+
+    // TWS bracket
+    let iLo = 0;
+    while (iLo < twsArr.length - 1 && twsArr[iLo + 1] <= tt) iLo++;
+    const iHi = Math.min(iLo + 1, twsArr.length - 1);
+    const twsF = (iHi === iLo) ? 0 : (tt - twsArr[iLo]) / (twsArr[iHi] - twsArr[iLo]);
+
+    // Per-TWS speed at TWA `a`. Synth a row at the optimal beat angle so
+    // 40°-52.5° has a slope and TWAs below the beat angle return a graceful
+    // pinching estimate (linear from 0 to beatSpeed).
+    const speedAtCol = (col) => {
+        const beatA = J80_BEAT_ANGLE[col];
+        const beatSpd = J80_BEAT_VMG[col] / Math.cos(beatA * Math.PI / 180);
+        if (a <= beatA) {
+            // Below optimal — pinching. Crude linear from (0,0) to (beatA,beatSpd).
+            return Math.max(0, (a / beatA) * beatSpd);
+        }
+        const angles = [beatA, ...J80_TWA_TABLE];
+        const speeds = [beatSpd, ...J80_BSPEED_TABLE.map(row => row[col])];
+        let aLo = 0;
+        while (aLo < angles.length - 1 && angles[aLo + 1] < a) aLo++;
+        const aHi = Math.min(aLo + 1, angles.length - 1);
+        const aF = (aHi === aLo) ? 0 : (a - angles[aLo]) / (angles[aHi] - angles[aLo]);
+        return speeds[aLo] * (1 - aF) + speeds[aHi] * aF;
+    };
+
+    const sLo = speedAtCol(iLo);
+    const sHi = speedAtCol(iHi);
+    return sLo * (1 - twsF) + sHi * twsF;
+}
+
+function polarPercent(sog, twaSigned, tws) {
+    const target = polarTargetSpeed(twaSigned, tws);
+    if (!target || target <= 0.1) return null;
+    return (sog / target) * 100;
+}
 let availableSessions = {};  // device_id -> [session paths]
 let pendingGpxFiles = {};   // device_id -> File (staged GPX uploads)
 
@@ -91,6 +159,14 @@ async function init() {
 
     // Setup event listeners
     setupEventListeners();
+
+    // Drawer close
+    const drawerClose = document.getElementById('drawer-close');
+    if (drawerClose) drawerClose.addEventListener('click', closeBoatDrawer);
+    // Esc key closes the drawer
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && drawerDeviceId) closeBoatDrawer();
+    });
 
     // Auto-load the most recent race with boat data
     await loadLatestRaceWithData();
@@ -221,6 +297,10 @@ function clearBoatLayers() {
     if (laylineLayer) {
         map.removeLayer(laylineLayer);
         laylineLayer = null;
+    }
+    if (windMarker) {
+        map.removeLayer(windMarker);
+        windMarker = null;
     }
 }
 
@@ -499,6 +579,7 @@ function addBoatTrack(deviceId, gpsData, boat) {
         icon: createBoatIcon(color, initialCourse),
         rotationOrigin: 'center center',
     }).addTo(map);
+    marker.on('click', () => openBoatDrawer(deviceId));
 
     // Pre-compute cumulative distance (meters) per GPS sample so the
     // leaderboard can sort by progress rather than instantaneous speed.
@@ -562,24 +643,89 @@ function updateBoatPositions(timeSeconds) {
         }
     }
 
-    // Refresh leaderboard + chart play cursors at playback time
+    // Refresh leaderboard + chart play cursors + drawer at playback time
     renderLeaderboard();
     updatePlayCursor(timeSeconds);
     updateWindBadge(targetTime);
+    updateBoatDrawer();
 }
 
 function updateWindBadge(targetTimeMs) {
     const badge = document.getElementById('wind-badge');
-    if (!badge) return;
     const sample = windAt(targetTimeMs);
+    if (badge) {
+        if (sample) {
+            badge.style.display = 'flex';
+            badge.title = `True wind from ${weatherWindSource || 'NOAA'} (interpolated)`;
+            document.getElementById('wind-dir').textContent = `${sample.twd.toFixed(0).padStart(3, '0')}°`;
+            document.getElementById('wind-speed').textContent = `${sample.tws.toFixed(1)} kn`;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+    updateWindMarker(sample);
+}
+
+// Wind rose marker on the map at the source-station position. SVG arrow
+// rotates with TWD (showing direction wind is blowing TO).
+function ensureWindMarker() {
+    if (windMarker) return;
+    if (!map) return;
+    // Pick the station whose data we're using.
+    const stationId = (() => {
+        for (const sid of PRIMARY_WIND_STATIONS) {
+            if (raceBuoyData[sid]?.has_data) return sid;
+        }
+        return null;
+    })();
+    if (!stationId) return;
+    const stn = raceBuoyData[stationId];
+    if (stn.lat == null || stn.lon == null) return;
+    windMarker = L.marker([stn.lat, stn.lon], {
+        icon: createWindRoseIcon(0, 0, stn.name || stationId),
+        zIndexOffset: -100,  // behind boats
+        interactive: true,
+    });
+    windMarker.bindTooltip(`Wind source: ${stn.name || stationId}`, { sticky: true });
+    windMarker.addTo(map);
+}
+
+function createWindRoseIcon(twd, tws, label) {
+    const blowTo = (twd + 180) % 360;  // direction wind moves to
+    const tspeed = (tws ?? 0).toFixed(0);
+    const html = `
+        <div class="wind-rose">
+            <div class="wind-rose-arrow" style="transform: rotate(${blowTo}deg);">
+                <svg width="48" height="48" viewBox="0 0 48 48">
+                    <line x1="24" y1="40" x2="24" y2="10" stroke="#22d3ee" stroke-width="3" stroke-linecap="round"/>
+                    <polygon points="24,4 17,16 31,16" fill="#22d3ee"/>
+                </svg>
+            </div>
+            <div class="wind-rose-label">
+                <div class="wind-rose-tws">${tspeed} kn</div>
+                <div class="wind-rose-twd">${(twd ?? 0).toFixed(0).padStart(3,'0')}°</div>
+            </div>
+        </div>
+    `;
+    return L.divIcon({
+        html, className: 'wind-rose-marker',
+        iconSize: [80, 80],
+        iconAnchor: [24, 24],
+    });
+}
+
+function updateWindMarker(sample) {
     if (!sample) {
-        badge.style.display = 'none';
+        if (windMarker) { map.removeLayer(windMarker); windMarker = null; }
         return;
     }
-    badge.style.display = 'flex';
-    badge.title = `True wind from ${weatherWindSource || 'NOAA'} (interpolated)`;
-    document.getElementById('wind-dir').textContent = `${sample.twd.toFixed(0).padStart(3, '0')}°`;
-    document.getElementById('wind-speed').textContent = `${sample.tws.toFixed(1)} kn`;
+    ensureWindMarker();
+    if (!windMarker) return;
+    const stationName = weatherWindSource || 'NOAA';
+    windMarker.setIcon(createWindRoseIcon(sample.twd, sample.tws, stationName));
+    windMarker.setTooltipContent(
+        `${stationName}: ${sample.twd.toFixed(0)}° / ${sample.tws.toFixed(1)} kn`
+    );
 }
 
 function fitMapToBounds() {
@@ -680,24 +826,27 @@ function renderLeaderboard() {
     // Get current positions based on distance or speed
     const positions = calculatePositions();
 
+    const drawerActive = drawerDeviceId;
     container.innerHTML = positions.map((item, index) => {
         const pos = index + 1;
         const color = BOAT_COLORS[item.deviceId] || '#888888';
         const posClass = pos <= 3 ? `p${pos}` : '';
+        const activeClass = item.deviceId === drawerActive ? ' active' : '';
 
-        // Bottom-line stats: VMG · TWA · gap (or LEAD).
+        // Bottom-line stats: VMG · TWA · %pol · gap (or LEAD).
         const subParts = [];
         if (item.vmg !== null && item.vmg !== undefined) {
             const sign = item.vmg >= 0 ? '+' : '';
             subParts.push(`VMG ${sign}${item.vmg.toFixed(1)}`);
         }
         if (item.twa !== null && item.twa !== undefined) {
-            // Show TWA as e.g. "P 38°" or "S 42°" — easier to read than signed degrees
             const tack = item.twa < 0 ? 'P' : 'S';
             subParts.push(`${tack} ${Math.abs(item.twa).toFixed(0)}°`);
         }
+        if (item.polarPct !== null && item.polarPct !== undefined) {
+            subParts.push(`${item.polarPct.toFixed(0)}%pol`);
+        }
         if (item.gap === null || item.gap === undefined) {
-            // leader
             subParts.push(positions.length > 1 ? 'LEAD' : '—');
         } else {
             const gap = item.gap;
@@ -707,7 +856,7 @@ function renderLeaderboard() {
         }
 
         return `
-            <div class="leaderboard-item">
+            <div class="leaderboard-item${activeClass}" data-device-id="${item.deviceId}">
                 <div class="leaderboard-position ${posClass}">${pos}</div>
                 <div class="leaderboard-boat-color" style="background: ${color}"></div>
                 <div class="leaderboard-boat-info">
@@ -721,6 +870,15 @@ function renderLeaderboard() {
             </div>
         `;
     }).join('');
+
+    // Click handler: open the per-boat drawer. Re-bind on every render
+    // since innerHTML wiped the old listeners.
+    for (const el of container.querySelectorAll('.leaderboard-item')) {
+        el.addEventListener('click', () => {
+            const id = el.getAttribute('data-device-id');
+            if (id) openBoatDrawer(id);
+        });
+    }
 }
 
 function calculatePositions() {
@@ -781,13 +939,11 @@ function calculatePositions() {
 
         // True Wind Angle (signed, port = negative). Requires NOAA wind.
         let twa = null;
+        let polarPct = null;
         if (windNow && point) {
             const cog = point.course || 0;
-            // TWA = signed angle between boat heading and wind FROM bearing.
-            // wind_from is where wind comes from; boat sails at COG, so
-            // angle off the bow that the wind comes from is (TWD - COG)
-            // normalised to [-180, 180].
             twa = ((windNow.twd - cog + 540) % 360) - 180;
+            polarPct = polarPercent(point.speed_kn || 0, twa, windNow.tws);
         }
 
         positions.push({
@@ -803,6 +959,7 @@ function calculatePositions() {
             nextMarkName,
             vmg,
             twa,
+            polarPct,
             gap: null,  // filled in below
         });
     }
@@ -1026,6 +1183,155 @@ function updateSpeedChart() {
     speedChart.update();
     heelChart.update();
     windChart.update();
+}
+
+// --- Per-boat detail drawer ---
+let drawerDeviceId = null;
+
+function nearestSampleAt(samples, targetMs) {
+    if (!samples?.length) return null;
+    let best = null, bestDiff = Infinity;
+    for (const s of samples) {
+        const t = s.t ? new Date(s.t).getTime() : null;
+        if (t == null) continue;
+        const d = Math.abs(t - targetMs);
+        if (d < bestDiff) { bestDiff = d; best = s; }
+    }
+    // Reject very stale matches (>30 s away from playback time)
+    return bestDiff < 30000 ? best : null;
+}
+
+function openBoatDrawer(deviceId) {
+    drawerDeviceId = deviceId;
+    const el = document.getElementById('boat-drawer');
+    if (el) el.classList.add('open');
+    updateBoatDrawer();
+    renderLeaderboard();  // re-render to highlight active row
+}
+
+function closeBoatDrawer() {
+    drawerDeviceId = null;
+    const el = document.getElementById('boat-drawer');
+    if (el) el.classList.remove('open');
+    renderLeaderboard();
+}
+
+function bearingToCardinal(deg) {
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                  'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    return dirs[Math.round(((deg % 360) / 22.5)) % 16];
+}
+
+function fmt(v, digits = 1, suffix = '') {
+    if (v == null || !Number.isFinite(v)) return '—';
+    return `${v.toFixed(digits)}${suffix}`;
+}
+
+function updateBoatDrawer() {
+    if (!drawerDeviceId) return;
+    const el = document.getElementById('boat-drawer');
+    if (!el || !el.classList.contains('open')) return;
+
+    const boatData = raceData?.boats?.[drawerDeviceId];
+    const layer = boatLayers[drawerDeviceId];
+    const point = layer?.current;
+    if (!boatData || !point) {
+        document.getElementById('drawer-body').innerHTML =
+            '<div class="drawer-empty">No data at this time</div>';
+        return;
+    }
+
+    const boat = boatData.boat;
+    const team = boat?.team_name;
+    const boatName = boat?.boat_name;
+    document.getElementById('drawer-title').innerHTML = `
+        <span class="drawer-color-bar" style="background:${BOAT_COLORS[drawerDeviceId] || '#888'}"></span>
+        <span class="drawer-team">${team || boatName || drawerDeviceId}</span>
+        ${(team && boatName) ? `<span class="drawer-boat">${boatName}</span>` : ''}
+        <span class="drawer-device">(${drawerDeviceId})</span>
+    `;
+
+    const targetMs = new Date(point.t).getTime();
+    const imu = nearestSampleAt(boatData.sensors?.imu, targetMs);
+    const ownWind = nearestSampleAt(boatData.sensors?.wind, targetMs);
+    const noaa = windAt(targetMs);
+
+    const sog = point.speed_kn || 0;
+    const cog = point.course || 0;
+    const twa = noaa ? (((noaa.twd - cog + 540) % 360) - 180) : null;
+    const polTarget = polarTargetSpeed(twa, noaa?.tws);
+    const polPct = polarPercent(sog, twa, noaa?.tws);
+    const tack = twa == null ? '—' : (twa < 0 ? 'Port' : 'Starboard');
+
+    // Course-aware
+    const courseSeq = currentRace?.course || [];
+    const marksById = buildMarksById(currentRace);
+    const startAnchor = startMidpoint(currentRace);
+    const legsCompleted = legsCompletedAt(layer, targetMs);
+    let nextMarkBlock = '';
+    if (courseSeq.length && legsCompleted < courseSeq.length) {
+        const target = marksById[courseSeq[legsCompleted]];
+        if (target && point.lat && point.lon) {
+            const distToNext = haversineMeters(point.lat, point.lon, target.lat, target.lon);
+            const brg = bearingDegrees(point.lat, point.lon, target.lat, target.lon);
+            const angleDiff = ((brg - cog + 540) % 360) - 180;
+            const vmgToMark = sog * Math.cos(angleDiff * Math.PI / 180);
+            const ttm = (vmgToMark > 0.1)
+                ? `${(distToNext / (vmgToMark * 0.5144)).toFixed(0)} s`
+                : '—';
+            nextMarkBlock = `
+                <div class="drawer-section">
+                    <div class="drawer-section-title">Next mark · ${target.name || target.mark_type || ('Mark ' + (legsCompleted + 1))}</div>
+                    <div class="drawer-grid">
+                        <div class="drawer-stat"><div class="drawer-label">Distance</div><div class="drawer-value">${fmt(distToNext, 0, ' m')}</div></div>
+                        <div class="drawer-stat"><div class="drawer-label">Bearing</div><div class="drawer-value">${fmt(brg, 0, '°')} <span class="drawer-sub">${bearingToCardinal(brg)}</span></div></div>
+                        <div class="drawer-stat"><div class="drawer-label">VMG</div><div class="drawer-value">${vmgToMark >= 0 ? '+' : ''}${fmt(vmgToMark, 1, ' kn')}</div></div>
+                        <div class="drawer-stat"><div class="drawer-label">ETA</div><div class="drawer-value">${ttm}</div></div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    const ownWindBlock = ownWind ? `
+        <div class="drawer-section">
+            <div class="drawer-section-title">Onboard wind (Calypso)</div>
+            <div class="drawer-grid">
+                <div class="drawer-stat"><div class="drawer-label">AWS</div><div class="drawer-value">${fmt(ownWind.aws_kn, 1, ' kn')}</div></div>
+                <div class="drawer-stat"><div class="drawer-label">AWA</div><div class="drawer-value">${fmt(ownWind.awa, 0, '°')}</div></div>
+            </div>
+        </div>
+    ` : '';
+
+    document.getElementById('drawer-body').innerHTML = `
+        <div class="drawer-section">
+            <div class="drawer-section-title">Motion</div>
+            <div class="drawer-grid">
+                <div class="drawer-stat"><div class="drawer-label">SOG</div><div class="drawer-value drawer-strong">${fmt(sog, 1, ' kn')}</div></div>
+                <div class="drawer-stat"><div class="drawer-label">COG</div><div class="drawer-value">${fmt(cog, 0, '°')} <span class="drawer-sub">${bearingToCardinal(cog)}</span></div></div>
+                <div class="drawer-stat"><div class="drawer-label">Heel</div><div class="drawer-value">${fmt(imu?.heel, 0, '°')}</div></div>
+                <div class="drawer-stat"><div class="drawer-label">Pitch</div><div class="drawer-value">${fmt(imu?.pitch, 0, '°')}</div></div>
+            </div>
+        </div>
+        ${ownWindBlock}
+        <div class="drawer-section">
+            <div class="drawer-section-title">True wind${weatherWindSource ? ' · ' + weatherWindSource : ''}</div>
+            <div class="drawer-grid">
+                <div class="drawer-stat"><div class="drawer-label">TWD</div><div class="drawer-value">${fmt(noaa?.twd, 0, '°')} <span class="drawer-sub">${noaa ? bearingToCardinal(noaa.twd) : ''}</span></div></div>
+                <div class="drawer-stat"><div class="drawer-label">TWS</div><div class="drawer-value">${fmt(noaa?.tws, 1, ' kn')}</div></div>
+                <div class="drawer-stat"><div class="drawer-label">TWA</div><div class="drawer-value">${twa == null ? '—' : `${tack[0]} ${Math.abs(twa).toFixed(0)}°`}</div></div>
+                <div class="drawer-stat"><div class="drawer-label">Tack</div><div class="drawer-value">${tack}</div></div>
+            </div>
+        </div>
+        <div class="drawer-section">
+            <div class="drawer-section-title">Polar (J/80)</div>
+            <div class="drawer-grid">
+                <div class="drawer-stat"><div class="drawer-label">Target</div><div class="drawer-value">${fmt(polTarget, 1, ' kn')}</div></div>
+                <div class="drawer-stat"><div class="drawer-label">% polar</div><div class="drawer-value drawer-strong">${fmt(polPct, 0, '%')}</div></div>
+            </div>
+        </div>
+        ${nextMarkBlock}
+    `;
 }
 
 // Move the dashed play cursor on each chart without redrawing the data lines.

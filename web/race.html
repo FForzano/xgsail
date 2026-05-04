@@ -24,7 +24,7 @@
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/utc.js"></script>
 
     <link rel="stylesheet" href="./assets/css/main.css?v=9">
-    <link rel="stylesheet" href="./assets/css/race.css?v=10">
+    <link rel="stylesheet" href="./assets/css/race.css?v=11">
     <script src="./config.js"></script>
 </head>
 <body class="race-dashboard">
@@ -122,6 +122,15 @@
         </section>
     </main>
 
+    <!-- Per-boat detail drawer (slides in from the right) -->
+    <aside class="boat-drawer" id="boat-drawer">
+        <div class="drawer-header">
+            <h3 id="drawer-title"></h3>
+            <button class="drawer-close" id="drawer-close" title="Close (Esc)">×</button>
+        </div>
+        <div class="drawer-body" id="drawer-body"></div>
+    </aside>
+
     <!-- Timeline -->
     <footer class="timeline-container">
         <div class="playback-controls">
@@ -203,6 +212,6 @@
     </div>
 
     <!-- Scripts -->
-    <script type="module" src="./assets/js/race-app.js?v=12"></script>
+    <script type="module" src="./assets/js/race-app.js?v=13"></script>
 </body>
 </html>
