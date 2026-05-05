@@ -994,10 +994,19 @@ function renderWindSourcePicker() {
         <span class="wind-dropdown-arrow" aria-hidden="true">▾</span>
       </button>
       <div class="wind-dropdown-menu" id="wind-dropdown-menu" role="listbox" hidden>
+        <div class="wind-dropdown-header" role="presentation"
+             title="Number of wind samples each station reported during this race window">
+            <span></span>
+            <span>STATION</span>
+            <span>SOURCE</span>
+            <span>MEAN DIR · SPEED</span>
+            <span class="wind-dropdown-header-n" title="Sample count during race window">N</span>
+        </div>
         ${stations.map(s => `
           <button class="wind-dropdown-option ${s.id === selectedWindStationId ? 'active' : ''}"
                   data-station="${s.id}" role="option"
-                  aria-selected="${s.id === selectedWindStationId}">
+                  aria-selected="${s.id === selectedWindStationId}"
+                  title="${shortStationLabel(s.id, s.name)} · ${s.source} · ${s.stats.sampleCount} samples during race">
             <span class="wind-option-dot" style="background:${s.color}"></span>
             <span class="wind-option-name">${shortStationLabel(s.id, s.name)}</span>
             <span class="wind-option-source">${s.source}</span>

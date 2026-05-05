@@ -733,21 +733,38 @@ body.course-editing .boat-legend {
 
 .wind-dropdown-menu[hidden] { display: none; }
 
-.wind-dropdown-option {
+.wind-dropdown-option,
+.wind-dropdown-header {
     display: grid;
-    grid-template-columns: 14px 1fr 60px auto auto;
+    /* dot · station name · source pill · stats · sample count */
+    grid-template-columns: 14px 80px 80px 1fr 36px;
     align-items: center;
     gap: 0.5rem;
-    background: transparent;
-    border: none;
     width: 100%;
     text-align: left;
     padding: 8px 12px;
     font-family: monospace;
+}
+.wind-dropdown-option {
+    background: transparent;
+    border: none;
     color: var(--text-primary);
     cursor: pointer;
     border-bottom: 1px solid rgba(255,255,255,0.04);
 }
+
+/* Column-label header above the option rows. Same grid as the options
+   so labels line up with their values. */
+.wind-dropdown-header {
+    font-size: 0.55rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--border);
+    padding-top: 4px;
+    padding-bottom: 6px;
+    background: rgba(255,255,255,0.02);
+}
+.wind-dropdown-header-n { text-align: right; }
 
 .wind-dropdown-option:last-child { border-bottom: none; }
 .wind-dropdown-option:hover { background: rgba(255,255,255,0.04); }
@@ -764,7 +781,13 @@ body.course-editing .boat-legend {
     border: 1px solid rgba(255,255,255,0.15);
 }
 
-.wind-option-name { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wind-option-name {
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #cbd5e1;
+}
 .wind-option-source {
     font-size: 0.62rem;
     color: var(--text-secondary);
@@ -775,8 +798,8 @@ body.course-editing .boat-legend {
     border-radius: 3px;
     text-align: center;
 }
-.wind-option-stats { font-size: 0.72rem; color: var(--text-secondary); }
-.wind-option-count { font-size: 0.65rem; color: var(--text-secondary); opacity: 0.7; min-width: 22px; text-align: right; }
+.wind-option-stats { font-size: 0.7rem; color: var(--text-secondary); white-space: nowrap; }
+.wind-option-count { font-size: 0.7rem; color: #e2e8f0; text-align: right; font-weight: 600; }
 
 @media (max-width: 700px) {
     .wind-dropdown-menu { right: auto; left: 0; min-width: 280px; }
@@ -1695,11 +1718,15 @@ body.course-editing .boat-legend {
 .map-wind-picker .wind-dropdown-current-name { font-size: 0.7rem; }
 .map-wind-picker .wind-dropdown-current-stats { font-size: 0.55rem; }
 .map-wind-picker .wind-dropdown-menu {
-    /* Open downward, anchored to the picker. Inherits styling from race.css. */
+    /* Open downward, anchored to the picker. Inherits styling from race.css.
+       Widened so the 5 columns (dot · station · source · stats · N count)
+       fit on one line each — narrow versions wrapped the stats and clipped
+       station names, which made the list illegible. */
     top: 100%;
     left: 0;
     right: auto;
-    min-width: 240px;
+    min-width: 360px;
+    max-width: 420px;
 }
 
 /* ===========================================================
