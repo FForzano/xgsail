@@ -217,8 +217,7 @@ async function init() {
     // Initialize map
     initMap();
     addLaylinesMapControl();
-    addTrailWindowMapControl();
-    addMarkerOverlaysMapControl();
+    addMarkerOverlaysMapControl();   // includes the trail-window dropdown
     addMapWindPicker();
     setupChartsOverlay();
 
@@ -474,46 +473,24 @@ function addLaylinesMapControl() {
     ctl.addTo(map);
 }
 
-// Segmented picker for the trail window. Sits under the layline toggle in
-// the topright corner. Selecting a window calls refreshAllTrails() at the
-// current playback time so the change is visible immediately.
-function addTrailWindowMapControl() {
-    if (!map) return;
-    const options = [
-        { label: '1m',  ms: 60_000 },
-        { label: '5m',  ms: 5 * 60_000 },
-        { label: '10m', ms: 10 * 60_000 },
-        { label: 'All', ms: Infinity },
-    ];
-    const ctl = L.control({ position: 'topright' });
-    ctl.onAdd = function () {
-        const div = L.DomUtil.create('div', 'leaflet-bar map-toggle-control trail-window-control');
-        div.title = 'Trail window — how much past track to draw';
-        div.innerHTML = `<span class="trail-window-label">TRAIL</span>` +
-            options.map(o =>
-                `<a href="#" data-ms="${o.ms}" class="${o.ms === trailWindowMs ? 'active' : ''}">${o.label}</a>`
-            ).join('');
-        L.DomEvent.disableClickPropagation(div);
-        L.DomEvent.disableScrollPropagation(div);
-        div.querySelectorAll('a').forEach(a => {
-            a.addEventListener('click', (e) => {
-                e.preventDefault();
-                const ms = Number(a.dataset.ms);
-                trailWindowMs = ms;
-                div.querySelectorAll('a').forEach(b => b.classList.toggle('active', Number(b.dataset.ms) === ms));
-                refreshAllTrails();
-            });
-        });
-        return div;
-    };
-    ctl.addTo(map);
-}
+// Trail window options shown in the SHOW > Trail dropdown. 30s exists
+// for tight tactical replay, "All" restores the historical full-race
+// behavior. Note that `Infinity` is encoded as the string "Infinity" in
+// the option value because <select> coerces values to strings.
+const TRAIL_WINDOW_OPTIONS = [
+    { label: '30s', ms: 30_000 },
+    { label: '1m',  ms: 60_000 },
+    { label: '5m',  ms: 5 * 60_000 },
+    { label: '10m', ms: 10 * 60_000 },
+    { label: 'All', ms: Infinity },
+];
 
 // Top-right legend: per-marker overlay toggles. Each row drives whether
-// a particular piece of info is rendered on the boat cursor (and, for
-// the trail row, whether the polyline trail is drawn at all). State
-// lives in the global `markerOverlays`. Persisted to localStorage so the
-// user's choices stick across races.
+// a particular piece of info is rendered on the boat cursor; the Trail
+// row also exposes a duration dropdown that combines what used to be a
+// separate TRAIL Leaflet control. State lives in `markerOverlays` and
+// `trailWindowMs`, both persisted to localStorage so the user's choices
+// stick across races.
 function addMarkerOverlaysMapControl() {
     if (!map) return;
     // Hydrate from prior session if present.
@@ -524,35 +501,57 @@ function addMarkerOverlaysMapControl() {
                 if (typeof saved[k] === 'boolean') markerOverlays[k] = saved[k];
             }
         }
+        const savedWin = localStorage.getItem('sf-trail-window-ms');
+        if (savedWin) {
+            const n = (savedWin === 'Infinity') ? Infinity : Number(savedWin);
+            if (Number.isFinite(n) || n === Infinity) trailWindowMs = n;
+        }
     } catch {}
+
     const items = [
         { key: 'trail', label: 'Trail' },
         { key: 'speed', label: 'Speed' },
         { key: 'heel',  label: 'Heel' },
         { key: 'twa',   label: 'TWA' },
     ];
+
     const ctl = L.control({ position: 'topright' });
     ctl.onAdd = function () {
         const div = L.DomUtil.create('div', 'leaflet-bar map-toggle-control marker-overlays-control');
         div.title = 'Boat-cursor overlays — toggle each piece of info';
+        const optionsHtml = TRAIL_WINDOW_OPTIONS.map(o => {
+            const v = (o.ms === Infinity) ? 'Infinity' : String(o.ms);
+            const sel = (o.ms === trailWindowMs) ? ' selected' : '';
+            return `<option value="${v}"${sel}>${o.label}</option>`;
+        }).join('');
         div.innerHTML = `<span class="trail-window-label">SHOW</span>` +
-            items.map(it =>
-                `<label><input type="checkbox" data-key="${it.key}" ${markerOverlays[it.key] ? 'checked' : ''}> ${it.label}</label>`
-            ).join('');
+            items.map(it => {
+                const cb = `<label><input type="checkbox" data-key="${it.key}" ${markerOverlays[it.key] ? 'checked' : ''}> ${it.label}`;
+                if (it.key === 'trail') {
+                    return `${cb}<select class="trail-window-select" data-trail-window
+                                     title="How much past track to draw">${optionsHtml}</select></label>`;
+                }
+                return `${cb}</label>`;
+            }).join('');
         L.DomEvent.disableClickPropagation(div);
         L.DomEvent.disableScrollPropagation(div);
+
         div.querySelectorAll('input[type="checkbox"]').forEach(cb => {
             cb.addEventListener('change', () => {
                 markerOverlays[cb.dataset.key] = cb.checked;
                 try { localStorage.setItem('sf-marker-overlays', JSON.stringify(markerOverlays)); } catch {}
-                // Trail toggle affects polyline visibility; others only the
-                // marker label. updateBoatPositions repaints both at the
-                // current playback time.
-                if (currentRace) {
-                    updateBoatPositions(playCursorSeconds);
-                }
+                if (currentRace) updateBoatPositions(playCursorSeconds);
             });
         });
+        const sel = div.querySelector('.trail-window-select');
+        if (sel) {
+            sel.addEventListener('change', () => {
+                const v = sel.value;
+                trailWindowMs = (v === 'Infinity') ? Infinity : Number(v);
+                try { localStorage.setItem('sf-trail-window-ms', v); } catch {}
+                refreshAllTrails();
+            });
+        }
         return div;
     };
     ctl.addTo(map);
@@ -802,16 +801,17 @@ function createBoatIcon(color, rotation = 0, initials = '', speedKn = null, heel
     const ovr = markerOverlays || { speed: true, heel: true, twa: true };
     const speedTxt = (ovr.speed && speedKn != null && Number.isFinite(speedKn))
         ? `${speedKn.toFixed(1)}kn` : '';
-    // Heel: signed (port = negative on this fleet's IMU). Show side
-    // explicitly with Sd/Pt instead of ± so it's unambiguous on the map.
+    // Heel: signed (port = negative on this fleet's IMU). P/S matches
+    // the TWA convention so the two metrics read consistently. The
+    // "Heel " prefix labels the value so it isn't mistaken for TWA.
     const heelTxt = (ovr.heel && heelDeg != null && Number.isFinite(heelDeg))
-        ? ` ${heelDeg >= 0 ? 'Sd' : 'Pt'} ${Math.round(Math.abs(heelDeg))}°`
+        ? ` Heel ${heelDeg >= 0 ? 'S' : 'P'} ${Math.round(Math.abs(heelDeg))}°`
         : '';
     // TWA: signed true wind angle. Negative = port tack, positive = stbd.
     // Per-boat (depends on COG), so it tells you how close-hauled / deep
     // each boat is sailing.
     const twaTxt = (ovr.twa && twaSigned != null && Number.isFinite(twaSigned))
-        ? ` ${twaSigned <= 0 ? 'P' : 'S'}${Math.round(Math.abs(twaSigned))}°`
+        ? ` TWA ${twaSigned <= 0 ? 'P' : 'S'} ${Math.round(Math.abs(twaSigned))}°`
         : '';
     const stats = (speedTxt || heelTxt || twaTxt)
         ? `<span class="bml-stats">${speedTxt}${heelTxt}${twaTxt}</span>` : '';
@@ -1952,12 +1952,12 @@ const COMPARISON_CHART_OPTIONS = (yLabel, ySuggestedMin, ySuggestedMax, yTickFor
 });
 
 // Heel sign convention on the E1 fleet: positive = starboard down,
-// negative = port down. Render as "Sd 12°" / "Pt 8°" instead of ± so the
-// chart matches the boat-marker labels and racers don't have to remember
-// which sign is which side.
+// negative = port down. Render as "S 12°" / "P 8°" — same P/S acronyms
+// as TWA on the map labels, so the user has one mental model for tack
+// notation across the dashboard.
 const heelTickFormatter = (v) => {
     if (v === 0) return '0°';
-    return v > 0 ? `Sd ${v}°` : `Pt ${-v}°`;
+    return v > 0 ? `S ${v}°` : `P ${-v}°`;
 };
 
 function formatChartTime(seconds) {
@@ -2334,7 +2334,7 @@ function updateBoatDrawer() {
                 <div class="drawer-stat"><div class="drawer-label">COG</div><div class="drawer-value">${fmt(cog, 0, '°')} <span class="drawer-sub">${bearingToCardinal(cog)}</span></div></div>
                 <div class="drawer-stat"><div class="drawer-label">Heel</div><div class="drawer-value">${
                     imu?.heel != null && Number.isFinite(imu.heel)
-                        ? `${imu.heel >= 0 ? 'Sd' : 'Pt'} ${Math.round(Math.abs(imu.heel))}°`
+                        ? `${imu.heel >= 0 ? 'S' : 'P'} ${Math.round(Math.abs(imu.heel))}°`
                         : '—'
                 }</div></div>
                 <div class="drawer-stat"><div class="drawer-label">Pitch</div><div class="drawer-value">${fmt(imu?.pitch, 0, '°')}</div></div>

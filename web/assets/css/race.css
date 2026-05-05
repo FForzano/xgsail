@@ -885,6 +885,21 @@ body.course-editing .boat-legend {
     accent-color: #22d3ee;
     margin: 0;
 }
+/* Trail-window duration dropdown sits inline next to the Trail checkbox,
+   replacing the old standalone TRAIL Leaflet control. */
+.marker-overlays-control .trail-window-select {
+    margin-left: 6px;
+    background: rgba(15, 23, 42, 0.7);
+    color: #cbd5e1;
+    border: 1px solid rgba(100, 116, 139, 0.4);
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.65rem;
+    padding: 1px 4px;
+    cursor: pointer;
+}
+.marker-overlays-control .trail-window-select:hover { border-color: #22d3ee; }
+.marker-overlays-control .trail-window-select:focus { outline: 1px solid #22d3ee; outline-offset: 1px; }
 
 /* Polar overlay toggle in chart header */
 .chart-overlay-toggle {
