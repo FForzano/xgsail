@@ -100,7 +100,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.05.06"
+#define FW_VERSION    "2026.05.05.07"
 
 // Telnet listener is OFF by default. The 2026.05.03.04 fleet test confirmed
 // (via diag heartbeat) that handleTelnet() blocks Core 1 inside LWIP when
@@ -3715,6 +3715,15 @@ bool performOTAUpdate() {
     }
   }
 
+  // OTA only on the home network. Hotspots have data caps and the
+  // 1.5 MB pull would chew through a phone plan; also avoids surprise
+  // updates when a boat associates with an unfamiliar AP.
+  if (strcmp(connectedSSID, HOME_WIFI_SSID) != 0) {
+    Serial.printf("[OTA] Refusing: only OTA on %s, currently on %s\n",
+                  HOME_WIFI_SSID, connectedSSID);
+    return false;
+  }
+
   // Claim the radio for OTA. Same gates the upload task uses:
   //  - pauseBLEForWiFi() stops in-flight NimBLE scans / wind client.
   //  - uploading=true makes checkWindConnection() early-return.
@@ -4999,6 +5008,13 @@ void uploadTaskFunc(void* param) {
           pendingUploads = (remaining > 0) ? remaining : 0;
 
           if (remaining <= 0) {
+            // Auto-OTA: WiFi is still up, queue empty, recording stopped.
+            // performOTAUpdate() itself gates on HOME_WIFI_SSID and on the
+            // logging/uploading flags, so it's a no-op on hotspots and a
+            // self-reboot on home WiFi when a new build is published.
+            Serial.println("[UPLOAD] Cycle clean — checking OTA manifest");
+            performOTAUpdate();
+
             // All done — request WiFi teardown. We do NOT tear down here on
             // Core 0: ArduinoOTA.handle()/handleTelnet() run on Core 1 in the
             // main loop; tearing down WiFi from Core 0 races against them
