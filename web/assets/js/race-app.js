@@ -412,10 +412,11 @@ function initMap() {
         }),
     };
 
-    // ESRI Ocean is the default — best legibility under colored boat
-    // tracks at typical Boston Harbor zoom levels (NOAA charts and
-    // OpenSeaMap stay available in the layers control).
-    baseLayers['ESRI Ocean'].addTo(map);
+    // "Light Blue" (Carto dark_all + invert/hue-rotate filter) is the
+    // default basemap. Soft sky-blue water under colored boat tracks
+    // gives the highest contrast for race replay; ESRI Ocean / NOAA
+    // Charts / OSM / Satellite stay available in the layers control.
+    baseLayers['Light Blue'].addTo(map);
 
     // Add layer control
     L.control.layers(baseLayers, overlayLayers, {
