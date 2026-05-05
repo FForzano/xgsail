@@ -100,7 +100,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.05.02"
+#define FW_VERSION    "2026.05.05.03"
 
 // Telnet listener is OFF by default. The 2026.05.03.04 fleet test confirmed
 // (via diag heartbeat) that handleTelnet() blocks Core 1 inside LWIP when

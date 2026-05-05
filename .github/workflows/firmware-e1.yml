@@ -120,8 +120,10 @@ jobs:
             build/sailframes_e1_${{ steps.version.outputs.version }}.bootloader.bin
 
       # OTA manifest publish — only on green main builds (not PRs).
-      # Devices fetch http://{bucket}.s3.{region}.amazonaws.com/firmware/E1/latest.json
-      # and verify SHA256 from the manifest before flashing the OTA partition.
+      # Firmware is fleet-identical, but each device GETs from a path
+      # that includes its boat_id (E1..E6). We upload the .bin once at a
+      # canonical key and fan out the manifest to all six boat prefixes,
+      # all pointing back at the canonical .bin URL.
       - name: Configure AWS credentials (firmware CI user)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: aws-actions/configure-aws-credentials@v4
@@ -130,7 +132,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FIRMWARE_CI }}
           aws-region: us-east-1
 
-      - name: Publish firmware to S3 + update OTA manifest
+      - name: Publish firmware to S3 + update OTA manifests
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
@@ -138,8 +140,7 @@ jobs:
           BUCKET="sailframes-fleet-data-prod"
           REGION="us-east-1"
           BIN="build/sailframes_e1_${V}.bin"
-          KEY_BIN="firmware/E1/sailframes_e1_${V}.bin"
-          KEY_MANIFEST="firmware/E1/latest.json"
+          KEY_BIN="firmware/sailframes_e1_${V}.bin"
 
           SIZE=$(stat -c%s "$BIN")
           SHA=$(sha256sum "$BIN" | awk '{print $1}')
@@ -165,9 +166,9 @@ jobs:
           echo "Manifest:"
           cat "$MANIFEST"
 
-          aws s3 cp "$MANIFEST" "s3://${BUCKET}/${KEY_MANIFEST}" \
-            --content-type application/json \
-            --cache-control "max-age=60"
-
-          echo "Published OTA manifest:"
-          echo "  http://${BUCKET}.s3.${REGION}.amazonaws.com/${KEY_MANIFEST}"
+          for B in E1 E2 E3 E4 E5 E6; do
+            aws s3 cp "$MANIFEST" "s3://${BUCKET}/firmware/${B}/latest.json" \
+              --content-type application/json \
+              --cache-control "max-age=60"
+            echo "  -> http://${BUCKET}.s3.${REGION}.amazonaws.com/firmware/${B}/latest.json"
+          done
