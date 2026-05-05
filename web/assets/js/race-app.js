@@ -118,13 +118,13 @@ let lastLaylineTWD = null;
 //           nice but only one boat in the fleet has the Calypso, and TWD
 //           is fleet-global (already on the wind picker).
 let markerOverlays = {
-    trail:    true,
-    speed:    true,
-    heel:     true,
-    twa:      true,
-    vmg:      false,   // signed VMG to next mark (kn) — opt-in, label gets long
-    polarPct: false,   // %polar — sailing-the-boat-well indicator
-    rank:     false,   // current leaderboard position (1..6)
+    trail:    true,    // only the trail is on by default — keeps the map
+    speed:    false,   //   uncluttered until the user opts in to extra
+    heel:     false,   //   readouts via the SHOW legend
+    twa:      false,
+    vmg:      false,
+    polarPct: false,
+    rank:     false,
 };
 
 // Auto-follow: keep the map framed on the current race leader and the
@@ -649,7 +649,10 @@ function addMarkerOverlaysMapControl() {
     if (!map) return;
     // Hydrate from prior session if present.
     try {
-        const saved = JSON.parse(localStorage.getItem('sf-marker-overlays') || 'null');
+        // v2 of the storage key: new default is trail-only. Old key
+        // (sf-marker-overlays) had everything on; ignoring it forces the
+        // new default for users who tried the previous build.
+        const saved = JSON.parse(localStorage.getItem('sf-marker-overlays-v2') || 'null');
         if (saved && typeof saved === 'object') {
             for (const k of Object.keys(markerOverlays)) {
                 if (typeof saved[k] === 'boolean') markerOverlays[k] = saved[k];
@@ -696,7 +699,7 @@ function addMarkerOverlaysMapControl() {
         div.querySelectorAll('input[type="checkbox"]').forEach(cb => {
             cb.addEventListener('change', () => {
                 markerOverlays[cb.dataset.key] = cb.checked;
-                try { localStorage.setItem('sf-marker-overlays', JSON.stringify(markerOverlays)); } catch {}
+                try { localStorage.setItem('sf-marker-overlays-v2', JSON.stringify(markerOverlays)); } catch {}
                 if (currentRace) updateBoatPositions(playCursorSeconds);
             });
         });
