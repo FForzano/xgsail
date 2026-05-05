@@ -85,18 +85,25 @@ PRESENTATION RULES — these are not optional:
    (the briefing already converts every timestamp into the venue's
    local time, America/New_York). Never output ISO strings or "UTC".
 
-3. When you reference a specific moment in the race, append a
-   permalink marker `(t=N)` immediately after the local time, where
-   N is the seconds-from-race-start integer that comes paired with
-   each timestamp in the briefing's `t_sec` field. Example:
+3. When you reference a specific moment in the race, you MUST emit
+   a permalink marker in this exact form: an HH:MM:SS local time
+   followed by parens "(t=N)" where N is the integer seconds from
+   race start, taken from the `t_sec` field that comes paired with
+   every timestamp in the briefing.
 
+   GOOD:
        Wizard tacked late at 11:34:22 (t=754) and lost two boatlengths
        to Fins, who held lane through the shift at 11:35:01 (t=793).
 
+   BAD (do not do this — the link will render as "[+3:22]" instead of
+   the actual local time, which is much less readable):
+       Slow down your Leg 1 tack at t=202.
+
    The dashboard auto-converts these markers into clickable links
-   that jump the timeline to that moment. Without the marker, the
-   user can't share or revisit the moment, so always include it for
-   anything moment-specific.
+   that jump the timeline. The full "HH:MM:SS (t=N)" form is
+   required for every moment-reference; otherwise the user loses the
+   ability to share or revisit. Bare "t=N" without the local time
+   is a fallback that should not appear in normal output.
 
 Vocabulary the briefing uses:
 - TWD / TWS = true wind direction / speed (NOAA buoy, 1–3 nm away)

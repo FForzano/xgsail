@@ -112,18 +112,33 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // Replace "(t=NNN)" markers (often preceded by an HH:MM:SS local time)
-  // with clickable spans that jump the timeline to that second-offset.
-  // The marker form is the contract in the system prompt.
+  // Make every "t=N" token in the model's reply clickable. Two passes
+  // so the canonical "HH:MM:SS (t=N)" form keeps its human time as the
+  // link text, and any standalone "t=N" or "(t=N)" still gets linked
+  // (rendered as a "[+M:SS]" offset). The contract with the LLM lives
+  // in the system prompt; the linkifier is tolerant on purpose.
   function linkifyTimes(rawText) {
-    const escaped = escapeHtml(rawText);
-    return escaped.replace(
+    let s = escapeHtml(rawText);
+    // Pass 1: "HH:MM[:SS] (t=N)" → link the time, drop the marker.
+    s = s.replace(
       /(\d{1,2}:\d{2}(?::\d{2})?)\s*\(t=(\d+)\)/g,
       (_, time, t) => {
-        const tNum = parseInt(t, 10);
-        return `<a href="#t=${tNum}" class="sf-chat-tlink" data-t="${tNum}">${time}</a>`;
+        const n = parseInt(t, 10);
+        return `<a href="#" class="sf-chat-tlink" data-t="${n}">${time}</a>`;
       }
     );
+    // Pass 2: any remaining "(t=N)" or bare "t=N" → "[+M:SS]" offset.
+    // href="#" so we don't accidentally re-match the previous pass's output.
+    s = s.replace(
+      /\(?\bt=(\d+)\)?/g,
+      (_, t) => {
+        const n = parseInt(t, 10);
+        const mm = Math.floor(n / 60), ss = n % 60;
+        const label = `[+${mm}:${String(ss).padStart(2, '0')}]`;
+        return `<a href="#" class="sf-chat-tlink" data-t="${n}">${label}</a>`;
+      }
+    );
+    return s;
   }
 
   function bindTimeLinks(el) {
