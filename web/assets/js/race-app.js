@@ -368,6 +368,14 @@ function initMap() {
             attribution: '&copy; OpenStreetMap, &copy; CARTO',
             maxZoom: 19,
         }),
+        // Same Carto dark_all tiles as "Dark", but inverted + hue-shifted
+        // via CSS so the dark canvas reads as a soft light blue. The
+        // .tile-light-blue class is defined in race.css.
+        'Light Blue': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap, &copy; CARTO',
+            maxZoom: 19,
+            className: 'tile-light-blue',
+        }),
         'OSM': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
             maxZoom: 19,

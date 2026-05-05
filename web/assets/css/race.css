@@ -450,6 +450,14 @@ body.course-editing .boat-legend {
     font-variant-numeric: tabular-nums;
 }
 
+/* "Light Blue" basemap = the Carto dark_all tiles inverted + hue-rotated
+   so the dark canvas reads as a soft sky blue with light land masses.
+   invert() flips dark → light; hue-rotate(180) shifts the resulting
+   warm tones back to cool blues; saturate/brightness tame the result. */
+.leaflet-tile-pane .tile-light-blue {
+    filter: invert(0.95) hue-rotate(180deg) saturate(0.65) brightness(1.05);
+}
+
 .leaderboard-boat-info {
     flex: 1;
 }
