@@ -67,7 +67,12 @@ let _windDropdownOutsideListener = null;  // ref-tracked so re-renders don't lea
 let visibleStationIds = new Set();
 // Preferred-first ordering for the auto-pick. Synoptic SYN_* stations
 // are added dynamically below if/when they appear in the API response.
-const PRIMARY_WIND_STATIONS = ['CSIM3', 'KBOS', '44013'];
+// Order matters: the auto-pick at race load walks this list and takes the
+// first station with usable samples. Logan (KBOS) is the operational
+// default for the Boston Harbor fleet — it's an FAA METAR that updates
+// hourly and is consistently available; CSIM3 (Castle Island) is closer
+// to the racing area but its NDBC feed has more dropouts.
+const PRIMARY_WIND_STATIONS = ['KBOS', 'CSIM3', '44013'];
 let selectedWindStationId = null;  // user-selected wind source (null = auto-pick)
 
 // User-controlled visibility toggles. Defaults are ON so the dashboard
@@ -180,6 +185,8 @@ async function init() {
     initMap();
     addLaylinesMapControl();
     addTrailWindowMapControl();
+    addMapWindPicker();
+    setupChartsOverlay();
 
     // Initialize chart
     initSpeedChart();
@@ -456,6 +463,74 @@ function addTrailWindowMapControl() {
     ctl.addTo(map);
 }
 
+// Top-left wind widget on the map: a rotating arrow + TWD/TWS readout
+// with the station dropdown directly below. Replaces the old leaderboard
+// wind badge AND the toolbar wind picker — there's now one wind control
+// for the whole dashboard, anchored to the map. The dropdown's content
+// is rendered into #wind-source-picker by renderWindSourcePicker(); the
+// rest of the picker code is unchanged.
+function addMapWindPicker() {
+    if (!map) return;
+    const ctl = L.control({ position: 'topleft' });
+    ctl.onAdd = function () {
+        const div = L.DomUtil.create('div', 'leaflet-bar map-wind-picker');
+        div.innerHTML = `
+            <div class="map-wind-picker-row">
+                <div class="map-wind-arrow" id="map-wind-arrow" title="True wind">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2 L18 14 L12 11 L6 14 Z"
+                              fill="#22d3ee" stroke="#fff" stroke-width="1"/>
+                    </svg>
+                </div>
+                <div class="map-wind-readout">
+                    <span class="map-wind-readout-twd" id="map-wind-twd">---°</span>
+                    <span class="map-wind-readout-tws" id="map-wind-tws">-- kn</span>
+                </div>
+            </div>
+            <div class="wind-source-picker" id="wind-source-picker" style="display:none"></div>
+        `;
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+        return div;
+    };
+    ctl.addTo(map);
+}
+
+// Charts overlay open/close. Triggered by the toolbar Charts button,
+// closed by the X / backdrop click / Escape. Adds .charts-open to body
+// so the rest of the dashboard can react if needed.
+function setupChartsOverlay() {
+    const overlay = document.getElementById('charts-overlay');
+    const trigger = document.getElementById('btn-charts');
+    if (!overlay || !trigger) return;
+
+    function open() {
+        overlay.hidden = false;
+        document.body.classList.add('charts-open');
+        // Chart.js cached canvas dimensions when the canvas was hidden
+        // (display:none → 0×0). Force a resize now that the overlay is
+        // visible so curves fill the new viewport instead of staying
+        // collapsed at the top.
+        requestAnimationFrame(() => {
+            if (speedChart) speedChart.resize();
+            if (heelChart)  heelChart.resize();
+            if (windChart)  windChart.resize();
+        });
+    }
+    function close() {
+        overlay.hidden = true;
+        document.body.classList.remove('charts-open');
+    }
+
+    trigger.addEventListener('click', () => overlay.hidden ? open() : close());
+    overlay.querySelectorAll('[data-close-charts]').forEach(el => {
+        el.addEventListener('click', close);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !overlay.hidden) close();
+    });
+}
+
 // Trim each boat's polyline to the configured trail window around the
 // current playback index. With trailWindowMs === Infinity the full track
 // is restored.
@@ -520,20 +595,50 @@ function renderLaylines() {
         .addTo(laylineLayer);
 }
 
-function createBoatIcon(color, rotation = 0) {
-    // SVG boat shape (triangle pointing up, rotated by heading)
+// Two- to four-letter team initials, e.g. "Mystic Mutiny" → "MM",
+// "Rooster Alumni Club" → "RAC". Single-word team names get an explicit
+// override (Seadogs → SD) — otherwise we fall back to the first two
+// letters of the name.
+const TEAM_INITIALS_OVERRIDES = {
+    'Seadogs':  'SD',
+    'Vela Veloce':  'VV',
+    'Mystic Mutiny':  'MM',
+    'Anchor Management':  'AM',
+    'Rooster Alumni Club':  'RAC',
+    'Always Lost':  'AL',
+};
+function teamInitials(name) {
+    if (!name) return '';
+    if (TEAM_INITIALS_OVERRIDES[name]) return TEAM_INITIALS_OVERRIDES[name];
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+        return words.map(w => w[0].toUpperCase()).join('').slice(0, 4);
+    }
+    return name.slice(0, 2).toUpperCase();
+}
+
+// Build the divIcon HTML for a boat marker. Includes the directional
+// arrow plus a small label (initials · speed · heel) so the per-boat
+// readout sits beside the boat itself instead of in a separate legend.
+// Heel is omitted when IMU isn't available (e.g. GPX-only boats).
+function createBoatIcon(color, rotation = 0, initials = '', speedKn = null, heelDeg = null) {
     const svg = `
-        <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+        <svg class="boat-marker-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
              style="transform: rotate(${rotation}deg);">
             <path d="M12 2 L20 20 L12 16 L4 20 Z"
                   fill="${color}" stroke="white" stroke-width="1.5"/>
         </svg>`;
-
+    const speedTxt = (speedKn != null && Number.isFinite(speedKn)) ? `${speedKn.toFixed(1)}kn` : '';
+    const heelTxt  = (heelDeg  != null && Number.isFinite(heelDeg))  ? ` ${Math.round(heelDeg)}°`  : '';
+    const stats = (speedTxt || heelTxt) ? `<span class="bml-stats">${speedTxt}${heelTxt}</span>` : '';
+    const label = initials || stats
+        ? `<span class="boat-marker-label"><span class="bml-init" style="color:${color}">${initials}</span>${stats}</span>`
+        : '';
     return L.divIcon({
-        html: svg,
+        html: `<div class="boat-marker-wrap">${svg}${label}</div>`,
         className: 'boat-marker',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        iconSize: null,        // let the wrap size to its content
+        iconAnchor: [12, 12],  // anchor on the arrow's center
     });
 }
 
@@ -1021,7 +1126,7 @@ function progressMetersAt(point, courseSeq, marksById, legsCompleted, startAncho
     return cum;
 }
 
-function addBoatTrack(deviceId, gpsData, boat) {
+function addBoatTrack(deviceId, gpsData, boat, imuData = null) {
     const color = BOAT_COLORS[deviceId] || '#888888';
 
     // Create track polyline (initially empty — populated by applyTrailWindow
@@ -1033,10 +1138,11 @@ function addBoatTrack(deviceId, gpsData, boat) {
         opacity: 0.8,
     }).addTo(map);
 
-    // Create boat marker (triangle pointing in direction of travel)
+    // Create boat marker (triangle pointing in direction of travel + label).
+    const initials = teamInitials(boat?.team_name || boat?.boat_name || '');
     const initialCourse = gpsData[0]?.course || 0;
     const marker = L.marker([0, 0], {
-        icon: createBoatIcon(color, initialCourse),
+        icon: createBoatIcon(color, initialCourse, initials),
         rotationOrigin: 'center center',
     }).addTo(map);
     marker.on('click', () => openBoatDrawer(deviceId));
@@ -1069,6 +1175,8 @@ function addBoatTrack(deviceId, gpsData, boat) {
         cumDist,
         boat,
         color,
+        initials,
+        imu: imuData || [],   // for per-frame heel readout on the marker label
         visible: true,
     };
 }
@@ -1097,9 +1205,14 @@ function updateBoatPositions(timeSeconds) {
         if (closest && closest.lat && closest.lon) {
             layer.marker.setLatLng([closest.lat, closest.lon]);
 
-            // Update boat icon rotation based on course
+            // Update boat icon (rotation + label with initials/speed/heel).
+            // Heel is sourced from the IMU sample nearest playback time;
+            // GPX-only boats have no IMU and the label simply omits heel.
             const course = closest.course || 0;
-            layer.marker.setIcon(createBoatIcon(layer.color, course));
+            const speedKn = closest.speed_kn ?? null;
+            const imuSample = nearestSampleAt(layer.imu, targetTime);
+            const heelDeg = imuSample?.heel ?? null;
+            layer.marker.setIcon(createBoatIcon(layer.color, course, layer.initials, speedKn, heelDeg));
 
             // Cache current playback-time point + index so the leaderboard
             // reads the same value the map shows and can look up cumulative
@@ -1111,9 +1224,6 @@ function updateBoatPositions(timeSeconds) {
             // current index. Cheap — walks back at most ~window/sample_rate
             // points (60 at 1 Hz for the 1m default).
             applyTrailWindow(layer);
-
-            // Update legend with current speed
-            updateLegendSpeed(deviceId, closest.speed_kn || 0);
         }
     }
 
@@ -1124,19 +1234,22 @@ function updateBoatPositions(timeSeconds) {
     updateBoatDrawer();
 }
 
+// Refresh the map's top-left wind picker (rotating arrow + TWD/TWS
+// readout) and the per-station map roses. The leaderboard wind badge
+// has been removed — the picker on the map is now the single source.
 function updateWindBadge(targetTimeMs) {
-    const badge = document.getElementById('wind-badge');
     const sample = windAt(targetTimeMs);
-    if (badge) {
-        if (sample) {
-            badge.style.display = 'flex';
-            badge.title = `True wind from ${weatherWindSource || 'NOAA'} (interpolated)`;
-            document.getElementById('wind-dir').textContent = `${sample.twd.toFixed(0).padStart(3, '0')}°`;
-            document.getElementById('wind-speed').textContent = `${sample.tws.toFixed(1)} kn`;
-        } else {
-            badge.style.display = 'none';
-        }
+    const arrow  = document.getElementById('map-wind-arrow');
+    const twdEl  = document.getElementById('map-wind-twd');
+    const twsEl  = document.getElementById('map-wind-tws');
+    if (arrow && sample) {
+        // Wind blows TO (twd + 180); arrow SVG points up (north) at 0°.
+        const blowTo = (sample.twd + 180) % 360;
+        arrow.style.transform = `rotate(${blowTo}deg)`;
+        arrow.title = `True wind from ${weatherWindSource || 'NOAA'} (interpolated)`;
     }
+    if (twdEl) twdEl.textContent = sample ? `${sample.twd.toFixed(0).padStart(3, '0')}°` : '---°';
+    if (twsEl) twsEl.textContent = sample ? `${sample.tws.toFixed(1)} kn` : '-- kn';
     updateAllWindMarkers(targetTimeMs);
 }
 
@@ -1266,43 +1379,11 @@ function fitMapToBounds() {
 
 // --- Boat Legend ---
 
-function renderBoatLegend() {
-    const container = document.getElementById('boat-legend');
-    container.innerHTML = '';
-
-    if (!currentRace || !currentRace.boats) return;
-
-    for (const boat of currentRace.boats) {
-        const deviceId = boat.device_id;
-        const color = BOAT_COLORS[deviceId] || '#888888';
-        const hasData = boatLayers[deviceId]?.data?.length > 0;
-
-        // Display team name if available, else boat name, else device ID
-        const displayName = boat.team_name || boat.boat_name || deviceId;
-        const subtitle = boat.team_name && boat.boat_name ? boat.boat_name : '';
-
-        const item = document.createElement('div');
-        item.className = `boat-legend-item ${hasData ? '' : 'disabled'}`;
-        item.dataset.deviceId = deviceId;
-        item.innerHTML = `
-            <span class="boat-color-dot" style="background: ${color}"></span>
-            <div class="boat-legend-info">
-                <span class="boat-legend-name">${displayName}</span>
-                ${subtitle ? `<span class="boat-legend-subtitle">${subtitle}</span>` : ''}
-            </div>
-            <span class="boat-legend-speed" id="legend-speed-${deviceId}">-- kn</span>
-        `;
-
-        // Toggle visibility on click
-        item.addEventListener('click', () => {
-            if (!hasData) return;
-            toggleBoatVisibility(deviceId);
-            item.classList.toggle('disabled');
-        });
-
-        container.appendChild(item);
-    }
-}
+// Top-left fleet-tracker legend has been replaced by per-marker labels
+// (initials + speed + heel) drawn beside the boat arrow. The leaderboard
+// on the right is the canonical color/team key. No-op kept so call sites
+// don't need editing.
+function renderBoatLegend() {}
 
 function updateLegendSpeed(deviceId, speed) {
     const el = document.getElementById(`legend-speed-${deviceId}`);
@@ -1787,6 +1868,11 @@ function setupMobileNav() {
                 for (const b of tabs.querySelectorAll('button')) {
                     b.classList.toggle('active', b === btn);
                 }
+                // The charts now live inside the desktop overlay container;
+                // mirror the open/close state to the overlay's `hidden`
+                // attribute so the mobile "Charts" tab keeps working.
+                const overlay = document.getElementById('charts-overlay');
+                if (overlay) overlay.hidden = (t !== 'charts');
                 // Force re-measure so Leaflet/Chart.js fill the now-visible panel
                 requestAnimationFrame(() => {
                     if (t === 'map' && map) map.invalidateSize();
@@ -2507,7 +2593,7 @@ async function loadRaceData(raceId) {
             const gpsCount = boatData.sensors.gps.length;
             totalGpsPoints += gpsCount;
             console.log(`[Race] ${deviceId}: ${gpsCount} GPS points, first:`, boatData.sensors.gps[0]);
-            addBoatTrack(deviceId, boatData.sensors.gps, boatData.boat);
+            addBoatTrack(deviceId, boatData.sensors.gps, boatData.boat, boatData.sensors.imu || []);
         }
 
         console.log(`[Race] Total GPS points: ${totalGpsPoints}, boatLayers:`, Object.keys(boatLayers));
@@ -3061,7 +3147,6 @@ async function deleteRace() {
         // Clear map and UI
         clearBoatLayers();
         document.getElementById('leaderboard').innerHTML = '<div class="leaderboard-empty">Select a race to view standings</div>';
-        document.getElementById('boat-legend').innerHTML = '';
         document.getElementById('race-name').textContent = 'No race selected';
         document.getElementById('race-time').textContent = '';
         document.getElementById('btn-edit-race').disabled = true;

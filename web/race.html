@@ -24,7 +24,7 @@
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/utc.js"></script>
 
     <link rel="stylesheet" href="./assets/css/main.css?v=10">
-    <link rel="stylesheet" href="./assets/css/race.css?v=18">
+    <link rel="stylesheet" href="./assets/css/race.css?v=19">
     <script src="./config.js"></script>
 </head>
 <body class="race-dashboard">
@@ -46,7 +46,7 @@
             <button id="btn-edit-course" class="btn-secondary" title="Edit course on map" disabled>Edit Course</button>
             <button id="btn-leg-summary" class="btn-secondary" title="Leg-by-leg per-boat summary">Legs</button>
             <button id="btn-maneuvers" class="btn-secondary" title="Tacks &amp; gybes comparison">Maneuvers</button>
-            <div class="wind-source-picker toolbar-wind-picker" id="wind-source-picker" style="display:none"></div>
+            <button id="btn-charts" class="btn-secondary" title="Open Speed / Heel / Wind charts (Esc to close)">Charts</button>
         </div>
         <a href="./sessions.html" class="nav-link">Sessions</a>
         <a href="./session.html" class="nav-link">Timeline</a>
@@ -70,8 +70,6 @@
                 </div>
                 <button id="btn-expand-map" class="btn-expand" title="Expand map">⛶</button>
             </div>
-            <!-- Boat Legend -->
-            <div class="boat-legend" id="boat-legend"></div>
             <!-- Course Editor Toolbar (visible only in edit mode) -->
             <div class="course-toolbar" id="course-toolbar" style="display: none;">
                 <span class="course-toolbar-label">Course Editor</span>
@@ -88,8 +86,28 @@
             <div id="race-map" class="map-container"></div>
         </section>
 
-        <!-- Middle panel: Comparative Charts (stacked) -->
-        <section class="panel analytics-panel" id="analytics-panel">
+        <!-- Right panel: Leaderboard -->
+        <section class="panel race-panel" id="race-panel">
+            <div class="panel-header">
+                <h2>Leaderboard</h2>
+                <div class="elapsed-time" id="elapsed-time">00:00:00</div>
+            </div>
+            <div class="leaderboard" id="leaderboard">
+                <div class="leaderboard-empty">Select a race to view standings</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Charts overlay: full-screen Speed / Heel / Wind, opened via the
+         Charts toolbar button. Map stays visible behind via translucent
+         backdrop. Esc / backdrop click / X to close. -->
+    <div class="charts-overlay" id="charts-overlay" hidden>
+        <div class="charts-overlay-backdrop" data-close-charts></div>
+        <section class="panel analytics-panel charts-overlay-panel" id="analytics-panel">
+            <div class="charts-overlay-header">
+                <h3>Performance charts</h3>
+                <button class="charts-overlay-close" data-close-charts title="Close (Esc)">×</button>
+            </div>
             <div class="chart-section">
                 <div class="chart-header">
                     <h3>Speed (kn)</h3>
@@ -118,22 +136,7 @@
                 </div>
             </div>
         </section>
-
-        <!-- Right panel: Leaderboard -->
-        <section class="panel race-panel" id="race-panel">
-            <div class="panel-header">
-                <h2>Leaderboard</h2>
-                <div class="wind-badge" id="wind-badge" title="True wind direction / speed (NOAA)" style="display:none">
-                    <span class="wind-dir" id="wind-dir">---°</span>
-                    <span class="wind-speed" id="wind-speed">-- kn</span>
-                </div>
-                <div class="elapsed-time" id="elapsed-time">00:00:00</div>
-            </div>
-            <div class="leaderboard" id="leaderboard">
-                <div class="leaderboard-empty">Select a race to view standings</div>
-            </div>
-        </section>
-    </main>
+    </div>
 
     <!-- Leg-by-leg summary modal -->
     <div class="modal" id="leg-modal" style="display: none;">

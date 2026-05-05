@@ -3,7 +3,7 @@
 /* Layout */
 .race-dashboard .race-main {
     display: grid;
-    grid-template-columns: 1fr 300px 260px;
+    grid-template-columns: 1fr 260px;
     gap: 0.5rem;
     height: calc(100vh - 60px - 60px); /* header + timeline */
 }
@@ -1564,4 +1564,178 @@ body.course-editing .boat-legend {
     .wind-rose-marker .wind-rose-arrow { width: 36px; height: 36px; }
     .wind-rose-marker .wind-rose-tws { font-size: 0.75rem; }
     .wind-rose-marker .wind-rose-twd { font-size: 0.6rem; }
+}
+
+/* ===========================================================
+   Charts overlay (Speed / Heel / Wind shown full-screen on
+   demand, map fades behind). Toggled by .charts-open on body.
+   =========================================================== */
+.charts-overlay {
+    position: fixed;
+    inset: 60px 0 60px 0; /* clear header + timeline footer */
+    z-index: 1700;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    pointer-events: none;
+}
+.charts-overlay[hidden] { display: none; }
+.charts-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(2px);
+    pointer-events: auto;
+}
+.charts-overlay-panel {
+    position: relative;
+    flex: 1 1 auto;
+    margin: 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem;
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow: hidden;
+}
+.charts-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.25rem 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+.charts-overlay-header h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.charts-overlay-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.5rem;
+}
+.charts-overlay-close:hover { color: #fff; }
+
+/* Charts inside the overlay reuse the existing stacked layout. */
+.charts-overlay-panel .chart-section {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.25rem 0.5rem;
+}
+.charts-overlay-panel .chart-section + .chart-section {
+    border-top: 1px solid var(--border);
+}
+.charts-overlay-panel .chart-container-stacked {
+    flex: 1 1 0;
+    min-height: 0;
+    position: relative;
+}
+
+/* ===========================================================
+   Map wind picker (top-left). Combines a rotating arrow with
+   the station dropdown. Replaces the toolbar wind picker and
+   the leaderboard wind badge.
+   =========================================================== */
+.map-wind-picker {
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    border-radius: 6px;
+    padding: 6px 8px;
+    color: #e2e8f0;
+    font-family: monospace;
+    min-width: 130px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+.map-wind-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.map-wind-arrow {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.4s ease-out;
+}
+.map-wind-arrow svg { width: 100%; height: 100%; display: block; }
+.map-wind-readout {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+    flex: 1 1 auto;
+}
+.map-wind-readout-twd { font-size: 0.95rem; font-weight: 600; color: #22d3ee; }
+.map-wind-readout-tws { font-size: 0.7rem; color: var(--text-secondary); }
+
+.map-wind-picker .wind-source-picker {
+    margin-top: 6px;
+    height: auto;
+}
+.map-wind-picker .wind-dropdown-trigger {
+    height: 28px;
+    width: 100%;
+    background: rgba(15, 23, 42, 0.6);
+}
+.map-wind-picker .wind-dropdown-current { min-width: 0; }
+.map-wind-picker .wind-dropdown-current-name { font-size: 0.7rem; }
+.map-wind-picker .wind-dropdown-current-stats { font-size: 0.55rem; }
+.map-wind-picker .wind-dropdown-menu {
+    /* Open downward, anchored to the picker. Inherits styling from race.css. */
+    top: 100%;
+    left: 0;
+    right: auto;
+    min-width: 240px;
+}
+
+/* ===========================================================
+   Boat marker label (initials + speed + heel beside the arrow).
+   Replaces the removed top-left fleet-tracker legend.
+   =========================================================== */
+/* Leaflet's default L.DivIcon adds a white background + black border —
+   strip both so only the SVG arrow + label show. */
+.boat-marker { background: transparent !important; border: none !important; }
+.boat-marker-wrap {
+    display: flex;
+    align-items: center;
+    pointer-events: auto;
+}
+.boat-marker-svg {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+}
+.boat-marker-label {
+    margin-left: 4px;
+    background: rgba(15, 23, 42, 0.78);
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-family: monospace;
+    font-size: 0.7rem;
+    line-height: 1.15;
+    white-space: nowrap;
+    color: #e2e8f0;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.6);
+}
+.boat-marker-label .bml-init {
+    font-weight: 700;
+    margin-right: 4px;
+}
+.boat-marker-label .bml-stats {
+    font-size: 0.62rem;
+    color: var(--text-secondary);
 }
