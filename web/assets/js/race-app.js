@@ -527,18 +527,18 @@ function addFollowLeaderMapControl() {
     ctl.addTo(map);
 }
 
-// Reframe the map so every active boat AND the next active mark fit
-// inside the viewport. The original "follow leader" version was too
-// aggressive — it tracked just the lead boat at zoom 17 and the back
-// of the fleet would slide off the bottom of the map. Now we build
-// bounds from every boat's current position plus the next-mark anchor
-// (the leader's next mark, since that's where the fleet is heading).
+// Pan the map so the fleet stays on screen, WITHOUT changing zoom.
+// Pressing play used to fitBounds the whole course and snap the user
+// back to a wide view, undoing the start-line zoom-in. Now we just
+// pan the camera centre to the midpoint between the leader and the
+// mark they're chasing — the user keeps whatever zoom they set
+// (initial start-line zoom, or anything they pinch to manually).
 //
-// Throttled (default 2.5 s between flies) so playback scrubbing doesn't
-// thrash the viewport, and the flight itself is slower (1.4 s) so the
-// motion reads as a glide, not a jump cut. Hysteresis: skip the fly
-// when the new bounds are already mostly contained in the current
-// viewport — avoids tiny corrections every tick.
+// Throttled (2.5 s) so scrubbing doesn't ricochet, and pan flight is
+// slow (1.4 s, ease-out) so the motion reads as a glide. Hysteresis:
+// skip the pan when the target centre is already close to the current
+// map centre (less than ~25 % of the viewport away) — avoids twitchy
+// micro-corrections.
 function applyLeaderFollow(force = false, targetTimeMsArg = null) {
     if (!followLeader && !force) return;
     if (!map || !currentRace) return;
@@ -550,53 +550,67 @@ function applyLeaderFollow(force = false, targetTimeMsArg = null) {
     const targetTimeMs = targetTimeMsArg
         ?? new Date(currentRace.start_time).getTime() + (playCursorSeconds * 1000);
 
-    // Collect every visible boat's current position AND figure out the
-    // leader's next-mark anchor in the same pass.
-    const corners = [];
+    // Find the leader (most rounding events; ties → closest to next mark)
+    // and remember their position + the mark they're heading to.
+    let leaderPos = null;
     let leaderLegs = -1;
     let leaderDist = Infinity;
     let leaderNextMark = null;
     for (const layer of Object.values(boatLayers)) {
         if (!layer.visible || !layer.current) continue;
-        corners.push([layer.current.lat, layer.current.lon]);
         const legs = legsCompletedAt(layer, targetTimeMs);
+        let nextMark = null, d = Infinity;
         if (courseSeq.length) {
             const seqIdx = legs % courseSeq.length;
-            const nextMark = marksById[courseSeq[seqIdx]];
-            const d = nextMark
-                ? haversineMeters(layer.current.lat, layer.current.lon, nextMark.lat, nextMark.lon)
-                : Infinity;
-            if (legs > leaderLegs || (legs === leaderLegs && d < leaderDist)) {
-                leaderLegs = legs;
-                leaderDist = d;
-                leaderNextMark = nextMark;
-            }
+            nextMark = marksById[courseSeq[seqIdx]];
+            if (nextMark) d = haversineMeters(layer.current.lat, layer.current.lon, nextMark.lat, nextMark.lon);
+        }
+        if (legs > leaderLegs || (legs === leaderLegs && d < leaderDist)) {
+            leaderLegs = legs;
+            leaderDist = d;
+            leaderNextMark = nextMark;
+            leaderPos = [layer.current.lat, layer.current.lon];
         }
     }
-    if (corners.length === 0) return;
+    if (!leaderPos) return;
 
-    // Anchor the upcoming mark (or finish line) so the camera leads the
-    // fleet rather than centering exactly on them.
+    // Camera target: midpoint between leader and next mark when one
+    // exists, else just the leader. This biases the view slightly
+    // ahead of the leader so what they're sailing toward is visible.
+    let targetCentre;
     const totalLegs = currentRace._totalLegs ?? courseSeq.length;
     if (courseSeq.length && leaderLegs < totalLegs && leaderNextMark) {
-        corners.push([leaderNextMark.lat, leaderNextMark.lon]);
+        targetCentre = L.latLng(
+            (leaderPos[0] + leaderNextMark.lat) / 2,
+            (leaderPos[1] + leaderNextMark.lon) / 2
+        );
     } else if (currentRace.finish_line?.pin_lat != null) {
         const fl = currentRace.finish_line;
-        corners.push([fl.pin_lat, fl.pin_lon]);
-        corners.push([fl.boat_lat, fl.boat_lon]);
+        const flMidLat = (fl.pin_lat + fl.boat_lat) / 2;
+        const flMidLon = (fl.pin_lon + fl.boat_lon) / 2;
+        targetCentre = L.latLng((leaderPos[0] + flMidLat) / 2, (leaderPos[1] + flMidLon) / 2);
+    } else {
+        targetCentre = L.latLng(leaderPos[0], leaderPos[1]);
     }
 
-    const newBounds = L.latLngBounds(corners);
-    // Hysteresis: if the new bounds already sit inside the current view
-    // (with the same padding), skip — no need to fly. Avoids twitchy
-    // re-centering when the fleet hasn't moved much.
-    if (!force && map.getBounds().pad(-0.05).contains(newBounds)) return;
+    // Hysteresis in screen-pixel space: if the new centre projects to
+    // within ~25 % of the viewport diagonal of the current centre, the
+    // fleet is still well-framed at the current zoom — no need to pan.
+    if (!force) {
+        const sz = map.getSize();
+        const cur = map.latLngToLayerPoint(map.getCenter());
+        const tgt = map.latLngToLayerPoint(targetCentre);
+        const dx = tgt.x - cur.x, dy = tgt.y - cur.y;
+        const distPx = Math.sqrt(dx * dx + dy * dy);
+        const threshold = 0.25 * Math.min(sz.x, sz.y);
+        if (distPx < threshold) return;
+    }
 
     lastFollowPanMs = now;
-    map.flyToBounds(newBounds, {
-        padding: [100, 100],
-        maxZoom: 16,
-        duration: 1.4,        // smooth glide, not a snap
+    // panTo with animation — preserves current zoom level.
+    map.panTo(targetCentre, {
+        animate: true,
+        duration: 1.4,
         easeLinearity: 0.25,
     });
 }
