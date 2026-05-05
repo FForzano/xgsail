@@ -118,3 +118,56 @@ jobs:
             build/sailframes_e1_${{ steps.version.outputs.version }}.bin.sha256
             build/sailframes_e1_${{ steps.version.outputs.version }}.partitions.bin
             build/sailframes_e1_${{ steps.version.outputs.version }}.bootloader.bin
+
+      # OTA manifest publish — only on green main builds (not PRs).
+      # Devices fetch http://{bucket}.s3.{region}.amazonaws.com/firmware/E1/latest.json
+      # and verify SHA256 from the manifest before flashing the OTA partition.
+      - name: Configure AWS credentials (firmware CI user)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_FIRMWARE_CI }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_FIRMWARE_CI }}
+          aws-region: us-east-1
+
+      - name: Publish firmware to S3 + update OTA manifest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          V="${{ steps.version.outputs.version }}"
+          BUCKET="sailframes-fleet-data-prod"
+          REGION="us-east-1"
+          BIN="build/sailframes_e1_${V}.bin"
+          KEY_BIN="firmware/E1/sailframes_e1_${V}.bin"
+          KEY_MANIFEST="firmware/E1/latest.json"
+
+          SIZE=$(stat -c%s "$BIN")
+          SHA=$(sha256sum "$BIN" | awk '{print $1}')
+          URL="http://${BUCKET}.s3.${REGION}.amazonaws.com/${KEY_BIN}"
+
+          echo "Uploading $BIN -> s3://${BUCKET}/${KEY_BIN}"
+          aws s3 cp "$BIN" "s3://${BUCKET}/${KEY_BIN}" \
+            --content-type application/octet-stream \
+            --cache-control "max-age=31536000,immutable"
+
+          MANIFEST=$(mktemp)
+          cat > "$MANIFEST" <<EOF
+          {
+            "version": "${V}",
+            "url": "${URL}",
+            "size": ${SIZE},
+            "sha256": "${SHA}",
+            "git_sha": "${GITHUB_SHA}",
+            "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+          echo "Manifest:"
+          cat "$MANIFEST"
+
+          aws s3 cp "$MANIFEST" "s3://${BUCKET}/${KEY_MANIFEST}" \
+            --content-type application/json \
+            --cache-control "max-age=60"
+
+          echo "Published OTA manifest:"
+          echo "  http://${BUCKET}.s3.${REGION}.amazonaws.com/${KEY_MANIFEST}"

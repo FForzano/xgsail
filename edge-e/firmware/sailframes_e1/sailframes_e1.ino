@@ -43,7 +43,9 @@
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoOTA.h>
+#include <Update.h>
 #include <HTTPClient.h>
+#include "mbedtls/sha256.h"
 #include "User_Setup.h"  // TFT_eSPI config (must be before TFT_eSPI.h)
 #include <TFT_eSPI.h>
 #include <Adafruit_BNO08x.h>
@@ -98,7 +100,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.05.01"
+#define FW_VERSION    "2026.05.05.02"
 
 // Telnet listener is OFF by default. The 2026.05.03.04 fleet test confirmed
 // (via diag heartbeat) that handleTelnet() blocks Core 1 inside LWIP when
@@ -3632,6 +3634,225 @@ void listDirOutput(const char* dirname, int depth, bool toTelnet) {
   root.close();  // Close directory when done
 }
 
+// ============================================================
+// OTA FIRMWARE UPDATE (manual, manifest-pull, plain HTTP)
+// ============================================================
+// CI publishes:
+//   http://{bucket}.s3.{region}.amazonaws.com/firmware/{boat_id}/latest.json
+//   { "version": "...", "url": "...", "size": N, "sha256": "..." }
+// and the .bin at "url". TLS is broken in Core 3.3.7 so we go HTTP.
+// Integrity comes from the SHA256 in the manifest; bucket-write IAM is
+// split so the fleet's anonymous PUT credentials cannot replace either.
+
+static String otaExtractJsonString(const String& json, const char* key) {
+  String pattern = String("\"") + key + "\"";
+  int k = json.indexOf(pattern);
+  if (k < 0) return "";
+  int colon = json.indexOf(':', k);
+  if (colon < 0) return "";
+  int q1 = json.indexOf('"', colon);
+  if (q1 < 0) return "";
+  int q2 = json.indexOf('"', q1 + 1);
+  if (q2 < 0) return "";
+  return json.substring(q1 + 1, q2);
+}
+
+static long otaExtractJsonNumber(const String& json, const char* key) {
+  String pattern = String("\"") + key + "\"";
+  int k = json.indexOf(pattern);
+  if (k < 0) return -1;
+  int colon = json.indexOf(':', k);
+  if (colon < 0) return -1;
+  int p = colon + 1;
+  while (p < (int)json.length() && (json[p] == ' ' || json[p] == '\t')) p++;
+  int q = p;
+  while (q < (int)json.length() && isdigit((unsigned char)json[q])) q++;
+  if (q == p) return -1;
+  return json.substring(p, q).toInt();
+}
+
+static String otaHexDigest(const uint8_t* digest, size_t len) {
+  static const char hex[] = "0123456789abcdef";
+  String out;
+  out.reserve(len * 2);
+  for (size_t i = 0; i < len; i++) {
+    out += hex[(digest[i] >> 4) & 0xF];
+    out += hex[digest[i] & 0xF];
+  }
+  return out;
+}
+
+bool performOTAUpdate() {
+  if (logging) {
+    Serial.println("[OTA] Refusing: recording active. Stop recording first.");
+    return false;
+  }
+  if (uploading || triggerUpload) {
+    Serial.println("[OTA] Refusing: upload in flight.");
+    return false;
+  }
+
+  if (!wifiConnected) {
+    Serial.println("[OTA] WiFi not connected, attempting to connect...");
+    if (!connectWiFi()) {
+      Serial.println("[OTA] WiFi connect failed");
+      return false;
+    }
+  }
+
+  String host = String(config.s3_bucket) + ".s3." + String(config.s3_region) + ".amazonaws.com";
+  String manifestUrl = "http://" + host + "/firmware/" + String(config.boat_id) + "/latest.json";
+
+  Serial.printf("[OTA] Fetching manifest: %s\n", manifestUrl.c_str());
+
+  WiFiClient mClient;
+  HTTPClient mHttp;
+  mHttp.setTimeout(30000);
+  mHttp.setReuse(false);
+  mHttp.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+  if (!mHttp.begin(mClient, manifestUrl)) {
+    Serial.println("[OTA] http.begin (manifest) failed");
+    return false;
+  }
+  int code = mHttp.GET();
+  if (code != 200) {
+    Serial.printf("[OTA] Manifest GET failed: HTTP %d\n", code);
+    mHttp.end();
+    return false;
+  }
+  String manifest = mHttp.getString();
+  mHttp.end();
+
+  Serial.printf("[OTA] Manifest: %s\n", manifest.c_str());
+
+  String version = otaExtractJsonString(manifest, "version");
+  String binUrl  = otaExtractJsonString(manifest, "url");
+  String sha256  = otaExtractJsonString(manifest, "sha256");
+  long   size    = otaExtractJsonNumber(manifest, "size");
+
+  if (version.isEmpty() || binUrl.isEmpty() || sha256.isEmpty() || size <= 0) {
+    Serial.println("[OTA] Manifest missing required fields");
+    return false;
+  }
+
+  Serial.printf("[OTA] Latest:  %s (%ld bytes)\n", version.c_str(), size);
+  Serial.printf("[OTA] Current: %s\n", FW_VERSION);
+
+  if (version == FW_VERSION) {
+    Serial.println("[OTA] Already up to date.");
+    return true;
+  }
+
+  if (binUrl.startsWith("https://")) {
+    binUrl = "http://" + binUrl.substring(8);
+  }
+  Serial.printf("[OTA] Downloading: %s\n", binUrl.c_str());
+
+  WiFiClient bClient;
+  HTTPClient bHttp;
+  bHttp.setTimeout(300000);
+  bHttp.setReuse(false);
+  bHttp.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+  if (!bHttp.begin(bClient, binUrl)) {
+    Serial.println("[OTA] http.begin (bin) failed");
+    return false;
+  }
+  code = bHttp.GET();
+  if (code != 200) {
+    Serial.printf("[OTA] Binary GET failed: HTTP %d\n", code);
+    bHttp.end();
+    return false;
+  }
+  int contentLen = bHttp.getSize();
+  if (contentLen > 0 && contentLen != (int)size) {
+    Serial.printf("[OTA] Size mismatch: manifest=%ld, header=%d\n", size, contentLen);
+    bHttp.end();
+    return false;
+  }
+
+  if (!Update.begin((size_t)size, U_FLASH)) {
+    Serial.printf("[OTA] Update.begin failed: %s\n", Update.errorString());
+    bHttp.end();
+    return false;
+  }
+
+  mbedtls_sha256_context shaCtx;
+  mbedtls_sha256_init(&shaCtx);
+  mbedtls_sha256_starts(&shaCtx, 0);
+
+  WiFiClient* stream = bHttp.getStreamPtr();
+  uint8_t buf[1024];
+  size_t total = 0;
+  unsigned long lastLog = millis();
+
+  esp_task_wdt_reset();
+  while (total < (size_t)size && (bHttp.connected() || stream->available())) {
+    size_t avail = stream->available();
+    if (avail) {
+      size_t toRead = avail > sizeof(buf) ? sizeof(buf) : avail;
+      int n = stream->readBytes(buf, toRead);
+      if (n <= 0) break;
+      mbedtls_sha256_update(&shaCtx, buf, (size_t)n);
+      size_t w = Update.write(buf, (size_t)n);
+      if (w != (size_t)n) {
+        Serial.printf("[OTA] Update.write short: %u/%d (%s)\n",
+                      (unsigned)w, n, Update.errorString());
+        Update.abort();
+        mbedtls_sha256_free(&shaCtx);
+        bHttp.end();
+        return false;
+      }
+      total += n;
+      if (millis() - lastLog > 2000) {
+        Serial.printf("[OTA] %u / %ld bytes (%.0f%%)\n",
+                      (unsigned)total, size, 100.0 * total / size);
+        lastLog = millis();
+        esp_task_wdt_reset();
+      }
+    } else {
+      delay(5);
+    }
+    yield();
+  }
+
+  bHttp.end();
+
+  if (total != (size_t)size) {
+    Serial.printf("[OTA] Short download: %u/%ld\n", (unsigned)total, size);
+    Update.abort();
+    mbedtls_sha256_free(&shaCtx);
+    return false;
+  }
+
+  uint8_t digest[32];
+  mbedtls_sha256_finish(&shaCtx, digest);
+  mbedtls_sha256_free(&shaCtx);
+
+  String got = otaHexDigest(digest, 32);
+  String want = sha256;
+  want.toLowerCase();
+  got.toLowerCase();
+  if (got != want) {
+    Serial.printf("[OTA] SHA256 mismatch:\n  got:  %s\n  want: %s\n",
+                  got.c_str(), want.c_str());
+    Update.abort();
+    return false;
+  }
+  Serial.println("[OTA] SHA256 OK");
+
+  if (!Update.end(true)) {
+    Serial.printf("[OTA] Update.end failed: %s\n", Update.errorString());
+    return false;
+  }
+
+  Serial.printf("[OTA] Update OK. Rebooting into %s...\n", version.c_str());
+  delay(1000);
+  ESP.restart();
+  return true;  // unreachable
+}
+
 // Process command from serial or telnet
 void processCommand(String cmd, bool fromTelnet) {
   cmd.trim();
@@ -3822,6 +4043,11 @@ void processCommand(String cmd, bool fromTelnet) {
     } else {
       tprintln("Not connected");
     }
+
+  } else if (cmd == "update" || cmd == "ota") {
+    tprintln("Starting OTA update from manifest...");
+    bool ok = performOTAUpdate();
+    if (!ok) tprintln("OTA: failed (see serial log)");
 
   } else if (cmd == "reboot") {
     tprintln("Rebooting...");
@@ -4343,6 +4569,7 @@ void processCommand(String cmd, bool fromTelnet) {
     tprintln("  telnetoff  - Disable telnet listener");
     tprintln("  wifi       - Connect to WiFi");
     tprintln("  disconnect - Disconnect WiFi");
+    tprintln("  update     - OTA pull from S3 manifest (manual)");
     tprintln("  reboot     - Restart device");
     tprintln("  help       - Show this help");
     tprintln("================");
