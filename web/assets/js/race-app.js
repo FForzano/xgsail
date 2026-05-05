@@ -1632,23 +1632,48 @@ function updateAllWindMarkers(targetTimeMs) {
 }
 
 function fitMapToBounds() {
+    // Default landing view: zoom to the start line + first mark so the
+    // pre-start area and the first beat are framed at race-load time.
+    // This is what the user actually wants to see when they open a race
+    // — the full-track bounds were too zoomed-out to read at a glance,
+    // especially with multi-lap races covering the same water twice.
+    // Falls back to the all-GPS bounds if course/start aren't defined.
+    const corners = [];
+    const sl = currentRace?.start_line;
+    if (sl && sl.pin_lat != null && sl.boat_lat != null) {
+        corners.push([sl.pin_lat, sl.pin_lon]);
+        corners.push([sl.boat_lat, sl.boat_lon]);
+    }
+    const courseSeq = currentRace?.course || [];
+    if (courseSeq.length) {
+        const marksById = buildMarksById(currentRace);
+        const firstMark = marksById[courseSeq[0]];
+        if (firstMark && firstMark.lat != null && firstMark.lon != null) {
+            corners.push([firstMark.lat, firstMark.lon]);
+        }
+    }
+
+    if (corners.length >= 2) {
+        const bounds = L.latLngBounds(corners);
+        console.log('[Race] Fitting to start-line + first-mark bounds:', bounds.toBBoxString());
+        // Generous padding so neither end of the start line nor the
+        // mark sit on the panel edge under the layline / SHOW controls.
+        map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16 });
+        return;
+    }
+
+    // Fallback: full-race bounds (older races without a defined course).
     const allCoords = [];
     for (const layer of Object.values(boatLayers)) {
         if (layer.data) {
             for (const p of layer.data) {
-                if (p.lat && p.lon) {
-                    allCoords.push([p.lat, p.lon]);
-                }
+                if (p.lat && p.lon) allCoords.push([p.lat, p.lon]);
             }
         }
     }
-
-    console.log(`[Race] fitMapToBounds: ${allCoords.length} coordinates`);
-
+    console.log(`[Race] fitMapToBounds fallback: ${allCoords.length} coordinates`);
     if (allCoords.length > 0) {
-        const bounds = L.latLngBounds(allCoords);
-        console.log('[Race] Fitting to bounds:', bounds.toBBoxString());
-        map.fitBounds(bounds, { padding: [50, 50] });
+        map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
     } else {
         console.warn('[Race] No coordinates to fit map bounds');
     }
