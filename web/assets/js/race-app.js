@@ -23,6 +23,15 @@ const BOAT_COLORS = {
     'E6': '#22d3ee',  // Cyan
 };
 
+// Single source of truth for "what color is this boat?" — keyed by
+// device id so the polyline, marker, label, leaderboard swatch, and
+// chart line/toggle are guaranteed to render the same color for the
+// same boat. Use this everywhere instead of indexing BOAT_COLORS
+// directly so any future fallback policy stays consistent.
+function colorFor(deviceId) {
+    return BOAT_COLORS[deviceId] || '#888888';
+}
+
 // Fleet configuration - COURAGEOUS J80 Spring Racing Series 2026
 const FLEET_BOATS = ['Wizard', 'Fins', 'Doc Buck', 'Katu', 'Bliss & Ella', 'Amigo'];
 const FLEET_TEAMS = ['Vela Veloce', 'Seadogs', 'Mystic Mutiny', 'Rooster Alumni Club', 'Anchor Management', 'Team 6'];
@@ -529,6 +538,25 @@ function setupChartsOverlay() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !overlay.hidden) close();
     });
+
+    // Backdrop opacity slider — drags the alpha on the .charts-overlay-backdrop
+    // background so racers can fade more or less of the map through. The
+    // chosen value persists across page loads via localStorage so it
+    // doesn't have to be reset every race.
+    const slider = document.getElementById('charts-bg-opacity');
+    const valEl  = document.getElementById('charts-bg-opacity-val');
+    const backdrop = overlay.querySelector('.charts-overlay-backdrop');
+    function applyOpacity(pct) {
+        if (backdrop) backdrop.style.background = `rgba(15, 23, 42, ${(pct / 100).toFixed(2)})`;
+        if (valEl) valEl.textContent = `${pct}%`;
+        try { localStorage.setItem('sf-charts-bg-opacity', String(pct)); } catch {}
+    }
+    if (slider) {
+        const saved = parseInt(localStorage.getItem('sf-charts-bg-opacity') || '72', 10);
+        slider.value = String(saved);
+        applyOpacity(saved);
+        slider.addEventListener('input', (e) => applyOpacity(parseInt(e.target.value, 10)));
+    }
 }
 
 // Trim each boat's polyline to the configured trail window around the
@@ -629,7 +657,11 @@ function createBoatIcon(color, rotation = 0, initials = '', speedKn = null, heel
                   fill="${color}" stroke="white" stroke-width="1.5"/>
         </svg>`;
     const speedTxt = (speedKn != null && Number.isFinite(speedKn)) ? `${speedKn.toFixed(1)}kn` : '';
-    const heelTxt  = (heelDeg  != null && Number.isFinite(heelDeg))  ? ` ${Math.round(heelDeg)}°`  : '';
+    // Heel is signed (port = negative on this fleet's IMU); show side
+    // explicitly with Sd/Pt instead of a +/− that's easy to misread.
+    const heelTxt = (heelDeg != null && Number.isFinite(heelDeg))
+        ? ` ${heelDeg >= 0 ? 'Sd' : 'Pt'} ${Math.round(Math.abs(heelDeg))}°`
+        : '';
     const stats = (speedTxt || heelTxt) ? `<span class="bml-stats">${speedTxt}${heelTxt}</span>` : '';
     const label = initials || stats
         ? `<span class="boat-marker-label"><span class="bml-init" style="color:${color}">${initials}</span>${stats}</span>`
@@ -1136,7 +1168,7 @@ function progressMetersAt(point, courseSeq, marksById, legsCompleted, startAncho
 }
 
 function addBoatTrack(deviceId, gpsData, boat, imuData = null) {
-    const color = BOAT_COLORS[deviceId] || '#888888';
+    const color = colorFor(deviceId);
 
     // Create track polyline (initially empty — populated by applyTrailWindow
     // after the first updateBoatPositions call sets currentIdx).
@@ -1445,7 +1477,7 @@ function renderLeaderboard() {
     const drawerActive = drawerDeviceId;
     container.innerHTML = positions.map((item, index) => {
         const pos = index + 1;
-        const color = BOAT_COLORS[item.deviceId] || '#888888';
+        const color = colorFor(item.deviceId);
         const posClass = pos <= 3 ? `p${pos}` : '';
         const activeClass = item.deviceId === drawerActive ? ' active' : '';
 
@@ -1653,7 +1685,7 @@ const playCursorPlugin = {
 };
 if (typeof Chart !== 'undefined') Chart.register(playCursorPlugin);
 
-const COMPARISON_CHART_OPTIONS = (yLabel, ySuggestedMin, ySuggestedMax) => ({
+const COMPARISON_CHART_OPTIONS = (yLabel, ySuggestedMin, ySuggestedMax, yTickFormat) => ({
     responsive: true,
     maintainAspectRatio: false,
     animation: false,
@@ -1676,12 +1708,23 @@ const COMPARISON_CHART_OPTIONS = (yLabel, ySuggestedMin, ySuggestedMax) => ({
         y: {
             title: { display: true, text: yLabel, color: '#888', font: { size: 10 } },
             grid: { color: 'rgba(255,255,255,0.08)' },
-            ticks: { color: '#888' },
+            ticks: yTickFormat
+                ? { color: '#888', callback: yTickFormat }
+                : { color: '#888' },
             suggestedMin: ySuggestedMin,
             suggestedMax: ySuggestedMax,
         },
     },
 });
+
+// Heel sign convention on the E1 fleet: positive = starboard down,
+// negative = port down. Render as "Sd 12°" / "Pt 8°" instead of ± so the
+// chart matches the boat-marker labels and racers don't have to remember
+// which sign is which side.
+const heelTickFormatter = (v) => {
+    if (v === 0) return '0°';
+    return v > 0 ? `Sd ${v}°` : `Pt ${-v}°`;
+};
 
 function formatChartTime(seconds) {
     const m = Math.floor(seconds / 60);
@@ -1701,7 +1744,7 @@ function initSpeedChart() {
     heelChart = new Chart(heelCtx, {
         type: 'line',
         data: { datasets: [] },
-        options: COMPARISON_CHART_OPTIONS('Heel (°)', -30, 30),
+        options: COMPARISON_CHART_OPTIONS('Heel', -30, 30, heelTickFormatter),
     });
 
     // Wind chart uses NOAA TWD instead of per-boat AWS. Single curve.
@@ -1741,9 +1784,15 @@ function updateSpeedChart() {
     const togglesContainer = document.getElementById('speed-chart-toggles');
     togglesContainer.innerHTML = '';
 
-    for (const [deviceId, boatData] of Object.entries(raceData.boats)) {
+    // Iterate device ids in lexical order so the chart toggles render in
+    // a stable position across page loads — the user can build muscle
+    // memory for "purple = E5" regardless of API response order, and the
+    // chart-toggle row matches the per-marker label colors on the map.
+    const orderedEntries = Object.entries(raceData.boats)
+        .sort(([a], [b]) => a.localeCompare(b));
+    for (const [deviceId, boatData] of orderedEntries) {
         if (boatData.error || !boatData.sensors?.gps?.length) continue;
-        const color = BOAT_COLORS[deviceId] || '#888888';
+        const color = colorFor(deviceId);
         const baseDataset = (data) => ({
             label: deviceId,
             data,
@@ -1799,13 +1848,17 @@ function updateSpeedChart() {
         windSets.push({ ...baseDataset([]), hidden: true });
 
         // One shared toggle controls all three charts for this boat.
+        // Now displays the team initials inside the colored chip so a
+        // user can map line color → boat without consulting the
+        // leaderboard. Hover tooltip still shows the full team / boat name.
         const toggle = document.createElement('button');
         toggle.className = 'chart-toggle';
         toggle.style.borderColor = color;
         toggle.style.background = color;
-        // Hover label = team / boat name instead of device id.
         const team = boatData.boat?.team_name;
         const boatName = boatData.boat?.boat_name;
+        const initials = teamInitials(team || boatName || deviceId);
+        toggle.textContent = initials;
         toggle.title = team && boatName
             ? `${team} — ${boatName}`
             : (team || boatName || deviceId);
@@ -2044,7 +2097,11 @@ function updateBoatDrawer() {
             <div class="drawer-grid">
                 <div class="drawer-stat"><div class="drawer-label">SOG</div><div class="drawer-value drawer-strong">${fmt(sog, 1, ' kn')}</div></div>
                 <div class="drawer-stat"><div class="drawer-label">COG</div><div class="drawer-value">${fmt(cog, 0, '°')} <span class="drawer-sub">${bearingToCardinal(cog)}</span></div></div>
-                <div class="drawer-stat"><div class="drawer-label">Heel</div><div class="drawer-value">${fmt(imu?.heel, 0, '°')}</div></div>
+                <div class="drawer-stat"><div class="drawer-label">Heel</div><div class="drawer-value">${
+                    imu?.heel != null && Number.isFinite(imu.heel)
+                        ? `${imu.heel >= 0 ? 'Sd' : 'Pt'} ${Math.round(Math.abs(imu.heel))}°`
+                        : '—'
+                }</div></div>
                 <div class="drawer-stat"><div class="drawer-label">Pitch</div><div class="drawer-value">${fmt(imu?.pitch, 0, '°')}</div></div>
             </div>
         </div>

@@ -959,17 +959,29 @@ body.course-editing .boat-legend {
 }
 
 .chart-toggle {
-    width: 24px;
-    height: 24px;
+    /* Color chip + team initials chip — keeps the chart legend self-explanatory
+       without needing a separate boat-name legend. */
+    min-width: 32px;
+    height: 22px;
+    padding: 0 6px;
     border-radius: 4px;
-    border: 2px solid;
+    border: 1px solid rgba(255, 255, 255, 0.25);
     cursor: pointer;
     opacity: 1;
     transition: opacity 0.2s;
+    color: #0f172a;
+    font-family: monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.3);
 }
-
 .chart-toggle.disabled {
-    opacity: 0.3;
+    opacity: 0.25;
+    text-decoration: line-through;
 }
 
 .chart-container {
@@ -1648,6 +1660,29 @@ body.course-editing .boat-legend {
     padding: 0 0.5rem;
 }
 .charts-overlay-close:hover { color: #fff; }
+
+/* Backdrop transparency control. Lives between the title and the close
+   button so it's reachable but never grabs focus on first open. */
+.charts-overlay-opacity {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+    margin-right: 1rem;
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+    font-family: monospace;
+}
+.charts-overlay-opacity input[type="range"] {
+    width: 130px;
+    accent-color: #22d3ee;
+}
+.charts-overlay-opacity-val {
+    min-width: 34px;
+    text-align: right;
+    color: #cbd5e1;
+}
 
 /* Charts inside the overlay reuse the existing stacked layout. */
 .charts-overlay-panel .chart-section {
