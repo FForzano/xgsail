@@ -100,7 +100,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.05.04"
+#define FW_VERSION    "2026.05.05.05"
 
 // Telnet listener is OFF by default. The 2026.05.03.04 fleet test confirmed
 // (via diag heartbeat) that handleTelnet() blocks Core 1 inside LWIP when
@@ -1115,10 +1115,11 @@ void setup() {
   tft.setTextSize(1);
   tft.drawString("Sailframes.com", SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 80, 4);
 
-  // Firmware version at bottom - larger
+  // Firmware version at bottom - large enough to read across the cabin
   tft.setTextColor(COLOR_LABEL, COLOR_BG);
+  tft.setTextSize(2);
+  tft.drawString(FW_VERSION, SCREEN_WIDTH/2, SCREEN_HEIGHT - 40, 4);
   tft.setTextSize(1);
-  tft.drawString(FW_VERSION, SCREEN_WIDTH/2, SCREEN_HEIGHT - 25, 4);
 
   delay(2500);  // Show splash screen
 
@@ -2423,6 +2424,20 @@ static int prevDispSats = -1;
 static int prevRecState = -1;
 // d2LayoutDrawn declared globally near other display flags
 
+// Compact firmware tag for the status bar — last two dotted segments
+// of FW_VERSION (e.g. "05.04" from "2026.05.05.04"). Lazy-cached.
+static const char* fwShortTag() {
+  static char buf[8] = {0};
+  if (!buf[0]) {
+    const char* d1 = nullptr; const char* d2 = nullptr;
+    for (const char* p = FW_VERSION; *p; p++) {
+      if (*p == '.') { d1 = d2; d2 = p; }
+    }
+    snprintf(buf, sizeof(buf), "%s", d1 ? d1 + 1 : FW_VERSION);
+  }
+  return buf;
+}
+
 void updateDisplayD2() {
   if (!oledOK) return;
 
@@ -2617,16 +2632,16 @@ void updateDisplayD2() {
     //   Left:  "BAT N% W"   (W appears immediately after BAT% when wind connected)
     //   Right: WiFi indicator + upload counts (no W here — was blocking the counts)
     tft.setTextDatum(TL_DATUM);
-    char left[24];
+    char left[32];
 #if ENABLE_WIND
     bool windInd = (config.wind_enabled && wind.connected);
 #else
     bool windInd = false;
 #endif
     if (windInd) {
-      snprintf(left, sizeof(left), "BAT %d%% W", battery.percent);
+      snprintf(left, sizeof(left), "BAT %d%% W  %s", battery.percent, fwShortTag());
     } else {
-      snprintf(left, sizeof(left), "BAT %d%%", battery.percent);
+      snprintf(left, sizeof(left), "BAT %d%%  %s", battery.percent, fwShortTag());
     }
     tft.drawString(left, 5, 456, 2);
 
