@@ -128,7 +128,20 @@
 .sf-chat-foot {
   font-size: 11px;
   color: #8696a3;
-  text-align: center;
-  padding: 6px 8px;
+  padding: 6px 10px;
   border-top: 1px solid #f0f3f6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+.sf-chat-foot > span { flex: 1; }
+.sf-chat-close-btn {
+  background: #eef2f5;
+  color: #1f2d3d;
+  border: 1px solid #c9d2da;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.sf-chat-close-btn:hover { background: #dee5eb; }

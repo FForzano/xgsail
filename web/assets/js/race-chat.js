@@ -51,8 +51,10 @@
                  placeholder="Ask anything about this race…" autocomplete="off">
           <button type="submit" class="sf-chat-send">Send</button>
         </form>
-        <div class="sf-chat-foot">Answers come from race data only.
-          Powered by Claude. Be patient with long questions.</div>
+        <div class="sf-chat-foot">
+          <span>Answers come from race data only. Powered by Claude.</span>
+          <button type="button" class="sf-chat-close-btn">Close</button>
+        </div>
       </div>`;
     document.body.appendChild(root);
 
@@ -61,7 +63,9 @@
     inputEl = root.querySelector('.sf-chat-input');
     boatSelectEl = root.querySelector('.sf-chat-boat');
 
-    root.querySelector('.sf-chat-close').onclick = () => { panelEl.hidden = true; };
+    const closeFn = () => { panelEl.hidden = true; };
+    root.querySelector('.sf-chat-close').onclick = closeFn;
+    root.querySelector('.sf-chat-close-btn').onclick = closeFn;
     enableDrag(panelEl, root.querySelector('.sf-chat-header'));
     root.querySelector('.sf-chat-input-row').onsubmit = (e) => {
       e.preventDefault();
