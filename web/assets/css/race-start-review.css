@@ -117,6 +117,15 @@
   border: 1px solid #c9d2da;
 }
 .sf-sr-controls .sf-sr-replay:hover { background: #dee5eb; }
+.sf-sr-speed {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid #c9d2da;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2d3d;
+  cursor: pointer;
+}
 .sf-sr-scrubber { flex: 1; }
 .sf-sr-time {
   font-variant-numeric: tabular-nums;

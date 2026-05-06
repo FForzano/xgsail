@@ -1,25 +1,22 @@
 // Start Review — modal overlay that replays the 3-minute pre-start
 // sequence with official RRS Appendix S horn signals.
 //
-// - Own Leaflet map, zoomed to the start line.
-// - Own playback clock from t = -180s to t = +60s (gun at t = 0).
+// - Same Light Blue Carto basemap as the main race map (uses the
+//   tile-light-blue CSS filter from race.css).
+// - Same boat divIcon arrow rotated by COG, same 30-second trail
+//   polyline, colored by team.
+// - Own playback clock from t = -180s to t = +60s with 1×/5×/10×
+//   speed selector (default 5×).
 // - Web Audio horn synthesis (no audio assets to host).
 // - Skips the optional 3:15 alert per request.
-// - AudioContext is created on user gesture (open click), so no autoplay
-//   policy violations and no surprise sound until the user hits play.
-//
-// Public API:
-//   SailFramesStartReview.open({ currentRace, raceData, boatLayers,
-//                                BOAT_COLORS, apiBase })
 
 (function () {
   'use strict';
 
   const NS = (window.SailFramesStartReview = window.SailFramesStartReview || {});
 
-  // Pre-start signal schedule. RRS Appendix S 3-minute, optional 3:15
-  // alert intentionally omitted. Pattern letters: L = long (~1.5s),
-  // S = short (~0.4s), space = small inter-group gap.
+  // RRS Appendix S 3-minute sequence. Optional 3:15 alert intentionally
+  // omitted. L = long horn (~1.5s), S = short (~0.4s), space = group gap.
   const SIGNALS = [
     { t: -180, pattern: 'L L L', label: '3:00 — three long' },
     { t: -120, pattern: 'L L',   label: '2:00 — two long' },
@@ -38,16 +35,18 @@
 
   const T_START = -180;
   const T_END   =  60;
+  const TRAIL_MS = 30_000;  // 30-second trail, matches user request
 
-  // Internal state — instance-of-one because there's only one panel.
-  let rootEl, mapEl, countdownEl, scrubberEl, playBtn, muteCb, signalLabelEl;
-  let map, boatMarkers = {};
-  let ctx = null;             // dashboard ctx passed to open()
-  let preStartData = null;    // padded GPS data fetched on open
+  // Internal state — single instance.
+  let rootEl, mapEl, countdownEl, scrubberEl, playBtn, muteCb, speedSel, signalLabelEl;
+  let map, startLineLayers = [];
+  let boats = {};            // deviceId -> { marker, trail, gps[], color, label }
+  let ctx = null;
   let audio = null;
   let muted = false;
+  let speed = 5;             // playback rate (1, 5, or 10)
 
-  let t = T_START;            // playback time in seconds (gun = 0)
+  let t = T_START;
   let running = false;
   let lastFrameMs = 0;
   let firedSignals = new Set();
@@ -74,12 +73,15 @@
         <footer class="sf-sr-controls">
           <button class="sf-sr-play">▶ Play</button>
           <button class="sf-sr-replay" title="Restart from −3:00">⟲</button>
+          <select class="sf-sr-speed" title="Playback speed">
+            <option value="1">1×</option>
+            <option value="5" selected>5×</option>
+            <option value="10">10×</option>
+          </select>
           <input type="range" class="sf-sr-scrubber"
                  min="${T_START}" max="${T_END}" step="1" value="${T_START}">
           <span class="sf-sr-time">−3:00</span>
-          <label class="sf-sr-mute">
-            <input type="checkbox"> Mute horns
-          </label>
+          <label class="sf-sr-mute"><input type="checkbox"> Mute horns</label>
         </footer>
       </div>`;
     document.body.appendChild(rootEl);
@@ -90,14 +92,15 @@
     scrubberEl    = rootEl.querySelector('.sf-sr-scrubber');
     playBtn       = rootEl.querySelector('.sf-sr-play');
     muteCb        = rootEl.querySelector('.sf-sr-mute input');
+    speedSel      = rootEl.querySelector('.sf-sr-speed');
 
     rootEl.querySelector('.sf-sr-close').onclick  = NS.close;
     rootEl.querySelector('.sf-sr-replay').onclick = () => seek(T_START);
     playBtn.onclick = togglePlay;
     scrubberEl.addEventListener('input', () => seek(parseInt(scrubberEl.value, 10) || 0));
     muteCb.addEventListener('change', () => { muted = muteCb.checked; });
+    speedSel.addEventListener('change', () => { speed = parseFloat(speedSel.value) || 1; });
 
-    // Esc to close
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !rootEl.hidden) NS.close();
     });
@@ -134,116 +137,177 @@
   }
 
   function playPattern(pattern) {
-    let offset = 0;
+    let off = 0;
     for (const ch of pattern) {
-      if (ch === 'L')      { horn(offset, 1.5); offset += 1.7; }
-      else if (ch === 'S') { horn(offset, 0.4); offset += 0.6; }
-      else if (ch === ' ') { offset += 0.3; }
+      if (ch === 'L')      { horn(off, 1.5); off += 1.7; }
+      else if (ch === 'S') { horn(off, 0.4); off += 0.6; }
+      else if (ch === ' ') { off += 0.3; }
     }
   }
 
-  // ---------- Map / boats ----------
+  // ---------- Map ----------
 
   function ensureMap() {
     if (map) return;
-    map = L.map(mapEl, {
-      attributionControl: false,
-      zoomControl: true,
-    });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 20,
+    map = L.map(mapEl, { attributionControl: false, zoomControl: true });
+    // Same Light Blue tiles as the main race map. The .tile-light-blue
+    // CSS class (in race.css) inverts + hue-shifts the Carto dark_all
+    // raster so it reads as a soft sky-blue water canvas.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      className: 'tile-light-blue',
     }).addTo(map);
   }
 
-  function frameStartLine(race) {
+  function clearMap() {
+    for (const l of startLineLayers) l.remove();
+    startLineLayers = [];
+    for (const b of Object.values(boats)) {
+      if (b.marker) b.marker.remove();
+      if (b.trail)  b.trail.remove();
+    }
+    boats = {};
+  }
+
+  function drawStartLine(race) {
     const sl = race?.start_line;
-    if (sl && sl.pin_lat != null && sl.boat_lat != null) {
-      const bounds = L.latLngBounds(
-        [sl.pin_lat, sl.pin_lon],
-        [sl.boat_lat, sl.boat_lon]
-      );
-      // Generous padding so boats positioning around the line are visible.
-      map.fitBounds(bounds.pad(2.5), { animate: false });
-      // Draw the line itself in cyan, matching the dashboard.
-      L.polyline(
-        [[sl.pin_lat, sl.pin_lon], [sl.boat_lat, sl.boat_lon]],
-        { color: '#22d3ee', weight: 3, opacity: 0.9 }
-      ).addTo(map);
-      L.circleMarker([sl.pin_lat,  sl.pin_lon],  { radius: 6, color: '#22d3ee', fillOpacity: 1 }).addTo(map).bindTooltip('Pin');
-      L.circleMarker([sl.boat_lat, sl.boat_lon], { radius: 6, color: '#22d3ee', fillOpacity: 1 }).addTo(map).bindTooltip('Committee');
-    } else {
-      // Fallback: fit course bounds.
+    if (!sl || sl.pin_lat == null || sl.boat_lat == null) {
+      // Fallback: fit course marks bounds, no special start-line drawing.
       const marks = (race?.course || []).filter((m) => m.lat != null);
       if (marks.length) {
-        const b = L.latLngBounds(marks.map((m) => [m.lat, m.lon]));
-        map.fitBounds(b.pad(0.5), { animate: false });
+        map.fitBounds(L.latLngBounds(marks.map((m) => [m.lat, m.lon])).pad(0.5),
+                      { animate: false, maxZoom: 17 });
       } else {
         map.setView([42.34, -70.95], 13);
       }
+      setTimeout(() => map.invalidateSize(), 50);
+      return;
     }
+
+    const pin  = [sl.pin_lat,  sl.pin_lon];
+    const cmte = [sl.boat_lat, sl.boat_lon];
+    const line = L.polyline([pin, cmte], { color: '#22d3ee', weight: 3, opacity: 0.95 }).addTo(map);
+    const pinMarker  = L.circleMarker(pin,  { radius: 6, color: '#22d3ee', fillColor: '#22d3ee', fillOpacity: 1, weight: 2 })
+                        .bindTooltip('Pin', { direction: 'right', offset: [10, 0] }).addTo(map);
+    const cmteMarker = L.circleMarker(cmte, { radius: 6, color: '#22d3ee', fillColor: '#22d3ee', fillOpacity: 1, weight: 2 })
+                        .bindTooltip('Committee', { direction: 'right', offset: [10, 0] }).addTo(map);
+    startLineLayers.push(line, pinMarker, cmteMarker);
+
+    // Tight frame on the line itself with modest padding so we can see
+    // boats positioning around it. Cap zoom so we don't punch in past
+    // tile resolution.
+    map.fitBounds(L.latLngBounds(pin, cmte), {
+      animate: false,
+      padding: [60, 60],
+      maxZoom: 17,
+    });
     setTimeout(() => map.invalidateSize(), 50);
   }
 
-  function rebuildBoatMarkers() {
-    for (const m of Object.values(boatMarkers)) m.remove();
-    boatMarkers = {};
-    if (!preStartData?.boats) return;
-    for (const [deviceId, info] of Object.entries(preStartData.boats)) {
+  // ---------- Boats ----------
+
+  function buildBoatIcon(color, rotationDeg, label) {
+    // Mirrors createBoatIcon() in race-app.js — same arrow SVG so the
+    // visual matches the main map exactly. Just no stats chip.
+    const svg = `
+      <svg class="boat-marker-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+           style="transform: rotate(${rotationDeg}deg);">
+        <path d="M12 2 L20 20 L12 16 L4 20 Z"
+              fill="${color}" stroke="white" stroke-width="1.5"/>
+      </svg>`;
+    const lab = label
+      ? `<span class="boat-marker-label"><span class="bml-init" style="color:${color}">${label}</span></span>`
+      : '';
+    return L.divIcon({
+      html: `<div class="boat-marker-wrap">${svg}${lab}</div>`,
+      className: 'boat-marker',
+      iconSize: null,
+      iconAnchor: [12, 12],
+    });
+  }
+
+  function rebuildBoats(data) {
+    if (!data?.boats) return;
+    for (const [deviceId, info] of Object.entries(data.boats)) {
       const meta = info.boat || {};
       const color = (ctx.BOAT_COLORS && ctx.BOAT_COLORS[deviceId]) || '#1f2d3d';
-      const label = meta.team_name || meta.boat_name || deviceId;
-      const marker = L.circleMarker([0, 0], {
-        radius: 7, color, fillColor: color, fillOpacity: 0.9, weight: 2,
-      }).bindTooltip(label, { direction: 'right', offset: [10, 0] });
-      // Pre-parse timestamps once for fast lookup during animation.
+      const teamName = meta.team_name || meta.boat_name || deviceId;
+      const initials = teamName.split(/\s+/).map((w) => w[0] || '').join('').slice(0, 3).toUpperCase();
+
       const gps = (info.sensors?.gps || []).map((p) => ({
         ms: new Date(p.t).getTime(),
         lat: p.lat, lon: p.lon,
-        speed: p.speed_kn, course: p.course,
+        speed: p.speed_kn,
+        course: p.course,
       })).filter((p) => Number.isFinite(p.ms) && p.lat && p.lon);
       gps.sort((a, b) => a.ms - b.ms);
-      boatMarkers[deviceId] = { marker, gps, raceStartMs: 0 };
+
+      const icon = buildBoatIcon(color, 0, initials);
+      const marker = L.marker([0, 0], { icon }).bindTooltip(teamName, { direction: 'right', offset: [12, 0] });
+      const trail = L.polyline([], { color, weight: 3, opacity: 0.85 });
+
+      boats[deviceId] = { marker, trail, gps, color, initials, teamName };
     }
   }
 
-  function positionAt(track, absMs) {
-    const a = track.gps;
-    if (!a.length) return null;
-    if (absMs < a[0].ms) return null;
-    if (absMs > a[a.length - 1].ms) return a[a.length - 1];
-    let lo = 0, hi = a.length - 1;
+  function positionAt(gps, absMs) {
+    if (!gps.length) return null;
+    if (absMs < gps[0].ms) return null;
+    if (absMs > gps[gps.length - 1].ms) return gps[gps.length - 1];
+    let lo = 0, hi = gps.length - 1;
     while (lo < hi - 1) {
       const mid = (lo + hi) >> 1;
-      if (a[mid].ms <= absMs) lo = mid; else hi = mid;
+      if (gps[mid].ms <= absMs) lo = mid; else hi = mid;
     }
-    const f = (absMs - a[lo].ms) / Math.max(1, a[hi].ms - a[lo].ms);
+    const f = (absMs - gps[lo].ms) / Math.max(1, gps[hi].ms - gps[lo].ms);
     return {
-      lat: a[lo].lat + (a[hi].lat - a[lo].lat) * f,
-      lon: a[lo].lon + (a[hi].lon - a[lo].lon) * f,
+      lat: gps[lo].lat + (gps[hi].lat - gps[lo].lat) * f,
+      lon: gps[lo].lon + (gps[hi].lon - gps[lo].lon) * f,
+      course: gps[lo].course,
     };
+  }
+
+  function trailFor(gps, absMs) {
+    const cutoff = absMs - TRAIL_MS;
+    const pts = [];
+    for (let i = 0; i < gps.length; i++) {
+      if (gps[i].ms < cutoff) continue;
+      if (gps[i].ms > absMs) break;
+      pts.push([gps[i].lat, gps[i].lon]);
+    }
+    return pts;
   }
 
   function renderBoats() {
     const startMs = ctx.currentRace?.start_time ? new Date(ctx.currentRace.start_time).getTime() : null;
     if (!startMs) return;
     const absMs = startMs + t * 1000;
-    for (const [id, track] of Object.entries(boatMarkers)) {
-      const p = positionAt(track, absMs);
+    for (const b of Object.values(boats)) {
+      const p = positionAt(b.gps, absMs);
       if (!p) {
-        track.marker.remove();
-      } else {
-        track.marker.setLatLng([p.lat, p.lon]);
-        if (!track.marker._map) track.marker.addTo(map);
+        b.marker.remove();
+        b.trail.remove();
+        continue;
       }
+      // Update arrow rotation from current course (heading proxy ≥ 2 kt).
+      b.marker.setLatLng([p.lat, p.lon]);
+      b.marker.setIcon(buildBoatIcon(b.color, p.course || 0, b.initials));
+      if (!b.marker._map) b.marker.addTo(map);
+
+      // Trail polyline, last 30 s ending at the cursor.
+      const tr = trailFor(b.gps, absMs);
+      b.trail.setLatLngs(tr);
+      if (!b.trail._map && tr.length >= 2) b.trail.addTo(map);
+      else if (b.trail._map && tr.length < 2) b.trail.remove();
     }
   }
 
-  // ---------- Time + signals ----------
+  // ---------- Time ----------
 
   function fmtCountdown(secs) {
     const n = Math.round(secs);
-    if (n <= 0) {
-      if (n === 0) return 'GUN';
+    if (n === 0) return 'GUN';
+    if (n < 0) {
       const a = -n;
       return `−${Math.floor(a / 60)}:${String(a % 60).padStart(2, '0')}`;
     }
@@ -258,14 +322,16 @@
     rootEl.querySelector('.sf-sr-time').textContent = fmtCountdown(t);
   }
 
+  // Boundary-inclusive: a signal whose t is *at or before* currT and
+  // hasn't fired yet triggers when currT >= s.t. firedSignals dedupes.
+  // This fixes the −3:00 → −1:30 silence: those signals sit *at* the
+  // playback start and the previous strict-greater test never fired.
   function maybeFireSignals(prevT, currT) {
-    // Fire any signal whose t crossed during this tick. Direction-aware:
-    // only fire when moving forward (so scrub-back doesn't double-fire).
     if (currT < prevT) return;
     for (let i = 0; i < SIGNALS.length; i++) {
       const s = SIGNALS[i];
       if (firedSignals.has(i)) continue;
-      if (s.t > prevT && s.t <= currT) {
+      if (s.t >= prevT && s.t <= currT) {
         firedSignals.add(i);
         signalLabelEl.textContent = s.label;
         playPattern(s.pattern);
@@ -273,7 +339,7 @@
     }
   }
 
-  // ---------- Playback loop ----------
+  // ---------- Loop ----------
 
   function loop(now) {
     rafHandle = null;
@@ -281,10 +347,11 @@
     const dt = lastFrameMs ? (now - lastFrameMs) / 1000 : 0;
     lastFrameMs = now;
     const prev = t;
-    t += dt;
+    t += dt * speed;
     if (t >= T_END) {
       t = T_END;
       stop();
+      maybeFireSignals(prev, t);
       updateCountdown();
       renderBoats();
       return;
@@ -295,12 +362,18 @@
     rafHandle = requestAnimationFrame(loop);
   }
 
-  function start() {
+  async function start() {
     if (running) return;
+    // If we're parked exactly on a signal (the −3:00 case), fire it
+    // immediately so the first horn isn't lost to the boundary.
+    // maybeFireSignals(t, t) will catch any signal with s.t === t.
+    if (audio?.state === 'suspended') {
+      try { await audio.resume(); } catch {}
+    }
+    maybeFireSignals(t - 0.001, t);
     running = true;
     lastFrameMs = 0;
     playBtn.textContent = '⏸ Pause';
-    if (audio?.state === 'suspended') audio.resume();
     rafHandle = requestAnimationFrame(loop);
   }
   function stop() {
@@ -331,17 +404,16 @@
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return await r.json();
     } catch (e) {
-      console.warn('[StartReview] padded data fetch failed, using race window only:', e);
-      // Fallback: rebuild the same shape from boatLayers.
-      const boats = {};
+      console.warn('[StartReview] padded fetch failed, using race-window data:', e);
+      const out = { boats: {} };
       for (const id of Object.keys(ctx.boatLayers || {})) {
         const layer = ctx.boatLayers[id];
-        boats[id] = {
+        out.boats[id] = {
           boat: ctx.raceData?.boats?.[id]?.boat || {},
           sensors: { gps: layer?.data || [] },
         };
       }
-      return { boats };
+      return out;
     }
   }
 
@@ -356,19 +428,20 @@
     rootEl.querySelector('.sf-sr-race-name').textContent = ` — ${r.name || ''}`;
     rootEl.hidden = false;
 
-    ensureAudio();        // user gesture: the click that triggered open()
+    ensureAudio();
     ensureMap();
-    frameStartLine(r);
+    clearMap();
+    drawStartLine(r);
 
-    // Reset playback
     t = T_START;
+    speed = parseFloat(speedSel.value) || 5;
     firedSignals.clear();
     signalLabelEl.textContent = '';
     updateCountdown();
     stop();
 
-    preStartData = await fetchPaddedRaceData(r.race_id);
-    rebuildBoatMarkers();
+    const data = await fetchPaddedRaceData(r.race_id);
+    rebuildBoats(data);
     renderBoats();
   };
 
