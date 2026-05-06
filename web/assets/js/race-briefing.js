@@ -81,7 +81,101 @@
     };
   }
 
-  function summarizeBoat(deviceId, boatMeta, layer, legRows, maneuvers, finishOrder, startMs) {
+  // Pre-compute fleet rankings from roundingTimes. Two outputs:
+  //
+  //   final[]:    1st-to-last in finish order. Boats that finished a
+  //               mark count are ranked by finish time. Boats with
+  //               fewer marks rounded come after, sorted by marks-
+  //               completed descending. Each entry has explicit
+  //               position and did_not_finish flags.
+  //
+  //   by_mark[]:  rounding order at each mark in the course (mark 0
+  //               = first mark of the race, mark N-1 = finish).
+  //               Each is just an ordered list of names.
+  //
+  // The system prompt declares this structure authoritative — the
+  // model is forbidden to reinvent the order from any other source.
+  function computeRankings(boatsMap, layers, courseLen) {
+    const ids = Object.keys(boatsMap);
+    const nameOf = (id) => {
+      const m = boatsMap[id]?.boat || {};
+      return m.team_name || m.boat_name || id;
+    };
+
+    const totalMarks = Math.max(courseLen, 1);
+    const lastMark = totalMarks - 1;
+
+    // Collect per-boat: marks completed and finish time (= time at lastMark).
+    const stats = ids.map((id) => {
+      const rt = layers[id]?.roundingTimes || [];
+      let marksCompleted = 0;
+      for (let i = 0; i < totalMarks; i++) {
+        if (rt[i] != null && Number.isFinite(rt[i])) marksCompleted++;
+        else break;
+      }
+      const finishMs = (marksCompleted >= totalMarks) ? rt[lastMark] : null;
+      return { id, name: nameOf(id), marksCompleted, finishMs };
+    });
+
+    // Final ranking: finishers first by time, then non-finishers by
+    // marks-completed descending, then by name for stability.
+    stats.sort((a, b) => {
+      const aFin = a.finishMs != null;
+      const bFin = b.finishMs != null;
+      if (aFin && bFin) return a.finishMs - b.finishMs;
+      if (aFin) return -1;
+      if (bFin) return 1;
+      if (a.marksCompleted !== b.marksCompleted) return b.marksCompleted - a.marksCompleted;
+      return a.name.localeCompare(b.name);
+    });
+
+    return { stats, totalMarks };
+  }
+
+  function buildFinalRanking(stats, startMs) {
+    return stats.map((s, idx) => {
+      const entry = {
+        position: idx + 1,
+        name: s.name,
+      };
+      if (s.finishMs != null) {
+        entry.finish = fmtTime(s.finishMs, startMs);
+        entry.elapsed_sec = startMs != null
+          ? Math.max(0, Math.round((s.finishMs - startMs) / 1000))
+          : null;
+      } else {
+        entry.did_not_finish = true;
+        entry.marks_completed = s.marksCompleted;
+      }
+      return entry;
+    });
+  }
+
+  function buildByMarkRanking(boatsMap, layers, courseSeq) {
+    const out = [];
+    if (!courseSeq || !courseSeq.length) return out;
+    const ids = Object.keys(boatsMap);
+    const nameOf = (id) => {
+      const m = boatsMap[id]?.boat || {};
+      return m.team_name || m.boat_name || id;
+    };
+
+    for (let mi = 0; mi < courseSeq.length; mi++) {
+      const arrivals = ids
+        .map((id) => ({ id, name: nameOf(id), t: (layers[id]?.roundingTimes || [])[mi] }))
+        .filter((x) => x.t != null && Number.isFinite(x.t))
+        .sort((a, b) => a.t - b.t);
+      if (!arrivals.length) continue;
+      out.push({
+        mark_index: mi,
+        mark_name: courseSeq[mi]?.name || `mark ${mi + 1}`,
+        order: arrivals.map((x) => x.name),
+      });
+    }
+    return out;
+  }
+
+  function summarizeBoat(deviceId, boatMeta, layer, legRows, maneuvers, finishPosition, startMs) {
     const myLegs = (legRows || []).filter((r) => r.deviceId === deviceId);
     const myManeuvers = (maneuvers || []).filter((m) => m.deviceId === deviceId);
     const tacks = myManeuvers.filter((m) => m.type === 'tack');
@@ -91,7 +185,6 @@
       ? round(arr.reduce((a, b) => a + (b.loss || 0), 0) / arr.length, 2)
       : null;
 
-    const finishIdx = finishOrder ? finishOrder.indexOf(deviceId) : -1;
     const finishMs = layer?.roundingTimes && layer.roundingTimes.length
       ? layer.roundingTimes[layer.roundingTimes.length - 1] : null;
 
@@ -106,7 +199,7 @@
       name: team,                // primary human label — what the LLM should use
       boat_name: boatName,       // hull/skipper name if distinct from team
       boat_id: deviceId,         // device serial — internal only, never surface
-      finish_position: finishIdx >= 0 ? finishIdx + 1 : null,
+      finish_position: finishPosition || null,
       finish: finishMs != null ? fmtTime(finishMs, startMs) : null,
       total_time_sec: totalTimeSec ? Math.round(totalTimeSec) : null,
       total_distance_nm: totalDistM ? round(totalDistM / 1852, 2) : null,
@@ -142,8 +235,24 @@
 
     const boatsMap = ctx.raceDataBoats || {};
     const layers = ctx.boatLayers || {};
+    const courseSeq = c.course || [];
     const boatIds = Object.keys(boatsMap);
     const wind = summarizeWind(ctx.weatherWindSamples || [], startMs);
+
+    const { stats } = computeRankings(boatsMap, layers, courseSeq.length);
+    const finalRanking = buildFinalRanking(stats, startMs);
+    const byMarkRanking = buildByMarkRanking(boatsMap, layers, courseSeq);
+
+    // deviceId -> finish_position lookup so per-boat objects can carry it.
+    const posByName = new Map(finalRanking.map((r) => [r.name, r.position]));
+    const finishPosByDeviceId = {};
+    for (const id of boatIds) {
+      const m = boatsMap[id]?.boat || {};
+      const name = m.team_name || m.boat_name || id;
+      finishPosByDeviceId[id] = posByName.get(name) || null;
+    }
+
+    const allFinished = stats.every((s) => s.finishMs != null);
 
     return {
       race: {
@@ -153,7 +262,7 @@
         venue: c.venue || 'Boston Harbor',
         timezone: VENUE_TZ,
         course_type: c.course_type || null,
-        course: (c.course || []).map((m) => ({
+        course: courseSeq.map((m) => ({
           name: m.name, type: m.type,
           lat: round(m.lat, 5), lon: round(m.lon, 5),
         })),
@@ -162,12 +271,19 @@
         wind_source: ctx.weatherWindSource || null,
         wind: wind,
       },
+      // AUTHORITATIVE — see system prompt rule on rankings.
+      ranking: {
+        status: allFinished ? 'final' : 'in_progress',
+        final: finalRanking,
+        by_mark: byMarkRanking,
+      },
       fleet: boatIds.map((id) => {
         const m = boatsMap[id]?.boat || {};
         return m.team_name || m.boat_name || id;
       }),
       boats: boatIds.map((id) => summarizeBoat(
-        id, boatsMap[id], layers[id], ctx.legRows, ctx.maneuvers, ctx.finishOrder, startMs
+        id, boatsMap[id], layers[id], ctx.legRows, ctx.maneuvers,
+        finishPosByDeviceId[id], startMs
       )),
       generated_at: new Date().toISOString(),
     };
