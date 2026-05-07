@@ -12,7 +12,13 @@
   'use strict';
 
   const NS = (window.SailFramesChat = window.SailFramesChat || {});
-  // Default endpoint = the prod HTTP API; override via window.SAILFRAMES_CHAT_URL.
+  // Endpoint behind API Gateway. NOTE: API Gateway has a hard 29 s
+  // integration timeout (CLAUDE.md gotcha #10). Long Sonnet / Opus
+  // turns may hit HTTP 503 {"message":"Service Unavailable"}. Until
+  // the chat Lambda's Function URL is unblocked from the account-
+  // level Lambda Public Access Block (AWS Console action), short
+  // turns work fine; the Full Debrief chip may time out.
+  // Override via window.SAILFRAMES_CHAT_URL.
   const ENDPOINT = window.SAILFRAMES_CHAT_URL ||
     'https://rnngzx7flk.execute-api.us-east-1.amazonaws.com/api/chat';
 
