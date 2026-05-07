@@ -334,17 +334,19 @@ do not write code, draft emails, or answer general questions.
 
 
 def _cors_headers():
-    return {
-        "Access-Control-Allow-Origin": CORS_ORIGIN,
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-    }
+    # No-op: CORS is handled at the Lambda Function URL layer (configured
+    # via aws lambda *-function-url-config). Returning ACAO from the
+    # handler too produced DUPLICATE Access-Control-Allow-Origin headers
+    # in the response, which browsers reject with a generic "Load failed"
+    # fetch error. Kept as an empty dict so the OPTIONS branch and old
+    # API Gateway path don't blow up.
+    return {}
 
 
 def _resp(status, body):
     return {
         "statusCode": status,
-        "headers": {"Content-Type": "application/json", **_cors_headers()},
+        "headers": {"Content-Type": "application/json"},
         "body": json.dumps(body),
     }
 
