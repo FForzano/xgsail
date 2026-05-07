@@ -261,9 +261,13 @@
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
   }
 
-  // Downsample a boat's GPS track to a fixed cadence (default 15 s) and
-  // cap at maxPts so long races don't blow the token budget.
-  function downsampleTrack(gps, startMs, stepSec = 15, maxPts = 120) {
+  // GPS track at 1 s cadence (matching the LG290P's native rate).
+  // 1 Hz × 25-min race × 6 boats ≈ 540 KB JSON ≈ 135 K input tokens —
+  // fits in Haiku 4.5's 200 K window with room for the rules cheat-
+  // sheet, conversation history, and ~4 K output. maxPts cap of 2400
+  // covers a 40-minute race; longer races get truncated and the model
+  // is told to mention it.
+  function downsampleTrack(gps, startMs, stepSec = 1, maxPts = 2400) {
     if (!gps || !gps.length) return [];
     const out = [];
     let nextT = startMs == null ? null : startMs;

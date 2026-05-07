@@ -156,12 +156,12 @@ ENRICHED-CONTEXT FIELDS (added 2026-05-07; use these for tactical analysis)
 The briefing now carries primary-source data, not just summaries. Use
 these to back up every claim with a specific moment + permalink:
 
-- `tracks_per_boat[name]` — downsampled GPS at ~15 s cadence,
+- `tracks_per_boat[name]` — full-resolution GPS at 1 s cadence,
   `[{t_sec, lat, lon, cog, sog}]`. Walk this to identify approach
   angles to marks, leeward/windward positioning vs other boats,
   overstanding / understanding laylines, lulls/pressure at specific
-  positions. Note: cap is ~120 points/boat, so very long races are
-  truncated; mention it if relevant.
+  positions. Cap is 2400 points/boat (covers ~40 min) — for races
+  that long the tail is truncated and you should mention it.
 
 - `imu_per_leg[name]` — per-leg `{avg_heel_deg, max_heel_abs_deg,
   avg_pitch_deg}`. Heel pattern is the single strongest performance
