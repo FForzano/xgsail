@@ -803,11 +803,30 @@ function applyTrailWindow(layer) {
     const n = layer.coords.length;
     if (n === 0) return;
     const endIdx = Math.min(n - 1, layer.currentIdx ?? (n - 1));
+
+    // GPX-backup boats: clamp the trail to race start so the dock
+    // departure / delivery sail doesn't show in the standard panel.
+    // E1-native boats fall through unchanged.
+    let raceStartFloor = -Infinity;
+    if (layer.gpxOnly && currentRace?.start_time) {
+        raceStartFloor = new Date(currentRace.start_time).getTime();
+    }
+
     if (!Number.isFinite(trailWindowMs)) {
-        layer.track.setLatLngs(layer.coords);
+        // "All" trail window — full track, but still floored at race
+        // start for GPX boats.
+        if (raceStartFloor === -Infinity) {
+            layer.track.setLatLngs(layer.coords);
+            return;
+        }
+        let s = 0;
+        while (s < n && layer.times[s] < raceStartFloor) s++;
+        layer.track.setLatLngs(layer.coords.slice(s, endIdx + 1));
         return;
     }
-    const cutoff = layer.times[endIdx] - trailWindowMs;
+
+    const windowFloor = layer.times[endIdx] - trailWindowMs;
+    const cutoff = Math.max(windowFloor, raceStartFloor);
     let startIdx = endIdx;
     while (startIdx > 0 && layer.times[startIdx - 1] >= cutoff) startIdx--;
     layer.track.setLatLngs(layer.coords.slice(startIdx, endIdx + 1));
@@ -1592,6 +1611,14 @@ function addBoatTrack(deviceId, gpsData, boat, imuData = null) {
         initials,
         imu: imuData || [],   // for per-frame heel readout on the marker label
         visible: true,
+        // GPX-backup boats (no E1 device on the day → user uploaded a
+        // post-race .gpx) typically have a long pre-start tail of the
+        // delivery sail / dock departure that adds nothing to the race
+        // story but clutters the standard view. The trail window for
+        // these boats is also clipped to race start time. E1-native
+        // boats are unaffected — auto-recording only kicks on at >2 kt
+        // so they don't carry that tail.
+        gpxOnly: !!boat?.gpx_path,
     };
 }
 
