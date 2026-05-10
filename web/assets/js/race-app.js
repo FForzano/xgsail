@@ -3169,9 +3169,78 @@ function isCleanTack(t) {
 }
 
 function speedToColor(speed, maxSpeed) {
-    // slow = red, fast = blue. Hue 0 → 240 across [0, maxSpeed].
+    // Legacy absolute-speed scale (slow = red, fast = blue). Kept
+    // for any caller that wants a fleet-wide gauge; the tack-analysis
+    // plot now uses boatSpeedColor() instead so each boat keeps its
+    // team identity and the line brightness encodes % of entry speed.
     const f = Math.max(0, Math.min(1, speed / Math.max(0.1, maxSpeed)));
     return `hsl(${(f * 240).toFixed(0)}, 80%, 55%)`;
+}
+
+// ---------- HSL helpers for per-boat speed-modulated colours ----------
+//
+// We want each tack track on the analysis canvas to read as ITS BOAT's
+// colour (the same one the leaderboard / map markers use), with line
+// brightness changing to reflect speed. Hue stays fixed = identity;
+// lightness varies = speed signal. Saturation also nudges down at low
+// speed so very dim segments don't read as "different boat".
+//
+// We encode "% of entry speed" rather than absolute kn:
+//   ratio = currentSpeed / speedBefore
+// so the same plot tells you instantly whether a boat held its speed
+// through the tack or hemorrhaged it — independent of whether they
+// went in at 4 kn or 7 kn. That's the canonical tack-quality metric.
+
+const _hexHslCache = {};
+function hexToHsl(hex) {
+    if (!hex) return { h: 0, s: 0, l: 50 };
+    if (_hexHslCache[hex]) return _hexHslCache[hex];
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+    if (!m) { _hexHslCache[hex] = { h: 0, s: 0, l: 50 }; return _hexHslCache[hex]; }
+    const r = parseInt(m[1], 16) / 255;
+    const g = parseInt(m[2], 16) / 255;
+    const b = parseInt(m[3], 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s; const l = (max + min) / 2;
+    if (max === min) { h = 0; s = 0; }
+    else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            default: h = (r - g) / d + 4;
+        }
+        h *= 60;
+    }
+    const result = { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+    _hexHslCache[hex] = result;
+    return result;
+}
+
+// Render one segment of a boat's track with brightness encoding
+// "% of entry speed". ratio = segSpeed / entrySpeed:
+//   >= 1.0 → at or above entry speed (back on the gear) → bright
+//   == 0.5 → 50% of entry speed (typical mid-tack apex)   → dim
+//   <= 0.2 → near-stalled (botched tack)                  → very dark
+// Saturation also drops at low speed so the dim segments don't get
+// misread as a different boat colour entirely.
+function boatSpeedColor(deviceId, ratio) {
+    const base = hexToHsl(colorFor(deviceId));
+    const r = Math.max(0, Math.min(1.3, ratio));
+    let L, S;
+    if (r >= 1) {
+        // 1.0 → base lightness; up to 1.3 → bright bonus capped at 78%.
+        L = Math.min(78, base.l + (r - 1) * 60);
+        S = base.s;
+    } else {
+        // Below entry: lightness drops linearly from base down to ~18%
+        // at zero; saturation eases off so very dim segments still look
+        // like the same hue family (not muddy grey).
+        L = Math.max(18, base.l - (1 - r) * (base.l - 18));
+        S = Math.max(40, base.s - (1 - r) * (base.s - 40));
+    }
+    return `hsl(${base.h}, ${S.toFixed(0)}%, ${L.toFixed(0)}%)`;
 }
 
 function fmtTimeOfDay(ms) {
@@ -3291,10 +3360,10 @@ function renderTackAnalysisShell(allDevices) {
         <div class="ta-stack">
             <div class="ta-plot-wrap">
                 <div class="ta-legend">
-                    <span>SOG (kn):</span>
-                    <span>0</span>
+                    <span>Each track in its boat colour. Brightness = % of entry speed:</span>
+                    <span class="ta-legend-step ta-legend-dim">0%</span>
                     <span class="ta-legend-bar"></span>
-                    <span id="ta-legend-max">—</span>
+                    <span class="ta-legend-step ta-legend-bright">≥100%</span>
                 </div>
                 <svg class="ta-plot" id="ta-plot" viewBox="0 0 400 700" preserveAspectRatio="xMidYMid meet" aria-label="Tack overlay, wind up"></svg>
             </div>
@@ -3589,7 +3658,6 @@ function drawTackPlot(visible) {
     const sx = (x) => (offsetX + x * scale).toFixed(1);
     const sy = (y) => (offsetY - y * scale).toFixed(1);
     const apexSx = +sx(0), apexSy = +sy(0);
-    const maxSpeed = visible.reduce((m, t) => Math.max(m, t.speedBefore || 0), 1);
     const maxR = Math.max(maxX, maxY, -minX, -minY);
 
     const parts = [];
@@ -3626,14 +3694,23 @@ function drawTackPlot(visible) {
     // Apex marker.
     parts.push(`<circle class="ta-apex-dot" cx="${apexSx}" cy="${apexSy}" r="4"/>`);
 
-    // Each track: split into N short polylines so each segment can have its own color.
+    // Each track: split into N short polylines so each segment can carry
+    // its own colour. The hue is the BOAT's team colour (so multiple
+    // boats overlapping read as separate identities), and lightness
+    // encodes the segment's speed as a percentage of entry speed —
+    // bright = at or above entry speed, dim = lost speed in the tack.
+    // Tactically the right metric: every boat tacks at a different
+    // absolute kn, but losing 50% of your entry speed is universally
+    // a botched tack regardless of the entry value.
     for (const t of visible) {
         const pts = t.points;
         const widthAttr = t.thick ? ' stroke-width="3.5"' : '';
-        // Build per-segment polylines (2-point lines) with color from speed.
+        const entrySpeed = Math.max(0.5, t.speedBefore || 0);
         for (let i = 1; i < pts.length; i++) {
             const a = pts[i - 1], b = pts[i];
-            const color = speedToColor((a.speed + b.speed) / 2, maxSpeed);
+            const segSpeed = (a.speed + b.speed) / 2;
+            const ratio = segSpeed / entrySpeed;
+            const color = boatSpeedColor(t.deviceId, ratio);
             parts.push(`<polyline data-ta-id="${t.id}" class="normal" stroke="${color}"${widthAttr} points="${sx(a.x)},${sy(a.y)} ${sx(b.x)},${sy(b.y)}"/>`);
         }
     }
