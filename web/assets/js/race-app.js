@@ -3225,22 +3225,23 @@ function hexToHsl(hex) {
 // total dynamic range of ~15 L-points on team-avg data because the
 // averaging dampens the peak, so the lines all looked the same
 // brightness. With per-track stretching, every track uses the full
-// dim→bright range regardless of how narrow the underlying variance.
+// range regardless of how narrow the underlying variance.
 //
-// Three visual channels stacked (each adds salience to the same signal):
-//   1. lightness 18 % → 82 %  — wide enough to read across the boat
-//      colour palette without the dim end going muddy.
-//   2. opacity   0.55 → 1.0   — slow segments fade.
-//   3. stroke    +0.0 → +1.8  — fast segments thicker, slow thinner.
-//      Returned separately so the caller can sum with the highlight
-//      width bump.
+// Inverted ramp: FASTEST = DARKER. Tactically this is the right
+// direction — the eye is drawn to the bright end, and the bright
+// end now marks the SLOW segments (the problem moments where speed
+// was lost). All three visual channels move together so the bright,
+// opaque, thick line segments are the ones a coach wants to look at:
+//   1. lightness 82 % → 18 %  (slow=bright, fast=dark)
+//   2. opacity   1.0  → 0.55  (slow=opaque, fast=faded)
+//   3. stroke    +1.8 → +0.0  (slow=thicker, fast=thinner)
 function boatSpeedAttrs(deviceId, n) {
     const base = hexToHsl(colorFor(deviceId));
     const t = Math.max(0, Math.min(1, n));
-    const L = 18 + t * 64;                       // 18..82
-    const S = Math.max(45, base.s - (1 - t) * 25); // ease saturation a bit at low speed
-    const opacity = (0.55 + t * 0.45).toFixed(2); // 0.55..1.0
-    const widthBoost = (t * 1.8).toFixed(2);     // 0..+1.8 px on top of base stroke
+    const L = 82 - t * 64;                              // 82..18 (inverted)
+    const S = Math.max(45, base.s - (1 - t) * 25);      // ease saturation at the slow end (consistent with normal hue family)
+    const opacity = (1.0 - t * 0.45).toFixed(2);        // 1.0..0.55 (inverted)
+    const widthBoost = ((1 - t) * 1.8).toFixed(2);      // 1.8..0 (inverted)
     return {
         stroke: `hsl(${base.h}, ${S.toFixed(0)}%, ${L.toFixed(0)}%)`,
         opacity,

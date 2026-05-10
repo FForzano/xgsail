@@ -1098,23 +1098,22 @@ body.course-editing .boat-legend {
     color: var(--text-secondary);
     padding-left: 0.25rem;
 }
-/* Speed-as-lightness ramp. Boat tracks now keep their team hue (each
-   boat is a different colour); brightness encodes % of entry speed.
-   The legend bar shows a generic dark→bright gradient so the user
-   reads it as "intensity" without committing to one boat's hue. */
+/* Inverted ramp: FASTEST = DARKER. Slow segments (the ones a coach
+   wants to look at) get the bright end of the gradient. Boat tracks
+   keep their team hue; brightness shows speed within that track. */
 .ta-legend-bar {
     flex: 0 0 160px;
     height: 8px;
     border-radius: 2px;
     background: linear-gradient(to right,
-        hsl(0,0%,18%),
-        hsl(0,0%,40%),
+        hsl(0,0%,82%),
         hsl(0,0%,62%),
-        hsl(0,0%,82%));
+        hsl(0,0%,40%),
+        hsl(0,0%,18%));
 }
 .ta-legend-step { font-family: monospace; font-size: 0.68rem; }
-.ta-legend-dim { color: #6b7280; }
-.ta-legend-bright { color: #e2e8f0; }
+.ta-legend-dim { color: #e2e8f0; }     /* slowest = bright */
+.ta-legend-bright { color: #6b7280; }  /* fastest = dark */
 
 .ta-list-wrap {
     border: 1px solid rgba(255,255,255,0.06);
