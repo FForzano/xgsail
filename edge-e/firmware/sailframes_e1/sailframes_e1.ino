@@ -100,7 +100,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.12.01"
+#define FW_VERSION    "2026.05.16.01"
 
 // Telnet listener is OFF by default. The 2026.05.03.04 fleet test confirmed
 // (via diag heartbeat) that handleTelnet() blocks Core 1 inside LWIP when
@@ -360,6 +360,25 @@ unsigned long lastValidGPS = 0;  // Track when we last had a valid fix
 // IMU calibration offsets (stored on SD card)
 float imuHeelOffset = 0.0;
 float imuPitchOffset = 0.0;
+
+// IMU health watchdog. The BNO085 lives on a 4-pin I²C header; if a
+// header pin works loose (vibration), getSensorEvent() returns false
+// every call and `imu.heel` keeps its last value (initial 0.0). The
+// device happily writes 0.0 to the CSV for hours, indistinguishable
+// downstream from "boat sat perfectly flat". E2 hit exactly this on
+// 2026-05-12 — caught only retroactively via S3 forensics.
+//
+// Track consecutive readIMU() calls that returned ZERO events; flip
+// the failed flag after IMU_FAIL_THRESHOLD_S of no data. While
+// failed, logIMU() writes empty cells for heel/pitch/heading/accuracy
+// instead of stale numbers so the dashboard's parseFloat returns NaN
+// and the row is naturally skipped. boot.log gets a one-line marker
+// at the moment of failure transition (and again on recovery), so
+// future similar events are visible without S3 grepping.
+#define IMU_FAIL_THRESHOLD_S 60     // 60 s of no events → failed
+unsigned long g_imuLastEventMs = 0; // millis() of last successful read
+int g_imuSilentReads = 0;           // consecutive readIMU() calls with 0 events
+bool g_imuFailed = false;           // sticky failure flag
 
 // Telnet server for remote console
 WiFiServer telnetServer(23);
@@ -1766,7 +1785,9 @@ void readIMU() {
 
   // Read sensor events - we have 7 reports enabled so need enough reads
   int maxReads = 10;
+  int eventsThisCall = 0;
   while (maxReads-- > 0 && bno08x.getSensorEvent(&sensorValue)) {
+    eventsThisCall++;
     switch (sensorValue.sensorId) {
       case SH2_GAME_ROTATION_VECTOR:
         // Not using quaternion for heel/pitch - accelerometer is more reliable
@@ -1851,6 +1872,39 @@ void readIMU() {
         imu.mag_y = sensorValue.un.magneticField.y;
         imu.mag_z = sensorValue.un.magneticField.z;
         break;
+    }
+  }
+
+  // Health watchdog: at 1 Hz polling we expect at least one sensor
+  // event per call when the BNO is alive. Track consecutive empty
+  // reads and flip into "failed" after IMU_FAIL_THRESHOLD_S of silence.
+  // boot.log gets one marker on each transition (failed / recovered).
+  if (eventsThisCall > 0) {
+    g_imuLastEventMs = millis();
+    g_imuSilentReads = 0;
+    if (g_imuFailed) {
+      g_imuFailed = false;
+      char isoBuf[24] = {0};
+      bool haveIso = formatGpsIso(isoBuf, sizeof(isoBuf));
+      char line[96];
+      snprintf(line, sizeof(line), "imu ok t=%s recovered",
+               haveIso ? isoBuf : "?");
+      appendBootLog(line);
+      Serial.println("[IMU] recovered, events resuming");
+    }
+  } else {
+    g_imuSilentReads++;
+    if (!g_imuFailed && g_imuSilentReads >= IMU_FAIL_THRESHOLD_S) {
+      g_imuFailed = true;
+      char isoBuf[24] = {0};
+      bool haveIso = formatGpsIso(isoBuf, sizeof(isoBuf));
+      char line[128];
+      snprintf(line, sizeof(line),
+               "imu fail t=%s reason=no_events silent_reads=%d",
+               haveIso ? isoBuf : "?", g_imuSilentReads);
+      appendBootLog(line);
+      Serial.printf("[IMU] FAILED — %d s with no sensor events\n",
+                    g_imuSilentReads);
     }
   }
 }
@@ -2304,15 +2358,25 @@ void logIMU() {
   if (!imuFile || !logging) return;
   sdWriting = true;
   unsigned long e = millis() - logStart;
-  imuFile.printf("%lu,%s,%.4f,%.4f,%.4f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%u,%u\n",
-    e, gps.utc_time,
-    imu.accel_x, imu.accel_y, imu.accel_z,           // Raw acceleration (with gravity)
-    imu.gyro_x, imu.gyro_y, imu.gyro_z,              // Angular velocity (deg/s)
-    imu.linaccel_x, imu.linaccel_y, imu.linaccel_z,  // Linear acceleration (no gravity)
-    imu.mag_x, imu.mag_y, imu.mag_z,                 // Magnetic field (uT)
-    imu.heel, imu.pitch, imu.heading,                // Orientation
-    imu.stability, imu.accuracy);                    // Motion state & calibration quality
-  totalBytes += 210;
+  if (g_imuFailed) {
+    // BNO has gone silent — every field would be stale. Write empty
+    // cells for the derived/orientation fields so downstream (dashboard
+    // parseFloat → NaN → row skipped) doesn't treat the stale value as
+    // a real reading. Keep ms + utc_time so the row alignment with GPS
+    // is preserved for forensic inspection.
+    imuFile.printf("%lu,%s,,,,,,,,,,,,,,,,,\n", e, gps.utc_time);
+    totalBytes += 30;
+  } else {
+    imuFile.printf("%lu,%s,%.4f,%.4f,%.4f,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%u,%u\n",
+      e, gps.utc_time,
+      imu.accel_x, imu.accel_y, imu.accel_z,           // Raw acceleration (with gravity)
+      imu.gyro_x, imu.gyro_y, imu.gyro_z,              // Angular velocity (deg/s)
+      imu.linaccel_x, imu.linaccel_y, imu.linaccel_z,  // Linear acceleration (no gravity)
+      imu.mag_x, imu.mag_y, imu.mag_z,                 // Magnetic field (uT)
+      imu.heel, imu.pitch, imu.heading,                // Orientation
+      imu.stability, imu.accuracy);                    // Motion state & calibration quality
+    totalBytes += 210;
+  }
   sdWriting = false;
 }
 
@@ -4042,8 +4106,10 @@ void processCommand(String cmd, bool fromTelnet) {
       gps.valid ? "FIX" : "NO FIX", gps.satellites, gps.hdop);
     tprintf("Position: %.6f, %.6f\n", gps.lat, gps.lon);
     tprintf("Speed: %.1f kt, Course: %.0f\n", gps.speed_kts, gps.course);
-    tprintf("IMU: %s (heel:%.0f pitch:%.0f)\n",
-      imuOK ? "BNO085" : "NONE", imu.heel, imu.pitch);
+    tprintf("IMU: %s (heel:%.0f pitch:%.0f)%s\n",
+      imuOK ? "BNO085" : "NONE", imu.heel, imu.pitch,
+      g_imuFailed ? " ⚠ FAILED (no events)" :
+        (g_imuSilentReads > 10 ? " (silent reads warning)" : ""));
     tprintf("Pres: %s", presOK ? "" : "NONE");
     if (presOK) tprintf("%.1f hPa, %.1f°C", pressure.pressure_hpa, pressure.temperature_c);
     tprintln("");
