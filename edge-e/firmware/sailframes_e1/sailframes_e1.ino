@@ -58,8 +58,10 @@
 #define CONFIG_BT_NIMBLE_MAX_BONDS 1
 #define CONFIG_BT_NIMBLE_SVC_GAP_DEVICE_NAME "SailFrames-E1"
 #include <NimBLEDevice.h>
+#include <esp_now.h>
 #include <string>
 #include "v2_types.h"  // v2.0.0 foundation: HardwarePlatform/UnitRole/RadioMode enums
+#include "mesh.h"      // v2.0.0 Stage 2: ESP-NOW peer-mesh wire types
 
 // ============================================================
 // PIN DEFINITIONS
@@ -98,7 +100,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.09"
+#define FW_VERSION    "2026.05.20.10"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -287,6 +289,42 @@ struct PressureData {
 HardwarePlatform g_hw = HW_E1;
 UnitRole         g_role = ROLE_RACING_BOAT;
 RadioMode        g_radio_mode = MODE_BOOT;
+
+// v2.0.0 Stage 2 — ESP-NOW peer mesh state
+// MVP: always-on after WiFi PHY init, gated off only during HTTP uploads
+// via wifiBusy. Radio-mode integration (init only in MODE_RACING/_RC_ACTIVE
+// per spec) deferred to a later stage once mode transitions actually fire.
+#define MESH_CHANNEL                 1     // ESP-NOW broadcast channel (configurable in spec; hardcoded for MVP)
+#define MESH_BROADCAST_INTERVAL_MS   500   // 2 Hz boat-state broadcast
+#define MESH_PEER_MAX                32    // 25 boats + RC + marks + spares + headroom
+#define MESH_PEER_EXPIRY_MS          30000 // drop peers we haven't heard from in 30 s
+
+struct MeshPeerState {
+    uint32_t sender_id;
+    int32_t  last_lat_e7;
+    int32_t  last_lon_e7;
+    int16_t  last_sog_cm_s;
+    int16_t  last_cog_deg10;
+    int8_t   last_heel_deg;
+    uint8_t  unit_role;
+    uint8_t  fix_quality;
+    uint8_t  sat_count;
+    uint32_t last_seen_ms;
+    uint32_t msg_count;
+    uint16_t last_seq;
+};
+
+MeshPeerState   g_mesh_peers[MESH_PEER_MAX];
+volatile int    g_mesh_peer_count = 0;
+volatile uint16_t g_mesh_seq = 0;
+volatile bool   g_mesh_enabled = false;
+volatile uint32_t g_mesh_rx_count = 0;
+volatile uint32_t g_mesh_tx_count = 0;
+volatile uint32_t g_mesh_tx_fail_count = 0;
+volatile uint32_t g_mesh_rx_dropped_bad_magic = 0;
+unsigned long   g_mesh_last_broadcast = 0;
+uint32_t        g_mesh_local_sender_id = 0;
+static const uint8_t MESH_BROADCAST_ADDR[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
 #define MAX_WIFI_NETWORKS 5
 
@@ -968,6 +1006,158 @@ void radioModeTransition(RadioMode target, const char* reason) {
   appendBootLog(line);
 }
 
+// ============================================================
+// v2.0.0 Stage 2 — ESP-NOW peer mesh
+// ============================================================
+// Broadcast boat-state at 2 Hz on channel 1 with the wire types in
+// mesh.h. Receive callback runs in the WiFi task context (Core 0);
+// keep it short — parse + update peer table + return. Heavy work
+// stays out. Peer table writes happen from the WiFi task, reads
+// happen from Core 1 (telnet/status). Single-word writes are
+// atomic on the ESP32 so the worst case is a torn read of one
+// peer's lat/lon — acceptable for informational use.
+
+// ESP-IDF 5.x changed the recv callback signature from
+//   (const uint8_t* mac, const uint8_t* data, int len)
+// to
+//   (const esp_now_recv_info_t* info, const uint8_t* data, int len)
+// where info->src_addr is the source MAC. We don't use the MAC for
+// peer identification (sender_id in the MeshHeader is the canonical
+// identifier — stable across MAC changes) so the info pointer is
+// just ignored.
+static void meshOnReceive(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
+  (void)info;
+  if (len < (int)sizeof(MeshHeader)) {
+    g_mesh_rx_dropped_bad_magic++;
+    return;
+  }
+  const MeshHeader* h = (const MeshHeader*)data;
+  if (h->magic[0] != MESH_MAGIC_0 || h->magic[1] != MESH_MAGIC_1) {
+    g_mesh_rx_dropped_bad_magic++;
+    return;
+  }
+  if (h->version != MESH_VERSION) return;
+  if (h->sender_id == g_mesh_local_sender_id) return;  // own packet (broadcast loopback)
+
+  g_mesh_rx_count++;
+
+  if (h->msg_type == MSG_BOAT_STATE &&
+      len >= (int)(sizeof(MeshHeader) + sizeof(BoatStatePayload))) {
+    const BoatStatePayload* p = (const BoatStatePayload*)(data + sizeof(MeshHeader));
+
+    // Find or add peer in the in-memory table.
+    int idx = -1;
+    for (int i = 0; i < g_mesh_peer_count; i++) {
+      if (g_mesh_peers[i].sender_id == h->sender_id) { idx = i; break; }
+    }
+    if (idx < 0) {
+      if (g_mesh_peer_count >= MESH_PEER_MAX) return;  // full
+      idx = g_mesh_peer_count++;
+      g_mesh_peers[idx].sender_id = h->sender_id;
+      g_mesh_peers[idx].msg_count = 0;
+    }
+    g_mesh_peers[idx].last_lat_e7    = p->lat_e7;
+    g_mesh_peers[idx].last_lon_e7    = p->lon_e7;
+    g_mesh_peers[idx].last_sog_cm_s  = p->sog_cm_s;
+    g_mesh_peers[idx].last_cog_deg10 = p->cog_deg10;
+    g_mesh_peers[idx].last_heel_deg  = p->heel_deg;
+    g_mesh_peers[idx].unit_role      = p->unit_role;
+    g_mesh_peers[idx].fix_quality    = p->fix_quality;
+    g_mesh_peers[idx].sat_count      = p->sat_count;
+    g_mesh_peers[idx].last_seen_ms   = millis();
+    g_mesh_peers[idx].last_seq       = h->seq;
+    g_mesh_peers[idx].msg_count++;
+  }
+}
+
+void meshInit() {
+  if (g_mesh_enabled) return;
+  g_mesh_local_sender_id = boatIdHash(config.boat_id);
+
+  // ESP-NOW requires WiFi in STA or AP mode. setup() already ran
+  // WiFi.mode(WIFI_STA) early so the radio is up.
+  esp_err_t err = esp_now_init();
+  if (err != ESP_OK) {
+    Serial.printf("[MESH] esp_now_init failed: %d\n", err);
+    return;
+  }
+
+  esp_now_register_recv_cb(meshOnReceive);
+
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, MESH_BROADCAST_ADDR, 6);
+  peerInfo.channel = 0;     // 0 = current STA channel; using STA channel avoids
+                            // having to force-switch off-AP and lose Home-IOT
+  peerInfo.encrypt = false;
+  err = esp_now_add_peer(&peerInfo);
+  if (err != ESP_OK) {
+    Serial.printf("[MESH] add broadcast peer failed: %d\n", err);
+    esp_now_deinit();
+    return;
+  }
+
+  g_mesh_enabled = true;
+  Serial.printf("[MESH] ESP-NOW init OK, sender_id=0x%08lx ch=current(STA)\n",
+                (unsigned long)g_mesh_local_sender_id);
+  appendBootLog("mesh init ok");
+}
+
+static void meshBuildAndSendBoatState() {
+  uint8_t buf[sizeof(MeshHeader) + sizeof(BoatStatePayload)];
+  MeshHeader* h = (MeshHeader*)buf;
+  BoatStatePayload* p = (BoatStatePayload*)(buf + sizeof(MeshHeader));
+
+  h->magic[0]   = MESH_MAGIC_0;
+  h->magic[1]   = MESH_MAGIC_1;
+  h->version    = MESH_VERSION;
+  h->msg_type   = MSG_BOAT_STATE;
+  h->seq        = g_mesh_seq++;
+  h->ttl        = 0;     // peer-to-peer for MVP, no rebroadcast
+  h->reserved   = 0;
+  h->sender_id  = g_mesh_local_sender_id;
+  h->gps_time_ms = 0;    // TODO: HHMMSS.sss -> ms-of-day; 0 = unknown for MVP
+
+  p->lat_e7         = (int32_t)(gps.lat * 1e7);
+  p->lon_e7         = (int32_t)(gps.lon * 1e7);
+  // 1 kt = 51.4444 cm/s
+  p->sog_cm_s       = (int16_t)(gps.speed_kts * 51.4444f);
+  p->cog_deg10      = (int16_t)(gps.course * 10.0f);
+  p->heading_deg10  = (int16_t)(imu.heading * 10.0f);
+  p->heel_deg       = (int8_t)imu.heel;
+  p->fix_quality    = (uint8_t)gps.fix_quality;
+  p->sat_count      = (uint8_t)gps.satellites;
+  p->unit_role      = (uint8_t)g_role;
+  p->reserved[0] = p->reserved[1] = p->reserved[2] = 0;
+
+  esp_err_t err = esp_now_send(MESH_BROADCAST_ADDR, buf, sizeof(buf));
+  if (err == ESP_OK) g_mesh_tx_count++;
+  else               g_mesh_tx_fail_count++;
+}
+
+// Called from the main loop. Cheap path: returns fast if disabled,
+// gated, or interval not yet elapsed.
+void meshTick() {
+  if (!g_mesh_enabled) return;
+  // Don't compete with HTTP uploads — esp_now_send is cheap but the
+  // RF airtime steals from the upload. Existing wifiBusy + uploading
+  // gates already protect telnet; we use the same convention.
+  if (wifiBusy || uploading) return;
+
+  unsigned long now = millis();
+  if (now - g_mesh_last_broadcast >= MESH_BROADCAST_INTERVAL_MS) {
+    g_mesh_last_broadcast = now;
+    meshBuildAndSendBoatState();
+  }
+
+  // Expire stale peers (linear scan is fine for ≤32 peers).
+  for (int i = g_mesh_peer_count - 1; i >= 0; i--) {
+    if (now - g_mesh_peers[i].last_seen_ms > MESH_PEER_EXPIRY_MS) {
+      g_mesh_peers[i] = g_mesh_peers[g_mesh_peer_count - 1];
+      g_mesh_peer_count--;
+    }
+  }
+}
+
 // Format gps.utc_time (HHMMSS) + gps.date (DDMMYY) into ISO8601 "YYYY-MM-DDTHH:MM:SSZ".
 // Returns false if either field is not yet populated.
 static bool formatGpsIso(char* out, size_t outSize) {
@@ -1320,6 +1510,12 @@ void setup() {
     &diagTaskHandle,    // Handle
     0                   // Core 0 (Core 1 is the one we're watching)
   );
+
+  // Initialize ESP-NOW peer mesh (Stage 2). Safe to call here — WiFi.mode
+  // ran very early in setup() so the radio is up; ESP-NOW just adds a
+  // recv-callback and a broadcast peer entry on top.
+  meshInit();
+  radioModeTransition(MODE_IDLE, "setup complete");
 
   Serial.println("[SETUP] Complete - WiFi/telnet available, GPS acquiring in background");
 }
@@ -4740,6 +4936,35 @@ void processCommand(String cmd, bool fromTelnet) {
   } else if (cmd == "radiomode") {
     tprintf("radio_mode=%s\n", radioModeName(g_radio_mode));
 
+  } else if (cmd == "mesh") {
+    // ESP-NOW peer mesh status (Stage 2)
+    if (!g_mesh_enabled) {
+      tprintln("mesh: DISABLED");
+    } else {
+      tprintf("mesh: enabled, sender_id=0x%08lx, peers=%d/%d\n",
+              (unsigned long)g_mesh_local_sender_id,
+              g_mesh_peer_count, MESH_PEER_MAX);
+      tprintf("  tx=%lu (fail %lu), rx=%lu (bad %lu)\n",
+              (unsigned long)g_mesh_tx_count,
+              (unsigned long)g_mesh_tx_fail_count,
+              (unsigned long)g_mesh_rx_count,
+              (unsigned long)g_mesh_rx_dropped_bad_magic);
+      unsigned long now = millis();
+      for (int i = 0; i < g_mesh_peer_count; i++) {
+        const MeshPeerState& p = g_mesh_peers[i];
+        tprintf("  peer 0x%08lx role=%u age=%lus msgs=%lu lat=%.7f lon=%.7f sog=%.1fkt cog=%d hdg.heel=%d\n",
+                (unsigned long)p.sender_id,
+                (unsigned)p.unit_role,
+                (now - p.last_seen_ms) / 1000,
+                (unsigned long)p.msg_count,
+                p.last_lat_e7 / 1e7,
+                p.last_lon_e7 / 1e7,
+                p.last_sog_cm_s / 51.4444,
+                p.last_cog_deg10 / 10,
+                p.last_heel_deg);
+      }
+    }
+
   } else if (cmd == "help") {
     tprintln("=== Commands ===");
     tprintln("  status     - Show device status");
@@ -4778,6 +5003,7 @@ void processCommand(String cmd, bool fromTelnet) {
     tprintln("  configver  - Show config version + boat_id + firmware");
     tprintln("  flags      - Show v2.0.0 feature flag state");
     tprintln("  radiomode  - Show current radio mode");
+    tprintln("  mesh       - ESP-NOW peer mesh status + peers seen");
     tprintln("  help       - Show this help");
     tprintln("================");
 
@@ -5355,6 +5581,9 @@ void loop() {
     g_loopSection = "telnet";
     handleTelnet();
   }
+
+  g_loopSection = "mesh";
+  meshTick();
 
   g_loopSection = "serial-cmd";
   handleSerialCommand();
