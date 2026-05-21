@@ -100,7 +100,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.10"
+#define FW_VERSION    "2026.05.20.11"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -1511,10 +1511,21 @@ void setup() {
     0                   // Core 0 (Core 1 is the one we're watching)
   );
 
-  // Initialize ESP-NOW peer mesh (Stage 2). Safe to call here — WiFi.mode
-  // ran very early in setup() so the radio is up; ESP-NOW just adds a
-  // recv-callback and a broadcast peer entry on top.
-  meshInit();
+  // HOTFIX 2026-05-21 (.11): meshInit() commented out after a stack-smash
+  // panic in setup() on a canary boat. Symptoms:
+  //   [MESH] ESP-NOW init OK, sender_id=0x08cbee82 ch=current(STA)
+  //   [DIAG] task started
+  //   [RADIO] BOOT -> IDLE (setup complete)
+  //   [SETUP] Complete - WiFi/telnet available, GPS acquiring in background
+  //   Stack smashing protect failure!
+  //   Backtrace: 0x400957e0:0x3ffd3740 0x400957a5:0x3ffd3760 ...
+  // The corruption happens during setup() but the canary check fires at
+  // setup() return. Suspects: esp_now_peer_info_t size mismatch on the
+  // stack, recv-cb signature drift, or ESP-NOW prerequisites the
+  // existing WiFi early-init doesn't satisfy. Investigating; mesh.h
+  // wire types + meshTick/meshOnReceive functions left in place so the
+  // fix can be a single-line re-enable + targeted patch.
+  // meshInit();
   radioModeTransition(MODE_IDLE, "setup complete");
 
   Serial.println("[SETUP] Complete - WiFi/telnet available, GPS acquiring in background");
