@@ -101,7 +101,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.01"
+#define FW_VERSION    "2026.05.20.02"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // IMU + GPS fix-rate changes from SF_FIRMWARE_V2_SPEC.md are mechanism-only
 // in this stage — defaults preserve pre-2.0 behavior. Per-boat opt-in via
@@ -2613,16 +2613,18 @@ static int prevDispSats = -1;
 static int prevRecState = -1;
 // d2LayoutDrawn declared globally near other display flags
 
-// Compact firmware tag for the status bar — last two dotted segments
-// of FW_VERSION (e.g. "05.04" from "2026.05.05.04"). Lazy-cached.
+// Compact firmware tag for the status bar — YY.MM.DD.N from
+// FW_VERSION "YYYY.MM.DD.NN" (e.g. "26.05.20.2" from "2026.05.20.02").
+// Lazy-cached.
 static const char* fwShortTag() {
-  static char buf[8] = {0};
+  static char buf[16] = {0};
   if (!buf[0]) {
-    const char* d1 = nullptr; const char* d2 = nullptr;
-    for (const char* p = FW_VERSION; *p; p++) {
-      if (*p == '.') { d1 = d2; d2 = p; }
+    int yyyy = 0, mm = 0, dd = 0, n = 0;
+    if (sscanf(FW_VERSION, "%d.%d.%d.%d", &yyyy, &mm, &dd, &n) == 4) {
+      snprintf(buf, sizeof(buf), "%02d.%02d.%02d.%d", yyyy % 100, mm, dd, n);
+    } else {
+      snprintf(buf, sizeof(buf), "%s", FW_VERSION);
     }
-    snprintf(buf, sizeof(buf), "%s", d1 ? d1 + 1 : FW_VERSION);
   }
   return buf;
 }
@@ -2838,14 +2840,16 @@ void updateDisplayD2() {
     bool windInd = false;
 #endif
     if (windInd) {
-      snprintf(left, sizeof(left), "BAT %d%% W  FW %s", battery.percent, fwShortTag());
+      snprintf(left, sizeof(left), "BAT %d%% W FW%s", battery.percent, fwShortTag());
     } else {
-      snprintf(left, sizeof(left), "BAT %d%%  FW %s", battery.percent, fwShortTag());
+      snprintf(left, sizeof(left), "BAT %d%% FW%s", battery.percent, fwShortTag());
     }
     tft.drawString(left, 5, 456, 2);
 
-    // Right side: WiFi + upload counts only.
-    char right[25];
+    // Right side: WiFi + IP when idle, falls back to counts during traffic.
+    // IP next to the SSID indicator gives a debug surface for telnet/curl
+    // without needing the router DHCP table.
+    char right[40];
     const char* wifiInd = wifiConnected ? getWifiIndicator() : "";
 
     if (uploading && uploadTotal > 0) {
@@ -2861,6 +2865,8 @@ void updateDisplayD2() {
         snprintf(counts, sizeof(counts), "R%d", pendingRTCM);
       }
       snprintf(right, sizeof(right), "%s %s", wifiInd, counts);
+    } else if (wifiConnected) {
+      snprintf(right, sizeof(right), "%s %s", wifiInd, WiFi.localIP().toString().c_str());
     } else {
       snprintf(right, sizeof(right), "%s", wifiInd);
     }
@@ -3095,8 +3101,8 @@ void updateDisplayD3() {
     snprintf(line, sizeof(line), "H%+.0f P%+.0f BAT%d%%", imu.heel, imu.pitch, battery.percent);
     tft.drawString(line, 3, BOT_BAR + 7, 2);
 
-    // Right side: upload status + WiFi
-    char right[24];
+    // Right side: upload status + WiFi (shows IP next to SSID when idle).
+    char right[40];
     const char* wifiInd = wifiConnected ? getWifiIndicator() : "";
     if (uploading && uploadTotal > 0) {
       snprintf(right, sizeof(right), "%d/%d %s", uploadCount, uploadTotal, wifiInd);
@@ -3109,6 +3115,8 @@ void updateDisplayD3() {
       } else {
         snprintf(right, sizeof(right), "R%d %s", pendingRTCM, wifiInd);
       }
+    } else if (wifiConnected) {
+      snprintf(right, sizeof(right), "%s %s", wifiInd, WiFi.localIP().toString().c_str());
     } else {
       snprintf(right, sizeof(right), "%s", wifiInd);
     }
