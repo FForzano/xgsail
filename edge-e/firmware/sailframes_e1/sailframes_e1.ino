@@ -101,7 +101,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.02"
+#define FW_VERSION    "2026.05.20.03"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // IMU + GPS fix-rate changes from SF_FIRMWARE_V2_SPEC.md are mechanism-only
 // in this stage — defaults preserve pre-2.0 behavior. Per-boat opt-in via
@@ -1375,7 +1375,6 @@ void setup() {
   );
 
   Serial.println("[SETUP] Complete - WiFi/telnet available, GPS acquiring in background");
-  Serial.println("[SETUP] Press and hold button >2s to shutdown");
 }
 
 // ============================================================
@@ -3904,6 +3903,61 @@ static String otaHexDigest(const uint8_t* digest, size_t len) {
   return out;
 }
 
+// OTA progress display — TFT was previously frozen on the last D2/D3
+// frame during a 30-60 s firmware download, with no user-visible signal
+// that anything was happening. Helper draws a one-time layout, then
+// updates only the % number + progress bar on subsequent calls to keep
+// SPI churn minimal during download. Pair the cadence to the existing
+// 2-second serial log block so we never paint per-iteration.
+static bool g_otaScreenDrawn = false;
+static int  g_otaLastPctDrawn = -1;
+static void drawOTAProgress(int percent, const char* targetVersion, const char* phase) {
+  if (!oledOK) return;
+  if (percent < 0) percent = 0;
+  if (percent > 100) percent = 100;
+
+  if (!g_otaScreenDrawn) {
+    tft.fillScreen(COLOR_WARN);
+    tft.setTextColor(TFT_BLACK, COLOR_WARN);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("OTA UPDATE", SCREEN_WIDTH/2, 60, 4);
+    if (targetVersion && targetVersion[0]) {
+      tft.drawString(targetVersion, SCREEN_WIDTH/2, 110, 2);
+    }
+    // Progress bar frame
+    tft.drawRect(20, SCREEN_HEIGHT/2 + 60, SCREEN_WIDTH - 40, 30, TFT_BLACK);
+    tft.drawString("DO NOT POWER OFF", SCREEN_WIDTH/2, SCREEN_HEIGHT - 60, 2);
+    g_otaScreenDrawn = true;
+    g_otaLastPctDrawn = -1;
+  }
+
+  // Phase tag (e.g. "downloading", "verifying", "rebooting") shown above %.
+  if (phase && phase[0]) {
+    tft.fillRect(0, 140, SCREEN_WIDTH, 24, COLOR_WARN);
+    tft.setTextColor(TFT_BLACK, COLOR_WARN);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString(phase, SCREEN_WIDTH/2, 152, 2);
+  }
+
+  if (percent != g_otaLastPctDrawn) {
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d%%", percent);
+    tft.fillRect(0, 180, SCREEN_WIDTH, 90, COLOR_WARN);
+    tft.setTextColor(TFT_BLACK, COLOR_WARN);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString(buf, SCREEN_WIDTH/2, 220, 8);  // Font 8 = 75px, very legible
+    // Progress bar fill
+    int barX = 21;
+    int barY = SCREEN_HEIGHT/2 + 61;
+    int barW = SCREEN_WIDTH - 42;
+    int barH = 28;
+    int fillW = (barW * percent) / 100;
+    tft.fillRect(barX, barY, fillW, barH, TFT_BLACK);
+    tft.fillRect(barX + fillW, barY, barW - fillW, barH, COLOR_WARN);
+    g_otaLastPctDrawn = percent;
+  }
+}
+
 // `manual` = true bypasses the one-shot per-boot guard. The serial
 // `update` command sets it; auto-triggers from the upload task call
 // with the default false, so they no-op after the first run.
@@ -4064,6 +4118,11 @@ static bool performOTAUpdateBody() {
     return false;
   }
 
+  // Paint the OTA screen now that we're committed to writing flash.
+  // The 2-second throttled block below updates the % from here on.
+  g_otaScreenDrawn = false;
+  drawOTAProgress(0, version.c_str(), "downloading...");
+
   mbedtls_sha256_context shaCtx;
   mbedtls_sha256_init(&shaCtx);
   mbedtls_sha256_starts(&shaCtx, 0);
@@ -4105,8 +4164,10 @@ static bool performOTAUpdateBody() {
       total += n;
       lastByteMs = millis();
       if (millis() - lastLog > 2000) {
-        Serial.printf("[OTA] %u / %ld bytes (%.0f%%)\n",
-                      (unsigned)total, size, 100.0 * total / size);
+        int pct = (int)((100.0 * total) / size);
+        Serial.printf("[OTA] %u / %ld bytes (%d%%)\n",
+                      (unsigned)total, size, pct);
+        drawOTAProgress(pct, version.c_str(), "downloading...");
         lastLog = millis();
         esp_task_wdt_reset();
       }
@@ -4156,12 +4217,14 @@ static bool performOTAUpdateBody() {
     return false;
   }
   Serial.println("[OTA] SHA256 OK");
+  drawOTAProgress(100, version.c_str(), "verifying...");
 
   if (!Update.end(true)) {
     Serial.printf("[OTA] Update.end failed: %s\n", Update.errorString());
     return false;
   }
 
+  drawOTAProgress(100, version.c_str(), "rebooting...");
   Serial.printf("[OTA] Update OK. Rebooting into %s...\n", version.c_str());
   delay(1000);
   ESP.restart();
