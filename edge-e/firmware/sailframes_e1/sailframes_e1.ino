@@ -101,7 +101,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.06"
+#define FW_VERSION    "2026.05.20.07"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -1395,12 +1395,20 @@ void setup() {
 // Do NOT save or restart after CFGRTCM.
 // ============================================================
 void configureLG290P() {
-  Serial.println("[GPS] Configuring LG290P for PPK...");
+  // Configures the Waveshare LG290P for the SailFrames recording profile:
+  //   * Rover mode (PQTMCFGRCVRMODE,W,1) — required for 10 Hz fix rate.
+  //     Base station mode (mode 2) hard-locks the fix rate at 1 Hz per
+  //     LG290P&LGx80P Protocol Spec v1.1 §2.3.28 (NOTE on PQTMCFGFIXRATE).
+  //     Earlier firmware used Base mode under the (incorrect) belief that
+  //     it was required for MSM7 output — see PQTMCFGRTCM §2.3.39 which
+  //     is mode-agnostic, so we explicitly enable MSM7 after the restart.
+  //   * 10 Hz fix rate (PQTMCFGFIXRATE,W,100).
+  //   * NMEA: GGA, RMC, GSA, GSV (used by display + nav CSV).
+  //   * RTCM3: MSM7 observation messages 1077/1087/1097/1127 + ephemeris
+  //     1019/1020/1042/1046 + station reference 1006 (used by PPK lambda).
+  Serial.println("[GPS] Configuring LG290P for 10 Hz Rover + MSM7 RTCM3...");
 
   // Step 1: Query firmware version
-  // NOTE: MSM7 must be configured via QGNSS on Windows (UART PQTMCFGRTCM
-  // doesn't actually switch MSM type on firmware AANR01A06S)
-  // Do NOT factory reset (PQTMRESTOREPAR) — it wipes the QGNSS MSM7 config
   Serial.println("[GPS] Querying firmware version...");
   sendPQTM("PQTMVERNO");
 
@@ -1409,88 +1417,95 @@ void configureLG290P() {
   sendPQTM("PQTMCFGRCVRMODE,R");
   delay(300);
 
-  // Step 3: Set base station mode (mode 2)
-  // Required for RTCM3 MSM output via PQTMCFGRTCM
-  // Note: base mode suppresses ephemeris (1019/1020/1042) — PPK Lambda
-  // uses IGS broadcast nav file as ephemeris source instead
-  Serial.println("[GPS] Setting base station mode for MSM output...");
-  sendPQTM("PQTMCFGRCVRMODE,W,2");
+  // Step 3: Set Rover mode (allows 10 Hz fix rate per §2.3.28).
+  // Was mode 2 (base) until firmware 2026.05.20.06 — switch to mode 1
+  // was the only way to unlock fix rate from 1 Hz. MSM7 still works
+  // because PQTMCFGRTCM is mode-agnostic.
+  Serial.println("[GPS] Setting Rover mode (unlocks 10 Hz fix rate)...");
+  sendPQTM("PQTMCFGRCVRMODE,W,1");
   delay(200);
 
-  // Step 4: Enable RTCM3 protocol on UART2 and UART3
+  // Step 4: Enable RTCM3 protocol on UART2 and UART3 so the MSM/ephemeris
+  // bytes actually reach the ESP32. Mode-agnostic.
   Serial.println("[GPS] Enabling RTCM3 protocol on UARTs...");
   sendPQTM("PQTMCFGPROT,W,1,3,00000005,00000005");  // UART3
   sendPQTM("PQTMCFGPROT,W,1,2,00000005,00000005");  // UART2
 
-  // Step 5: Re-enable NMEA messages (off by default in base mode)
-  // These are needed for OLED display (SOG, COG from RMC)
+  // Step 5: Enable NMEA messages. In Rover mode these are on by default
+  // but we set explicit rates so a previous base-mode session (where they
+  // were auto-disabled) re-enables cleanly.
   Serial.println("[GPS] Enabling NMEA messages...");
   sendPQTM("PQTMCFGMSGRATE,W,GGA,1");
   sendPQTM("PQTMCFGMSGRATE,W,RMC,1");
   sendPQTM("PQTMCFGMSGRATE,W,GSA,1");
   sendPQTM("PQTMCFGMSGRATE,W,GSV,1");
 
-  // Step 6: Enable ephemeris messages
+  // Step 6: Enable ephemeris message rates. In Rover mode the LG290P
+  // emits live broadcast ephemeris (1019/1020/1042/1046) every epoch
+  // these messages update — better PPK input than the IGS broadcast
+  // nav file the previous base-mode firmware relied on.
   Serial.println("[GPS] Enabling ephemeris messages...");
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1019,1");  // GPS
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1020,1");  // GLONASS
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1042,1");  // BeiDou
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1046,1");  // Galileo
 
-  // Step 7: Save NVM and restart to apply base station mode
+  // Step 7: Set fix rate to 10 Hz BEFORE save+restart so the new rate
+  // is included in NVM and takes effect after the restart on this same
+  // boot. Was previously placed after the restart, which saved the rate
+  // but didn't apply it until the next power cycle.
+  Serial.println("[GPS] Setting fix rate to 10 Hz (100 ms)...");
+  sendPQTM("PQTMCFGFIXRATE,W,100");
+  delay(200);
+
+  // Step 8: Save NVM + full restart to apply mode + rate together
   Serial.println("[GPS] Saving to NVM...");
   sendPQTM("PQTMSAVEPAR");
   delay(500);
 
   Serial.println("[GPS] Restarting module...");
-  sendPQTM("PQTMSRR");  // Full restart (not hot restart)
-  delay(6000);  // Wait for module to fully restart
+  sendPQTM("PQTMSRR");
+  delay(6000);
 
   // Drain any buffered data after restart
   while (Serial2.available()) Serial2.read();
 
-  // Step 8: Send CFGRTCM for MSM output — MUST be after restart
-  // This command does NOT persist in NVM — must send every boot
-  // Do NOT save or restart after this command
-  Serial.println("[GPS] Enabling MSM output (RAM only)...");
+  // Step 9: Enable MSM7 output (RAM only — PQTMCFGRTCM does not persist).
+  // §2.3.39 PQTMCFGRTCM:
+  //   <MSM_Type>=7 (MSM7), <MSM_Mode>=0, <MSM_ElevThd>=-90 (no limit),
+  //   <Reserved>=07, <Reserved>=06, <EPH_Mode>=1 (output on update),
+  //   <EPH_Interval>=0 (default). This is the same payload that worked
+  //   in base mode; it's not mode-specific.
+  Serial.println("[GPS] Enabling MSM7 output (RAM only)...");
   sendPQTM("PQTMCFGRTCM,W,7,0,-90,07,06,1,0");
   delay(200);
 
-  // Step 9: Re-send ephemeris rate commands AFTER restart
-  // These may need RTCM3 protocol active (enabled after restart)
+  // Step 10: Re-send ephemeris rates AFTER restart (matches the previous
+  // firmware's belt-and-braces — some rate writes only stick if RTCM3
+  // protocol is up, which it is after the restart in step 8).
   Serial.println("[GPS] Enabling ephemeris messages (post-restart)...");
-  sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1019,1");  // GPS ephemeris
-  sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1020,1");  // GLONASS ephemeris
-  sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1042,1");  // BeiDou ephemeris
-  sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1046,1");  // Galileo ephemeris
+  sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1019,1");
+  sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1020,1");
+  sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1042,1");
+  sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1046,1");
   delay(200);
 
-  // 10 Hz GNSS fix rate. PQTMCFGFIXRATE,W,<period_ms> where 100 ms = 10 Hz.
-  // Persists to LG290P NVM on success so subsequent boots come up at 10 Hz
-  // even before this command runs. Logged with [RSP] line — if firmware
-  // AANR01A06S returns ERROR,1 the command syntax needs revision (fall back
-  // is the module's default rate, typically 1 Hz).
-  Serial.println("[GPS] Setting fix rate to 10 Hz (100 ms)...");
-  if (sendPQTM("PQTMCFGFIXRATE,W,100")) {
-    sendPQTM("PQTMSAVEPAR");
-  } else {
-    Serial.println("[GPS] PQTMCFGFIXRATE failed — fix rate stays at module default");
-  }
-
-  // Step 10: Verify configuration — read back rates to confirm
+  // Step 11: Verify — read back the active configuration. Boot log will
+  // show CFGRCVRMODE=1 (Rover), CFGFIXRATE=100 ms, and per-message rates.
   Serial.println("[GPS] Verifying configuration...");
   sendPQTM("PQTMCFGRCVRMODE,R");
+  sendPQTM("PQTMCFGFIXRATE,R");
   sendPQTM("PQTMCFGRTCM,R");
-  sendPQTM("PQTMCFGMSGRATE,R,RTCM3-1019");  // Verify GPS ephemeris rate
-  sendPQTM("PQTMCFGMSGRATE,R,RTCM3-1020");  // Verify GLONASS ephemeris rate
-  sendPQTM("PQTMCFGMSGRATE,R,RTCM3-1042");  // Verify BeiDou ephemeris rate
-  sendPQTM("PQTMCFGMSGRATE,R,RTCM3-1046");  // Verify Galileo ephemeris rate
+  sendPQTM("PQTMCFGMSGRATE,R,RTCM3-1019");
+  sendPQTM("PQTMCFGMSGRATE,R,RTCM3-1020");
+  sendPQTM("PQTMCFGMSGRATE,R,RTCM3-1042");
+  sendPQTM("PQTMCFGMSGRATE,R,RTCM3-1046");
 
   Serial.println("[GPS] Configuration complete:");
-  Serial.println("[GPS]   Mode: Base station (for MSM output)");
-  Serial.println("[GPS]   NMEA: GGA, RMC, GSA, GSV (for OLED)");
-  Serial.println("[GPS]   RTCM3: MSM7 (1077/1087/1097/1127)");
-  Serial.println("[GPS]   Ephemeris: via IGS broadcast nav (base mode suppresses 1019/1020/1042)");
+  Serial.println("[GPS]   Mode: Rover (10 Hz fix rate)");
+  Serial.println("[GPS]   NMEA: GGA, RMC, GSA, GSV @ 10 Hz");
+  Serial.println("[GPS]   RTCM3: MSM7 (1077/1087/1097/1127) @ 10 Hz");
+  Serial.println("[GPS]   Ephemeris: live (1019/1020/1042/1046) — Rover mode emits these");
 }
 
 // ============================================================
