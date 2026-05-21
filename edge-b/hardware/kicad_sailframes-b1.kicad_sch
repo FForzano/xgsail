@@ -6237,8 +6237,8 @@
 			(on_board yes)
 			(in_pos_files yes)
 			(duplicate_pin_numbers_are_jumpers no)
-			(property "Reference" "J"
-				(at -5.08 22.86 0)
+			(property "Reference" "J9"
+				(at 3.81 1.27 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(effects
@@ -6248,8 +6248,8 @@
 					(justify left)
 				)
 			)
-			(property "Value" "Hosyond_3.5_ST7796U"
-				(at -5.08 -34.29 0)
+			(property "Value" "HOSYOND_3.5_TFT"
+				(at 14.224 -6.096 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(effects
@@ -6259,7 +6259,7 @@
 					(justify left)
 				)
 			)
-			(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x14_P2.54mm_Vertical"
+			(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x10_P2.54mm_Vertical"
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -6305,7 +6305,7 @@
 			)
 			(symbol "Hosyond_3.5_ST7796U_1_1"
 				(rectangle
-					(start 0 21.59)
+					(start 0 6.35)
 					(end 5.08 -33.02)
 					(stroke
 						(width 0.254)
@@ -6315,10 +6315,10 @@
 						(type background)
 					)
 				)
-				(pin input line
-					(at -5.08 19.05 0)
+				(pin no_connect line
+					(at -5.08 3.81 0)
 					(length 5.08)
-					(name "SD_CS"
+					(name "CTP_SCL"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6333,79 +6333,7 @@
 						)
 					)
 				)
-				(pin output line
-					(at -5.08 15.24 0)
-					(length 5.08)
-					(name "CTP_INT"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin bidirectional line
-					(at -5.08 11.43 0)
-					(length 5.08)
-					(name "CTP_SDA"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "3"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at -5.08 7.62 0)
-					(length 5.08)
-					(name "CTP_RST"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "4"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at -5.08 3.81 0)
-					(length 5.08)
-					(name "CTP_SCL"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "5"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin output line
+				(pin no_connect line
 					(at -5.08 0 0)
 					(length 5.08)
 					(name "SDO_MISO"
@@ -6415,7 +6343,7 @@
 							)
 						)
 					)
-					(number "6"
+					(number "2"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6433,7 +6361,7 @@
 							)
 						)
 					)
-					(number "7"
+					(number "3"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6451,7 +6379,7 @@
 							)
 						)
 					)
-					(number "8"
+					(number "4"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6469,7 +6397,7 @@
 							)
 						)
 					)
-					(number "9"
+					(number "5"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6487,7 +6415,7 @@
 							)
 						)
 					)
-					(number "10"
+					(number "6"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6505,7 +6433,7 @@
 							)
 						)
 					)
-					(number "11"
+					(number "7"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6523,7 +6451,7 @@
 							)
 						)
 					)
-					(number "12"
+					(number "8"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6541,7 +6469,7 @@
 							)
 						)
 					)
-					(number "13"
+					(number "9"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6559,7 +6487,7 @@
 							)
 						)
 					)
-					(number "14"
+					(number "10"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -6813,20 +6741,8 @@
 		(uuid "6e2424c7-4213-48d4-94b7-c9a30998b0ac")
 	)
 	(no_connect
-		(at 401.32 138.43)
-		(uuid "7248ae40-4d15-4e1f-9f39-50be7ccde1a5")
-	)
-	(no_connect
 		(at 316.23 40.64)
 		(uuid "7d87645d-3e9e-452f-8ec1-8799831fcf3e")
-	)
-	(no_connect
-		(at 401.32 134.62)
-		(uuid "826bbdbd-7f33-4be3-a9b3-288a1a89da11")
-	)
-	(no_connect
-		(at 401.32 142.24)
-		(uuid "831863e8-e9a6-479b-a5b0-8f9037f972f7")
 	)
 	(no_connect
 		(at 316.23 38.1)
@@ -6849,10 +6765,6 @@
 		(uuid "ab42f6a4-bae2-4aa7-99fc-88dd047cddc8")
 	)
 	(no_connect
-		(at 401.32 146.05)
-		(uuid "b783f41d-d7ae-4bdb-a94d-65b7ea958057")
-	)
-	(no_connect
 		(at 89.1 143.04)
 		(uuid "bdbf5f79-46a2-4bb6-b8bd-edb82c5d08a2")
 	)
@@ -6870,7 +6782,7 @@
 	)
 	(wire
 		(pts
-			(xy 242.37 241.33) (xy 242.37 241.86)
+			(xy 201.93 236.96) (xy 201.93 237.49)
 		)
 		(stroke
 			(width 0)
@@ -7270,7 +7182,7 @@
 	)
 	(wire
 		(pts
-			(xy 242.37 241.33) (xy 242.57 241.33)
+			(xy 201.93 236.96) (xy 202.13 236.96)
 		)
 		(stroke
 			(width 0)
@@ -7310,7 +7222,7 @@
 	)
 	(wire
 		(pts
-			(xy 242.57 251.46) (xy 242.57 254)
+			(xy 202.13 247.09) (xy 202.13 249.63)
 		)
 		(stroke
 			(width 0)
@@ -7440,7 +7352,7 @@
 	)
 	(wire
 		(pts
-			(xy 158.55 258.37) (xy 161.09 258.37)
+			(xy 118.11 254) (xy 120.65 254)
 		)
 		(stroke
 			(width 0)
@@ -7660,7 +7572,7 @@
 	)
 	(wire
 		(pts
-			(xy 201.93 241.89) (xy 201.73 241.89)
+			(xy 161.49 237.52) (xy 161.29 237.52)
 		)
 		(stroke
 			(width 0)
@@ -7770,7 +7682,7 @@
 	)
 	(wire
 		(pts
-			(xy 237.29 258.37) (xy 239.83 258.37)
+			(xy 196.85 254) (xy 199.39 254)
 		)
 		(stroke
 			(width 0)
@@ -7940,7 +7852,7 @@
 	)
 	(wire
 		(pts
-			(xy 150.93 258.37) (xy 148.39 258.37)
+			(xy 110.49 254) (xy 107.95 254)
 		)
 		(stroke
 			(width 0)
@@ -7970,7 +7882,7 @@
 	)
 	(wire
 		(pts
-			(xy 277.93 248.21) (xy 277.93 246.94)
+			(xy 237.49 243.84) (xy 237.49 242.57)
 		)
 		(stroke
 			(width 0)
@@ -8140,7 +8052,7 @@
 	)
 	(wire
 		(pts
-			(xy 271.58 257.1) (xy 269.04 257.1)
+			(xy 231.14 252.73) (xy 228.6 252.73)
 		)
 		(stroke
 			(width 0)
@@ -8280,7 +8192,7 @@
 	)
 	(wire
 		(pts
-			(xy 242.57 241.33) (xy 242.57 243.84)
+			(xy 202.13 236.96) (xy 202.13 239.47)
 		)
 		(stroke
 			(width 0)
@@ -8430,7 +8342,7 @@
 	)
 	(wire
 		(pts
-			(xy 197.92 258.37) (xy 201.73 258.37)
+			(xy 157.48 254) (xy 161.29 254)
 		)
 		(stroke
 			(width 0)
@@ -8440,7 +8352,7 @@
 	)
 	(wire
 		(pts
-			(xy 229.67 258.37) (xy 227.13 258.37)
+			(xy 189.23 254) (xy 186.69 254)
 		)
 		(stroke
 			(width 0)
@@ -8610,7 +8522,7 @@
 	)
 	(wire
 		(pts
-			(xy 190.3 258.37) (xy 187.76 258.37)
+			(xy 149.86 254) (xy 147.32 254)
 		)
 		(stroke
 			(width 0)
@@ -8640,7 +8552,7 @@
 	)
 	(wire
 		(pts
-			(xy 201.73 250.75) (xy 201.73 253.29)
+			(xy 161.29 246.38) (xy 161.29 248.92)
 		)
 		(stroke
 			(width 0)
@@ -8710,7 +8622,7 @@
 	)
 	(wire
 		(pts
-			(xy 201.73 241.89) (xy 201.73 243.13)
+			(xy 161.29 237.52) (xy 161.29 238.76)
 		)
 		(stroke
 			(width 0)
@@ -8770,7 +8682,7 @@
 	)
 	(wire
 		(pts
-			(xy 201.93 241.89) (xy 201.93 241.3)
+			(xy 161.49 237.52) (xy 161.49 236.93)
 		)
 		(stroke
 			(width 0)
@@ -9040,7 +8952,7 @@
 	)
 	(wire
 		(pts
-			(xy 162.36 249.48) (xy 162.36 252.02)
+			(xy 121.92 245.11) (xy 121.92 247.65)
 		)
 		(stroke
 			(width 0)
@@ -9200,7 +9112,7 @@
 	)
 	(wire
 		(pts
-			(xy 283.01 257.1) (xy 279.2 257.1)
+			(xy 242.57 252.73) (xy 238.76 252.73)
 		)
 		(stroke
 			(width 0)
@@ -9509,7 +9421,7 @@
 		(uuid "01c1c5be-01fb-4a4c-94dc-57d1f187ead3")
 	)
 	(label "D1_ANODE"
-		(at 162.36 241.86 0)
+		(at 121.92 237.49 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -9638,7 +9550,7 @@
 		)
 		(uuid "0e1173f0-dc26-47c9-849a-47392c3d9320")
 	)
-	(label "GND"
+	(label "VBAT"
 		(at 282.59 103.04 180)
 		(effects
 			(font
@@ -9658,7 +9570,7 @@
 		)
 		(uuid "0f52b33c-7011-4fe5-86a0-359f8a7c8224")
 	)
-	(label "VBAT"
+	(label "GND"
 		(at 282.59 100.5 180)
 		(effects
 			(font
@@ -9879,7 +9791,7 @@
 		(uuid "3278fb95-8bb4-48a6-91da-d857a4501b17")
 	)
 	(label "D5_ANODE"
-		(at 242.37 241.86 0)
+		(at 201.93 237.49 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10129,7 +10041,7 @@
 		(uuid "4c288a87-d3a5-4554-bafb-25177f7d67d5")
 	)
 	(label "D6_ANODE"
-		(at 277.93 239.32 0)
+		(at 237.49 234.95 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10149,7 +10061,7 @@
 		(uuid "4dc3eeb6-443d-44f3-a350-c59d0a35b7fd")
 	)
 	(label "D6_ANODE"
-		(at 283.01 257.1 0)
+		(at 242.57 252.73 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10389,7 +10301,7 @@
 		(uuid "6ab78360-2352-433d-b819-00e46a6b62b7")
 	)
 	(label "V_QI"
-		(at 162.36 252.02 0)
+		(at 121.92 247.65 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10399,7 +10311,7 @@
 		(uuid "6bf924d8-8527-4f66-9c4f-6331bf84d892")
 	)
 	(label "LED_HB_N"
-		(at 187.76 258.37 180)
+		(at 147.32 254 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10449,7 +10361,7 @@
 		(uuid "74da878f-010d-47bb-8e65-e85136cbf42e")
 	)
 	(label "GND"
-		(at 148.39 258.37 180)
+		(at 107.95 254 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10649,7 +10561,7 @@
 		(uuid "83cf9df0-14ea-4277-b8d6-3e84bc1a5973")
 	)
 	(label "V5_SW"
-		(at 201.73 253.29 0)
+		(at 161.29 248.92 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10969,7 +10881,7 @@
 		(uuid "a03f0bbe-ac5a-4a40-85d5-6626b0e02c16")
 	)
 	(label "D4_ANODE"
-		(at 201.93 241.3 0)
+		(at 161.49 236.93 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -11309,7 +11221,7 @@
 		(uuid "be5d21c4-08e8-48e0-9fef-84c4f59d586c")
 	)
 	(label "V5_SW"
-		(at 277.93 248.21 0)
+		(at 237.49 243.84 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -11329,7 +11241,7 @@
 		(uuid "bfe5692f-5227-4f75-9779-a2a2b3aea566")
 	)
 	(label "LED_SD_N"
-		(at 269.04 257.1 180)
+		(at 228.6 252.73 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -11399,7 +11311,7 @@
 		(uuid "c6c3c87e-e134-4225-a139-8165a939a70e")
 	)
 	(label "D1_ANODE"
-		(at 161.09 258.37 0)
+		(at 120.65 254 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -11419,7 +11331,7 @@
 		(uuid "d39bfb7a-a107-4007-9de0-45e2358aed2c")
 	)
 	(label "D4_ANODE"
-		(at 201.73 258.37 0)
+		(at 161.29 254 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -11579,7 +11491,7 @@
 		(uuid "e8091dc0-a8fc-40cc-9a6f-766ff5f048db")
 	)
 	(label "LED_GPS_N"
-		(at 227.13 258.37 180)
+		(at 186.69 254 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -11689,7 +11601,7 @@
 		(uuid "f1da0012-9684-4970-ab88-dd03613c62c6")
 	)
 	(label "V5_SW"
-		(at 242.57 254 0)
+		(at 202.13 249.63 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -11829,7 +11741,7 @@
 		(uuid "fddb3262-79d1-43ed-bab8-14a2af991c16")
 	)
 	(label "D5_ANODE"
-		(at 239.83 258.37 0)
+		(at 199.39 254 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -12244,7 +12156,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 242.57 247.65 0)
+		(at 202.13 243.28 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -12254,7 +12166,7 @@
 		(dnp no)
 		(uuid "08db71a6-948c-408a-83ef-d2a2ffa5d608")
 		(property "Reference" "R18"
-			(at 244.656 245.924 0)
+			(at 204.216 241.554 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -12265,7 +12177,7 @@
 			)
 		)
 		(property "Value" "220"
-			(at 245.164 247.956 0)
+			(at 204.724 243.586 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -12276,7 +12188,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 242.57 247.65 0)
+			(at 202.13 243.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12287,7 +12199,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 242.57 247.65 0)
+			(at 202.13 243.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12298,7 +12210,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 242.57 247.65 0)
+			(at 202.13 243.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12415,7 +12327,6 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "0c329559-2d91-4bc0-8180-f59d443f63c7")
 		(property "Reference" "J9"
 			(at 410.21 152.4 0)
@@ -12429,7 +12340,7 @@
 			)
 		)
 		(property "Value" "HOSYOND_3.5_TFT"
-			(at 410.21 154.94 0)
+			(at 420.624 159.766 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -12439,7 +12350,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x14_P2.54mm_Vertical"
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x10_P2.54mm_Vertical"
 			(at 406.4 153.67 0)
 			(hide yes)
 			(show_name no)
@@ -12450,7 +12361,7 @@
 				)
 			)
 		)
-		(property "Datasheet" ""
+		(property "Datasheet" "https://www.hosyond.com/products/3-5-inch-tft-lcd-display-module"
 			(at 406.4 153.67 0)
 			(hide yes)
 			(show_name no)
@@ -12461,7 +12372,7 @@
 				)
 			)
 		)
-		(property "Description" ""
+		(property "Description" "Hosyond 3.5\" 320x480 IPS TFT — ST7796U LCD driver, I2C capacitive touch (FT6236/GT911), integrated microSD"
 			(at 406.4 153.67 0)
 			(hide yes)
 			(show_name no)
@@ -12471,18 +12382,6 @@
 					(size 1.27 1.27)
 				)
 			)
-		)
-		(pin "1"
-			(uuid "59f3a9db-fec6-4039-94b3-3e6da5e38a5f")
-		)
-		(pin "2"
-			(uuid "a2ec602c-a16b-468e-9f4a-bb741a11a5e4")
-		)
-		(pin "3"
-			(uuid "de4bc3ca-6cee-4c22-8bbb-8ac625c24786")
-		)
-		(pin "4"
-			(uuid "8e3956b1-adab-4146-9fa2-7091b6b63de6")
 		)
 		(pin "5"
 			(uuid "971ac98b-91fe-4c49-b3e8-d1198df7455d")
@@ -12502,16 +12401,16 @@
 		(pin "10"
 			(uuid "e182d49d-0468-43ab-8005-13368f545e07")
 		)
-		(pin "11"
+		(pin "1"
 			(uuid "a136a062-9205-45cd-9e61-643384520199")
 		)
-		(pin "12"
+		(pin "2"
 			(uuid "0244383b-3129-4bc5-997d-c17a2a8ad414")
 		)
-		(pin "13"
+		(pin "3"
 			(uuid "0038c24b-f700-47a3-8e55-ccfcf47db1aa")
 		)
-		(pin "14"
+		(pin "4"
 			(uuid "2510f4ed-cc20-4a8e-b41c-45dc31841ffa")
 		)
 		(instances
@@ -12940,7 +12839,7 @@
 	)
 	(symbol
 		(lib_id "Device:LED")
-		(at 194.11 258.37 0)
+		(at 153.67 254 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -12951,7 +12850,7 @@
 		(fields_autoplaced yes)
 		(uuid "2b0a3927-9c59-471b-be93-16bed6b2a51e")
 		(property "Reference" "D4"
-			(at 197.92 257.1 0)
+			(at 157.48 252.73 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -12962,7 +12861,7 @@
 			)
 		)
 		(property "Value" "RED"
-			(at 197.92 259.64 0)
+			(at 157.48 255.27 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -12973,7 +12872,7 @@
 			)
 		)
 		(property "Footprint" "LED_SMD:LED_0603_1608Metric"
-			(at 194.11 258.37 0)
+			(at 153.67 254 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12984,7 +12883,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 194.11 258.37 0)
+			(at 153.67 254 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -12995,7 +12894,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 194.11 258.37 0)
+			(at 153.67 254 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13514,7 +13413,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 277.93 243.13 0)
+		(at 237.49 238.76 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -13525,7 +13424,7 @@
 		(fields_autoplaced yes)
 		(uuid "439e6455-90f2-4e9f-91f0-6d5ba01500f6")
 		(property "Reference" "R19"
-			(at 281.74 241.86 0)
+			(at 241.3 237.49 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -13536,7 +13435,7 @@
 			)
 		)
 		(property "Value" "220"
-			(at 281.74 244.4 0)
+			(at 241.3 240.03 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -13547,7 +13446,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 277.93 243.13 0)
+			(at 237.49 238.76 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13558,7 +13457,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 277.93 243.13 0)
+			(at 237.49 238.76 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13569,7 +13468,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 277.93 243.13 0)
+			(at 237.49 238.76 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13931,7 +13830,7 @@
 	)
 	(symbol
 		(lib_id "Device:LED")
-		(at 154.74 258.37 0)
+		(at 114.3 254 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -13942,7 +13841,7 @@
 		(fields_autoplaced yes)
 		(uuid "5775fca2-9668-45f5-9cb0-491969cc3ca5")
 		(property "Reference" "D1"
-			(at 158.55 257.1 0)
+			(at 118.11 252.73 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -13953,7 +13852,7 @@
 			)
 		)
 		(property "Value" "BLUE"
-			(at 158.55 259.64 0)
+			(at 118.11 255.27 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -13964,7 +13863,7 @@
 			)
 		)
 		(property "Footprint" "LED_SMD:LED_0603_1608Metric"
-			(at 154.74 258.37 0)
+			(at 114.3 254 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13975,7 +13874,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.74 258.37 0)
+			(at 114.3 254 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -13986,7 +13885,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 154.74 258.37 0)
+			(at 114.3 254 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14345,7 +14244,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 162.36 245.67 0)
+		(at 121.92 241.3 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -14356,7 +14255,7 @@
 		(fields_autoplaced yes)
 		(uuid "6dfddd64-d85b-4d79-af1f-431739537fc9")
 		(property "Reference" "R20"
-			(at 166.17 244.4 0)
+			(at 125.73 240.03 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14367,7 +14266,7 @@
 			)
 		)
 		(property "Value" "470"
-			(at 166.17 246.94 0)
+			(at 125.73 242.57 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14378,7 +14277,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 162.36 245.67 0)
+			(at 121.92 241.3 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14389,7 +14288,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 162.36 245.67 0)
+			(at 121.92 241.3 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14400,7 +14299,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 162.36 245.67 0)
+			(at 121.92 241.3 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14969,7 +14868,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Connector_JST:JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical"
+		(property "Footprint" "Connector_JST:JST_PH_S2B-PH-K_1x02_P2.00mm_Horizontal"
 			(at 290.21 100.5 0)
 			(hide yes)
 			(show_name no)
@@ -15468,7 +15367,7 @@
 	)
 	(symbol
 		(lib_id "Device:LED")
-		(at 275.39 257.1 0)
+		(at 234.95 252.73 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15478,7 +15377,7 @@
 		(dnp no)
 		(uuid "927d2f7c-4e94-45ad-a1c8-1ae2dc06015d")
 		(property "Reference" "D6"
-			(at 278.464 255.708 0)
+			(at 238.024 251.338 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15489,7 +15388,7 @@
 			)
 		)
 		(property "Value" "CYAN"
-			(at 278.464 259.264 0)
+			(at 238.024 254.894 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15500,7 +15399,7 @@
 			)
 		)
 		(property "Footprint" "LED_SMD:LED_0603_1608Metric"
-			(at 275.39 257.1 0)
+			(at 234.95 252.73 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15511,7 +15410,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 275.39 257.1 0)
+			(at 234.95 252.73 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15522,7 +15421,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 275.39 257.1 0)
+			(at 234.95 252.73 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16780,7 +16679,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 201.73 246.94 0)
+		(at 161.29 242.57 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -16790,7 +16689,7 @@
 		(dnp no)
 		(uuid "c1ba91de-3f23-49e0-b419-f079b1df981e")
 		(property "Reference" "R17"
-			(at 204.978 245.618 0)
+			(at 164.538 241.248 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16801,7 +16700,7 @@
 			)
 		)
 		(property "Value" "220"
-			(at 204.724 247.396 0)
+			(at 164.284 243.026 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16812,7 +16711,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
-			(at 201.73 246.94 0)
+			(at 161.29 242.57 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16823,7 +16722,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 201.73 246.94 0)
+			(at 161.29 242.57 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16834,7 +16733,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 201.73 246.94 0)
+			(at 161.29 242.57 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17753,7 +17652,7 @@
 	)
 	(symbol
 		(lib_id "Device:LED")
-		(at 233.48 258.37 0)
+		(at 193.04 254 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -17764,7 +17663,7 @@
 		(fields_autoplaced yes)
 		(uuid "d1a90f45-725c-4e47-a04b-597791fb90fc")
 		(property "Reference" "D5"
-			(at 237.29 257.1 0)
+			(at 196.85 252.73 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17775,7 +17674,7 @@
 			)
 		)
 		(property "Value" "WHITE"
-			(at 237.29 259.64 0)
+			(at 196.85 255.27 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17786,7 +17685,7 @@
 			)
 		)
 		(property "Footprint" "LED_SMD:LED_0603_1608Metric"
-			(at 233.48 258.37 0)
+			(at 193.04 254 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17797,7 +17696,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 233.48 258.37 0)
+			(at 193.04 254 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17808,7 +17707,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 233.48 258.37 0)
+			(at 193.04 254 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
