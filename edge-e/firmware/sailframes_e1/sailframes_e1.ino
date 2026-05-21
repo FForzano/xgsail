@@ -101,7 +101,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.07"
+#define FW_VERSION    "2026.05.20.08"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -1395,18 +1395,19 @@ void setup() {
 // Do NOT save or restart after CFGRTCM.
 // ============================================================
 void configureLG290P() {
-  // Configures the Waveshare LG290P for the SailFrames recording profile:
-  //   * Rover mode (PQTMCFGRCVRMODE,W,1) — required for 10 Hz fix rate.
-  //     Base station mode (mode 2) hard-locks the fix rate at 1 Hz per
-  //     LG290P&LGx80P Protocol Spec v1.1 §2.3.28 (NOTE on PQTMCFGFIXRATE).
-  //     Earlier firmware used Base mode under the (incorrect) belief that
-  //     it was required for MSM7 output — see PQTMCFGRTCM §2.3.39 which
-  //     is mode-agnostic, so we explicitly enable MSM7 after the restart.
-  //   * 10 Hz fix rate (PQTMCFGFIXRATE,W,100).
-  //   * NMEA: GGA, RMC, GSA, GSV (used by display + nav CSV).
-  //   * RTCM3: MSM7 observation messages 1077/1087/1097/1127 + ephemeris
-  //     1019/1020/1042/1046 + station reference 1006 (used by PPK lambda).
-  Serial.println("[GPS] Configuring LG290P for 10 Hz Rover + MSM7 RTCM3...");
+  // Configures the Waveshare LG290P for the SailFrames recording profile.
+  //
+  // Mode trade-off (settled 2026-05-21 after .07 -> .08 revert):
+  //   * Base mode (W,2): MSM4/MSM7 RTCM3 observations emit, fix rate
+  //     locked at 1 Hz (LG290P&LGx80P Protocol Spec v1.1 §2.3.28).
+  //   * Rover mode (W,1): 10 Hz fix rate available, but PQTMCFGRTCM,W,7
+  //     does NOT actually emit MSM frames on AANR01A06S — empirically
+  //     confirmed across E2/E4 (22 min car ride, 1.5 KB .rtcm3, zero
+  //     MSM7 frames, only ephemeris). Spec says PQTMCFGRTCM is
+  //     mode-agnostic; the device disagrees.
+  // Net: stay in Base mode + 1 Hz GPS to preserve PPK. IMU stays at
+  // 10 Hz (independent of LG290P mode).
+  Serial.println("[GPS] Configuring LG290P for PPK (Base mode, 1 Hz, MSM7)...");
 
   // Step 1: Query firmware version
   Serial.println("[GPS] Querying firmware version...");
@@ -1417,12 +1418,13 @@ void configureLG290P() {
   sendPQTM("PQTMCFGRCVRMODE,R");
   delay(300);
 
-  // Step 3: Set Rover mode (allows 10 Hz fix rate per §2.3.28).
-  // Was mode 2 (base) until firmware 2026.05.20.06 — switch to mode 1
-  // was the only way to unlock fix rate from 1 Hz. MSM7 still works
-  // because PQTMCFGRTCM is mode-agnostic.
-  Serial.println("[GPS] Setting Rover mode (unlocks 10 Hz fix rate)...");
-  sendPQTM("PQTMCFGRCVRMODE,W,1");
+  // Step 3: Set base station mode (mode 2). MSM RTCM3 observations only
+  // emit in this mode on AANR01A06S — Rover mode's PQTMCFGRTCM,W,7 was
+  // tested in .07 and silently produced ephemeris-only output (~1.5 KB
+  // .rtcm3 over 22 minutes of E2/E4 driving). Fix rate is locked at
+  // 1 Hz as a side effect.
+  Serial.println("[GPS] Setting base station mode for MSM output...");
+  sendPQTM("PQTMCFGRCVRMODE,W,2");
   delay(200);
 
   // Step 4: Enable RTCM3 protocol on UART2 and UART3 so the MSM/ephemeris
@@ -1431,34 +1433,26 @@ void configureLG290P() {
   sendPQTM("PQTMCFGPROT,W,1,3,00000005,00000005");  // UART3
   sendPQTM("PQTMCFGPROT,W,1,2,00000005,00000005");  // UART2
 
-  // Step 5: Enable NMEA messages. In Rover mode these are on by default
-  // but we set explicit rates so a previous base-mode session (where they
-  // were auto-disabled) re-enables cleanly.
+  // Step 5: Re-enable NMEA messages — Base mode auto-disables them per
+  // §2.3.25. These are needed for the TFT display + nav CSV.
   Serial.println("[GPS] Enabling NMEA messages...");
   sendPQTM("PQTMCFGMSGRATE,W,GGA,1");
   sendPQTM("PQTMCFGMSGRATE,W,RMC,1");
   sendPQTM("PQTMCFGMSGRATE,W,GSA,1");
   sendPQTM("PQTMCFGMSGRATE,W,GSV,1");
 
-  // Step 6: Enable ephemeris message rates. In Rover mode the LG290P
-  // emits live broadcast ephemeris (1019/1020/1042/1046) every epoch
-  // these messages update — better PPK input than the IGS broadcast
-  // nav file the previous base-mode firmware relied on.
+  // Step 6: Enable ephemeris messages. Base mode suppresses these by
+  // default but explicit per-message rates restore them. PPK lambda
+  // also pulls IGS broadcast nav as a redundancy.
   Serial.println("[GPS] Enabling ephemeris messages...");
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1019,1");  // GPS
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1020,1");  // GLONASS
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1042,1");  // BeiDou
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1046,1");  // Galileo
 
-  // Step 7: Set fix rate to 10 Hz BEFORE save+restart so the new rate
-  // is included in NVM and takes effect after the restart on this same
-  // boot. Was previously placed after the restart, which saved the rate
-  // but didn't apply it until the next power cycle.
-  Serial.println("[GPS] Setting fix rate to 10 Hz (100 ms)...");
-  sendPQTM("PQTMCFGFIXRATE,W,100");
-  delay(200);
-
-  // Step 8: Save NVM + full restart to apply mode + rate together
+  // Step 7: Save NVM + restart to apply base mode. No fix-rate command
+  // here — Base mode is fix-rate-locked to 1 Hz per §2.3.28 and
+  // PQTMCFGFIXRATE returns ERROR,1 in this mode anyway.
   Serial.println("[GPS] Saving to NVM...");
   sendPQTM("PQTMSAVEPAR");
   delay(500);
@@ -1470,19 +1464,14 @@ void configureLG290P() {
   // Drain any buffered data after restart
   while (Serial2.available()) Serial2.read();
 
-  // Step 9: Enable MSM7 output (RAM only — PQTMCFGRTCM does not persist).
-  // §2.3.39 PQTMCFGRTCM:
-  //   <MSM_Type>=7 (MSM7), <MSM_Mode>=0, <MSM_ElevThd>=-90 (no limit),
-  //   <Reserved>=07, <Reserved>=06, <EPH_Mode>=1 (output on update),
-  //   <EPH_Interval>=0 (default). This is the same payload that worked
-  //   in base mode; it's not mode-specific.
+  // Step 8: Send CFGRTCM for MSM7 output. RAM-only — must re-send every
+  // boot. Same payload as pre-.07 firmware. In Base mode this command
+  // actually produces MSM7 frames (1077/1087/1097/1127), unlike Rover.
   Serial.println("[GPS] Enabling MSM7 output (RAM only)...");
   sendPQTM("PQTMCFGRTCM,W,7,0,-90,07,06,1,0");
   delay(200);
 
-  // Step 10: Re-send ephemeris rates AFTER restart (matches the previous
-  // firmware's belt-and-braces — some rate writes only stick if RTCM3
-  // protocol is up, which it is after the restart in step 8).
+  // Step 9: Re-send ephemeris rates AFTER restart.
   Serial.println("[GPS] Enabling ephemeris messages (post-restart)...");
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1019,1");
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1020,1");
@@ -1490,8 +1479,8 @@ void configureLG290P() {
   sendPQTM("PQTMCFGMSGRATE,W,RTCM3-1046,1");
   delay(200);
 
-  // Step 11: Verify — read back the active configuration. Boot log will
-  // show CFGRCVRMODE=1 (Rover), CFGFIXRATE=100 ms, and per-message rates.
+  // Step 10: Verify — read back active configuration. Expect RCVRMODE=2
+  // (base), FIXRATE=1000 ms, and per-message rates all "1".
   Serial.println("[GPS] Verifying configuration...");
   sendPQTM("PQTMCFGRCVRMODE,R");
   sendPQTM("PQTMCFGFIXRATE,R");
@@ -1502,10 +1491,10 @@ void configureLG290P() {
   sendPQTM("PQTMCFGMSGRATE,R,RTCM3-1046");
 
   Serial.println("[GPS] Configuration complete:");
-  Serial.println("[GPS]   Mode: Rover (10 Hz fix rate)");
-  Serial.println("[GPS]   NMEA: GGA, RMC, GSA, GSV @ 10 Hz");
-  Serial.println("[GPS]   RTCM3: MSM7 (1077/1087/1097/1127) @ 10 Hz");
-  Serial.println("[GPS]   Ephemeris: live (1019/1020/1042/1046) — Rover mode emits these");
+  Serial.println("[GPS]   Mode: Base station (for MSM output)");
+  Serial.println("[GPS]   NMEA: GGA, RMC, GSA, GSV @ 1 Hz (Base mode rate lock)");
+  Serial.println("[GPS]   RTCM3: MSM7 (1077/1087/1097/1127) @ 1 Hz");
+  Serial.println("[GPS]   Ephemeris: 1019/1020/1042/1046 explicit rates");
 }
 
 // ============================================================
