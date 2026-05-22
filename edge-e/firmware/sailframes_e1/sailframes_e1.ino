@@ -101,7 +101,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.15"
+#define FW_VERSION    "2026.05.20.16"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -1152,14 +1152,20 @@ static void meshBuildAndSendBoatState() {
     g_mesh_tx_count++;
   } else {
     g_mesh_tx_fail_count++;
-    // Log the first 5 distinct error codes — quick diagnosis for any
-    // future regression. ESP_ERR_ESPNOW_IF (0x3000+) = wifi not started
-    // or wrong mode. ESP_ERR_ESPNOW_ARG = bad args. NOT_FOUND = peer
-    // missing. NO_MEM = system memory.
     static int s_logged = 0;
     if (s_logged < 5) {
       Serial.printf("[MESH] esp_now_send failed: 0x%x\n", err);
       s_logged++;
+    }
+    // ESP_ERR_ESPNOW_NOT_INIT (0x3001) fires when WiFi.disconnect(true)
+    // in connectWiFi() called esp_wifi_stop() as a side effect, which
+    // tears down ESP-NOW too. Recover by re-initializing on the next
+    // tick. Observed on .15: tx=71 then fail=N with IDF logging
+    // "E ESPNOW: esp now not init!" at 500 ms intervals after the
+    // first upload-task WiFi reconnect cycle.
+    if (err == ESP_ERR_ESPNOW_NOT_INIT) {
+      g_mesh_enabled = false;
+      Serial.println("[MESH] ESP-NOW torn down by WiFi cycle — re-init next tick");
     }
   }
 }
@@ -1167,6 +1173,20 @@ static void meshBuildAndSendBoatState() {
 // Called from the main loop. Cheap path: returns fast if disabled,
 // gated, or interval not yet elapsed.
 void meshTick() {
+  // Auto-recover if ESP-NOW got torn down by a WiFi cycle. meshInit
+  // is idempotent (returns early if already enabled), so calling it
+  // here is safe both for normal operation and post-teardown.
+  // Throttled to once per second so we don't spam if the radio is
+  // genuinely down.
+  if (!g_mesh_enabled && !wifiBusy && !uploading) {
+    static unsigned long lastReinit = 0;
+    unsigned long now2 = millis();
+    if (now2 - lastReinit >= 1000) {
+      lastReinit = now2;
+      meshInit();
+    }
+    return;
+  }
   if (!g_mesh_enabled) return;
   // Don't compete with HTTP uploads — esp_now_send is cheap but the
   // RF airtime steals from the upload. Existing wifiBusy + uploading
@@ -3154,8 +3174,13 @@ void updateDisplayD3() {
 }
 
 // Main display router
-// TFT (VSPI) and SD (HSPI) are on separate buses - no conflicts
+// TFT (VSPI) and SD (HSPI) are on separate buses - no conflicts.
+// But TFT itself is shared between Core 0 (OTA progress paint) and
+// Core 1 (this normal display loop). TFT_eSPI is not thread-safe —
+// concurrent calls deadlock the VSPI peripheral. While OTA is in
+// flight, Core 0 owns the TFT exclusively; Core 1 stands down here.
 void updateDisplay() {
+  if (otaInProgress) return;
   if (displayMode == 1) {
     updateDisplayD1();
   } else if (displayMode == 2) {
@@ -4098,6 +4123,15 @@ bool performOTAUpdate(bool manual) {
   uploading = true;
   wifiBusy  = true;
 
+  // Park Core 1's display loop while we paint the OTA progress screen
+  // from Core 0. TFT_eSPI is not thread-safe — concurrent calls from
+  // both cores through the shared VSPI peripheral deadlock the bus
+  // (observed on .15: 2 of 6 boats hung at "rebooting..." with
+  // sect=display frozen, iter not advancing, while the diag task on
+  // Core 0 kept printing). updateDisplay() early-returns when
+  // otaInProgress is true, so only Core 0 touches the TFT during OTA.
+  otaInProgress = true;
+
   // Arm the hang watchdog: diagnosticsTask will forcibly esp_restart()
   // if we don't return within OTA_MAX_MS. Clears at every exit point
   // below so a successful or cleanly-failing OTA never trips it.
@@ -4112,6 +4146,7 @@ bool performOTAUpdate(bool manual) {
   g_otaDeadlineMs = 0;
   uploading = prevUploading;
   wifiBusy  = prevWifiBusy;
+  otaInProgress = false;
   appendBootLog(ok ? "ota end ok" : "ota end fail");
   // After any OTA exit (other than the success path that restarts) we
   // may have painted the yellow OTA UPDATE screen. Force the next D2/D3
