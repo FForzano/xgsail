@@ -8,99 +8,111 @@
     <script src="./config.js"></script>
     <script src="./assets/js/analytics.js"></script>
     <style>
-        .fleet-container {
-            max-width: 1200px;
-            margin: 80px auto 40px;
-            padding: 0 20px;
+        html, body { overflow: auto; height: auto; }
+        body { padding-bottom: 60px; }
+        .fleet-wrap {
+            max-width: 1400px;
+            margin: 80px auto 20px;
+            padding: 0 16px;
         }
-        .fleet-header {
+        .fleet-toolbar {
             display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
+            align-items: center;
             gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
         }
-        .fleet-header h1 {
-            color: var(--text-primary);
+        .fleet-toolbar h1 {
             margin: 0;
-            font-size: 1.8rem;
+            font-size: 1.6rem;
+            color: var(--text-primary);
         }
-        .fleet-header .meta {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-        .fleet-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 16px;
-        }
-        .boat-card {
+        .fleet-toolbar input.filter {
             background: var(--bg-secondary);
-            border-radius: 10px;
-            padding: 18px;
             border: 1px solid var(--border-color, #2a2a2a);
-            transition: border-color 0.15s ease;
-        }
-        .boat-card.stale { border-color: rgba(239, 68, 68, 0.4); }
-        .boat-card.warn  { border-color: rgba(234, 179, 8, 0.4); }
-        .boat-card.ok    { border-color: rgba(34, 197, 94, 0.3); }
-        .boat-card.missing {
-            border-style: dashed;
-            opacity: 0.55;
-        }
-        .boat-card h2 {
-            font-size: 1.4rem;
-            margin: 0 0 6px;
             color: var(--text-primary);
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            min-width: 240px;
+            flex: 1;
         }
-        .boat-card .fw {
-            font-size: 0.8rem;
+        .fleet-toolbar .meta {
             color: var(--text-secondary);
-            font-weight: normal;
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        }
-        .boat-card .age {
             font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-bottom: 14px;
+            font-family: ui-monospace, Menlo, monospace;
         }
-        .stat-row {
-            display: grid;
-            grid-template-columns: 110px 1fr;
-            gap: 8px;
-            font-size: 0.92rem;
-            line-height: 1.6;
-        }
-        .stat-row .lbl {
-            color: var(--text-secondary);
-        }
-        .stat-row .val {
-            color: var(--text-primary);
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        }
-        .stat-row .val.bad  { color: #ef4444; }
-        .stat-row .val.warn { color: #eab308; }
-        .stat-row .val.ok   { color: #22c55e; }
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-secondary);
-        }
-        .refresh-btn {
+        .fleet-toolbar button {
             background: var(--accent);
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 8px 14px;
             border-radius: 6px;
             cursor: pointer;
             font-size: 0.9rem;
         }
-        .refresh-btn:hover { opacity: 0.9; }
-        .refresh-btn:disabled { opacity: 0.5; cursor: wait; }
+        .fleet-toolbar button:disabled { opacity: 0.5; cursor: wait; }
+
+        .fleet-table-wrap {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            border: 1px solid var(--border-color, #2a2a2a);
+            overflow-x: auto;
+        }
+        table.fleet {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+        table.fleet thead th {
+            position: sticky;
+            top: 0;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color, #333);
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+        }
+        table.fleet thead th:hover { color: var(--text-primary); }
+        table.fleet thead th.sort-asc::after  { content: " ▲"; opacity: 0.7; }
+        table.fleet thead th.sort-desc::after { content: " ▼"; opacity: 0.7; }
+        table.fleet tbody td {
+            padding: 9px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            color: var(--text-primary);
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        table.fleet tbody tr:hover td { background: rgba(255,255,255,0.02); }
+        table.fleet tbody tr.missing td {
+            opacity: 0.45;
+            font-style: italic;
+        }
+        table.fleet tbody tr.stale td { background: rgba(239, 68, 68, 0.06); }
+        table.fleet tbody tr.warn  td { background: rgba(234, 179, 8, 0.05); }
+        table.fleet td.bad  { color: #ef4444; font-weight: 600; }
+        table.fleet td.warn { color: #eab308; font-weight: 600; }
+        table.fleet td.ok   { color: #22c55e; }
+        table.fleet td.boat-id {
+            font-weight: 700;
+            font-size: 0.96rem;
+            color: var(--text-primary);
+        }
+        table.fleet td.muted { color: var(--text-secondary); }
+        .fleet-empty {
+            padding: 30px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        @media (max-width: 600px) {
+            .fleet-toolbar h1 { font-size: 1.3rem; }
+            .fleet-toolbar input.filter { min-width: 180px; }
+        }
     </style>
 </head>
 <body>
@@ -112,30 +124,100 @@
         </div>
     </nav>
 
-    <div class="fleet-container">
-        <div class="fleet-header">
+    <div class="fleet-wrap">
+        <div class="fleet-toolbar">
             <h1>Fleet Health</h1>
-            <div>
-                <span class="meta" id="last-refresh">—</span>
-                <button class="refresh-btn" id="refresh-btn">Refresh</button>
-            </div>
+            <input type="search" class="filter" id="filter-input" placeholder="filter (E1, low battery, no fix, ...)">
+            <span class="meta" id="last-refresh">—</span>
+            <button id="refresh-btn">Refresh</button>
         </div>
-        <div class="fleet-grid" id="fleet-grid">
-            <div class="loading">Loading fleet snapshots…</div>
+        <div class="fleet-table-wrap">
+            <table class="fleet">
+                <thead>
+                    <tr id="header-row"></tr>
+                </thead>
+                <tbody id="tbody">
+                    <tr><td class="fleet-empty" colspan="14">Loading fleet snapshots…</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
     <script>
-    // Fleet health dashboard. Reads raw/<boat_id>/_health.json from S3
-    // (uploaded by firmware Stage 3 MVP, .17+). Pure client-side fetch.
+    // -- Data model -------------------------------------------------
     const BUCKET_BASE = 'https://sailframes-fleet-data-prod.s3.us-east-1.amazonaws.com';
     const BOATS = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
 
-    function fmtAge(secondsAgo) {
-        if (secondsAgo < 60) return `${Math.round(secondsAgo)}s ago`;
-        if (secondsAgo < 3600) return `${Math.round(secondsAgo / 60)}m ago`;
-        if (secondsAgo < 86400) return `${(secondsAgo / 3600).toFixed(1)}h ago`;
-        return `${(secondsAgo / 86400).toFixed(1)}d ago`;
+    // Each column: key (sortable value), label (header text),
+    // render(row) -> {text, cls?}. Comparators default to natural
+    // sort on the key value.
+    const COLUMNS = [
+        { key: 'boat',     label: 'Boat',  get: r => r.data?.boat_id || r.boat, render: v => ({text: v, cls: 'boat-id'}) },
+        { key: 'age_s',    label: 'Age',   get: r => r.ageSec ?? Infinity,
+          render: (v, r) => ({text: r.missing ? '—' : fmtAge(v), cls: r.missing ? 'muted' : (v > 86400 ? 'bad' : v > 3600 ? 'warn' : 'ok')}) },
+        { key: 'fw',       label: 'FW',    get: r => r.data?.version || '',
+          render: v => ({text: v || '—', cls: 'muted'}) },
+        { key: 'uptime_s', label: 'Uptime',get: r => r.data?.uptime_s ?? -1,
+          render: v => ({text: v < 0 ? '—' : fmtUptime(v), cls: 'muted'}) },
+        { key: 'batt_pct', label: 'Batt %',get: r => r.data?.battery_pct ?? -1,
+          render: v => ({text: v < 0 ? '—' : v + '%', cls: v < 0 ? 'muted' : v < 25 ? 'bad' : v < 50 ? 'warn' : 'ok'}) },
+        { key: 'batt_v',   label: 'Batt V',get: r => r.data?.battery_v ?? -1,
+          render: v => ({text: v < 0 ? '—' : v.toFixed(2) + 'V', cls: 'muted'}) },
+        { key: 'gps_fix',  label: 'GPS',   get: r => r.data?.gps_fix || '',
+          render: (v, r) => {
+              const sats = r.data?.sats ?? 0;
+              if (!v || v === 'none' || sats === 0) return {text: 'no fix', cls: 'warn'};
+              return {text: `${v} · ${sats} sats`, cls: 'ok'};
+          } },
+        { key: 'sats',     label: 'Sats',  get: r => r.data?.sats ?? -1,
+          render: v => ({text: v < 0 ? '—' : v, cls: v === 0 ? 'warn' : 'ok'}) },
+        { key: 'pos',      label: 'Position', get: r => {
+              const p = r.data?.last_position;
+              return p ? p.lat * 1e7 + p.lon : -999999999;
+          },
+          render: (v, r) => {
+              const p = r.data?.last_position;
+              if (!p || (p.lat === 0 && p.lon === 0)) return {text: '—', cls: 'muted'};
+              return {text: `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`};
+          } },
+        { key: 'peers',    label: 'Peers',  get: r => r.data?.espnow_peers ?? -1,
+          render: v => ({text: v < 0 ? '—' : `${v}/5`, cls: v < 0 ? 'muted' : v >= 5 ? 'ok' : v >= 1 ? 'warn' : 'bad'}) },
+        { key: 'tx',       label: 'TX',    get: r => r.data?.espnow_tx ?? -1,
+          render: v => ({text: v < 0 ? '—' : v.toLocaleString(), cls: 'muted'}) },
+        { key: 'rx',       label: 'RX',    get: r => r.data?.espnow_rx ?? -1,
+          render: v => ({text: v < 0 ? '—' : v.toLocaleString(), cls: 'muted'}) },
+        { key: 'wifi',     label: 'WiFi',  get: r => r.data?.wifi_rssi ?? -999,
+          render: (v, r) => {
+              const ssid = r.data?.wifi_ssid;
+              if (!ssid) return {text: '—', cls: 'muted'};
+              return {text: `${ssid} ${v}dBm`, cls: v > -65 ? 'ok' : v > -80 ? 'warn' : 'bad'};
+          } },
+        { key: 'free_heap',label: 'Heap',  get: r => r.data?.free_heap ?? -1,
+          render: (v, r) => {
+              const m = r.data?.min_heap ?? 0;
+              if (v < 0) return {text: '—', cls: 'muted'};
+              return {text: `${Math.round(v/1024)} KB (min ${Math.round(m/1024)})`,
+                      cls: m < 20000 ? 'bad' : m < 30000 ? 'warn' : 'ok'};
+          } },
+        { key: 'hw',       label: 'HW',    get: r => r.data?.hardware_platform || '',
+          render: (v, r) => {
+              if (!v) return {text: '—', cls: 'muted'};
+              const imu = r.data.imu_ok ? '✓' : '✗';
+              const sd  = r.data.sd_ok  ? '✓' : '✗';
+              const bad = !r.data.imu_ok || !r.data.sd_ok;
+              return {text: `${v} · IMU ${imu} · SD ${sd}`, cls: bad ? 'bad' : 'muted'};
+          } },
+        { key: 'role',     label: 'Role',  get: r => r.data?.unit_role || '',
+          render: v => ({text: v || '—', cls: 'muted'}) },
+    ];
+
+    // -- Helpers ----------------------------------------------------
+    function fmtAge(s) {
+        if (s === Infinity) return '—';
+        if (s < 60) return `${Math.round(s)}s`;
+        if (s < 3600) return `${Math.round(s/60)}m`;
+        if (s < 86400) return `${(s/3600).toFixed(1)}h`;
+        return `${(s/86400).toFixed(1)}d`;
     }
     function fmtUptime(s) {
         if (s < 60) return `${s}s`;
@@ -144,88 +226,120 @@
         const m = Math.floor((s%3600)/60);
         return `${h}h ${m}m`;
     }
-    function gpsLabel(fix, sats) {
-        if (fix === 'none' || sats === 0) return ['no fix', 'warn'];
-        if (fix === 'dgps') return [`dgps · ${sats} sats`, 'ok'];
-        return [`${fix} · ${sats} sats`, 'ok'];
+    function rowText(r) {
+        if (r.missing) return `${r.boat} missing`;
+        const d = r.data;
+        return `${d.boat_id} ${d.version} ${d.gps_fix} ${d.wifi_ssid || ''} ${d.unit_role}`
+            .toLowerCase();
     }
-    function batteryClass(pct) {
-        if (pct < 25) return 'bad';
-        if (pct < 50) return 'warn';
-        return 'ok';
-    }
+
+    // -- Fetch + render ---------------------------------------------
+    let state = {
+        rows: [],
+        sortKey: 'boat',
+        sortDir: 'asc',
+        filter: '',
+    };
 
     async function fetchOne(boat) {
         const url = `${BUCKET_BASE}/raw/${boat}/_health.json?t=${Date.now()}`;
         try {
             const r = await fetch(url);
             if (!r.ok) return { boat, missing: true };
-            // S3 reports the upload timestamp via the Last-Modified header.
             const lastModified = r.headers.get('Last-Modified');
             const data = await r.json();
-            return { boat, data, lastModified };
+            const ageSec = lastModified
+                ? (Date.now() - new Date(lastModified).getTime()) / 1000
+                : (Date.now() - Date.parse(data.ts_iso)) / 1000;
+            return { boat, data, lastModified, ageSec };
         } catch (e) {
             return { boat, missing: true, error: String(e) };
         }
     }
 
-    function renderCard(result) {
-        const card = document.createElement('div');
-        card.className = 'boat-card';
+    function buildHeader() {
+        const tr = document.getElementById('header-row');
+        tr.innerHTML = '';
+        COLUMNS.forEach(col => {
+            const th = document.createElement('th');
+            th.textContent = col.label;
+            th.dataset.key = col.key;
+            if (state.sortKey === col.key) {
+                th.classList.add(state.sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+            th.addEventListener('click', () => {
+                if (state.sortKey === col.key) {
+                    state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    state.sortKey = col.key;
+                    state.sortDir = 'asc';
+                }
+                renderTable();
+            });
+            tr.appendChild(th);
+        });
+    }
 
-        if (result.missing) {
-            card.classList.add('missing');
-            card.innerHTML = `<h2>${result.boat}</h2>
-                <div class="age">No _health.json on S3 yet</div>
-                <div class="stat-row"><span class="lbl">Status</span><span class="val warn">Hasn't uploaded</span></div>`;
-            return card;
+    function renderTable() {
+        // Sort
+        const col = COLUMNS.find(c => c.key === state.sortKey) || COLUMNS[0];
+        const dir = state.sortDir === 'asc' ? 1 : -1;
+        const sorted = [...state.rows].sort((a, b) => {
+            const av = col.get(a), bv = col.get(b);
+            if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+            return String(av).localeCompare(String(bv)) * dir;
+        });
+
+        // Filter
+        const f = state.filter.trim().toLowerCase();
+        const visible = f ? sorted.filter(r => rowText(r).includes(f)) : sorted;
+
+        // Render
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = '';
+        if (visible.length === 0) {
+            tbody.innerHTML = `<tr><td class="fleet-empty" colspan="${COLUMNS.length}">no boats match filter</td></tr>`;
+            return;
         }
-
-        const d = result.data;
-        const lastModMs = result.lastModified ? new Date(result.lastModified).getTime() : Date.parse(d.ts_iso);
-        const ageSec = (Date.now() - lastModMs) / 1000;
-
-        // Staleness coloring: >24 h = stale (red), >1 h = warn, else ok
-        if (ageSec > 86400) card.classList.add('stale');
-        else if (ageSec > 3600) card.classList.add('warn');
-        else card.classList.add('ok');
-
-        const [gpsTxt, gpsCls] = gpsLabel(d.gps_fix, d.sats);
-        const batCls = batteryClass(d.battery_pct);
-        const peerCls = d.espnow_peers >= 5 ? 'ok' : d.espnow_peers >= 1 ? 'warn' : 'bad';
-        const heapCls = d.min_heap < 30000 ? 'warn' : 'ok';
-
-        card.innerHTML = `
-            <h2>${d.boat_id} <span class="fw">FW${d.version}</span></h2>
-            <div class="age">${fmtAge(ageSec)} · uptime ${fmtUptime(d.uptime_s)}</div>
-            <div class="stat-row">
-                <span class="lbl">Battery</span><span class="val ${batCls}">${d.battery_pct}% · ${d.battery_v.toFixed(2)}V</span>
-                <span class="lbl">GPS</span><span class="val ${gpsCls}">${gpsTxt}</span>
-                <span class="lbl">Position</span><span class="val">${d.last_position.lat.toFixed(5)}, ${d.last_position.lon.toFixed(5)}</span>
-                <span class="lbl">Mesh peers</span><span class="val ${peerCls}">${d.espnow_peers}/5 · tx ${d.espnow_tx} · rx ${d.espnow_rx}</span>
-                <span class="lbl">WiFi</span><span class="val">${d.wifi_ssid || '—'} · ${d.wifi_rssi} dBm</span>
-                <span class="lbl">Heap</span><span class="val ${heapCls}">free ${Math.round(d.free_heap/1024)} KB · min ${Math.round(d.min_heap/1024)} KB</span>
-                <span class="lbl">Hardware</span><span class="val">${d.hardware_platform} · IMU ${d.imu_ok ? '✓' : '✗'} · SD ${d.sd_ok ? '✓' : '✗'}</span>
-                <span class="lbl">Role</span><span class="val">${d.unit_role}</span>
-            </div>`;
-        return card;
+        for (const r of visible) {
+            const tr = document.createElement('tr');
+            if (r.missing) {
+                tr.classList.add('missing');
+            } else if (r.ageSec > 86400) {
+                tr.classList.add('stale');
+            } else if (r.ageSec > 3600) {
+                tr.classList.add('warn');
+            }
+            for (const c of COLUMNS) {
+                const td = document.createElement('td');
+                const rendered = c.render(c.get(r), r);
+                td.textContent = rendered.text;
+                if (rendered.cls) td.className = rendered.cls;
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+        }
     }
 
     async function refresh() {
         const btn = document.getElementById('refresh-btn');
         btn.disabled = true;
-        const grid = document.getElementById('fleet-grid');
-        const results = await Promise.all(BOATS.map(fetchOne));
-        grid.innerHTML = '';
-        results.forEach(r => grid.appendChild(renderCard(r)));
+        state.rows = await Promise.all(BOATS.map(fetchOne));
+        renderTable();
         document.getElementById('last-refresh').textContent =
-            `last refreshed ${new Date().toLocaleTimeString()}`;
+            `refreshed ${new Date().toLocaleTimeString()}`;
         btn.disabled = false;
     }
 
+    // -- Wire up ----------------------------------------------------
     document.getElementById('refresh-btn').addEventListener('click', refresh);
+    document.getElementById('filter-input').addEventListener('input', (e) => {
+        state.filter = e.target.value;
+        renderTable();
+    });
+    buildHeader();
     refresh();
-    setInterval(refresh, 60000);  // auto-refresh every minute
+    setInterval(refresh, 60000);
     </script>
 </body>
 </html>
