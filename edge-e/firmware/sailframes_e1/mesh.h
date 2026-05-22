@@ -55,6 +55,27 @@ struct __attribute__((packed)) BoatStatePayload {
 };
 static_assert(sizeof(BoatStatePayload) == 20, "BoatStatePayload must be 20 bytes");
 
+// Stage 4.5 — race-armed broadcast. Sent by any boat acting as
+// race ops (typically the one tethered to the laptop / RC unit).
+// Every receiver translates the relative start time into its own
+// millis() clock and arms its boat-local OCS state machine.
+//
+// We use `seconds_until_start` (signed int32, relative to the
+// receiver's millis() at packet arrival) rather than GPS time-of-day
+// because not every boat has a GPS fix at the dock. Network latency
+// adds ~few-ms drift — acceptable for second-level race timing.
+struct __attribute__((packed)) RaceArmedPayload {
+    int32_t  pin_lat_e7;
+    int32_t  pin_lon_e7;
+    int32_t  rc_lat_e7;
+    int32_t  rc_lon_e7;
+    int32_t  seconds_until_start;   // signed; negative = race already underway
+    uint8_t  race_num;              // informational, 1-99
+    uint8_t  sequence_mode;         // ISAF Rule 26 = 30, Short = 27, etc. (Stage 7)
+    uint8_t  reserved[2];
+};
+static_assert(sizeof(RaceArmedPayload) == 24, "RaceArmedPayload must be 24 bytes");
+
 // FNV-1a 32-bit hash of a NUL-terminated string. Stable across boots
 // and across the fleet — every E1/E2/.../B1 hashes its boat_id the
 // same way, so receivers can identify senders without a peer registry.

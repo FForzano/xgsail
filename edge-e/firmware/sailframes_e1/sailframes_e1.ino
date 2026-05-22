@@ -101,7 +101,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.19"
+#define FW_VERSION    "2026.05.20.20"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -1069,6 +1069,66 @@ static void meshOnReceive(const esp_now_recv_info_t* info, const uint8_t* data, 
     g_mesh_peers[idx].last_seq       = h->seq;
     g_mesh_peers[idx].msg_count++;
   }
+  else if (h->msg_type == MSG_RACE_ARMED &&
+           len >= (int)(sizeof(MeshHeader) + sizeof(RaceArmedPayload))) {
+    // Stage 4.5 — race-armed broadcast. Translate relative
+    // seconds_until_start into local millis() and arm boat-local OCS.
+    // Forward-declared ocsArm in this TU (defined later in the file).
+    const RaceArmedPayload* p = (const RaceArmedPayload*)(data + sizeof(MeshHeader));
+    double pin_lat = p->pin_lat_e7 / 1e7;
+    double pin_lon = p->pin_lon_e7 / 1e7;
+    double rc_lat  = p->rc_lat_e7  / 1e7;
+    double rc_lon  = p->rc_lon_e7  / 1e7;
+    uint32_t start_ms = millis() + (uint32_t)(p->seconds_until_start * 1000);
+    extern void ocsArm(double, double, double, double, uint32_t);
+    ocsArm(pin_lat, pin_lon, rc_lat, rc_lon, start_ms);
+    Serial.printf("[MESH] MSG_RACE_ARMED from 0x%08lx — race %d T+0 in %ds\n",
+                  (unsigned long)h->sender_id, p->race_num, p->seconds_until_start);
+  }
+}
+
+// Broadcast a MSG_RACE_ARMED to the fleet. Called from the telnet
+// `race arm` command after we've armed our own OCS state. Other
+// boats receive this in meshOnReceive and arm their own.
+bool meshBroadcastRaceArmed(double pin_lat, double pin_lon,
+                            double rc_lat, double rc_lon,
+                            int seconds_until_start,
+                            uint8_t race_num, uint8_t sequence_mode) {
+  if (!g_mesh_enabled) return false;
+  uint8_t buf[sizeof(MeshHeader) + sizeof(RaceArmedPayload)];
+  MeshHeader* h = (MeshHeader*)buf;
+  RaceArmedPayload* p = (RaceArmedPayload*)(buf + sizeof(MeshHeader));
+
+  h->magic[0] = MESH_MAGIC_0;
+  h->magic[1] = MESH_MAGIC_1;
+  h->version  = MESH_VERSION;
+  h->msg_type = MSG_RACE_ARMED;
+  h->seq      = g_mesh_seq++;
+  h->ttl      = 0;
+  h->reserved = 0;
+  h->sender_id = g_mesh_local_sender_id;
+  h->gps_time_ms = 0;
+
+  p->pin_lat_e7 = (int32_t)(pin_lat * 1e7);
+  p->pin_lon_e7 = (int32_t)(pin_lon * 1e7);
+  p->rc_lat_e7  = (int32_t)(rc_lat  * 1e7);
+  p->rc_lon_e7  = (int32_t)(rc_lon  * 1e7);
+  p->seconds_until_start = seconds_until_start;
+  p->race_num = race_num;
+  p->sequence_mode = sequence_mode;
+  p->reserved[0] = p->reserved[1] = 0;
+
+  // Send multiple times — small payload, race-critical, no ack mechanism
+  // in MVP. Three transmissions ~100 ms apart raise reliability against
+  // single-packet losses without saturating airtime.
+  esp_err_t err = ESP_OK;
+  for (int i = 0; i < 3; i++) {
+    esp_err_t e = esp_now_send(MESH_BROADCAST_ADDR, buf, sizeof(buf));
+    if (e == ESP_OK) g_mesh_tx_count++;
+    else { g_mesh_tx_fail_count++; err = e; }
+    if (i < 2) delay(100);
+  }
+  return err == ESP_OK;
 }
 
 void meshInit() {
@@ -5391,6 +5451,9 @@ void processCommand(String cmd, bool fromTelnet) {
 
   } else if (cmd.startsWith("race arm ")) {
     // race arm <pin_lat> <pin_lon> <rc_lat> <rc_lon> <secs_from_now>
+    // Stage 4.5: also broadcasts MSG_RACE_ARMED over ESP-NOW so all
+    // other boats arm at the same instant. 3x transmission for
+    // reliability — single packet losses don't lose the race start.
     double pln, plg, rln, rlg;
     int secs = 0;
     int n = sscanf(cmd.c_str(), "race arm %lf %lf %lf %lf %d",
@@ -5401,13 +5464,15 @@ void processCommand(String cmd, bool fromTelnet) {
     } else {
       uint32_t start_ms = millis() + (uint32_t)(secs * 1000);
       ocsArm(pln, plg, rln, rlg, start_ms);
-      tprintf("race armed: PIN(%.5f,%.5f) RC(%.5f,%.5f) T+0 in %d s\n",
+      bool sent = meshBroadcastRaceArmed(pln, plg, rln, rlg, secs, 0, 30);
+      tprintf("race armed locally: PIN(%.5f,%.5f) RC(%.5f,%.5f) T+0 in %d s\n",
               pln, plg, rln, rlg, secs);
+      tprintf("mesh broadcast: %s (3x for reliability)\n", sent ? "OK" : "FAILED");
     }
 
   } else if (cmd == "race disarm" || cmd == "race off") {
     ocsDisarm();
-    tprintln("race: disarmed");
+    tprintln("race: disarmed locally (no mesh disarm message yet)");
 
   } else if (cmd == "mesh") {
     // ESP-NOW peer mesh status (Stage 2)
