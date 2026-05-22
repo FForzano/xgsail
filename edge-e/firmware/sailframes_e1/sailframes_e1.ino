@@ -100,7 +100,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.11"
+#define FW_VERSION    "2026.05.20.12"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -1511,22 +1511,18 @@ void setup() {
     0                   // Core 0 (Core 1 is the one we're watching)
   );
 
-  // HOTFIX 2026-05-21 (.11): meshInit() commented out after a stack-smash
-  // panic in setup() on a canary boat. Symptoms:
-  //   [MESH] ESP-NOW init OK, sender_id=0x08cbee82 ch=current(STA)
-  //   [DIAG] task started
-  //   [RADIO] BOOT -> IDLE (setup complete)
-  //   [SETUP] Complete - WiFi/telnet available, GPS acquiring in background
-  //   Stack smashing protect failure!
-  //   Backtrace: 0x400957e0:0x3ffd3740 0x400957a5:0x3ffd3760 ...
-  // The corruption happens during setup() but the canary check fires at
-  // setup() return. Suspects: esp_now_peer_info_t size mismatch on the
-  // stack, recv-cb signature drift, or ESP-NOW prerequisites the
-  // existing WiFi early-init doesn't satisfy. Investigating; mesh.h
-  // wire types + meshTick/meshOnReceive functions left in place so the
-  // fix can be a single-line re-enable + targeted patch.
+  // HOTFIX 2026-05-21 (.12): both new-in-.10 calls in setup commented out.
+  // .11 disabled meshInit() but kept radioModeTransition(). After multiple
+  // boats panicked the same way across E2/E6, both new calls are equally
+  // suspect — they each end in appendBootLog() (SD write) and the panic
+  // also corrupts SD (next boot's SD init failed). .12 restores the .09
+  // setup tail exactly so the fleet has a safe re-flash target during
+  // race week. Stage 2 code (mesh.h, mesh* functions, mesh telnet, meshTick
+  // call in loop) all stays in place — re-enable via uncommenting both
+  // lines once the root cause is isolated via the
+  // debug/v2-espnow-instrumented branch on a bench unit.
   // meshInit();
-  radioModeTransition(MODE_IDLE, "setup complete");
+  // radioModeTransition(MODE_IDLE, "setup complete");
 
   Serial.println("[SETUP] Complete - WiFi/telnet available, GPS acquiring in background");
 }
