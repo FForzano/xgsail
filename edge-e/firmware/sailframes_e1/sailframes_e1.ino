@@ -101,7 +101,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.20.16"
+#define FW_VERSION    "2026.05.20.17"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -4158,6 +4158,109 @@ bool performOTAUpdate(bool manual) {
   return ok;
 }
 
+// ============================================================
+// v2.0.0 Stage 3 — fleet health snapshot upload
+// ============================================================
+// Uploads a small JSON blob to S3 with current device state. Lets a
+// cloud admin UI (TBD) get a fleet-wide health view without touching
+// individual devices. Spec target: status/<boat_id>/latest.json.
+// MVP target (this commit): raw/<boat_id>/_health.json so we stay
+// under the existing FleetDirectHTTPUpload bucket policy (which
+// covers raw/* only). Promote to status/<boat_id>/latest.json in a
+// follow-up that also bumps the bucket policy.
+//
+// Called from the upload task after each successful WiFi acquisition.
+// Cheap (sub-1 KB JSON, plain HTTP PUT). Failure is non-fatal — we
+// just skip and try again next cycle.
+static bool g_statusCheckedThisBoot = false;
+
+bool uploadStatusSnapshot() {
+  if (!wifiConnected) return false;
+
+  // Build JSON in a stack-local buffer. Keep under 1 KB.
+  char body[768];
+  char ts[24] = "";
+  formatGpsIso(ts, sizeof(ts));   // empty string if GPS time not yet valid
+
+  const char* fixStr =
+    gps.fix_quality == 2 ? "dgps" :
+    gps.fix_quality == 1 ? "gps"  :
+    "none";
+
+  int written = snprintf(body, sizeof(body),
+    "{"
+    "\"version\":\"%s\","
+    "\"boat_id\":\"%s\","
+    "\"ts_iso\":\"%s\","
+    "\"gps_fix\":\"%s\","
+    "\"sats\":%d,"
+    "\"last_position\":{\"lat\":%.7f,\"lon\":%.7f},"
+    "\"battery_pct\":%d,"
+    "\"battery_v\":%.2f,"
+    "\"uptime_s\":%lu,"
+    "\"free_heap\":%u,"
+    "\"min_heap\":%u,"
+    "\"espnow_peers\":%d,"
+    "\"espnow_tx\":%lu,"
+    "\"espnow_rx\":%lu,"
+    "\"config_version\":%d,"
+    "\"wifi_ssid\":\"%s\","
+    "\"wifi_rssi\":%d,"
+    "\"hardware_platform\":\"%s\","
+    "\"unit_role\":\"%s\","
+    "\"imu_ok\":%s,"
+    "\"sd_ok\":%s"
+    "}",
+    FW_VERSION,
+    config.boat_id,
+    ts,
+    fixStr,
+    gps.satellites,
+    gps.lat, gps.lon,
+    battery.percent,
+    battery.voltage,
+    millis() / 1000UL,
+    (unsigned)ESP.getFreeHeap(),
+    (unsigned)esp_get_minimum_free_heap_size(),
+    g_mesh_peer_count,
+    (unsigned long)g_mesh_tx_count,
+    (unsigned long)g_mesh_rx_count,
+    config.config_version,
+    connectedSSID,
+    (int)WiFi.RSSI(),
+    hwName(g_hw),
+    roleName(g_role),
+    imuOK ? "true" : "false",
+    sdOK ? "true" : "false");
+  if (written < 0 || written >= (int)sizeof(body)) {
+    Serial.println("[STATUS] JSON truncated, skip");
+    return false;
+  }
+
+  String host = String(config.s3_bucket) + ".s3." + String(config.s3_region) + ".amazonaws.com";
+  String url = "http://" + host + "/raw/" + String(config.boat_id) + "/_health.json";
+
+  WiFiClient client;
+  HTTPClient http;
+  http.setConnectTimeout(8000);
+  http.setTimeout(10000);
+  http.setReuse(false);
+  if (!http.begin(client, url)) {
+    Serial.println("[STATUS] http.begin failed");
+    return false;
+  }
+  http.addHeader("Content-Type", "application/json");
+  int code = http.PUT((uint8_t*)body, written);
+  http.end();
+
+  if (code == 200) {
+    Serial.printf("[STATUS] uploaded (%d bytes) -> %s\n", written, url.c_str());
+    return true;
+  }
+  Serial.printf("[STATUS] upload failed: HTTP %d\n", code);
+  return false;
+}
+
 static bool performOTAUpdateBody() {
   Serial.printf("[OTA] WiFi RSSI: %d dBm, free heap: %u\n", WiFi.RSSI(), ESP.getFreeHeap());
 
@@ -5004,6 +5107,18 @@ void processCommand(String cmd, bool fromTelnet) {
   } else if (cmd == "radiomode") {
     tprintf("radio_mode=%s\n", radioModeName(g_radio_mode));
 
+  } else if (cmd == "statusup") {
+    // Stage 3 — force a fleet health snapshot PUT now. Manual trigger
+    // for testing / verification; the upload task does this once per
+    // boot automatically.
+    if (!wifiConnected) {
+      tprintln("statusup: WiFi not connected; run `wifi` to bring it up");
+    } else {
+      bool ok = uploadStatusSnapshot();
+      tprintf("statusup: %s\n", ok ? "OK" : "failed (see Serial)");
+      if (ok) g_statusCheckedThisBoot = true;
+    }
+
   } else if (cmd == "mesh") {
     // ESP-NOW peer mesh status (Stage 2)
     if (!g_mesh_enabled) {
@@ -5072,6 +5187,7 @@ void processCommand(String cmd, bool fromTelnet) {
     tprintln("  flags      - Show v2.0.0 feature flag state");
     tprintln("  radiomode  - Show current radio mode");
     tprintln("  mesh       - ESP-NOW peer mesh status + peers seen");
+    tprintln("  statusup   - Upload fleet health snapshot to S3 now");
     tprintln("  help       - Show this help");
     tprintln("================");
 
@@ -5408,6 +5524,12 @@ void uploadTaskFunc(void* param) {
               if (!wifiConnected) connectWiFi();
               if (wifiConnected) {
                 performOTAUpdate(false);   // body's SSID + version gates apply
+                // Stage 3: piggyback fleet health snapshot on the same
+                // WiFi window. Once per boot — boats that idle on
+                // Home-IOT for hours don't need to spam status PUTs.
+                if (!g_statusCheckedThisBoot) {
+                  if (uploadStatusSnapshot()) g_statusCheckedThisBoot = true;
+                }
                 // Release the radio whether OTA happened or not.
                 wifiTeardownRequested = true;
                 // Clear wifiBusy so (a) the Core 1 teardown block can
@@ -5540,6 +5662,12 @@ void uploadTaskFunc(void* param) {
             // can force a re-check via the serial 'update' command.
             Serial.println("[UPLOAD] Cycle clean — checking OTA manifest (one-shot per boot)");
             performOTAUpdate(false);
+
+            // Stage 3 status snapshot upload — once per boot. Piggybacks
+            // on the same WiFi window used for OTA + session uploads.
+            if (!g_statusCheckedThisBoot) {
+              if (uploadStatusSnapshot()) g_statusCheckedThisBoot = true;
+            }
 
             // All done — request WiFi teardown. We do NOT tear down here on
             // Core 0: ArduinoOTA.handle()/handleTelnet() run on Core 1 in the
