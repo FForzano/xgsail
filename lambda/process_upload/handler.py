@@ -10,6 +10,7 @@ Session Merging Logic:
 
 import json
 import os
+import sys
 import boto3
 import csv
 from io import StringIO
@@ -19,6 +20,23 @@ import logging
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+# Defensive csv reader config. The default field size limit is 128 KB,
+# which a single corrupted nav.csv row (stray `"` from an SD bit-flip
+# making the parser eat the rest of the file as one giant field) can
+# easily exceed — that ate E1's 2026-05-25 race session: bit flip at
+# byte 88295 ("2" → '"' in gps_date column) crashed process_gps with
+# "field larger than field limit (131072)" and never produced gps.json
+# / gps_10hz.json, breaking the race-day fleet view. maxsize defuses
+# that specific failure; csv.QUOTE_NONE on every DictReader (see
+# _csv_reader helper) prevents the quote-eats-everything pattern in
+# the first place, since our nav/imu/wind/pres files never use quotes.
+csv.field_size_limit(sys.maxsize)
+
+def _csv_reader(content):
+    """DictReader with quote handling disabled — single stray `"` won't
+    consume the rest of the file. Use everywhere a CSV is parsed."""
+    return csv.DictReader(StringIO(content), quoting=csv.QUOTE_NONE)
 
 s3 = boto3.client('s3')
 DATA_BUCKET = os.environ.get('DATA_BUCKET', 'sailframes-fleet-data-prod')
@@ -538,7 +556,7 @@ def extract_gps_date_from_csv(csv_content: str) -> str:
 
     Returns: Date string in YYYY-MM-DD format, or None
     """
-    reader = csv.DictReader(StringIO(csv_content))
+    reader = _csv_reader(csv_content)
     for row in reader:
         gps_date = row.get('gps_date', '')
         if gps_date and len(gps_date) == 6:
@@ -573,7 +591,7 @@ def process_gps(csv_content: str, date: str = None, start_time: str = None) -> t
     """
     from datetime import timedelta
 
-    reader = csv.DictReader(StringIO(csv_content))
+    reader = _csv_reader(csv_content)
     rows = list(reader)
     if not rows:
         return [], [], date
@@ -638,24 +656,31 @@ def process_gps(csv_content: str, date: str = None, start_time: str = None) -> t
             except ValueError:
                 continue
 
-            # Filter out invalid GPS records
-            fix = int(row.get('fix', 0) or 0)
-            lat = abs(float(row.get('lat', 0) or 0))
-            lon = abs(float(row.get('lon', 0) or 0))
-            hdop = float(row.get('hdop', 99) or 99)
-            if fix >= 1 and lat > 1.0 and lon > 1.0 and hdop < 10:
-                record = {
-                    't': full_ts,
-                    'lat': float(row.get('lat', 0) or 0),
-                    'lon': float(row.get('lon', 0) or 0),
-                    'speed_kn': round(float(row.get('sog', 0) or 0), 2),
-                    'course': round(float(row.get('cog', 0) or 0), 1),
-                    'fix': fix,
-                    'sats': int(row.get('sat', 0) or 0),
-                    'hdop': round(hdop, 1)
-                }
-                all_valid_records.append(record)
-                by_second[second].append(row)
+            # Filter out invalid GPS records. Per-row try/except so a
+            # single bit-flip-corrupted row (e.g. lat='42"1.561071')
+            # skips cleanly instead of aborting the whole file. E1's
+            # 2026-05-25 race had 6 such rows out of ~100k — without
+            # this, conversion ValueError swallowed the entire session.
+            try:
+                fix = int(row.get('fix', 0) or 0)
+                lat_raw = float(row.get('lat', 0) or 0)
+                lon_raw = float(row.get('lon', 0) or 0)
+                hdop = float(row.get('hdop', 99) or 99)
+                if fix >= 1 and abs(lat_raw) > 1.0 and abs(lon_raw) > 1.0 and hdop < 10:
+                    record = {
+                        't': full_ts,
+                        'lat': lat_raw,
+                        'lon': lon_raw,
+                        'speed_kn': round(float(row.get('sog', 0) or 0), 2),
+                        'course': round(float(row.get('cog', 0) or 0), 1),
+                        'fix': fix,
+                        'sats': int(row.get('sat', 0) or 0),
+                        'hdop': round(hdop, 1)
+                    }
+                    all_valid_records.append(record)
+                    by_second[second].append(row)
+            except (ValueError, TypeError):
+                continue
         else:
             # S1 format: utc_time is ISO timestamp
             ts = row.get('utc_time', '')
@@ -746,7 +771,7 @@ def process_imu(csv_content: str, date: str = None, start_time: str = None) -> l
     """
     from datetime import timedelta
 
-    reader = csv.DictReader(StringIO(csv_content))
+    reader = _csv_reader(csv_content)
     rows = list(reader)
     if not rows:
         return []
@@ -894,7 +919,7 @@ def process_pressure(csv_content: str, date: str = None, start_time: str = None)
     """
     from datetime import timedelta
 
-    reader = csv.DictReader(StringIO(csv_content))
+    reader = _csv_reader(csv_content)
     rows = list(reader)
     if not rows:
         return []
@@ -991,7 +1016,7 @@ def process_wind(csv_content: str, date: str = None, start_time: str = None) -> 
     """
     from datetime import timedelta
 
-    reader = csv.DictReader(StringIO(csv_content))
+    reader = _csv_reader(csv_content)
     rows = list(reader)
     if not rows:
         return []
