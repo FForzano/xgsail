@@ -101,7 +101,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.26.02"
+#define FW_VERSION    "2026.05.26.03"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -4758,11 +4758,41 @@ bool performOTAUpdate(bool manual) {
 // just skip and try again next cycle.
 static bool g_statusCheckedThisBoot = false;
 
+// Scan /sf/ for the lexically largest folder name. The session folder
+// naming convention is YYYYMMDD_HHMMSS so lex-max == chronological-max.
+// Falls back to session_NNN fallback names if no GPS-timed folders
+// exist. Returns "" if /sf/ is empty.
+static void findLatestSessionFolder(char* out, size_t outlen) {
+  out[0] = '\0';
+  if (outlen == 0) return;
+  File root = SD.open("/sf");
+  if (!root || !root.isDirectory()) {
+    if (root) root.close();
+    return;
+  }
+  File f = root.openNextFile();
+  while (f) {
+    if (f.isDirectory()) {
+      const char* name = f.name();
+      // Skip the SD root walker's leading slash if present.
+      const char* base = strrchr(name, '/');
+      base = base ? base + 1 : name;
+      if (base[0] != '\0' && base[0] != '.' && strcmp(base, out) > 0) {
+        strncpy(out, base, outlen - 1);
+        out[outlen - 1] = '\0';
+      }
+    }
+    f = root.openNextFile();
+    yield();
+  }
+  root.close();
+}
+
 bool uploadStatusSnapshot() {
   if (!wifiConnected) return false;
 
   // Build JSON in a stack-local buffer. Keep under 1 KB.
-  char body[768];
+  char body[1024];
   char ts[24] = "";
   formatGpsIso(ts, sizeof(ts));   // empty string if GPS time not yet valid
 
@@ -4771,6 +4801,15 @@ bool uploadStatusSnapshot() {
     gps.fix_quality == 1 ? "gps"  :
     "none";
 
+  // SD free space — totalBytes/usedBytes return uint64_t, convert to MB.
+  uint64_t sdTotal = SD.totalBytes();
+  uint64_t sdUsed  = SD.usedBytes();
+  uint32_t sdFreeMb = (sdTotal > sdUsed) ? (uint32_t)((sdTotal - sdUsed) / (1024ULL * 1024ULL)) : 0;
+
+  // Latest /sf/<session>/ folder name. Empty if no sessions yet.
+  char lastSail[32] = "";
+  findLatestSessionFolder(lastSail, sizeof(lastSail));
+
   int written = snprintf(body, sizeof(body),
     "{"
     "\"version\":\"%s\","
@@ -4778,6 +4817,7 @@ bool uploadStatusSnapshot() {
     "\"ts_iso\":\"%s\","
     "\"gps_fix\":\"%s\","
     "\"sats\":%d,"
+    "\"hdop\":%.1f,"
     "\"last_position\":{\"lat\":%.7f,\"lon\":%.7f},"
     "\"battery_pct\":%d,"
     "\"battery_v\":%.2f,"
@@ -4793,13 +4833,17 @@ bool uploadStatusSnapshot() {
     "\"hardware_platform\":\"%s\","
     "\"unit_role\":\"%s\","
     "\"imu_ok\":%s,"
-    "\"sd_ok\":%s"
+    "\"sd_ok\":%s,"
+    "\"pending_uploads\":%d,"
+    "\"sd_free_mb\":%lu,"
+    "\"last_sail_folder\":\"%s\""
     "}",
     FW_VERSION,
     config.boat_id,
     ts,
     fixStr,
     gps.satellites,
+    gps.hdop,
     gps.lat, gps.lon,
     battery.percent,
     battery.voltage,
@@ -4815,7 +4859,10 @@ bool uploadStatusSnapshot() {
     hwName(g_hw),
     roleName(g_role),
     imuOK ? "true" : "false",
-    sdOK ? "true" : "false");
+    sdOK ? "true" : "false",
+    pendingUploads,
+    (unsigned long)sdFreeMb,
+    lastSail);
   if (written < 0 || written >= (int)sizeof(body)) {
     Serial.println("[STATUS] JSON truncated, skip");
     return false;

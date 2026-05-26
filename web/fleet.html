@@ -138,7 +138,7 @@
                     <tr id="header-row"></tr>
                 </thead>
                 <tbody id="tbody">
-                    <tr><td class="fleet-empty" colspan="14">Loading fleet snapshots…</td></tr>
+                    <tr><td class="fleet-empty" colspan="18">Loading fleet snapshots…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -149,6 +149,66 @@
     const BUCKET_BASE = 'https://sailframes-fleet-data-prod.s3.us-east-1.amazonaws.com';
     const BOATS = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
 
+    // -- Named locations -------------------------------------------
+    // Geofence the boat's reported last_position against known places.
+    // EDIT THESE: the latitudes/longitudes below are placeholders.
+    // Fill in your actual yacht club, home dock, and storage spot.
+    // Radius in meters; first match wins (order from most-specific to
+    // most-general). Polygon places use {polygon:[[lat,lon],...]} bbox.
+    const PLACES = [
+        // Examples — replace lat/lon/radius with your own coordinates:
+        // { name: 'Home dock',  lat: 42.3601, lon: -71.0589, radius_m: 50 },
+        // { name: 'Yacht club', lat: 42.3530, lon: -71.0480, radius_m: 100 },
+        // { name: 'Garage',     lat: 42.3700, lon: -71.0700, radius_m: 30 },
+        // Broad Boston Harbor bounding box as fallback "on water":
+        { name: 'Boston Harbor',
+          polygon: [[42.300, -71.080], [42.300, -70.880], [42.420, -70.880], [42.420, -71.080]] },
+    ];
+
+    function haversineMeters(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const toRad = d => d * Math.PI / 180;
+        const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+    function pointInPolygon(lat, lon, poly) {
+        // poly is [[lat,lon],...] interpreted as a simple closed polygon
+        let inside = false;
+        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+            const [yi, xi] = poly[i], [yj, xj] = poly[j];
+            const intersect = ((yi > lat) !== (yj > lat))
+                && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+    function classifyLocation(lat, lon) {
+        if (!lat || !lon || (lat === 0 && lon === 0)) return null;
+        for (const p of PLACES) {
+            if (p.polygon) {
+                if (pointInPolygon(lat, lon, p.polygon)) return p.name;
+            } else if (p.radius_m != null) {
+                if (haversineMeters(lat, lon, p.lat, p.lon) <= p.radius_m) return p.name;
+            }
+        }
+        return null;
+    }
+    function fmtLastSailFolder(name) {
+        // YYYYMMDD_HHMMSS → "May 22 17:03"
+        if (!name) return '';
+        const m = name.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/);
+        if (!m) return name;  // session_NNN fallback
+        const [, y, mo, d, h, mi] = m;
+        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return `${monthNames[+mo - 1]} ${+d} ${h}:${mi}`;
+    }
+    function lastSailEpochMs(name) {
+        const m = name && name.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/);
+        if (!m) return -1;
+        return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+    }
+
     // Each column: key (sortable value), label (header text),
     // render(row) -> {text, cls?}. Comparators default to natural
     // sort on the key value.
@@ -156,10 +216,18 @@
         { key: 'boat',     label: 'Boat',  get: r => r.data?.boat_id || r.boat, render: v => ({text: v, cls: 'boat-id'}) },
         { key: 'age_s',    label: 'Age',   get: r => r.ageSec ?? Infinity,
           render: (v, r) => ({text: r.missing ? '—' : fmtAge(v), cls: r.missing ? 'muted' : (v > 86400 ? 'bad' : v > 3600 ? 'warn' : 'ok')}) },
-        { key: 'fw',       label: 'FW',    get: r => r.data?.version || '',
-          render: v => ({text: v || '—', cls: 'muted'}) },
-        { key: 'uptime_s', label: 'Uptime',get: r => r.data?.uptime_s ?? -1,
-          render: v => ({text: v < 0 ? '—' : fmtUptime(v), cls: 'muted'}) },
+        { key: 'last_sail', label: 'Last sail', get: r => lastSailEpochMs(r.data?.last_sail_folder),
+          render: (v, r) => {
+              const f = r.data?.last_sail_folder;
+              if (!f) return {text: '—', cls: 'muted'};
+              return {text: fmtLastSailFolder(f), cls: v < 0 ? 'muted' : ''};
+          } },
+        { key: 'pending', label: 'Pending', get: r => r.data?.pending_uploads ?? -1,
+          render: v => {
+              if (v < 0) return {text: '—', cls: 'muted'};
+              if (v === 0) return {text: '0', cls: 'ok'};
+              return {text: String(v), cls: v > 10 ? 'bad' : 'warn'};
+          } },
         { key: 'batt_pct', label: 'Batt %',get: r => r.data?.battery_pct ?? -1,
           render: v => ({text: v < 0 ? '—' : v + '%', cls: v < 0 ? 'muted' : v < 25 ? 'bad' : v < 50 ? 'warn' : 'ok'}) },
         { key: 'batt_v',   label: 'Batt V',get: r => r.data?.battery_v ?? -1,
@@ -170,16 +238,29 @@
               if (!v || v === 'none' || sats === 0) return {text: 'no fix', cls: 'warn'};
               return {text: `${v} · ${sats} sats`, cls: 'ok'};
           } },
-        { key: 'sats',     label: 'Sats',  get: r => r.data?.sats ?? -1,
-          render: v => ({text: v < 0 ? '—' : v, cls: v === 0 ? 'warn' : 'ok'}) },
-        { key: 'pos',      label: 'Position', get: r => {
+        { key: 'hdop',     label: 'HDOP',  get: r => r.data?.hdop ?? -1,
+          render: v => {
+              if (v < 0 || v >= 99) return {text: '—', cls: 'muted'};
+              const cls = v < 1.5 ? 'ok' : v < 3.0 ? 'warn' : 'bad';
+              return {text: v.toFixed(1), cls};
+          } },
+        { key: 'loc',     label: 'Location', get: r => {
               const p = r.data?.last_position;
               return p ? p.lat * 1e7 + p.lon : -999999999;
           },
           render: (v, r) => {
               const p = r.data?.last_position;
               if (!p || (p.lat === 0 && p.lon === 0)) return {text: '—', cls: 'muted'};
-              return {text: `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`};
+              const named = classifyLocation(p.lat, p.lon);
+              if (named) return {text: named, cls: 'ok'};
+              return {text: `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`, cls: 'muted'};
+          } },
+        { key: 'sd_free', label: 'SD free', get: r => r.data?.sd_free_mb ?? -1,
+          render: v => {
+              if (v < 0) return {text: '—', cls: 'muted'};
+              const gb = v / 1024;
+              const cls = v < 500 ? 'bad' : v < 2000 ? 'warn' : 'muted';
+              return {text: gb >= 1 ? `${gb.toFixed(1)} GB` : `${v} MB`, cls};
           } },
         { key: 'peers',    label: 'Peers',  get: r => r.data?.espnow_peers ?? -1,
           render: v => ({text: v < 0 ? '—' : `${v}/5`, cls: v < 0 ? 'muted' : v >= 5 ? 'ok' : v >= 1 ? 'warn' : 'bad'}) },
@@ -210,6 +291,10 @@
           } },
         { key: 'role',     label: 'Role',  get: r => r.data?.unit_role || '',
           render: v => ({text: v || '—', cls: 'muted'}) },
+        { key: 'fw',       label: 'FW',    get: r => r.data?.version || '',
+          render: v => ({text: v || '—', cls: 'muted'}) },
+        { key: 'uptime_s', label: 'Uptime',get: r => r.data?.uptime_s ?? -1,
+          render: v => ({text: v < 0 ? '—' : fmtUptime(v), cls: 'muted'}) },
     ];
 
     // -- Helpers ----------------------------------------------------
