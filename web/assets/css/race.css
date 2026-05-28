@@ -640,13 +640,44 @@ body.course-editing .boat-legend {
 
 .phrf-row {
     display: grid;
-    grid-template-columns: 38px 1fr 56px 70px 96px;
+    grid-template-columns: 38px 1fr 56px 70px 96px 105px;
     align-items: center;
     gap: 8px;
     padding: 7px 8px;
     background: var(--bg-primary);
     border-radius: 6px;
     font-size: 0.85rem;
+}
+.phrf-gpx-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: flex-end;
+    min-width: 0;
+}
+.phrf-gpx-btn {
+    display: inline-block;
+    padding: 4px 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px dashed rgba(255,255,255,0.18);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.phrf-gpx-btn:hover {
+    color: var(--text-primary);
+    border-color: rgba(34,211,238,0.5);
+    background: rgba(34,211,238,0.08);
+}
+.phrf-gpx-badge {
+    font-size: 0.7rem;
+    color: #22d3ee;
+    background: rgba(34,211,238,0.12);
+    padding: 2px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
 }
 
 .phrf-class {

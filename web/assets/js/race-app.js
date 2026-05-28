@@ -37,8 +37,27 @@ const BOAT_COLORS = {
 // chart line/toggle are guaranteed to render the same color for the
 // same boat. Use this everywhere instead of indexing BOAT_COLORS
 // directly so any future fallback policy stays consistent.
-function colorFor(deviceId) {
-    return BOAT_COLORS[deviceId] || '#888888';
+//
+// For non-fleet track keys (handicap boats whose GPS came from an
+// external GPX upload, keyed by boat_id), derive a deterministic
+// HSL colour from the string hash so each boat keeps a stable
+// identifying colour across reloads and across the leaderboard /
+// map / charts.
+function colorFor(trackKey) {
+    if (!trackKey) return '#888888';
+    if (BOAT_COLORS[trackKey]) return BOAT_COLORS[trackKey];
+    return _hashHslFor(trackKey);
+}
+
+function _hashHslFor(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+        h = (h * 31 + s.charCodeAt(i)) | 0;
+    }
+    // Hue: 0–359. Skip a band near the most-used fleet hues
+    // (red/orange/blue) to keep contrast with E1..E6 markers.
+    const hue = Math.abs(h) % 360;
+    return `hsl(${hue}, 65%, 58%)`;
 }
 
 // Fleet configuration - COURAGEOUS J80 Spring Racing Series 2026
@@ -335,6 +354,9 @@ function polarPercent(sog, twaSigned, tws) {
 }
 let availableSessions = {};  // device_id -> [session paths]
 let pendingGpxFiles = {};   // device_id -> File (staged GPX uploads)
+// Parallel store for boats with NO fleet device — staged GPX files
+// keyed by boat_id. Uploaded via the by-boat-id endpoint on save.
+let pendingGpxFilesByBoatId = {};
 
 // Pre-race display: show 3 minutes before start
 const PRE_RACE_SECONDS = 180;
@@ -3430,15 +3452,20 @@ function setClassFilter(v) {
 // new boat layers are wired up.
 function applyClassFilterToMap() {
     if (!map) return;
-    const classByDevice = {};
+    // boatLayers is keyed by trackKey — that's device_id for fleet
+    // trackers and boat_id for handicap boats that uploaded their
+    // own GPX. Build a single track_key → class lookup so either
+    // kind of layer resolves correctly.
+    const classByKey = {};
     if (Array.isArray(currentRace?.boats)) {
         for (const b of currentRace.boats) {
-            if (b.device_id) classByDevice[b.device_id] = b.class || null;
+            if (b.device_id) classByKey[b.device_id] = b.class || null;
+            if (b.boat_id)   classByKey[b.boat_id]   = b.class || null;
         }
     }
     const classesDefined = Array.isArray(currentRace?.classes) && currentRace.classes.length > 0;
-    for (const [deviceId, L] of Object.entries(boatLayers)) {
-        const cls = classByDevice[deviceId];
+    for (const [trackKey, L] of Object.entries(boatLayers)) {
+        const cls = classByKey[trackKey];
         const visible = !classesDefined || classFilter === 'all' || classFilter === cls;
         const op = visible ? 1 : 0;
         if (L.track && L.track.setStyle) L.track.setStyle({ opacity: op });
@@ -6889,6 +6916,7 @@ async function openRaceModal(race = null, opts = {}) {
 
     // Reset staged GPX files whenever modal opens
     pendingGpxFiles = {};
+    pendingGpxFilesByBoatId = {};
 
     // Load available sessions for dropdown
     await loadAvailableSessions();
@@ -6972,6 +7000,7 @@ function handleGpxClear(deviceId) {
 }
 
 async function uploadPendingGpxFiles(raceId) {
+    // Device-keyed GPX uploads (fleet trackers E1..E6).
     for (const [deviceId, file] of Object.entries(pendingGpxFiles)) {
         const formData = new FormData();
         formData.append('file', file);
@@ -6991,6 +7020,28 @@ async function uploadPendingGpxFiles(raceId) {
         }
     }
     pendingGpxFiles = {};
+
+    // Boat-id-keyed GPX uploads (handicap boats with their own GPS
+    // hardware — no fleet device assigned).
+    for (const [boatId, file] of Object.entries(pendingGpxFilesByBoatId)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const resp = await fetch(`${API_BASE}/api/races/${raceId}/boats-by-id/${boatId}/gpx`, {
+                method: 'POST',
+                body: formData,
+            });
+            if (resp.ok) {
+                const result = await resp.json();
+                console.log(`[Race] GPX uploaded for boat_id=${boatId}: ${result.points} points`);
+            } else {
+                console.error(`[Race] GPX upload failed for boat_id=${boatId}:`, await resp.text());
+            }
+        } catch (err) {
+            console.error(`[Race] GPX upload error for boat_id=${boatId}:`, err);
+        }
+    }
+    pendingGpxFilesByBoatId = {};
 }
 
 function clearRaceForm() {
@@ -7092,10 +7143,11 @@ function renderPHRFRoster(boats) {
     const ALL_DEVICES = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
 
     container.innerHTML = boats.map((boat, idx) => {
-        const team = (boat.team_name || '').trim();
         const yacht = (boat.boat_name || '').trim();
-        const displayName = team || yacht || (boat.sail_number ? `#${boat.sail_number}` : `Boat ${idx + 1}`);
-        const subtitle = [yacht && team ? yacht : null, boat.sail_number ? `#${boat.sail_number}` : null, boat.boat_type]
+        const team = (boat.team_name || '').trim();
+        // Identity priority matches the leaderboard: boat name first.
+        const displayName = yacht || team || (boat.sail_number ? `#${boat.sail_number}` : `Boat ${idx + 1}`);
+        const subtitle = [team && yacht ? team : null, boat.sail_number ? `#${boat.sail_number}` : null, boat.boat_type]
             .filter(Boolean).join(' · ');
         const rating = (typeof boat.rating === 'number') ? boat.rating.toFixed(3) : '—';
         const cls = boat.class || '—';
@@ -7108,8 +7160,26 @@ function renderPHRFRoster(boats) {
             .concat(ALL_DEVICES.map(d => `<option value="${d}"${d === currentDevice ? ' selected' : ''}>${d}</option>`))
             .join('');
 
+        // Per-row GPX upload — separate from the device dropdown so
+        // boats without a fleet tracker can still attach an external
+        // GPS track (phone app, Sailmon, Garmin, RaceQs, etc.). The
+        // GPX file is staged keyed by boat_id and uploaded on save.
+        const bid = boat.boat_id || '';
+        const hasPendingBoatGpx = bid && !!pendingGpxFilesByBoatId[bid];
+        const hasUploadedGpx = !!boat.gpx_path;
+        // Only show the "already uploaded" badge when the gpx_path is
+        // the by-boat-id variant — for device-keyed GPX uploads the
+        // GPS-attach strip below owns the display.
+        const isOwnGpx = hasUploadedGpx && /\/by-boat-id\//.test(boat.gpx_path || '');
+        const gpxBadge = (hasPendingBoatGpx || isOwnGpx)
+            ? `<span class="phrf-gpx-badge" title="${hasPendingBoatGpx ? 'staged: ' + _attrEsc(pendingGpxFilesByBoatId[bid].name) : 'GPX uploaded — overrides any device session'}">📍 GPX${hasPendingBoatGpx ? ' (staged)' : ''}</span>`
+            : '';
+        const gpxBtn = bid
+            ? `<label class="phrf-gpx-btn" title="Upload GPX track for this boat — works without a fleet device assignment">+ GPX<input type="file" accept=".gpx" data-phrf-gpx data-boat-id="${_attrEsc(bid)}" style="display:none"></label>`
+            : '';
+
         return `
-            <div class="phrf-row" data-idx="${idx}">
+            <div class="phrf-row" data-idx="${idx}" data-boat-id="${_attrEsc(bid)}">
                 <span class="phrf-class phrf-cls-${_attrEsc(cls)}">${_attrEsc(cls)}</span>
                 <div class="phrf-name-block">
                     <div class="phrf-name">${_attrEsc(displayName)}</div>
@@ -7120,6 +7190,7 @@ function renderPHRFRoster(boats) {
                 <select class="phrf-device" data-field="device_id" title="GPS tracker assignment">
                     ${opts}
                 </select>
+                <div class="phrf-gpx-cell">${gpxBadge}${gpxBtn}</div>
             </div>
         `;
     }).join('');
@@ -7129,9 +7200,25 @@ function renderPHRFRoster(boats) {
     // every render since innerHTML wiped the old ones. The GPS-attach
     // strip below the roster also re-renders on every change so the
     // session/GPX rows reflect the current assignment.
-    container.addEventListener('change', () => {
-        _validatePHRFDeviceConflicts();
-        renderGPSAttachStrip();
+    container.addEventListener('change', (e) => {
+        // Per-row GPX file picker → stage in pendingGpxFilesByBoatId
+        if (e.target?.matches?.('input[type=file][data-phrf-gpx]')) {
+            const inp = e.target;
+            const bid = inp.dataset.boatId;
+            const file = inp.files?.[0];
+            inp.value = '';   // allow re-picking same file later
+            if (!bid || !file) return;
+            pendingGpxFilesByBoatId[bid] = file;
+            // Re-render this row to show the staged badge. Since the
+            // entire roster is one innerHTML blob, re-render all.
+            renderPHRFRoster(currentRace?.boats || []);
+            return;
+        }
+        // Device dropdown change → re-check conflicts + refresh strip.
+        if (e.target?.matches?.('.phrf-device')) {
+            _validatePHRFDeviceConflicts();
+            renderGPSAttachStrip();
+        }
     });
     _validatePHRFDeviceConflicts();
 }

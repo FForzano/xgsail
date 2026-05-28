@@ -69,9 +69,16 @@ export function populateBoatClassDropdown(prefix = '') {
     const ids = _ids(prefix);
     const sel = document.getElementById(ids.select);
     if (!sel || sel.dataset.populated === '1') return;
-    sel.innerHTML = BOAT_CLASSES.map(c =>
-        `<option value="${c.id}">${c.name} — ${formatLoa(c.loa_m)}</option>`
-    ).join('') + '<option value="__custom__">Custom…</option>';
+    // value="" → no overall class. Used for mixed handicap fleets
+    // where each boat has its own LOA from the boats catalog; the
+    // race-level boat_class is meaningless then. Listed first so the
+    // dropdown surfaces it as a deliberate choice.
+    sel.innerHTML =
+        '<option value="">— No overall class (mixed handicap)</option>'
+        + BOAT_CLASSES.map(c =>
+            `<option value="${c.id}">${c.name} — ${formatLoa(c.loa_m)}</option>`
+        ).join('')
+        + '<option value="__custom__">Custom…</option>';
     sel.dataset.populated = '1';
 
     sel.addEventListener('change', () => {
@@ -80,6 +87,9 @@ export function populateBoatClassDropdown(prefix = '') {
         if (sel.value === '__custom__') {
             if (customGroup) customGroup.style.display = '';
             if (hint) hint.textContent = 'Zone radius = 3 × LOA · bow offset projects antenna fix forward for OCS / zone-entry';
+        } else if (sel.value === '') {
+            if (customGroup) customGroup.style.display = 'none';
+            if (hint) hint.textContent = 'Per-boat LOA from the catalog drives hull rendering · mark zone = 3 × largest boat\'s LOA';
         } else {
             if (customGroup) customGroup.style.display = 'none';
             const cls = boatClassById(sel.value);
@@ -115,6 +125,16 @@ export function setBoatClassInForm(boatClass, prefix = '') {
         if (customLoa)    customLoa.value  = normalized.loa_m;
         if (customOffset) customOffset.value = normalized.bow_offset_m != null ? normalized.bow_offset_m : '';
         if (hint)         hint.textContent = 'Custom class — bow offset projects antenna fix forward for OCS / zone-entry';
+    } else if (boatClass === null) {
+        // Explicit "no class" — preserves the editor's "(none)" state
+        // across re-opens of a handicap race. (boatClass=undefined
+        // still falls through to the default below.)
+        sel.value = '';
+        if (customGroup)  customGroup.style.display = 'none';
+        if (customName)   customName.value = '';
+        if (customLoa)    customLoa.value = '';
+        if (customOffset) customOffset.value = '';
+        if (hint)         hint.textContent = 'Per-boat LOA from the catalog drives hull rendering · mark zone = 3 × largest boat\'s LOA';
     } else {
         sel.value = DEFAULT_BOAT_CLASS_ID;
         if (customGroup)  customGroup.style.display = 'none';
@@ -129,6 +149,10 @@ export function getBoatClassFromForm(prefix = '') {
     const ids = _ids(prefix);
     const sel = document.getElementById(ids.select);
     if (!sel) return null;
+    // Explicit "no class" — saved as null so the race record carries
+    // no boat_class field at all. The dashboard then reads per-boat
+    // LOA from the catalog.
+    if (sel.value === '') return null;
     if (sel.value === '__custom__') {
         const name      = (document.getElementById(ids.customName)?.value || '').trim();
         const loa       = parseFloat(document.getElementById(ids.customLoa)?.value || '');

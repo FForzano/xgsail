@@ -123,6 +123,18 @@ def lambda_handler(event, context):
         elif '/api/races' in path:
             race_id = path_params.get('race_id')
 
+            # GPX upload by boat_id (no fleet device required):
+            # POST /api/races/{race_id}/boats-by-id/{boat_id}/gpx
+            # Used for handicap-fleet boats that bring their own GPS
+            # data (phone app, Sailmon, Garmin, RaceQs, etc.) and are
+            # not on one of the SailFrames E1..E6 trackers.
+            if race_id and '/boats-by-id/' in path and '/gpx' in path and http_method == 'POST':
+                m = re.search(r'/boats-by-id/([^/]+)/gpx', path)
+                boat_id = path_params.get('boat_id') or (m.group(1) if m else None)
+                if not boat_id:
+                    return response(400, {'error': 'boat_id required'})
+                return upload_boat_gpx_by_id(race_id, boat_id, event)
+
             # GPX upload: POST /api/races/{race_id}/boats/{device_id}/gpx
             if race_id and '/gpx' in path and http_method == 'POST':
                 device_id = path_params.get('device_id')
@@ -870,9 +882,19 @@ def update_race(race_id, body):
     # races by `race.date` for the day-picker dropdown, so a race whose
     # date is stuck at the wrong day silently sticks to the wrong group
     # forever — exactly the failure mode that prompted this fix.
+    #
+    # `boat_class` is the only field that legitimately wants a `null`
+    # update — handicap races have no overall class, and the editor
+    # writes null to clear it. The other fields take the
+    # default-incomplete-payload-safe `is not None` guard so a partial
+    # PATCH can't accidentally wipe them.
+    _ALLOW_NULL = {'boat_class'}
     for key in ['name', 'date', 'start_time', 'end_time', 'boats', 'boat_class', 'classes', 'race_conditions', 'start_line', 'finish_line', 'marks', 'course', 'finish_order']:
-        if key in body and body[key] is not None:
-            race_data[key] = body[key]
+        if key not in body:
+            continue
+        if body[key] is None and key not in _ALLOW_NULL:
+            continue
+        race_data[key] = body[key]
 
     race_data['updated_at'] = now_iso()
     save_json(f'races/{race_id}/race.json', race_data)
@@ -951,16 +973,20 @@ def get_race_data(race_id, sensors_str, pad_start_sec=0, pad_end_sec=0):
 
     for boat in race_data.get('boats', []):
         device_id = boat.get('device_id')
-        # Non-GPS boat (handicap fleet entry with official results only)
-        # — nothing for this endpoint to return; the frontend pulls its
-        # metadata from race.boats[] directly.
-        if not device_id:
-            continue
+        boat_id = boat.get('boat_id')
         session_path = boat.get('session_path')
         gpx_path = boat.get('gpx_path')
 
+        # Pick the response key: device_id when this boat is on a
+        # fleet tracker, else boat_id (catalog FK). Boats with no
+        # tracker AND no GPX nor sail data are skipped — the frontend
+        # pulls their metadata from race.boats[] directly.
+        track_key = device_id or boat_id
+        if not track_key:
+            continue
+        # No GPS source at all → don't synthesize an empty entry. The
+        # PHRF leaderboard renders these from race.boats[] regardless.
         if not session_path and not gpx_path:
-            boats_data[device_id] = {'error': 'No session matched', 'boat': boat}
             continue
 
         boat_sensors = {}
@@ -975,7 +1001,8 @@ def get_race_data(race_id, sensors_str, pad_start_sec=0, pad_end_sec=0):
                     boat_sensors[sensor] = {'error': str(e)}
                 continue
 
-            if not session_path:
+            if not session_path or not device_id:
+                # No SailFrames session to load IMU / wind from.
                 boat_sensors[sensor] = []
                 continue
 
@@ -990,7 +1017,7 @@ def get_race_data(race_id, sensors_str, pad_start_sec=0, pad_end_sec=0):
             except Exception as e:
                 boat_sensors[sensor] = {'error': str(e)}
 
-        boats_data[device_id] = {
+        boats_data[track_key] = {
             'boat': boat,
             'sensors': boat_sensors,
         }
@@ -1064,7 +1091,7 @@ def upload_boat_gpx(race_id, device_id, event):
     if not race_data:
         return response(404, {'error': f'Race not found: {race_id}'})
 
-    boat = next((b for b in race_data.get('boats', []) if b['device_id'] == device_id), None)
+    boat = next((b for b in race_data.get('boats', []) if b.get('device_id') == device_id), None)
     if boat is None:
         return response(404, {'error': f'Boat {device_id} not found in race {race_id}'})
 
@@ -1093,6 +1120,51 @@ def upload_boat_gpx(race_id, device_id, event):
 
     return response(200, {
         'device_id': device_id,
+        'gpx_path': gpx_key,
+        'points': len(track_points),
+        'start_time': track_points[0]['t'],
+        'end_time': track_points[-1]['t'],
+    })
+
+
+def upload_boat_gpx_by_id(race_id, boat_id, event):
+    """GPX upload for a boat that has no fleet device_id assigned.
+    Same as upload_boat_gpx but matches on boat_id (catalog FK).
+    Storage key uses a /by-boat-id/ prefix so it can't collide with
+    device-keyed paths."""
+    race_data = load_json(f'races/{race_id}/race.json')
+    if not race_data:
+        return response(404, {'error': f'Race not found: {race_id}'})
+
+    boat = next((b for b in race_data.get('boats', []) if b.get('boat_id') == boat_id), None)
+    if boat is None:
+        return response(404, {'error': f'Boat {boat_id} not found in race {race_id}'})
+
+    gpx_bytes = _extract_multipart_file(event)
+    if not gpx_bytes:
+        return response(400, {'error': 'No file received — send as multipart/form-data with field name "file"'})
+
+    try:
+        track_points = _parse_gpx(gpx_bytes)
+    except Exception as e:
+        logger.error(f"GPX parse error: {e}", exc_info=True)
+        return response(400, {'error': f'Failed to parse GPX: {e}'})
+
+    if not track_points:
+        return response(400, {'error': 'GPX file contains no track points with timestamps'})
+
+    gpx_key = f'races/{race_id}/gpx/by-boat-id/{boat_id}.json'
+    save_json(gpx_key, track_points)
+
+    boat['gpx_path'] = gpx_key
+    boat['session_path'] = None
+    race_data['updated_at'] = now_iso()
+    save_json(f'races/{race_id}/race.json', race_data)
+
+    logger.info(f"GPX uploaded for boat_id={boat_id} in race {race_id}: {len(track_points)} points")
+
+    return response(200, {
+        'boat_id': boat_id,
         'gpx_path': gpx_key,
         'points': len(track_points),
         'start_time': track_points[0]['t'],
