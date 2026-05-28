@@ -402,6 +402,12 @@ def create_race(body):
         # (3 × LOA) drawn around marks on the race page. Optional; the
         # race page defaults to J/80 (24 m) when absent.
         'boat_class': body.get('boat_class'),
+        # Multi-class handicap races: per-class start times + rating
+        # type, used to compute PHRF elapsed/corrected. When absent the
+        # race is single-start and the leaderboard ranks by GPS course
+        # progress as before.
+        'classes': body.get('classes', []),
+        'race_conditions': body.get('race_conditions', ''),
         'start_line': body.get('start_line'),
         'finish_line': body.get('finish_line'),
         'marks': body.get('marks', []),
@@ -453,7 +459,7 @@ def update_race(race_id, body):
     # races by `race.date` for the day-picker dropdown, so a race whose
     # date is stuck at the wrong day silently sticks to the wrong group
     # forever — exactly the failure mode that prompted this fix.
-    for key in ['name', 'date', 'start_time', 'end_time', 'boats', 'boat_class', 'start_line', 'finish_line', 'marks', 'course', 'finish_order']:
+    for key in ['name', 'date', 'start_time', 'end_time', 'boats', 'boat_class', 'classes', 'race_conditions', 'start_line', 'finish_line', 'marks', 'course', 'finish_order']:
         if key in body and body[key] is not None:
             race_data[key] = body[key]
 
@@ -533,7 +539,12 @@ def get_race_data(race_id, sensors_str, pad_start_sec=0, pad_end_sec=0):
     boats_data = {}
 
     for boat in race_data.get('boats', []):
-        device_id = boat['device_id']
+        device_id = boat.get('device_id')
+        # Non-GPS boat (handicap fleet entry with official results only)
+        # — nothing for this endpoint to return; the frontend pulls its
+        # metadata from race.boats[] directly.
+        if not device_id:
+            continue
         session_path = boat.get('session_path')
         gpx_path = boat.get('gpx_path')
 
@@ -597,7 +608,9 @@ def get_gpx_status(race_id):
     status = []
 
     for boat in race_data.get('boats', []):
-        device_id = boat['device_id']
+        device_id = boat.get('device_id')
+        if not device_id:
+            continue  # non-GPS handicap entry
         gpx_path = boat.get('gpx_path')
         entry = {'device_id': device_id, 'gpx_path': gpx_path}
 
@@ -839,7 +852,9 @@ def match_sessions(race_id):
 
     matched = []
     for boat in race_data.get('boats', []):
-        device_id = boat['device_id']
+        device_id = boat.get('device_id')
+        if not device_id:
+            continue  # non-GPS handicap entry — nothing to match
 
         try:
             sessions = find_device_sessions(device_id, race_date)

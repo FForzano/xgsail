@@ -526,6 +526,177 @@ body.course-editing .boat-legend {
     color: var(--text-secondary);
 }
 
+/* --- Multi-class PHRF leaderboard --- */
+
+/* 3-state segmented filter at the top of the leaderboard panel.
+   Wide enough for class names like "Class A" / "Class B" / "Both". */
+.lb-class-filter {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 0.75rem;
+    padding: 3px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 7px;
+}
+.lb-class-filter button {
+    flex: 1;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.lb-class-filter button:hover {
+    color: var(--text-primary);
+}
+.lb-class-filter button.active {
+    background: rgba(34, 211, 238, 0.18);
+    color: #22d3ee;
+}
+
+/* Section header above each class group: class name on the left,
+   start time + rating type on the right (smaller, dimmed). */
+.lb-class-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.6rem 0.4rem 0.35rem;
+    margin-top: 0.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 0.4rem;
+}
+.lb-class-header:first-child { margin-top: 0; }
+.lb-class-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    letter-spacing: 0.02em;
+}
+.lb-class-meta {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Non-GPS handicap rows: dimmed name + no clickable affordance (no
+   per-boat drawer to open). The swatch is already a dashed outline
+   from the inline style. */
+.leaderboard-item.lb-no-gps {
+    cursor: default;
+    opacity: 0.85;
+}
+.leaderboard-item.lb-no-gps .leaderboard-boat-name {
+    color: var(--text-secondary);
+}
+.leaderboard-item.lb-no-gps:hover {
+    background: var(--bg-primary);
+}
+
+/* DNF / DNC / RET / DSQ / OCS rows: visually demoted (status string
+   replaces position; row is dimmed). */
+.leaderboard-item.lb-row-dnf {
+    background: rgba(255,255,255,0.02);
+    opacity: 0.72;
+}
+.leaderboard-item.lb-row-dnf .leaderboard-position {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+.lb-status-big {
+    font-size: 0.85rem !important;
+    color: var(--text-secondary);
+}
+
+/* Corrected time — the PHRF rank driver. Tabular nums so column-aligned
+   times read at a glance; accent colour separates it from live SOG. */
+.lb-corr {
+    color: #ffd700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- PHRF roster editor (handicap race-modal section) --- */
+
+.phrf-roster-hint {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.65rem;
+    line-height: 1.4;
+}
+
+.phrf-roster {
+    display: grid;
+    gap: 4px;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.phrf-row {
+    display: grid;
+    grid-template-columns: 38px 1fr 56px 70px 96px;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    background: var(--bg-primary);
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.phrf-class {
+    text-align: center;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.06);
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+}
+.phrf-cls-A { background: rgba(34,211,238,0.18); color: #22d3ee; }
+.phrf-cls-B { background: rgba(245,158,11,0.18); color: #f59e0b; }
+
+.phrf-name-block { min-width: 0; }
+.phrf-name {
+    color: var(--text-primary);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.phrf-sub {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.phrf-rating, .phrf-finish {
+    text-align: right;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+}
+
+.phrf-device {
+    background: rgba(255,255,255,0.05);
+    color: var(--text-primary);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 0.8rem;
+}
+.phrf-device.phrf-conflict {
+    border-color: #f4212e;
+    background: rgba(244,33,46,0.15);
+}
+
 /* Elapsed time display */
 .elapsed-time {
     font-family: monospace;

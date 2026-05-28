@@ -70,7 +70,7 @@
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
     <link rel="stylesheet" href="./assets/css/main.css?v=10">
-    <link rel="stylesheet" href="./assets/css/race.css?v=53">
+    <link rel="stylesheet" href="./assets/css/race.css?v=55">
     <link rel="stylesheet" href="./assets/css/race-chat.css?v=10">
     <link rel="stylesheet" href="./assets/css/race-start-review.css?v=2">
     <script src="./config.js"></script>
@@ -442,13 +442,31 @@
                     </div>
                 </div>
 
-                <!-- Boat Assignments -->
-                <div class="form-section">
+                <!-- Boat Assignments (single-class / fleet mode) -->
+                <div class="form-section" id="boat-assignments-section">
                     <h3>Boat Assignments</h3>
                     <div class="boat-assignments" id="boat-assignments">
                         <!-- Populated dynamically -->
                     </div>
                     <button id="btn-match-sessions" class="btn-secondary">Auto-Match Sessions</button>
+                </div>
+
+                <!-- PHRF Roster (handicap multi-class races). Hidden for
+                     fleet races. Boat metadata (name, class, rating,
+                     finish) is read-only here — assign GPS trackers
+                     (E1..E6) per row. Rating/finish edits happen via
+                     the seed script for now. -->
+                <div class="form-section" id="phrf-roster-section" style="display: none;">
+                    <h3>PHRF Roster · Assign GPS trackers</h3>
+                    <div class="phrf-roster-hint">
+                        Pick which fleet device (E1–E6) rode on each boat.
+                        Boat names, ratings, classes and finish times are
+                        read-only in this view; edit them with the seed
+                        script if the regatta sheet changes.
+                    </div>
+                    <div class="phrf-roster" id="phrf-roster">
+                        <!-- Populated dynamically -->
+                    </div>
                 </div>
 
                 <!-- Finish Order -->
@@ -468,6 +486,6 @@
     </div>
 
     <!-- Scripts -->
-    <script type="module" src="./assets/js/race-app.js?v=107"></script>
+    <script type="module" src="./assets/js/race-app.js?v=109"></script>
 </body>
 </html>

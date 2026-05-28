@@ -166,6 +166,13 @@ let windDefaultOverride = null;
 // a race session but reset when the page reloads (intentional — no
 // cross-session state).
 let laylinesVisible = true;
+
+// Multi-class handicap races: which class(es) to show in the
+// leaderboard + on the map. 'all' = both classes; a specific class id
+// (e.g. 'A') = filter to that class only. Ignored when the race has
+// no classes[] defined. Persisted to URL (?class=A) and localStorage
+// so coaches can deep-link / refresh without losing the filter.
+let classFilter = 'all';
 // Trail window: how much past track to render as a polyline. Default 1 min
 // keeps the map readable; "All" (Infinity) restores the historical full-race
 // behavior. Changing this re-renders every boat's trail at the current
@@ -2959,7 +2966,23 @@ function toggleBoatVisibility(deviceId) {
 
 // --- Leaderboard ---
 
+// Top-level dispatcher: handicap races (currentRace.classes non-empty)
+// render the PHRF-grouped leaderboard; everything else falls through to
+// the legacy course-aware GPS-only renderer below.
 function renderLeaderboard() {
+    if (!currentRace) {
+        const c = document.getElementById('leaderboard');
+        if (c) c.innerHTML = '<div class="leaderboard-empty">Select a race to view standings</div>';
+        return;
+    }
+    if (Array.isArray(currentRace.classes) && currentRace.classes.length > 0) {
+        renderPHRFLeaderboard();
+        return;
+    }
+    renderLegacyLeaderboard();
+}
+
+function renderLegacyLeaderboard() {
     const container = document.getElementById('leaderboard');
 
     if (!currentRace || !raceData) {
@@ -3053,6 +3076,301 @@ function renderLeaderboard() {
             if (id) openBoatDrawer(id);
         });
     }
+}
+
+// --- PHRF leaderboard (handicap, multi-class, multi-start) ---
+//
+// Different game from the legacy GPS course-aware leaderboard. The
+// roster is currentRace.boats (which includes non-GPS handicap
+// entries). Each boat carries: class, rating, finish_time,
+// finish_status. We rank within class by corrected time
+// (elapsed × rating). Live per-boat speed/heel/%pol still come from
+// raceData.boats[device_id] for GPS-equipped boats; the *order* never
+// changes during playback — this is a results sheet, not a live race.
+
+const PHRF_STATUSES = new Set(['FIN', 'DNF', 'DNC', 'DSQ', 'RET', 'OCS', 'NSC']);
+
+function _parseTimeToMs(t) {
+    if (!t) return null;
+    const d = new Date(t);
+    const ms = d.getTime();
+    return Number.isFinite(ms) ? ms : null;
+}
+
+// Returns { class_id → [boats sorted by rank] } where each row carries
+// the PHRF computation (elapsed_sec, corrected_sec) plus the live
+// state pulled from calculatePositions() (speed_kn, etc.) when the boat
+// has a GPS track.
+function computePHRFResults() {
+    const out = {};
+    if (!currentRace || !Array.isArray(currentRace.classes)) return out;
+
+    // GPS live state keyed by deviceId. May be empty if raceData hasn't
+    // arrived yet — the PHRF rank still computes from finish_time alone.
+    const liveByDevice = {};
+    if (raceData) {
+        for (const p of calculatePositions()) liveByDevice[p.deviceId] = p;
+    }
+
+    // Per-class start time lookup
+    const classStartMs = {};
+    for (const c of currentRace.classes) {
+        classStartMs[c.id] = _parseTimeToMs(c.start_time);
+    }
+
+    for (const c of currentRace.classes) out[c.id] = [];
+
+    for (const boat of currentRace.boats || []) {
+        const classId = boat.class;
+        if (!classId || !(classId in out)) continue;  // boat without a class is hidden
+        const startMs = classStartMs[classId];
+        const finishMs = _parseTimeToMs(boat.finish_time);
+        const rating = Number(boat.rating);
+        const status = (boat.finish_status || (finishMs ? 'FIN' : 'DNS')).toUpperCase();
+
+        let elapsedSec = null;
+        let correctedSec = null;
+        if (status === 'FIN' && startMs != null && finishMs != null) {
+            elapsedSec = (finishMs - startMs) / 1000;
+            if (Number.isFinite(rating) && rating > 0) {
+                correctedSec = elapsedSec * rating;
+            }
+        }
+
+        out[classId].push({
+            boat,
+            deviceId: boat.device_id || null,
+            classId,
+            rating: Number.isFinite(rating) ? rating : null,
+            startMs,
+            finishMs,
+            elapsedSec,
+            correctedSec,
+            status,
+            live: boat.device_id ? (liveByDevice[boat.device_id] || null) : null,
+        });
+    }
+
+    // Rank within class: FIN (by corrected ASC, then elapsed ASC), then
+    // non-finishers (DNF/DNC/RET/DSQ/OCS) at the bottom in entry order.
+    for (const classId of Object.keys(out)) {
+        const fin = out[classId].filter(r => r.status === 'FIN' && r.correctedSec != null);
+        const finNoRating = out[classId].filter(r => r.status === 'FIN' && r.correctedSec == null);
+        const dnf = out[classId].filter(r => r.status !== 'FIN');
+        fin.sort((a, b) => a.correctedSec - b.correctedSec);
+        finNoRating.sort((a, b) => (a.elapsedSec ?? Infinity) - (b.elapsedSec ?? Infinity));
+        out[classId] = [...fin, ...finNoRating, ...dnf];
+    }
+
+    return out;
+}
+
+// Format a UTC ISO timestamp as the local wall-clock HH:MM:SS the
+// regatta scoring sheet shows ("19:17:32"). Race scoring is always
+// reported in local time at the venue; the user's browser timezone
+// is the same as the venue for our use case (Boston).
+function _fmtLocalHMS(iso) {
+    const ms = _parseTimeToMs(iso);
+    if (ms == null) return '—';
+    const d = new Date(ms);
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function _fmtElapsedHMS(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return '—';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.round(seconds % 60);
+    if (h > 0) return `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function renderPHRFLeaderboard() {
+    const container = document.getElementById('leaderboard');
+    if (!container) return;
+    const results = computePHRFResults();
+    const classes = currentRace.classes || [];
+    const visibleClasses = classes.filter(c => classFilter === 'all' || classFilter === c.id);
+    const drawerActive = drawerDeviceId;
+
+    // 3-state filter — A · B · Both. Built every render so a class
+    // added/renamed in the editor reflects immediately.
+    const toggle = `
+        <div class="lb-class-filter" role="tablist" aria-label="Filter by class">
+            ${classes.map(c => `
+                <button type="button" data-class-filter="${_attrEsc(c.id)}"
+                        class="${classFilter === c.id ? 'active' : ''}">${_attrEsc(c.name || c.id)}</button>
+            `).join('')}
+            <button type="button" data-class-filter="all"
+                    class="${classFilter === 'all' ? 'active' : ''}">Both</button>
+        </div>
+    `;
+
+    const sections = visibleClasses.map(cls => {
+        const rows = results[cls.id] || [];
+        const startLocal = _fmtLocalHMS(cls.start_time);
+        const header = `
+            <div class="lb-class-header">
+                <span class="lb-class-name">${_attrEsc(cls.name || cls.id)}</span>
+                <span class="lb-class-meta">Start ${startLocal} · ${_attrEsc(cls.rating_type || 'PHRF')}</span>
+            </div>
+        `;
+        if (!rows.length) {
+            return header + '<div class="leaderboard-empty">No boats in this class</div>';
+        }
+        return header + rows.map((r, idx) => _renderPHRFRow(r, idx, drawerActive)).join('');
+    }).join('');
+
+    container.innerHTML = toggle + (sections || '<div class="leaderboard-empty">No classes defined</div>');
+
+    // Class filter buttons
+    for (const btn of container.querySelectorAll('[data-class-filter]')) {
+        btn.addEventListener('click', () => {
+            const v = btn.getAttribute('data-class-filter');
+            setClassFilter(v);
+        });
+    }
+    // Row click → drawer (GPS boats only)
+    for (const el of container.querySelectorAll('.leaderboard-item[data-device-id]')) {
+        el.addEventListener('click', () => {
+            const id = el.getAttribute('data-device-id');
+            if (id) openBoatDrawer(id);
+        });
+    }
+}
+
+function _renderPHRFRow(r, idx, drawerActive) {
+    const pos = idx + 1;
+    const posLabel = r.status === 'FIN' ? String(pos) : r.status;
+    const posClass = r.status === 'FIN' && pos <= 3 ? `p${pos}` : '';
+    const activeClass = r.deviceId && r.deviceId === drawerActive ? ' active' : '';
+    const finClass = r.status === 'FIN' ? ' leaderboard-finished' : ' lb-row-dnf';
+    const noGpsClass = r.deviceId ? '' : ' lb-no-gps';
+
+    const boat = r.boat;
+    const team = (boat?.team_name || '').trim();
+    const boatName = (boat?.boat_name || '').trim();
+    const sailNumber = (boat?.sail_number != null ? String(boat.sail_number) : '').trim();
+    const boatType = (boat?.boat_type || '').trim();
+
+    let displayName;
+    const idBits = [];
+    if (team) {
+        displayName = team;
+        if (boatName) idBits.push(boatName);
+    } else if (boatName) {
+        displayName = boatName;
+    } else if (sailNumber) {
+        displayName = `#${sailNumber}`;
+    } else {
+        displayName = r.deviceId || '—';
+    }
+    if (sailNumber && !displayName.includes(sailNumber)) idBits.push(`#${sailNumber}`);
+    if (boatType) idBits.push(boatType);
+    const subtitle = idBits.join(' · ');
+
+    // Color swatch only for GPS boats (the only ones that have a
+    // matching coloured polyline + map marker). Non-GPS gets a hollow
+    // grey dot — visually signals "no track on the map".
+    const color = r.deviceId ? colorFor(r.deviceId) : '#3a3a3a';
+    const swatchStyle = r.deviceId
+        ? `background:${color}`
+        : `background:transparent;border:1.5px dashed ${color}`;
+
+    // Right-hand stats cluster: corrected time large, elapsed + rating
+    // small below. For DNF/DNC/RET the status itself is the "result".
+    let bigCell, smallParts;
+    if (r.status === 'FIN' && r.correctedSec != null) {
+        bigCell = `<div class="leaderboard-speed lb-corr" title="Corrected time = elapsed × rating">${_fmtElapsedHMS(r.correctedSec)}</div>`;
+        smallParts = [];
+        if (r.rating != null) smallParts.push(`<span title="PHRF rating (multiplier)">${r.rating.toFixed(3)}</span>`);
+        if (r.elapsedSec != null) smallParts.push(`<span title="Elapsed">e ${_fmtElapsedHMS(r.elapsedSec)}</span>`);
+        if (r.finishMs != null) smallParts.push(`<span title="Finish wall-clock">${_fmtLocalHMS(boat.finish_time)}</span>`);
+    } else if (r.status === 'FIN' && r.elapsedSec != null) {
+        bigCell = `<div class="leaderboard-speed lb-corr">${_fmtElapsedHMS(r.elapsedSec)}</div>`;
+        smallParts = ['<span>(no rating)</span>'];
+    } else {
+        bigCell = `<div class="leaderboard-speed lb-status-big">${r.status}</div>`;
+        smallParts = [];
+        if (r.rating != null) smallParts.push(`<span>${r.rating.toFixed(3)}</span>`);
+        if (boatType && !subtitle.includes(boatType)) smallParts.push(`<span>${_attrEsc(boatType)}</span>`);
+    }
+
+    return `
+        <div class="leaderboard-item${activeClass}${finClass}${noGpsClass}"${r.deviceId ? ` data-device-id="${_attrEsc(r.deviceId)}"` : ''}>
+            <div class="leaderboard-position ${posClass}">${posLabel}</div>
+            <div class="leaderboard-boat-color" style="${swatchStyle}"></div>
+            <div class="leaderboard-boat-info">
+                <div class="leaderboard-boat-name">${_attrEsc(displayName)}</div>
+                <div class="leaderboard-boat-subtitle">${_attrEsc(subtitle)}</div>
+            </div>
+            <div class="leaderboard-stats">
+                ${bigCell}
+                <div class="leaderboard-delta">${smallParts.join(' · ')}</div>
+            </div>
+        </div>
+    `;
+}
+
+// --- Class filter (handicap multi-class races only) ---
+
+function setClassFilter(v) {
+    if (v !== 'all' && !(currentRace?.classes || []).some(c => c.id === v)) return;
+    if (classFilter === v) return;
+    classFilter = v;
+    try { localStorage.setItem('sf-class-filter', v); } catch {}
+    // Reflect into URL without polluting history.
+    try {
+        const u = new URL(location.href);
+        if (v === 'all') u.searchParams.delete('class');
+        else u.searchParams.set('class', v);
+        history.replaceState(null, '', u.toString());
+    } catch {}
+    applyClassFilterToMap();
+    renderLeaderboard();
+}
+
+// Show/hide each boat's track + marker + hull + boom + speed segments
+// based on the active class filter. No-op for races without classes
+// (every layer stays visible). Called whenever the filter changes or
+// new boat layers are wired up.
+function applyClassFilterToMap() {
+    if (!map) return;
+    const classByDevice = {};
+    if (Array.isArray(currentRace?.boats)) {
+        for (const b of currentRace.boats) {
+            if (b.device_id) classByDevice[b.device_id] = b.class || null;
+        }
+    }
+    const classesDefined = Array.isArray(currentRace?.classes) && currentRace.classes.length > 0;
+    for (const [deviceId, L] of Object.entries(boatLayers)) {
+        const cls = classByDevice[deviceId];
+        const visible = !classesDefined || classFilter === 'all' || classFilter === cls;
+        const op = visible ? 1 : 0;
+        if (L.track && L.track.setStyle) L.track.setStyle({ opacity: op });
+        if (L.marker && L.marker.setOpacity) L.marker.setOpacity(op);
+        if (L.hull && L.hull.setStyle) L.hull.setStyle({ opacity: op, fillOpacity: op * 0.7 });
+        if (L.boom && L.boom.setStyle) L.boom.setStyle({ opacity: op });
+        if (L.segPool) for (const s of L.segPool) {
+            if (s.setStyle) s.setStyle({ opacity: op });
+        }
+    }
+}
+
+// Read initial filter from URL ?class= or localStorage. Called once at
+// race-load so a deep link / refresh restores the user's view.
+function initClassFilterFromPersistence() {
+    let v = 'all';
+    try {
+        const u = new URL(location.href);
+        const qp = u.searchParams.get('class');
+        if (qp) v = qp;
+        else {
+            const stored = localStorage.getItem('sf-class-filter');
+            if (stored) v = stored;
+        }
+    } catch {}
+    classFilter = v;
 }
 
 // Binary-search the GPS index whose timestamp is closest to (and not
@@ -6009,6 +6327,12 @@ async function loadRaceData(raceId) {
         // even if the user is just browsing (didn't open the modal).
         rememberRaceNames(currentRace);
 
+        // Restore the per-user class filter (?class= URL param wins,
+        // else last localStorage value, else 'all'). Done before any
+        // render so the toggle paints in the right state from the
+        // first frame instead of flashing.
+        initClassFilterFromPersistence();
+
         // Update UI with local time
         document.getElementById('race-name').textContent = currentRace.name;
         const startLocal = new Date(currentRace.start_time);
@@ -6090,6 +6414,11 @@ async function loadRaceData(raceId) {
         // Render legend and leaderboard
         renderBoatLegend();
         renderLeaderboard();
+
+        // Apply the multi-class filter to the freshly-added map layers.
+        // No-op for single-class races. Must run after addBoatTrack so
+        // every track/marker is already on the map.
+        applyClassFilterToMap();
 
         // Lay out laylines from the next windward mark using race-average TWD.
         renderLaylines();
@@ -6370,6 +6699,15 @@ function clearRaceForm() {
         : null;
     setBoatClassInForm(seedRegatta?.boat_class || null);   // defaults to J/80 if none
 
+    // "New Race" defaults to single-class fleet mode. If the modal was
+    // last opened on a handicap race, the PHRF section is still display
+    // toggled on; reset both before rendering so the next save isn't
+    // built from a stale roster.
+    const fs = document.getElementById('boat-assignments-section');
+    const ps = document.getElementById('phrf-roster-section');
+    if (fs) fs.style.display = '';
+    if (ps) ps.style.display = 'none';
+
     // Default boat assignments (6 boats)
     renderBoatAssignments([
         { device_id: 'E1', boat_name: '', team_name: '', sail_number: '' },
@@ -6405,8 +6743,87 @@ function populateRaceForm(race) {
     document.getElementById('regatta-input').value = race.regatta_id || '';
     setBoatClassInForm(race.boat_class || null);
 
-    renderBoatAssignments(race.boats || []);
-    renderFinishOrder(race.finish_order || [], race.boats || []);
+    // Multi-class handicap races use the PHRF roster editor; everything
+    // else uses the 6-device fleet-assignments editor. The two sections
+    // are mutually exclusive in the modal.
+    const isHandicap = Array.isArray(race.classes) && race.classes.length > 0;
+    const fleetSection = document.getElementById('boat-assignments-section');
+    const phrfSection = document.getElementById('phrf-roster-section');
+    if (isHandicap) {
+        if (fleetSection) fleetSection.style.display = 'none';
+        if (phrfSection) phrfSection.style.display = '';
+        renderPHRFRoster(race.boats || []);
+    } else {
+        if (fleetSection) fleetSection.style.display = '';
+        if (phrfSection) phrfSection.style.display = 'none';
+        renderBoatAssignments(race.boats || []);
+        renderFinishOrder(race.finish_order || [], race.boats || []);
+    }
+}
+
+// PHRF roster: one row per boat in the regatta sheet. Editable field
+// is device_id only — pick from the unused E1..E6 slots or "No GPS".
+// Boat name / class / rating / finish_time stay read-only here; they
+// live in the seed script and don't change race-to-race.
+function renderPHRFRoster(boats) {
+    const container = document.getElementById('phrf-roster');
+    if (!container) return;
+
+    const ALL_DEVICES = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
+
+    container.innerHTML = boats.map((boat, idx) => {
+        const team = (boat.team_name || '').trim();
+        const yacht = (boat.boat_name || '').trim();
+        const displayName = team || yacht || (boat.sail_number ? `#${boat.sail_number}` : `Boat ${idx + 1}`);
+        const subtitle = [yacht && team ? yacht : null, boat.sail_number ? `#${boat.sail_number}` : null, boat.boat_type]
+            .filter(Boolean).join(' · ');
+        const rating = (typeof boat.rating === 'number') ? boat.rating.toFixed(3) : '—';
+        const cls = boat.class || '—';
+        const finishLocal = boat.finish_time
+            ? new Date(boat.finish_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            : (boat.finish_status || '—');
+        const currentDevice = boat.device_id || '';
+
+        const opts = ['<option value="">No GPS</option>']
+            .concat(ALL_DEVICES.map(d => `<option value="${d}"${d === currentDevice ? ' selected' : ''}>${d}</option>`))
+            .join('');
+
+        return `
+            <div class="phrf-row" data-idx="${idx}">
+                <span class="phrf-class phrf-cls-${_attrEsc(cls)}">${_attrEsc(cls)}</span>
+                <div class="phrf-name-block">
+                    <div class="phrf-name">${_attrEsc(displayName)}</div>
+                    <div class="phrf-sub">${_attrEsc(subtitle)}</div>
+                </div>
+                <span class="phrf-rating" title="PHRF rating (multiplier)">${rating}</span>
+                <span class="phrf-finish" title="Finish wall-clock">${_attrEsc(finishLocal)}</span>
+                <select class="phrf-device" data-field="device_id" title="GPS tracker assignment">
+                    ${opts}
+                </select>
+            </div>
+        `;
+    }).join('');
+
+    // Live "device already in use" warning. Prevents two boats getting
+    // the same E# (which would clobber tracks). Listener rebound on
+    // every render since innerHTML wiped the old ones.
+    container.addEventListener('change', _validatePHRFDeviceConflicts);
+    _validatePHRFDeviceConflicts();
+}
+
+function _validatePHRFDeviceConflicts() {
+    const container = document.getElementById('phrf-roster');
+    if (!container) return;
+    const counts = {};
+    for (const sel of container.querySelectorAll('.phrf-device')) {
+        const v = sel.value;
+        if (!v) continue;
+        counts[v] = (counts[v] || 0) + 1;
+    }
+    for (const sel of container.querySelectorAll('.phrf-device')) {
+        const v = sel.value;
+        sel.classList.toggle('phrf-conflict', !!v && counts[v] > 1);
+    }
 }
 
 function renderBoatAssignments(boats) {
@@ -6589,30 +7006,56 @@ function getFormData() {
     const startUTC = startLocal.toISOString();
     const endUTC = endLocal.toISOString();
 
-    // Build boats array from form
-    const boats = [];
-    document.querySelectorAll('.boat-assignment').forEach(row => {
-        const deviceId = row.dataset.device;
-        const teamName = row.querySelector('[data-field="team_name"]')?.value || '';
-        const boatName = row.querySelector('[data-field="boat_name"]')?.value || '';
-        const sailNumber = row.querySelector('[data-field="sail_number"]')?.value?.trim() || '';
-        const gpxPath = row.dataset.gpxPath || null;
-        const hasPendingGpx = !!pendingGpxFiles[deviceId];
-        const isGpxActive = hasPendingGpx || !!gpxPath;
-        // When GPX is active, clear session; when session active, clear gpx_path
-        const sessionPath = isGpxActive ? null : (row.querySelector('[data-field="session_path"]')?.value || null);
+    // Build boats array from form. Handicap races (currentRace.classes
+    // non-empty) take the PHRF-roster path — preserve every boat's
+    // class/rating/finish/etc., mutate only device_id from the
+    // dropdowns. Single-class fleet races take the legacy 6-device
+    // path which fully rebuilds boats from the form.
+    const isHandicap = Array.isArray(currentRace?.classes) && currentRace.classes.length > 0;
+    let boats;
+    if (isHandicap) {
+        // Start from the in-memory roster (currentRace.boats is the
+        // source of truth for handicap metadata). Apply the user's
+        // device_id picks row-by-row by index.
+        boats = (currentRace.boats || []).map(b => ({ ...b }));
+        document.querySelectorAll('#phrf-roster .phrf-row').forEach(row => {
+            const idx = Number(row.dataset.idx);
+            const sel = row.querySelector('.phrf-device');
+            if (!boats[idx] || !sel) return;
+            const v = sel.value || null;
+            boats[idx].device_id = v;
+            // Clear orphaned session paths if the device assignment was
+            // cleared, otherwise the data endpoint would try to fetch
+            // a session under no device.
+            if (!v) {
+                boats[idx].session_path = null;
+                boats[idx].gpx_path = null;
+            }
+        });
+    } else {
+        boats = [];
+        document.querySelectorAll('.boat-assignment').forEach(row => {
+            const deviceId = row.dataset.device;
+            const teamName = row.querySelector('[data-field="team_name"]')?.value || '';
+            const boatName = row.querySelector('[data-field="boat_name"]')?.value || '';
+            const sailNumber = row.querySelector('[data-field="sail_number"]')?.value?.trim() || '';
+            const gpxPath = row.dataset.gpxPath || null;
+            const hasPendingGpx = !!pendingGpxFiles[deviceId];
+            const isGpxActive = hasPendingGpx || !!gpxPath;
+            const sessionPath = isGpxActive ? null : (row.querySelector('[data-field="session_path"]')?.value || null);
 
-        if (teamName || boatName || sailNumber || sessionPath || isGpxActive) {
-            boats.push({
-                device_id: deviceId,
-                team_name: teamName,
-                boat_name: boatName,
-                sail_number: sailNumber,
-                session_path: sessionPath,
-                gpx_path: isGpxActive ? gpxPath : null,
-            });
-        }
-    });
+            if (teamName || boatName || sailNumber || sessionPath || isGpxActive) {
+                boats.push({
+                    device_id: deviceId,
+                    team_name: teamName,
+                    boat_name: boatName,
+                    sail_number: sailNumber,
+                    session_path: sessionPath,
+                    gpx_path: isGpxActive ? gpxPath : null,
+                });
+            }
+        });
+    }
 
     // Get finish order
     const finishOrder = [];
@@ -6622,7 +7065,7 @@ function getFormData() {
 
     const boatClass = getBoatClassFromForm();   // may throw
 
-    return {
+    const payload = {
         name: document.getElementById('race-name-input').value,
         date: date,
         start_time: startUTC,
@@ -6632,6 +7075,15 @@ function getFormData() {
         boats,
         finish_order: finishOrder,
     };
+    // Preserve handicap-only fields on save — the editor doesn't yet
+    // expose them as form inputs, so they round-trip through
+    // currentRace unmodified. Without these, a save would silently
+    // strip classes + conditions and drop the race back to single-class.
+    if (Array.isArray(currentRace?.classes) && currentRace.classes.length > 0) {
+        payload.classes = currentRace.classes;
+        if (currentRace.race_conditions) payload.race_conditions = currentRace.race_conditions;
+    }
+    return payload;
 }
 
 async function saveRace() {
