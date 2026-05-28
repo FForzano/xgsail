@@ -582,18 +582,19 @@ body.course-editing .boat-legend {
     font-variant-numeric: tabular-nums;
 }
 
-/* Non-GPS handicap rows: dimmed name + no clickable affordance (no
-   per-boat drawer to open). The swatch is already a dashed outline
-   from the inline style. */
+/* Non-GPS handicap rows: dimmed name, still clickable — opens the
+   profile-only drawer (photos, type, LOA, skipper, race history).
+   The swatch is a dashed outline (via inline style) to signal "no
+   track on the map". */
 .leaderboard-item.lb-no-gps {
-    cursor: default;
-    opacity: 0.85;
+    cursor: pointer;
+    opacity: 0.88;
 }
 .leaderboard-item.lb-no-gps .leaderboard-boat-name {
     color: var(--text-secondary);
 }
 .leaderboard-item.lb-no-gps:hover {
-    background: var(--bg-primary);
+    background: rgba(255, 255, 255, 0.04);
 }
 
 /* DNF / DNC / RET / DSQ / OCS rows: visually demoted (status string

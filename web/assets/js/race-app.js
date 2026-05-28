@@ -2574,8 +2574,11 @@ function addBoatTrack(deviceId, gpsData, boat, imuData = null) {
         opacity: 0.8,
     }).addTo(map);
 
-    // Boat label marker (team initials + sail # + optional stat line).
-    const initials = teamInitials(boat?.team_name || boat?.boat_name || '');
+    // Boat label marker — boat initials (NS for Never Settle, PD for
+    // Pressure Drop) + sail # + optional stat line. Boat name is more
+    // identifying than skipper for tactical map reading — same
+    // identity priority as the leaderboard.
+    const initials = teamInitials(boat?.boat_name || boat?.team_name || '');
     const sailNumber = (boat?.sail_number || '').toString().trim();
     const initialCourse = gpsData[0]?.course || 0;
     const marker = L.marker([0, 0], {
@@ -3301,11 +3304,19 @@ function renderPHRFLeaderboard() {
             setClassFilter(v);
         });
     }
-    // Row click → drawer (GPS boats only)
+    // Row click → drawer. GPS boats open the full live-data drawer;
+    // non-GPS boats open a profile-only view (photos, type, LOA,
+    // skipper, links, race history).
     for (const el of container.querySelectorAll('.leaderboard-item[data-device-id]')) {
         el.addEventListener('click', () => {
             const id = el.getAttribute('data-device-id');
             if (id) openBoatDrawer(id);
+        });
+    }
+    for (const el of container.querySelectorAll('.leaderboard-item[data-boat-id]')) {
+        el.addEventListener('click', () => {
+            const bid = el.getAttribute('data-boat-id');
+            if (bid) openCatalogDrawer(bid);
         });
     }
 }
@@ -3324,13 +3335,17 @@ function _renderPHRFRow(r, idx, drawerActive) {
     const sailNumber = (boat?.sail_number != null ? String(boat.sail_number) : '').trim();
     const boatType = (boat?.boat_type || '').trim();
 
+    // Identity priority: boat name first (e.g. "Never Settle"), then
+    // skipper, sail#, device id. Boat name is the more identifying
+    // anchor for a regatta result sheet — same boat shows up week
+    // after week with potentially different skippers.
     let displayName;
     const idBits = [];
-    if (team) {
-        displayName = team;
-        if (boatName) idBits.push(boatName);
-    } else if (boatName) {
+    if (boatName) {
         displayName = boatName;
+        if (team) idBits.push(team);
+    } else if (team) {
+        displayName = team;
     } else if (sailNumber) {
         displayName = `#${sailNumber}`;
     } else {
@@ -3367,8 +3382,16 @@ function _renderPHRFRow(r, idx, drawerActive) {
         if (boatType && !subtitle.includes(boatType)) smallParts.push(`<span>${_attrEsc(boatType)}</span>`);
     }
 
+    // Row identifier: device_id when this boat is GPS-equipped (live
+    // data drawer); boat_id when it's a results-only entry (catalog-
+    // only drawer). Either way the drawer opens — boats without GPS
+    // still have photos, skipper info, race history worth surfacing.
+    const rowAttrs = r.deviceId
+        ? `data-device-id="${_attrEsc(r.deviceId)}"`
+        : (r.boat?.boat_id ? `data-boat-id="${_attrEsc(r.boat.boat_id)}"` : '');
+
     return `
-        <div class="leaderboard-item${activeClass}${finClass}${noGpsClass}"${r.deviceId ? ` data-device-id="${_attrEsc(r.deviceId)}"` : ''}>
+        <div class="leaderboard-item${activeClass}${finClass}${noGpsClass}" ${rowAttrs}>
             <div class="leaderboard-position ${posClass}">${posLabel}</div>
             <div class="leaderboard-boat-color" style="${swatchStyle}"></div>
             <div class="leaderboard-boat-info">
@@ -3538,22 +3561,22 @@ function calculatePositions() {
             }
         }
 
-        // Identity priority: team_name → boat_name → sail# → device ID.
-        // Device ID (E1..E6) is only shown when literally nothing else
-        // identifies the boat — once any of team/boat/sail is set,
-        // E# disappears from the row.
+        // Identity priority: boat_name → team_name → sail# → device ID.
+        // Boat name is the anchor across races (same boat, possibly
+        // different skipper); device id only appears when no human-
+        // friendly identifier is on file.
         const team = (boat?.team_name || '').trim();
         const boatName = (boat?.boat_name || '').trim();
         const sailNumber = (boat?.sail_number != null ? String(boat.sail_number) : '').trim();
 
         let displayName;
         const idBits = [];
-        if (team) {
-            displayName = team;
-            if (boatName) idBits.push(boatName);
-            if (sailNumber) idBits.push(`#${sailNumber}`);
-        } else if (boatName) {
+        if (boatName) {
             displayName = boatName;
+            if (team) idBits.push(team);
+            if (sailNumber) idBits.push(`#${sailNumber}`);
+        } else if (team) {
+            displayName = team;
             if (sailNumber) idBits.push(`#${sailNumber}`);
         } else if (sailNumber) {
             displayName = `#${sailNumber}`;
@@ -3954,6 +3977,10 @@ function setupMobileNav() {
 
 // --- Per-boat detail drawer ---
 let drawerDeviceId = null;
+// When opening a non-GPS leaderboard row, we don't have a device_id —
+// the drawer falls back to a profile-only view sourced from the
+// catalog. drawerBoatId carries the catalog id for that case.
+let drawerBoatId = null;
 
 function nearestSampleAt(samples, targetMs) {
     if (!samples?.length) return null;
@@ -3970,14 +3997,28 @@ function nearestSampleAt(samples, targetMs) {
 
 function openBoatDrawer(deviceId) {
     drawerDeviceId = deviceId;
+    drawerBoatId = null;
     const el = document.getElementById('boat-drawer');
     if (el) el.classList.add('open');
     updateBoatDrawer();
     renderLeaderboard();  // re-render to highlight active row
 }
 
+// Open the drawer for a boat that has no GPS track this race. Same
+// drawer panel, profile-only content (no live motion / wind / next-
+// mark sections). Sourced from currentRace.boats[].
+function openCatalogDrawer(boatId) {
+    drawerDeviceId = null;
+    drawerBoatId = boatId;
+    const el = document.getElementById('boat-drawer');
+    if (el) el.classList.add('open');
+    updateBoatDrawer();
+    renderLeaderboard();
+}
+
 function closeBoatDrawer() {
     drawerDeviceId = null;
+    drawerBoatId = null;
     const el = document.getElementById('boat-drawer');
     if (el) el.classList.remove('open');
     renderLeaderboard();
@@ -3995,9 +4036,17 @@ function fmt(v, digits = 1, suffix = '') {
 }
 
 function updateBoatDrawer() {
-    if (!drawerDeviceId) return;
+    if (!drawerDeviceId && !drawerBoatId) return;
     const el = document.getElementById('boat-drawer');
     if (!el || !el.classList.contains('open')) return;
+
+    // Catalog-only mode: no GPS this race, render just the profile +
+    // race history. Drawer panel is the same; the live-metric
+    // sections are simply omitted.
+    if (drawerBoatId) {
+        _renderCatalogOnlyDrawer(drawerBoatId);
+        return;
+    }
 
     const boatData = raceData?.boats?.[drawerDeviceId];
     const layer = boatLayers[drawerDeviceId];
@@ -4012,17 +4061,17 @@ function updateBoatDrawer() {
     const team = (boat?.team_name || '').trim();
     const boatName = (boat?.boat_name || '').trim();
     const sailNumber = (boat?.sail_number != null ? String(boat.sail_number) : '').trim();
-    // Same identity priority as the leaderboard: team → boat → sail#
-    // → device ID. The trailing chip carries whichever secondary bits
-    // are present (boat name + sail #), comma-separated.
+    // Identity priority: boat name → skipper → sail# → device ID.
+    // Matches the leaderboard inversion — the boat is the more
+    // identifying anchor across races.
     let titleMain;
     const titleBits = [];
-    if (team) {
-        titleMain = team;
-        if (boatName) titleBits.push(boatName);
-        if (sailNumber) titleBits.push(`#${sailNumber}`);
-    } else if (boatName) {
+    if (boatName) {
         titleMain = boatName;
+        if (team) titleBits.push(team);
+        if (sailNumber) titleBits.push(`#${sailNumber}`);
+    } else if (team) {
+        titleMain = team;
         if (sailNumber) titleBits.push(`#${sailNumber}`);
     } else if (sailNumber) {
         titleMain = `#${sailNumber}`;
@@ -4129,6 +4178,112 @@ function updateBoatDrawer() {
             </div>
         </div>
         ${nextMarkBlock}
+    `;
+}
+
+// Catalog-only drawer renderer: opens for boats with no GPS this
+// race. Shows the same profile section as the GPS path plus the
+// per-race result row (corrected/elapsed/place/status); skips
+// motion/wind/polar/next-mark since there's no live data to populate
+// them with.
+function _renderCatalogOnlyDrawer(boatId) {
+    const raceBoat = (currentRace?.boats || []).find(b => b.boat_id === boatId);
+    if (!raceBoat) {
+        document.getElementById('drawer-body').innerHTML =
+            '<div class="drawer-empty">Boat not found in this race.</div>';
+        return;
+    }
+
+    const boatName = (raceBoat.boat_name || '').trim();
+    const team = (raceBoat.team_name || '').trim();
+    const sailNumber = (raceBoat.sail_number != null ? String(raceBoat.sail_number) : '').trim();
+
+    let titleMain;
+    const titleBits = [];
+    if (boatName) {
+        titleMain = boatName;
+        if (team) titleBits.push(team);
+        if (sailNumber) titleBits.push(`#${sailNumber}`);
+    } else if (team) {
+        titleMain = team;
+        if (sailNumber) titleBits.push(`#${sailNumber}`);
+    } else {
+        titleMain = sailNumber ? `#${sailNumber}` : 'Boat';
+    }
+
+    document.getElementById('drawer-title').innerHTML = `
+        <span class="drawer-color-bar" style="background:rgba(255,255,255,0.18)"></span>
+        <span class="drawer-team">${_attrEsc(titleMain)}</span>
+        ${titleBits.length ? `<span class="drawer-boat">${_attrEsc(titleBits.join(' · '))}</span>` : ''}
+        <span class="drawer-device">(no GPS this race)</span>
+    `;
+
+    const profileBlock = _drawerProfileBlock(raceBoat);
+
+    // Per-race result row sourced straight from the PHRF computation
+    // — when we have rating + finish_time, render corrected / elapsed /
+    // place. Otherwise just status (DNC, RET, …).
+    const resultBlock = _catalogDrawerResultBlock(raceBoat);
+
+    document.getElementById('drawer-body').innerHTML = `
+        ${profileBlock || '<div class="drawer-empty">No catalog data for this boat yet — add it on the <a href="/boats.html" target="_blank" rel="noopener">Boats page</a>.</div>'}
+        ${resultBlock}
+    `;
+}
+
+function _catalogDrawerResultBlock(raceBoat) {
+    const cls = (currentRace?.classes || []).find(c => c.id === raceBoat.class);
+    const startMs = cls ? _parseTimeToMs(cls.start_time) : null;
+    const finishMs = _parseTimeToMs(raceBoat.finish_time);
+    const rating = Number(raceBoat.rating);
+    const status = (raceBoat.finish_status || (finishMs ? 'FIN' : 'DNS')).toUpperCase();
+
+    let elapsedSec = null, correctedSec = null;
+    if (status === 'FIN' && startMs != null && finishMs != null) {
+        elapsedSec = (finishMs - startMs) / 1000;
+        if (Number.isFinite(rating) && rating > 0) correctedSec = elapsedSec * rating;
+    }
+
+    // Place: re-derive within class using the same logic as the
+    // PHRF leaderboard so the drawer stays consistent.
+    let place = null;
+    if (status === 'FIN' && correctedSec != null) {
+        const peers = (currentRace?.boats || [])
+            .filter(b => b.class === raceBoat.class && b.finish_status === 'FIN' && b.finish_time)
+            .map(b => {
+                const fM = _parseTimeToMs(b.finish_time);
+                const r = Number(b.rating);
+                return (fM != null && r > 0 && startMs != null)
+                    ? { b, corr: (fM - startMs) / 1000 * r }
+                    : null;
+            })
+            .filter(Boolean);
+        peers.sort((a, b) => a.corr - b.corr);
+        const idx = peers.findIndex(p => p.b === raceBoat);
+        if (idx >= 0) place = idx + 1;
+    }
+
+    const rows = [];
+    rows.push(['Status', status]);
+    if (cls) rows.push(['Class', cls.name || cls.id]);
+    if (rating > 0) rows.push(['Rating', rating.toFixed(3)]);
+    if (place != null) rows.push(['Place in class', String(place)]);
+    if (finishMs != null) rows.push(['Finish', _fmtLocalHMS(raceBoat.finish_time)]);
+    if (elapsedSec != null) rows.push(['Elapsed', _fmtElapsedHMS(elapsedSec)]);
+    if (correctedSec != null) rows.push(['Corrected', _fmtElapsedHMS(correctedSec)]);
+
+    return `
+        <div class="drawer-section">
+            <div class="drawer-section-title">This race</div>
+            <div class="drawer-grid">
+                ${rows.map(([k, v]) => `
+                    <div class="drawer-stat">
+                        <div class="drawer-label">${_attrEsc(k)}</div>
+                        <div class="drawer-value">${_attrEsc(v)}</div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
     `;
 }
 
