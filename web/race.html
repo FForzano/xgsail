@@ -70,7 +70,7 @@
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
     <link rel="stylesheet" href="./assets/css/main.css?v=10">
-    <link rel="stylesheet" href="./assets/css/race.css?v=62">
+    <link rel="stylesheet" href="./assets/css/race.css?v=63">
     <link rel="stylesheet" href="./assets/css/race-chat.css?v=10">
     <link rel="stylesheet" href="./assets/css/race-start-review.css?v=2">
     <script src="./config.js"></script>
@@ -262,8 +262,20 @@
                 <h3>Polar plot · live TWA vs SOG</h3>
                 <span class="polar-wind-readout" id="polar-wind-readout"></span>
                 <label class="polar-boat-select-wrap">
-                    Reference polar:
+                    Polar:
                     <select id="polar-boat-select"></select>
+                </label>
+                <label class="polar-boat-select-wrap">
+                    Trail:
+                    <select id="polar-trail-select">
+                        <option value="0">off</option>
+                        <option value="15">15 s</option>
+                        <option value="30">30 s</option>
+                        <option value="60">1 min</option>
+                        <option value="120">2 min</option>
+                        <option value="300">5 min</option>
+                        <option value="600">10 min</option>
+                    </select>
                 </label>
                 <button class="polar-overlay-close" data-close-polar title="Close (Esc)">×</button>
             </div>
@@ -527,6 +539,6 @@
     </div>
 
     <!-- Scripts -->
-    <script type="module" src="./assets/js/race-app.js?v=121"></script>
+    <script type="module" src="./assets/js/race-app.js?v=122"></script>
 </body>
 </html>

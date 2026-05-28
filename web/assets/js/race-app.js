@@ -4416,6 +4416,13 @@ function _drawerProfileBlock(raceBoat) {
 
 let polarOverlayOpen = false;
 let polarSelectedKey = null;   // boat track key whose curve is drawn
+// Trail window for the polar plot, in seconds. 0 = no trail.
+// Persisted in localStorage so the coach's preferred setting survives
+// reloads. Set via the polar-trail-select dropdown.
+let polarTrailSeconds = (() => {
+    try { return Number(localStorage.getItem('sf-polar-trail-sec') || 0) || 0; }
+    catch { return 0; }
+})();
 
 function openPolarOverlay() {
     const el = document.getElementById('polar-overlay');
@@ -4529,15 +4536,57 @@ function _polarCurrentBoatStates() {
     return out;
 }
 
+// Build past-position trail for a boat in polar space. Walks the
+// boat's GPS samples back `windowSec` seconds from playback time and
+// converts each (sample, wind-at-sample-time) into a polar XY pair.
+// Returns [{x_norm, y_norm, ageFrac}] where ageFrac=0 is the
+// oldest, 1 is current (used for opacity gradient).
+function _polarTrailFor(trackKey, windowSec, ptOf) {
+    if (!windowSec || windowSec <= 0) return [];
+    const boatData = raceData?.boats?.[trackKey];
+    const gps = boatData?.sensors?.gps;
+    if (!Array.isArray(gps) || !gps.length) return [];
+    const layer = boatLayers[trackKey];
+    const idxNow = layer?.currentIdx ?? (gps.length - 1);
+    const tNow = gps[idxNow]?.t ? new Date(gps[idxNow].t).getTime() : null;
+    if (tNow == null) return [];
+    const tOldest = tNow - windowSec * 1000;
+    const pts = [];
+    // Step back through samples until we hit the window edge. Sub-
+    // sample to ~120 points max (1 every windowSec/120 seconds) so a
+    // 10-min trail renders cheaply.
+    const stepSec = Math.max(1, Math.floor(windowSec / 120));
+    let lastT = null;
+    for (let i = idxNow; i >= 0; i--) {
+        const p = gps[i];
+        if (!p?.t) continue;
+        const t = new Date(p.t).getTime();
+        if (t < tOldest) break;
+        if (lastT != null && (lastT - t) < stepSec * 1000) continue;
+        lastT = t;
+        const w = windAt(t);
+        if (!w) continue;
+        const cog = p.course || 0;
+        const twa = ((w.twd - cog + 540) % 360) - 180;
+        const sog = p.speed_kn || 0;
+        const ageFrac = 1 - ((tNow - t) / (windowSec * 1000));
+        const [x, y] = ptOf(twa, sog);
+        pts.push({ x, y, ageFrac });
+    }
+    return pts.reverse();
+}
+
 function _renderPolarFull() {
     const svg = document.getElementById('polar-svg');
     if (!svg) return;
-    // Clear children
     while (svg.firstChild) svg.removeChild(svg.firstChild);
 
+    // Centered polar: boat at the canvas center, 0° (head-to-wind)
+    // pointing UP, 90° starboard to the RIGHT, 180° run pointing
+    // DOWN, 270° = -90° port to the LEFT. Standard sailing convention.
     const W = 640, H = 600;
-    const cx = W / 2, cy = 60;
-    const radius = H - cy - 40;
+    const cx = W / 2, cy = H / 2;
+    const radius = Math.min(W, H) / 2 - 50;
 
     const NS = 'http://www.w3.org/2000/svg';
     function mk(tag, attrs) {
@@ -4546,10 +4595,6 @@ function _renderPolarFull() {
         return e;
     }
 
-    // Find max relevant speed for the radial scale: use the largest
-    // polar target speed across loaded boats at the current TWS, plus
-    // 1 kn headroom. Fall back to 12 kn so the grid renders before
-    // any boats are loaded.
     const states = _polarCurrentBoatStates();
     const twsForScale = states.length
         ? (states.reduce((s, b) => s + (b.tws || 0), 0) / states.length)
@@ -4565,40 +4610,49 @@ function _renderPolarFull() {
     for (const s of states) if (s.sog > maxKn) maxKn = s.sog;
     maxKn = Math.ceil(maxKn + 1);
 
+    // SVG y-axis points DOWN. We want 0° TWA = up, so use -cos for y.
     function ptOf(twaSigned, sogKn) {
-        const r = radius * Math.min(1, sogKn / maxKn);
+        const r = radius * Math.min(1, Math.max(0, sogKn) / maxKn);
         const a = twaSigned * Math.PI / 180;
-        return [cx + r * Math.sin(a), cy + r * Math.cos(a)];
+        return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
     }
 
     // --- Background grid ---
-    // Speed rings every 2 kn
     for (let s = 2; s <= maxKn; s += 2) {
         const r = radius * (s / maxKn);
-        // Render only the lower-half semicircle (0° to 180°, going
-        // clockwise — full polar covers ±180° anyway so we draw a
-        // full circle).
         svg.appendChild(mk('circle', {
-            cx, cy, r, class: 'polar-grid-ring'
+            cx, cy, r, class: 'polar-grid-ring',
         }));
+        // Speed labels along the north-south axis, slightly offset
+        // so they don't overlap the centerline.
         svg.appendChild(mk('text', {
-            x: cx + 4, y: cy + r - 2, class: 'polar-axis-label',
-        })).textContent = `${s}`;
+            x: cx + 4, y: cy - r + 11, class: 'polar-axis-label',
+        })).textContent = `${s} kn`;
     }
-    // Radial spokes every 30°, port + starboard
-    for (let twa = -180; twa <= 180; twa += 30) {
+    // Centerline spokes every 30°, plus extras at the typical
+    // upwind / downwind tack angles.
+    const SPOKE_TWAS = [-180, -150, -135, -120, -90, -60, -45, -30, 0, 30, 45, 60, 90, 120, 135, 150, 180];
+    for (const twa of SPOKE_TWAS) {
         const [x, y] = ptOf(twa, maxKn);
         svg.appendChild(mk('line', {
-            x1: cx, y1: cy, x2: x, y2: y, class: 'polar-grid-spoke'
+            x1: cx, y1: cy, x2: x, y2: y, class: 'polar-grid-spoke',
         }));
-        const labelText = (twa === 0) ? '0° head-to-wind'
-            : (twa === 180 || twa === -180) ? '180° run'
+        const labelText = (twa === 0) ? '0°\nhead-to-wind'
+            : (twa === 180 || twa === -180) ? '180°\nrun'
             : `${Math.abs(twa)}°${twa < 0 ? 'P' : 'S'}`;
-        const [lx, ly] = ptOf(twa, maxKn + maxKn * 0.06);
-        svg.appendChild(mk('text', {
+        const [lx, ly] = ptOf(twa, maxKn * 1.08);
+        // Multi-line via tspan
+        const t = mk('text', {
             x: lx, y: ly, class: 'polar-axis-label',
             'text-anchor': 'middle', 'dominant-baseline': 'middle',
-        })).textContent = labelText;
+        });
+        const lines = labelText.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const ts = mk('tspan', { x: lx, dy: i === 0 ? 0 : '1.05em' });
+            ts.textContent = lines[i];
+            t.appendChild(ts);
+        }
+        svg.appendChild(t);
     }
 
     // --- Selected boat's polar curve ---
@@ -4611,7 +4665,6 @@ function _renderPolarFull() {
         const color = colorFor(polarSelectedKey);
         const curve = _polarCurveAt(selected.polar, twsForScale);
         if (curve.length > 1) {
-            // Draw both halves: starboard (right) and mirrored port (left)
             const stbPts = curve.map(({ twa, sog }) => ptOf(twa, sog));
             const portPts = curve.map(({ twa, sog }) => ptOf(-twa, sog));
             const stbD = 'M ' + stbPts.map(p => p.join(',')).join(' L ');
@@ -4621,11 +4674,75 @@ function _renderPolarFull() {
         }
     }
 
-    // --- Live boat dots ---
+    // --- Trails (past polar positions) ---
+    if (polarTrailSeconds > 0) {
+        for (const s of states) {
+            const pts = _polarTrailFor(s.trackKey, polarTrailSeconds, ptOf);
+            if (pts.length < 2) continue;
+            const color = colorFor(s.trackKey);
+            // Render as a series of short segments with opacity
+            // ramping from faded (oldest) to bright (newest). One
+            // path per segment is heavier than a single polyline
+            // but lets us vary opacity along its length.
+            for (let i = 1; i < pts.length; i++) {
+                const a = pts[i - 1], b = pts[i];
+                const op = Math.max(0.05, b.ageFrac * 0.65);
+                svg.appendChild(mk('line', {
+                    x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+                    stroke: color, 'stroke-width': 1.6,
+                    'stroke-opacity': op.toFixed(2),
+                    'stroke-linecap': 'round',
+                    class: 'polar-trail-seg',
+                }));
+            }
+        }
+    }
+
+    // --- Live boat dots + heading arrows ---
     for (const s of states) {
         const [x, y] = ptOf(s.twa, s.sog);
         const c = colorFor(s.trackKey);
         const isSel = s.trackKey === polarSelectedKey;
+
+        // Heading arrow — small triangle showing the boat's recent
+        // motion in polar space (i.e. is the dot moving outward =
+        // accelerating, inward = decelerating, clockwise = bearing
+        // off, counter-clockwise = heading up). Direction comes
+        // from the last ~3s of trail. If no trail data, point along
+        // the radial (outward from origin).
+        const recent = _polarTrailFor(s.trackKey, 3, ptOf);
+        let dx = 0, dy = 0;
+        if (recent.length >= 2) {
+            const last = recent[recent.length - 1];
+            const past = recent[0];
+            dx = last.x - past.x;
+            dy = last.y - past.y;
+        }
+        if (dx === 0 && dy === 0) {
+            // Fallback: point radially outward (where the boat is
+            // sailing TO on the polar).
+            const a = s.twa * Math.PI / 180;
+            dx = Math.sin(a);
+            dy = -Math.cos(a);
+        }
+        const mag = Math.hypot(dx, dy) || 1;
+        const ux = dx / mag, uy = dy / mag;
+        const arrowLen = 14;
+        const arrowWid = 6;
+        const tipX = x + ux * arrowLen;
+        const tipY = y + uy * arrowLen;
+        const leftX = x + (-uy) * arrowWid;
+        const leftY = y + (ux) * arrowWid;
+        const rightX = x - (-uy) * arrowWid;
+        const rightY = y - (ux) * arrowWid;
+        svg.appendChild(mk('polygon', {
+            points: `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`,
+            fill: c, 'fill-opacity': 0.85,
+            stroke: '#fff', 'stroke-width': 0.5,
+            'stroke-opacity': 0.5,
+            class: 'polar-boat-arrow',
+        }));
+
         svg.appendChild(mk('circle', {
             cx: x, cy: y, r: isSel ? 7 : 5,
             fill: c, class: 'polar-boat-dot' + (isSel ? ' selected' : ''),
@@ -4641,18 +4758,33 @@ function _renderPolarFull() {
     const readout = document.getElementById('polar-wind-readout');
     if (readout) {
         if (states.length) {
-            readout.textContent = `TWS ~${twsForScale.toFixed(1)} kn · ${states.length} boat${states.length === 1 ? '' : 's'} on the plot · polar curve at ${twsForScale.toFixed(0)} kn`;
+            const trailStr = polarTrailSeconds > 0
+                ? ` · trail ${polarTrailSeconds < 60 ? polarTrailSeconds + 's' : (polarTrailSeconds / 60) + 'm'}`
+                : '';
+            readout.textContent = `TWS ~${twsForScale.toFixed(1)} kn · ${states.length} boat${states.length === 1 ? '' : 's'}${trailStr}`;
         } else {
             readout.textContent = 'No live boat data yet — start playback';
         }
     }
 
-    // --- Boat selector dropdown ---
     _polarRebuildBoatSelector();
+    _polarRebuildTrailSelector();
     _polarRebuildLegend(states);
 
-    // Click on a dot → select that boat as the polar source
     svg.addEventListener('click', _polarHandleClick, { once: true });
+}
+
+function _polarRebuildTrailSelector() {
+    const sel = document.getElementById('polar-trail-select');
+    if (!sel) return;
+    sel.value = String(polarTrailSeconds || 0);
+    if (sel.dataset.bound) return;
+    sel.dataset.bound = '1';
+    sel.addEventListener('change', () => {
+        polarTrailSeconds = Number(sel.value) || 0;
+        try { localStorage.setItem('sf-polar-trail-sec', String(polarTrailSeconds)); } catch {}
+        _renderPolarFull();
+    });
 }
 
 function _polarHandleClick(e) {

@@ -2567,14 +2567,31 @@ body.course-editing .boat-legend {
     height: 100%;
     max-height: 100%;
 }
-.polar-grid-ring { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 1; }
-.polar-grid-spoke { stroke: rgba(255,255,255,0.06); stroke-width: 1; }
-.polar-axis-label { fill: rgba(255,255,255,0.4); font-size: 10px; font-family: ui-monospace, monospace; }
-.polar-curve { fill: none; stroke-width: 1.5; opacity: 0.85; pointer-events: none; }
+.polar-grid-ring { fill: none; stroke: rgba(255,255,255,0.22); stroke-width: 1; }
+.polar-grid-spoke { stroke: rgba(255,255,255,0.18); stroke-width: 1; }
+.polar-axis-label {
+    fill: rgba(255,255,255,0.75);
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    pointer-events: none;
+}
+.polar-curve { fill: none; stroke-width: 2.5; opacity: 0.95; pointer-events: none; }
 .polar-curve.upwind { stroke-dasharray: 4,3; }
-.polar-boat-dot { stroke: #fff; stroke-width: 1.2; cursor: pointer; }
+.polar-trail-seg { pointer-events: none; }
+.polar-boat-arrow { pointer-events: none; }
+.polar-boat-dot { stroke: #fff; stroke-width: 1.5; cursor: pointer; }
 .polar-boat-dot.selected { stroke-width: 2.5; stroke: #ffd700; }
-.polar-boat-label { fill: #fff; font-size: 10px; font-family: ui-monospace, monospace; pointer-events: none; text-shadow: 0 0 2px #000; }
+.polar-boat-label {
+    fill: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: ui-monospace, monospace;
+    pointer-events: none;
+    paint-order: stroke;
+    stroke: #000;
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+}
 .polar-legend {
     display: flex;
     gap: 12px;
