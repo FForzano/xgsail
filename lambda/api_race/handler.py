@@ -366,6 +366,11 @@ _BOAT_FIELDS = [
     # club directory page for this boat. Same dedicated-field pattern
     # as cert_url.
     'mbsa_url',
+    # ORR-EZ polar speed table — populated by the scraper from the
+    # cert URL. Schema: {twa_values, tws_values, spin: {twa,tws: s_per_nm},
+    # nospin: {...}, opt_beat, opt_run, source_url, scraped_at}. The
+    # race-page polar overlay reads this directly.
+    'polar',
 ]
 
 
@@ -516,6 +521,7 @@ def _upsert_boat_index(boat):
         'skippers': boat.get('skippers') or [],
         'cert_url': boat.get('cert_url') or '',
         'mbsa_url': boat.get('mbsa_url') or '',
+        'polar': boat.get('polar') or None,
         'photos': boat.get('photos') or {},
     }
     boats = data.get('boats', [])

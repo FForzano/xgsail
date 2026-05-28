@@ -438,6 +438,8 @@ async function init() {
     if (taBtn) taBtn.addEventListener('click', openTackAnalysisModal);
     const rtBtn = document.getElementById('btn-roll-tacking');
     if (rtBtn) rtBtn.addEventListener('click', openRollTackingModal);
+    const ppBtn = document.getElementById('btn-polar-plot');
+    if (ppBtn) ppBtn.addEventListener('click', openPolarOverlay);
 
     // Tactics-discussion drawer
     setupTacticsDrawer();
@@ -2786,6 +2788,9 @@ function updateBoatPositions(timeSeconds) {
     // Pivot the laylines to the wind at the current playback time. Cheap
     // — re-renders only when TWD has shifted ≥1° from the last drawn pair.
     syncLaylineWind(targetTime);
+    // Refresh the polar plot when it's open — moves each boat's dot
+    // to its current (TWA, SOG). No-op when overlay is hidden.
+    refreshPolarOverlayIfOpen();
     // Re-frame the map around the leader + their next mark. Throttled
     // internally to one fly per ~700 ms so slider scrubbing or fast
     // playback doesn't ricochet the viewport.
@@ -4399,6 +4404,321 @@ function _drawerProfileBlock(raceBoat) {
         </div>
     `;
 }
+
+// --- Polar plot overlay (ORR-EZ live TWA vs SOG vs target) ---
+//
+// SVG polar diagram. 0° at top = head-to-wind, 180° at bottom =
+// running. Speed scale = radius. Each boat with a polar shows a
+// curve at the current TWS (interpolated between the two bracketing
+// TWS columns in the cert). Every GPS-equipped boat's current
+// (TWA, SOG) shows as a coloured dot, signed so port = left half
+// of the diagram, starboard = right half. Updates per playback tick.
+
+let polarOverlayOpen = false;
+let polarSelectedKey = null;   // boat track key whose curve is drawn
+
+function openPolarOverlay() {
+    const el = document.getElementById('polar-overlay');
+    if (!el) return;
+    el.hidden = false;
+    polarOverlayOpen = true;
+    _renderPolarFull();
+}
+
+function closePolarOverlay() {
+    const el = document.getElementById('polar-overlay');
+    if (el) el.hidden = true;
+    polarOverlayOpen = false;
+}
+
+// Linearly interpolate `s_per_nm` between the two TWS columns that
+// bracket the target TWS. Returns a speed in s/nm or null if the
+// polar can't fulfill the request at that TWA.
+function _polarSpeedSPerNm(polar, twaDeg, twsKn, prefer) {
+    if (!polar || twsKn == null) return null;
+    const twa = Math.min(180, Math.max(0, Math.abs(twaDeg)));
+    const twsAxis = polar.tws_values || [];
+    const twaAxis = polar.twa_values || [];
+    if (!twsAxis.length || !twaAxis.length) return null;
+
+    // Pick polar source: `spin` for TWA >= ~95°, `nospin` for upwind.
+    // Fall back to whichever exists.
+    const grid =
+        (prefer === 'spin' && polar.spin) ? polar.spin :
+        (prefer === 'nospin' && polar.nospin) ? polar.nospin :
+        (twa >= 95 && polar.spin) ? polar.spin :
+        polar.nospin || polar.spin;
+    if (!grid) return null;
+
+    // Find bracketing TWA values
+    let twaLo = twaAxis[0], twaHi = twaAxis[twaAxis.length - 1];
+    for (let i = 0; i < twaAxis.length - 1; i++) {
+        if (twaAxis[i] <= twa && twa <= twaAxis[i+1]) { twaLo = twaAxis[i]; twaHi = twaAxis[i+1]; break; }
+    }
+    if (twa < twaAxis[0]) { twaLo = twaHi = twaAxis[0]; }
+    if (twa > twaAxis[twaAxis.length-1]) { twaLo = twaHi = twaAxis[twaAxis.length-1]; }
+
+    // Find bracketing TWS values
+    let twsLo = twsAxis[0], twsHi = twsAxis[twsAxis.length - 1];
+    for (let i = 0; i < twsAxis.length - 1; i++) {
+        if (twsAxis[i] <= twsKn && twsKn <= twsAxis[i+1]) { twsLo = twsAxis[i]; twsHi = twsAxis[i+1]; break; }
+    }
+    if (twsKn < twsAxis[0]) { twsLo = twsHi = twsAxis[0]; }
+    if (twsKn > twsAxis[twsAxis.length-1]) { twsLo = twsHi = twsAxis[twsAxis.length-1]; }
+
+    function cell(twaV, twsV) {
+        return grid[`${twaV},${twsV}`] ?? null;
+    }
+    const v00 = cell(twaLo, twsLo);
+    const v01 = cell(twaLo, twsHi);
+    const v10 = cell(twaHi, twsLo);
+    const v11 = cell(twaHi, twsHi);
+    if (v00 == null && v01 == null && v10 == null && v11 == null) return null;
+    // Bilinear interpolation — fall back to whichever cells exist.
+    const fT = (twaHi === twaLo) ? 0 : (twa - twaLo) / (twaHi - twaLo);
+    const fW = (twsHi === twsLo) ? 0 : (twsKn - twsLo) / (twsHi - twsLo);
+    const safe = (a, b, f) => (a == null ? b : (b == null ? a : a * (1 - f) + b * f));
+    const lo = safe(v00, v10, fT);
+    const hi = safe(v01, v11, fT);
+    if (lo == null && hi == null) return null;
+    return safe(lo, hi, fW);
+}
+
+function _polarSpeedKn(polar, twaDeg, twsKn) {
+    const s = _polarSpeedSPerNm(polar, twaDeg, twsKn);
+    return s ? 3600 / s : null;
+}
+
+// Build a sampled polar curve at fixed TWS: array of (twaDeg, sogKn).
+function _polarCurveAt(polar, twsKn) {
+    if (!polar) return [];
+    const out = [];
+    for (let twa = 30; twa <= 170; twa += 2) {
+        const sog = _polarSpeedKn(polar, twa, twsKn);
+        if (sog) out.push({ twa, sog });
+    }
+    return out;
+}
+
+// Returns current (twaSigned, sog, tws) for every boat with GPS data
+// at the current playback time. twaSigned ∈ [-180,180].
+function _polarCurrentBoatStates() {
+    if (!raceData?.boats) return [];
+    const out = [];
+    for (const [trackKey, boatData] of Object.entries(raceData.boats)) {
+        const layer = boatLayers[trackKey];
+        if (!layer?.current) continue;
+        const p = layer.current;
+        if (p.lat == null || p.lon == null) continue;
+        const ts = p.t ? new Date(p.t).getTime() : null;
+        const w = windAt(ts);
+        if (!w) continue;
+        const cog = p.course || 0;
+        // Signed TWA: +stb / -port. Same convention as marker labels.
+        const twa = ((w.twd - cog + 540) % 360) - 180;
+        const sog = p.speed_kn || 0;
+        out.push({
+            trackKey,
+            twa,
+            sog,
+            tws: w.tws,
+            twd: w.twd,
+            boat: boatData.boat,
+        });
+    }
+    return out;
+}
+
+function _renderPolarFull() {
+    const svg = document.getElementById('polar-svg');
+    if (!svg) return;
+    // Clear children
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    const W = 640, H = 600;
+    const cx = W / 2, cy = 60;
+    const radius = H - cy - 40;
+
+    const NS = 'http://www.w3.org/2000/svg';
+    function mk(tag, attrs) {
+        const e = document.createElementNS(NS, tag);
+        for (const k in attrs) e.setAttribute(k, attrs[k]);
+        return e;
+    }
+
+    // Find max relevant speed for the radial scale: use the largest
+    // polar target speed across loaded boats at the current TWS, plus
+    // 1 kn headroom. Fall back to 12 kn so the grid renders before
+    // any boats are loaded.
+    const states = _polarCurrentBoatStates();
+    const twsForScale = states.length
+        ? (states.reduce((s, b) => s + (b.tws || 0), 0) / states.length)
+        : 10;
+    let maxKn = 6;
+    for (const b of (currentRace?.boats || [])) {
+        if (!b.polar) continue;
+        for (let twa = 50; twa <= 170; twa += 10) {
+            const v = _polarSpeedKn(b.polar, twa, twsForScale);
+            if (v && v > maxKn) maxKn = v;
+        }
+    }
+    for (const s of states) if (s.sog > maxKn) maxKn = s.sog;
+    maxKn = Math.ceil(maxKn + 1);
+
+    function ptOf(twaSigned, sogKn) {
+        const r = radius * Math.min(1, sogKn / maxKn);
+        const a = twaSigned * Math.PI / 180;
+        return [cx + r * Math.sin(a), cy + r * Math.cos(a)];
+    }
+
+    // --- Background grid ---
+    // Speed rings every 2 kn
+    for (let s = 2; s <= maxKn; s += 2) {
+        const r = radius * (s / maxKn);
+        // Render only the lower-half semicircle (0° to 180°, going
+        // clockwise — full polar covers ±180° anyway so we draw a
+        // full circle).
+        svg.appendChild(mk('circle', {
+            cx, cy, r, class: 'polar-grid-ring'
+        }));
+        svg.appendChild(mk('text', {
+            x: cx + 4, y: cy + r - 2, class: 'polar-axis-label',
+        })).textContent = `${s}`;
+    }
+    // Radial spokes every 30°, port + starboard
+    for (let twa = -180; twa <= 180; twa += 30) {
+        const [x, y] = ptOf(twa, maxKn);
+        svg.appendChild(mk('line', {
+            x1: cx, y1: cy, x2: x, y2: y, class: 'polar-grid-spoke'
+        }));
+        const labelText = (twa === 0) ? '0° head-to-wind'
+            : (twa === 180 || twa === -180) ? '180° run'
+            : `${Math.abs(twa)}°${twa < 0 ? 'P' : 'S'}`;
+        const [lx, ly] = ptOf(twa, maxKn + maxKn * 0.06);
+        svg.appendChild(mk('text', {
+            x: lx, y: ly, class: 'polar-axis-label',
+            'text-anchor': 'middle', 'dominant-baseline': 'middle',
+        })).textContent = labelText;
+    }
+
+    // --- Selected boat's polar curve ---
+    const selected = (currentRace?.boats || []).find(b => {
+        const k = b.device_id || b.boat_id;
+        return k === polarSelectedKey;
+    }) || (currentRace?.boats || []).find(b => b.polar);
+    if (selected && selected.polar) {
+        polarSelectedKey = selected.device_id || selected.boat_id;
+        const color = colorFor(polarSelectedKey);
+        const curve = _polarCurveAt(selected.polar, twsForScale);
+        if (curve.length > 1) {
+            // Draw both halves: starboard (right) and mirrored port (left)
+            const stbPts = curve.map(({ twa, sog }) => ptOf(twa, sog));
+            const portPts = curve.map(({ twa, sog }) => ptOf(-twa, sog));
+            const stbD = 'M ' + stbPts.map(p => p.join(',')).join(' L ');
+            const portD = 'M ' + portPts.map(p => p.join(',')).join(' L ');
+            svg.appendChild(mk('path', { d: stbD, stroke: color, class: 'polar-curve' }));
+            svg.appendChild(mk('path', { d: portD, stroke: color, class: 'polar-curve' }));
+        }
+    }
+
+    // --- Live boat dots ---
+    for (const s of states) {
+        const [x, y] = ptOf(s.twa, s.sog);
+        const c = colorFor(s.trackKey);
+        const isSel = s.trackKey === polarSelectedKey;
+        svg.appendChild(mk('circle', {
+            cx: x, cy: y, r: isSel ? 7 : 5,
+            fill: c, class: 'polar-boat-dot' + (isSel ? ' selected' : ''),
+            'data-track-key': s.trackKey,
+        }));
+        const initials = teamInitials(s.boat?.boat_name || s.boat?.team_name || '') || s.trackKey;
+        svg.appendChild(mk('text', {
+            x: x + 9, y: y + 3, class: 'polar-boat-label',
+        })).textContent = initials;
+    }
+
+    // --- Header readout ---
+    const readout = document.getElementById('polar-wind-readout');
+    if (readout) {
+        if (states.length) {
+            readout.textContent = `TWS ~${twsForScale.toFixed(1)} kn · ${states.length} boat${states.length === 1 ? '' : 's'} on the plot · polar curve at ${twsForScale.toFixed(0)} kn`;
+        } else {
+            readout.textContent = 'No live boat data yet — start playback';
+        }
+    }
+
+    // --- Boat selector dropdown ---
+    _polarRebuildBoatSelector();
+    _polarRebuildLegend(states);
+
+    // Click on a dot → select that boat as the polar source
+    svg.addEventListener('click', _polarHandleClick, { once: true });
+}
+
+function _polarHandleClick(e) {
+    const t = e.target;
+    if (!t?.dataset?.trackKey) return;
+    polarSelectedKey = t.dataset.trackKey;
+    _renderPolarFull();
+}
+
+function _polarRebuildBoatSelector() {
+    const sel = document.getElementById('polar-boat-select');
+    if (!sel) return;
+    const boats = (currentRace?.boats || []).filter(b => b.polar);
+    if (sel.dataset.populated === String(boats.length) && sel.options.length) {
+        // Already populated for this race — just set value
+        sel.value = polarSelectedKey || '';
+        return;
+    }
+    sel.innerHTML = boats.map(b => {
+        const k = b.device_id || b.boat_id || '';
+        const name = b.boat_name || b.team_name || k;
+        return `<option value="${_attrEsc(k)}">${_attrEsc(name)} — ${_attrEsc(b.boat_type || '')}</option>`;
+    }).join('');
+    sel.dataset.populated = String(boats.length);
+    sel.value = polarSelectedKey || '';
+    sel.onchange = () => {
+        polarSelectedKey = sel.value || null;
+        _renderPolarFull();
+    };
+}
+
+function _polarRebuildLegend(states) {
+    const el = document.getElementById('polar-legend');
+    if (!el) return;
+    el.innerHTML = states.map(s => {
+        const c = colorFor(s.trackKey);
+        const name = s.boat?.boat_name || s.boat?.team_name || s.trackKey;
+        const tack = s.twa < 0 ? 'P' : 'S';
+        const target = (() => {
+            const cat = (currentRace?.boats || []).find(b =>
+                (b.device_id || b.boat_id) === s.trackKey);
+            const t = cat?.polar ? _polarSpeedKn(cat.polar, s.twa, s.tws) : null;
+            return t ? `→ ${t.toFixed(1)} kn target = ${Math.round(s.sog / t * 100)}%` : '';
+        })();
+        return `<span class="polar-legend-item">
+            <span class="polar-legend-swatch" style="background:${c}"></span>
+            ${_attrEsc(name)} · ${s.sog.toFixed(1)}kn ${tack}${Math.abs(s.twa).toFixed(0)}° ${target}
+        </span>`;
+    }).join('');
+}
+
+// Per-playback-tick hook. Wired into updateBoatPositions so the
+// plot moves while the timeline scrubs.
+function refreshPolarOverlayIfOpen() {
+    if (!polarOverlayOpen) return;
+    _renderPolarFull();
+}
+
+// Close handlers
+document.addEventListener('click', (e) => {
+    if (!polarOverlayOpen) return;
+    if (e.target.closest?.('[data-close-polar]')) closePolarOverlay();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && polarOverlayOpen) closePolarOverlay();
+});
 
 // --- Report-table helpers ---
 

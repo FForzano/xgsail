@@ -70,7 +70,7 @@
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
     <link rel="stylesheet" href="./assets/css/main.css?v=10">
-    <link rel="stylesheet" href="./assets/css/race.css?v=60">
+    <link rel="stylesheet" href="./assets/css/race.css?v=61">
     <link rel="stylesheet" href="./assets/css/race-chat.css?v=10">
     <link rel="stylesheet" href="./assets/css/race-start-review.css?v=2">
     <script src="./config.js"></script>
@@ -127,6 +127,7 @@
                     <button id="btn-charts" class="tb-menu-item" role="menuitem" title="Open Speed / Heel / Wind charts (Esc to close)">Charts</button>
                     <button id="btn-start-review" class="tb-menu-item" role="menuitem" title="Replay the start sequence with horn signals">Review Start</button>
                     <button id="btn-roll-tacking" class="tb-menu-item" role="menuitem" title="Compare roll-tacking technique across boats: heel signature, flatten rate, speed loss">Roll Tacking Analysis</button>
+                    <button id="btn-polar-plot" class="tb-menu-item" role="menuitem" title="Show each boat's current TWA/SOG against its ORR-EZ polar curve">Polar Plot</button>
                 </div>
             </div>
 
@@ -248,6 +249,28 @@
                     <canvas id="wind-chart"></canvas>
                 </div>
             </div>
+        </section>
+    </div>
+
+    <!-- Polar plot overlay — per-boat ORR-EZ polar with live boat
+         dots showing where each boat is in (TWA, SOG) space at the
+         playback cursor. Same overlay treatment as charts. -->
+    <div class="polar-overlay" id="polar-overlay" hidden>
+        <div class="polar-overlay-backdrop" data-close-polar></div>
+        <section class="panel polar-overlay-panel" id="polar-panel">
+            <div class="polar-overlay-header">
+                <h3>Polar plot · live TWA vs SOG</h3>
+                <span class="polar-wind-readout" id="polar-wind-readout"></span>
+                <label class="polar-boat-select-wrap">
+                    Reference polar:
+                    <select id="polar-boat-select"></select>
+                </label>
+                <button class="polar-overlay-close" data-close-polar title="Close (Esc)">×</button>
+            </div>
+            <div class="polar-svg-wrap">
+                <svg id="polar-svg" viewBox="0 0 640 600" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+            <div class="polar-legend" id="polar-legend"></div>
         </section>
     </div>
 
@@ -504,6 +527,6 @@
     </div>
 
     <!-- Scripts -->
-    <script type="module" src="./assets/js/race-app.js?v=120"></script>
+    <script type="module" src="./assets/js/race-app.js?v=121"></script>
 </body>
 </html>
