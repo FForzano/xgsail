@@ -36,6 +36,15 @@ from datetime import datetime, timezone
 
 API_BASE = "https://rnngzx7flk.execute-api.us-east-1.amazonaws.com"
 
+# Generic class polars — used when a boat has no boat-specific
+# cert_url but is a known one-design class with a published ORR-EZ
+# class cert. The scraper falls back to this lookup keyed by
+# boat.type so e.g. all four J/80s in the CYC fleet inherit the same
+# polar without each needing their own cert URL.
+CLASS_CERT_URLS = {
+    'J/80': 'https://www.regattaman.com/cert_form.php?sku=h-21-2026-2717-8760-0-327',
+}
+
 # Title attribute on every polar cell.
 # Capture groups: 1=TWS  2=key (TWA digits, "Beat VMG", "Opt Beat Angle",
 # "Run VMG", "OPT Run Angle")  3=value
@@ -149,18 +158,29 @@ def main():
         boats = [b for b in boats if b.get('sail_number') == only or b.get('boat_id') == only or b.get('name') == only]
     print(f'  {len(boats)} candidates')
 
+    # Cache fetched HTML by URL — generic class polars are shared
+    # across every boat of that class, so we only fetch each unique
+    # URL once even when several boats use it.
+    html_cache = {}
+
     ok = 0
     skipped = 0
     failed = 0
     for b in boats:
         cert = b.get('cert_url')
+        boat_type = b.get('type', '')
+        generic = False
+        if not cert and boat_type in CLASS_CERT_URLS:
+            cert = CLASS_CERT_URLS[boat_type]
+            generic = True
         if not cert:
             skipped += 1
             continue
         name = b.get('name', '?')
         try:
-            html = fetch_cert_html(cert)
-            polar = parse_polar_from_html(html)
+            if cert not in html_cache:
+                html_cache[cert] = fetch_cert_html(cert)
+            polar = parse_polar_from_html(html_cache[cert])
             if not polar:
                 print(f'  ✗ {name:18s}: no polar tables in cert page')
                 failed += 1
@@ -168,11 +188,13 @@ def main():
             polar['source_url'] = cert
             polar['scraped_at'] = datetime.now(timezone.utc) \
                 .isoformat().replace('+00:00', 'Z')
+            if generic:
+                polar['class_generic'] = True
             api('PATCH', f'/api/boats/{b["boat_id"]}', {'polar': polar})
             spin_n = len(polar.get('spin') or {})
             ns_n = len(polar.get('nospin') or {})
-            print(f'  ✓ {name:18s}: spin={spin_n:>3d} nospin={ns_n:>3d} '
-                  f'TWS={polar["tws_values"]} TWA={polar["twa_values"]}')
+            tag = ' [class generic]' if generic else ''
+            print(f'  ✓ {name:18s}: spin={spin_n:>3d} nospin={ns_n:>3d}{tag}')
             ok += 1
         except urllib.error.HTTPError as e:
             print(f'  ✗ {name:18s}: HTTP {e.code} fetching cert')

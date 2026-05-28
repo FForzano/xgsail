@@ -2459,30 +2459,39 @@ body.course-editing .boat-legend {
 }
 .charts-overlay-close:hover { color: #fff; }
 
-/* --- Polar plot overlay --- */
+/* --- Polar plot overlay ---
+ *
+ * Docked to the right half of the viewport so the GPS map stays
+ * visible and interactive on the left. No backdrop — the user can
+ * pan/zoom the map while the polar updates per playback tick. On
+ * narrow viewports (≤900 px) it falls back to a full-screen panel.
+ */
 
 .polar-overlay {
     position: fixed;
-    inset: 60px 0 60px 0;
+    top: 60px;
+    bottom: 60px;
+    right: 0;
+    width: 50vw;
+    max-width: 760px;
+    min-width: 380px;
     z-index: 1700;
     display: flex;
-    align-items: stretch;
-    justify-content: stretch;
     pointer-events: none;
 }
 .polar-overlay[hidden] { display: none; }
 .polar-overlay-backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(2px);
-    pointer-events: auto;
+    /* No visible backdrop — kept as a no-op so the close-on-click
+       wiring (data-close-polar) still has a target if we ever want
+       to add one. Sits outside the panel so it doesn't intercept
+       map clicks. */
+    display: none;
 }
 .polar-overlay-panel {
     position: relative;
     flex: 1 1 auto;
-    margin: 1rem;
-    background: rgba(15, 23, 42, 0.92);
+    margin: 8px 8px 8px 0;
+    background: rgba(15, 23, 42, 0.94);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0.5rem;
@@ -2491,6 +2500,14 @@ body.course-editing .boat-legend {
     flex-direction: column;
     gap: 0.5rem;
     overflow: hidden;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.45);
+}
+@media (max-width: 900px) {
+    .polar-overlay {
+        width: 100vw;
+        max-width: none;
+    }
+    .polar-overlay-panel { margin: 4px; }
 }
 .polar-overlay-header {
     display: flex;
