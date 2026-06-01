@@ -185,7 +185,7 @@
     (property "Value" "SN74LVC1G74DCTR" (id 1) (at 0 -2.54 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "B1_JLC:SM8_L3.0-W2.8-P0.65-LS4.0-BL" (id 2) (at 0 -10.16 0)
+    (property "Footprint" "B1_JLC:VSSOP-8_DCU_2.3x2mm_P0.65mm" (id 2) (at 0 -10.16 0)
       (effects (font (size 1.27 1.27) italic) hide)
     )
     (property "Datasheet" "https://atta.szlcsc.com/upload/public/pdf/source/20180604/C183273_18C8FAC3EE374C3D1D813B664FDA2ECB.pdf" (id 3) (at -2.286 0.127 0)
