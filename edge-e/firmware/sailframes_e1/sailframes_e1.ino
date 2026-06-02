@@ -118,7 +118,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.05.26.05"
+#define FW_VERSION    "2026.06.02.01"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -362,7 +362,11 @@ struct Config {
   char upload_url[256] = "https://p9s9eia0t6.execute-api.us-east-1.amazonaws.com/prod/upload";  // Legacy, not used
   char s3_bucket[128] = "sailframes-fleet-data-prod";
   char s3_region[32] = "us-east-1";
-  char boat_id[16] = "E1";
+  char boat_id[16] = "UNCFG";  // Non-colliding sentinel. If config.txt is missing/blank (SD reads OK
+                               // but no boat_id), the device joins the mesh as "UNCFG" rather than
+                               // impersonating a real boat. A default of a real ID ("E1") would put a
+                               // duplicate FNV-1a sender_id on the mesh, corrupting peers/OCS/registry.
+                               // (SD-unreadable is handled separately by the boot-time SD fault gate.)
   char wind_mac[20] = "";  // Calypso Mini MAC (loaded from /wind_mac.txt if present)
   bool wind_enabled = false;  // Auto-enabled if /wind_mac.txt exists on SD
   int wind_offset = 0;  // Heading offset in degrees (added to raw AWA for sensor mounting correction)
@@ -1842,6 +1846,38 @@ void setup() {
   tft.fillScreen(COLOR_BG);
   oledOK = true;
   Serial.println("[TFT] ST7796U initialized (320x480 portrait)");
+
+  // SD-card fault gate. If the card never came up, loadConfig() never ran
+  // and config.boat_id is still its compile-time default ("E1"). Booting on
+  // would put a SECOND "E1" on the mesh — duplicate FNV-1a sender_id —
+  // corrupting peer state, OCS, and the class registry (this is exactly how
+  // an E6 with a half-seated card silently impersonated E1). Refuse to boot:
+  // show a persistent fault screen and stop here, BEFORE meshInit() ever
+  // broadcasts a bogus identity. We are past tft.init() but before
+  // esp_task_wdt_add(NULL), so the task WDT is not yet armed; the delay()
+  // in the loop below still yields to the IDF idle task, keeping its
+  // watchdog fed. Recovery is operator action: reseat the card + power-cycle.
+  if (!sdOK) {
+    tft.fillScreen(COLOR_BG);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(COLOR_ERROR, COLOR_BG);
+    tft.setTextSize(2);
+    tft.drawString("SD CARD", SCREEN_WIDTH/2, 70, 4);
+    tft.drawString("FAILURE", SCREEN_WIDTH/2, 125, 4);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.setTextSize(1);
+    tft.drawString("Contact", SCREEN_WIDTH/2, 215, 4);
+    tft.drawString("Paul Avillach", SCREEN_WIDTH/2, 260, 4);
+    tft.setTextSize(2);
+    tft.drawString("857 891 0512", SCREEN_WIDTH/2, 325, 2);
+    tft.setTextSize(1);
+    Serial.println("[SD] FATAL: SD unreadable at boot — refusing to start "
+                   "(would impersonate default boat_id). Reseat card + power-cycle.");
+    while (true) {
+      Serial.println("[SD] HALTED: SD card failure — see TFT for contact info.");
+      delay(5000);  // yields to idle task so the IDF idle WDT stays fed
+    }
+  }
 
   // Splash screen - show device ID, domain, and firmware version
   tft.fillScreen(COLOR_BG);
