@@ -2151,7 +2151,13 @@ def find_device_sessions(device_id, date):
                         parts = obj['Key'].split('/')
                         session_folder = parts[-2]
                         sessions.append({
-                            'session_path': f"{date}/{session_folder}",
+                            # processed sessions are flat:
+                            # processed/<device>/<session_folder>/ — the
+                            # folder name already encodes the date, so the
+                            # session_path is just the folder (NOT
+                            # "<date>/<folder>", which pointed the data
+                            # endpoint at a non-existent nested path).
+                            'session_path': session_folder,
                             'start_time': manifest.get('start_time', ''),
                             'end_time': manifest.get('end_time', ''),
                         })
