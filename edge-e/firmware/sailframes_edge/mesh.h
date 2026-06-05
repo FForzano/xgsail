@@ -25,6 +25,7 @@ enum MeshMsgType {
     MSG_ABANDON          = 0x14,  // not yet implemented
     MSG_SHORTEN_COURSE   = 0x15,  // not yet implemented
     MSG_ACK              = 0x20,  // not yet implemented
+    MSG_RTCM_FRAG        = 0x30,  // RTK Phase-2: fragmented RTCM3 from RC base
 };
 
 struct __attribute__((packed)) MeshHeader {
@@ -92,6 +93,23 @@ struct __attribute__((packed)) IndividualRecallPayload {
     uint8_t  reserved[2];
 };
 static_assert(sizeof(IndividualRecallPayload) == 8, "IndividualRecallPayload must be 8 bytes");
+
+// RTK Phase-2 — one fragment of an RC base's RTCM3 frame, relayed to rovers.
+// A complete RTCM3 frame (≤1029 B) is split into up to 5 of these. The 16 B
+// MeshHeader + 4 B meta + ≤230 B data = 250 B = the ESP-NOW single-packet cap.
+// Only frag_len data bytes go on the wire (send = 16 + 4 + frag_len). The
+// data[] is fixed-size only so static_assert can pin the max; never send sizeof.
+// See docs/RTK_PHASE2_DESIGN.md §2 and rtk_relay.h. (gotcha #25)
+#define RTCM_FRAG_MAX 230
+struct __attribute__((packed)) RtcmFragPayload {
+    uint8_t msg_id;       // rolls per complete RTCM frame at the RC
+    uint8_t frag_index;   // 0 .. frag_count-1
+    uint8_t frag_count;   // total fragments for this frame (max 5)
+    uint8_t frag_len;     // RTCM bytes in this fragment (<= RTCM_FRAG_MAX)
+    uint8_t data[RTCM_FRAG_MAX];
+};
+static_assert(sizeof(RtcmFragPayload) == 4 + RTCM_FRAG_MAX, "RtcmFragPayload size (gotcha #25)");
+static_assert(sizeof(MeshHeader) + 4 + RTCM_FRAG_MAX == 250, "RTCM frag packet must fit ESP-NOW 250 B cap");
 
 // FNV-1a 32-bit hash of a NUL-terminated string. Stable across boots
 // and across the fleet — every E1/E2/.../B1 hashes its boat_id the
