@@ -67,7 +67,7 @@ Not yet implemented. This supersedes the autonomous-GPS OCS for accuracy purpose
 ---
 
 ## Open questions (resolve empirically)
-1. **Does AANR01A06S output 10 Hz RTK-FIXED while ingesting 1 Hz RTCM?** ← the Phase-1 gate.
+1. ~~**Does AANR01A06S output 10 Hz RTK-FIXED while ingesting 1 Hz RTCM?**~~ ✅ **YES — verified 2026-06-04** (E6+LG290P, NTRIP MaCORS, GGA q=4 FIXED at t+88 s). Both LG290P and LC29HEA proven as RTK rovers. See `RTK_PHASE2_DESIGN.md` M5.
 2. Is MaCORS reachable over plain-TCP NTRIP v1 (or TLS-only)?
 3. Any commercial trial usable under broken-TLS (plain-TCP NTRIP v1)?
 4. Real ESP-NOW throughput/loss budget for fragmented RTCM3 sharing channel 1 with boat-state + WiFi.
@@ -88,6 +88,11 @@ Not yet implemented. This supersedes the autonomous-GPS OCS for accuracy purpose
    while ingesting 1 Hz corrections** (the AANR01A06S unknown). ← gate before Phase 2.
 
 ### Phase 2 — RC-boat base + ESP-NOW relay (only after Phase 1 passes)
+
+> **Phase 1 passed 2026-06-03** (LC29HEA RTK FIXED q=4, 10 Hz, 148 s). Full Phase-2 design,
+> sequencing, two bench gates, and the line-must-be-in-RTK-frame requirement now live in
+> [`RTK_PHASE2_DESIGN.md`](RTK_PHASE2_DESIGN.md). Steps 6–10 below are the original sketch.
+
 6. RC LG290P → Base mode (`PQTMCFGRCVRMODE,W,2`, locks 1 Hz), survey-in position, emit
    `1005` ~every 10 s + MSM7 `1077/1087/1097/1127` @ 1 Hz.
 7. RC ESP32: read RTCM3 off GNSS UART, frame-parse (length from 3-byte header), fragment into

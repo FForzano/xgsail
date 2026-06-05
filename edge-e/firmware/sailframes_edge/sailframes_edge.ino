@@ -63,6 +63,8 @@
 #include <string>
 #include "v2_types.h"  // v2.0.0 foundation: HardwarePlatform/UnitRole/RadioMode enums
 #include "mesh.h"      // v2.0.0 Stage 2: ESP-NOW peer-mesh wire types
+#include "rtk_relay.h" // RTK Phase-2: RTCM3 framer + reassembler (Gate A proven)
+#include "freertos/stream_buffer.h"  // SPSC ring: recv-cb -> loop, RTCM bytes to GNSS
 
 // ============================================================
 // PIN DEFINITIONS
@@ -118,7 +120,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.06.02.02"
+#define FW_VERSION    "2026.06.05.01"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -254,6 +256,9 @@ struct GPSData {
   char date[8] = "010100";
   bool valid = false;
   bool newGGA = false;
+  // GST 1-sigma position error std-devs in metres (RTK Phase-2 accuracy readout).
+  // 0 until a GST sentence parses; ~1-2 cm at RTK FIXED, ~0.3-1 m at FLOAT.
+  float lat_std = 0, lon_std = 0, alt_std = 0;
 } gps;
 
 struct IMUData {
@@ -307,6 +312,15 @@ struct PressureData {
 HardwarePlatform g_hw = HW_E1;
 UnitRole         g_role = ROLE_RACING_BOAT;
 RadioMode        g_radio_mode = MODE_BOOT;
+
+// RTK Phase-2 relay state (docs/RTK_PHASE2_DESIGN.md). All inert unless
+// config.rtk_enabled. The RC base (rc_signal) PRODUCES; everyone else CONSUMES.
+RtcmFramer           g_rtcmTx;             // RC base: Serial2 RTCM frames (loop ctx only)
+RtcmReassembler      g_rtcmRx;             // rover: ESP-NOW frags (recv-cb ctx only)
+StreamBufferHandle_t g_rtcmRing = nullptr; // recv-cb -> loop: reassembled RTCM bytes to GNSS
+uint8_t              g_rtcmTxMsgId = 0;    // rolling msg_id for fragmentation (loop ctx)
+static inline bool roleIsBase()  { return g_role == ROLE_RC_SIGNAL; }
+static inline bool roleIsRover() { return g_role != ROLE_RC_SIGNAL; }
 
 // v2.0.0 Stage 2 — ESP-NOW peer mesh state
 // MVP: always-on after WiFi PHY init, gated off only during HTTP uploads
@@ -380,6 +394,11 @@ struct Config {
   char hardware_platform[8] = "e1";       // "e1" or "b1"
   char unit_role[24]        = "racing_boat";
   int  config_version       = 0;          // bumped by cloud config sync (Stage 3)
+  // RTK Phase-2 (docs/RTK_PHASE2_DESIGN.md). SD-config ONLY — deliberately NOT
+  // cloud-allow-listed: flipping it reconfigures the GNSS (base/rover RTK) and
+  // is a physical bring-up act, not a remote push. Default off ⇒ byte-identical
+  // to pre-RTK behavior, so an OTA that ships this code changes nothing until set.
+  bool rtk_enabled          = false;
 } config;
 
 // ============================================================
@@ -1137,6 +1156,16 @@ static void meshOnReceive(const esp_now_recv_info_t* info, const uint8_t* data, 
                     p->distance_cm);
     }
   }
+  else if (h->msg_type == MSG_RTCM_FRAG) {
+    // RTK Phase-2 — rover ingests RC base corrections. This callback is the
+    // ONLY context that touches g_rtcmRx; completed frames go to the ring via
+    // its onFrame (rtcmRingPush). Gated off during uploads (RF contention,
+    // gotchas #21/#22). Inert unless rtk_enabled — old-firmware boats and
+    // non-RTK boats simply fall through here, ignoring the new msg_type.
+    if (config.rtk_enabled && roleIsRover() && !wifiBusy && !uploading) {
+      g_rtcmRx.onPacket(data, len);
+    }
+  }
 }
 
 // Broadcast a MSG_RACE_ARMED to the fleet. Called from the telnet
@@ -1312,6 +1341,45 @@ static void meshBuildAndSendBoatState() {
     if (err == ESP_ERR_ESPNOW_NOT_INIT) {
       g_mesh_enabled = false;
       Serial.println("[MESH] ESP-NOW torn down by WiFi cycle — re-init next tick");
+    }
+  }
+}
+
+// ============================================================
+// RTK Phase-2 — RTCM relay glue (docs/RTK_PHASE2_DESIGN.md)
+// ============================================================
+// Rover, ESP-NOW recv-callback context: a completed RTCM frame from the
+// reassembler. Push into the ring for the loop to drain to the GNSS UART —
+// the ring is the ONLY object that crosses the callback↔loop boundary.
+// Drop silently if the ring is full (RTCM is loss-tolerant; rover rides diff-age).
+void rtcmRingPush(const uint8_t* frame, int len) {
+  if (g_rtcmRing) xStreamBufferSend(g_rtcmRing, frame, (size_t)len, 0);
+}
+
+// RC base, loop context (readGPSBase): fragment a complete RTCM frame and
+// broadcast it 2× over ESP-NOW. Gated off during uploads to avoid the WiFi/RF
+// contention that caused past fleet hangs (gotchas #21/#22) — racing never
+// overlaps an upload, so nothing is lost.
+void rtcmBroadcastFrame(const uint8_t* frame, int len) {
+  if (!g_mesh_enabled || wifiBusy || uploading) return;
+  uint8_t msg_id = g_rtcmTxMsgId++;
+  int fc = (len + RTCM_FRAG_MAX - 1) / RTCM_FRAG_MAX;
+  if (fc > RTK_MAX_FRAGS) return;   // shouldn't happen (≤1029 B), defensive
+  uint8_t buf[sizeof(MeshHeader) + 4 + RTCM_FRAG_MAX];
+  for (int rep = 0; rep < 2; rep++) {                 // 2×-tx for loss margin
+    for (int fi = 0; fi < fc; fi++) {
+      int off = fi * RTCM_FRAG_MAX;
+      int flen = len - off; if (flen > RTCM_FRAG_MAX) flen = RTCM_FRAG_MAX;
+      MeshHeader* h = (MeshHeader*)buf;
+      h->magic[0] = MESH_MAGIC_0; h->magic[1] = MESH_MAGIC_1; h->version = MESH_VERSION;
+      h->msg_type = MSG_RTCM_FRAG; h->seq = g_mesh_seq++; h->ttl = 0; h->reserved = 0;
+      h->sender_id = g_mesh_local_sender_id; h->gps_time_ms = 0;
+      RtcmFragPayload* p = (RtcmFragPayload*)(buf + sizeof(MeshHeader));
+      p->msg_id = msg_id; p->frag_index = (uint8_t)fi; p->frag_count = (uint8_t)fc;
+      p->frag_len = (uint8_t)flen;
+      memcpy(p->data, frame + off, flen);
+      esp_now_send(MESH_BROADCAST_ADDR, buf, sizeof(MeshHeader) + 4 + flen);
+      delayMicroseconds(250);   // light pacing for peers' recv; small so readGPSBase RX doesn't overflow
     }
   }
 }
@@ -2064,6 +2132,10 @@ void setup() {
   }
 
   // GPS
+  // Enlarge the RX FIFO (default 256 B ≈ 5.5 ms at 460800). The RTK base path
+  // (readGPSBase) can spend a few ms broadcasting RTCM mid-read; a 2 KB buffer
+  // (~44 ms) absorbs that so outgoing base RTCM isn't dropped on RX overflow.
+  Serial2.setRxBufferSize(2048);   // must precede begin()
   Serial2.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
   Serial.printf("[GPS] UART2 at %d baud (RX=GPIO%d, TX=GPIO%d)\n", GPS_BAUD, GPS_RX_PIN, GPS_TX_PIN);
 
@@ -2093,7 +2165,7 @@ void setup() {
   // does its own command/response handling so no explicit probe is needed.
 
   delay(500);
-  configureLG290P();
+  gnssConfigure();   // RTK off ⇒ exactly configureLG290P(); on ⇒ base/rover per role+chip
 
   // Don't block waiting for GPS fix - let main loop handle it
   // This allows WiFi/telnet access while GPS is searching
@@ -2180,6 +2252,7 @@ void setup() {
   // mode transition). __stack_chk_fail was a TRUE positive — exactly
   // doing its job catching the smash on every meshTick call.
   meshInit();
+  rtkRelayInit();   // RTK Phase-2: arm relay callbacks + rover ring (inert unless rtk_enabled)
   radioModeTransition(MODE_IDLE, "setup complete");
 
   Serial.println("[SETUP] Complete - WiFi/telnet available, GPS acquiring in background");
@@ -2270,6 +2343,106 @@ void configureLG290P() {
 }
 
 // ============================================================
+// RTK Phase-2 — GNSS config driver (docs/RTK_PHASE2_DESIGN.md §3/§8)
+// ============================================================
+// Command sets empirically pinned 2026-06-03/04: E rover (LG290P) FIXED via
+// PQTMCFGRTK; E base from PPK archive (08cdadfe); B base/rover (LC29HEA) bench-
+// verified. configureLG290P() above is left UNTOUCHED so the rtk_enabled==false
+// path is byte-identical to pre-RTK firmware.
+
+// E rover: standard 10 Hz NMEA config + RTK relative mode. PQTMCFGRTK is a
+// runtime setting (no restart needed); saved so a reboot keeps it.
+void lg290pConfigRover() {
+  configureLG290P();                       // unchanged: rover, 10 Hz, NMEA on (+save+restart)
+  Serial.println("[GPS] Enabling RTK rover (PQTMCFGRTK,W,1,2,120) + GST accuracy...");
+  sendPQTM("PQTMCFGRTK,W,1,2,120");        // DiffMode=Auto, RelMode=relative, 120 s diff-age
+  sendPQTM("PQTMCFGMSGRATE,W,GST,1");      // position error stats → cm accuracy in `rtk` cmd
+  sendPQTM("PQTMSAVEPAR");
+  delay(300);
+}
+
+// E base (rc_signal): Base mode (locks 1 Hz) + survey-in, then after restart
+// (re)issue the non-persistent RTCM3-out + re-enable NMEA. Args from PPK archive.
+void lg290pConfigBase() {
+  Serial.println("[GPS] Configuring LG290P as RTK BASE (1 Hz, MSM7 out)...");
+  sendPQTM("PQTMCFGRCVRMODE,W,2");         // base mode (locks 1 Hz)
+  delay(200);
+  sendPQTM("PQTMCFGSVIN,W,1,60,0,0,0,0");  // survey-in: short/loose (base err is common-mode)
+  delay(200);
+  sendPQTM("PQTMSAVEPAR");
+  delay(400);
+  sendPQTM("PQTMSRR");                      // restart to apply base mode
+  delay(6000);
+  while (Serial2.available()) Serial2.read();
+  // post-restart: RTCM out (non-persistent → re-issue each boot) + re-enable NMEA
+  sendPQTM("PQTMCFGRTCM,W,7,0,-90,07,06,1,0");  // MSM7 1077/1087/1097/1127 + eph + 1006
+  delay(200);
+  sendPQTM("PQTMCFGMSGRATE,W,GGA,1");       // base mode auto-disables NMEA; RC still needs GGA
+  sendPQTM("PQTMCFGMSGRATE,W,RMC,1");
+  Serial.println("[GPS] LG290P base: MSM7 + 1006 + ephemeris @ 1 Hz");
+}
+
+// B rover (LC29HEA): rover + 10 Hz + GGA/RMC. RTK engages from rover mode +
+// inbound corrections (Phase-1 proven 2026-06-03, no explicit RTK-enable needed).
+void lc29hConfigRover() {
+  Serial.println("[GPS] Configuring LC29HEA as RTK rover (10 Hz)...");
+  sendPQTM("PQTMCFGRCVRMODE,W,1");          // rover (Quectel cmd, shared)
+  delay(200);
+  sendPQTM("PAIR050,100");                  // 10 Hz position output
+  delay(200);
+  sendPQTM("PAIR062,0,01");                 // enable GGA (sentence 0)
+  delay(200);
+  sendPQTM("PQTMSAVEPAR");
+  delay(300);
+  // NOTE: RMC + GST ($PAIR062 sentence ids) for the B rover still need bench
+  // confirmation — GGA (fix quality) is sufficient for OCS; COG falls back to IMU;
+  // GST accuracy readout (E rover has it via PQTMCFGMSGRATE,W,GST,1) TODO for B.
+}
+
+// B base (LC29HEA): bench-verified 2026-06-04. Base mode + survey-in + reboot,
+// then non-persistent RTCM enables ($PAIR432 MSM7 / 434 1005 / 436 eph / 062 GGA).
+void lc29hConfigBase() {
+  Serial.println("[GPS] Configuring LC29HEA as RTK BASE (1 Hz)...");
+  sendPQTM("PQTMCFGRCVRMODE,W,2");          // base mode
+  delay(250);
+  sendPQTM("PQTMCFGSVIN,W,1,60,0.0,0,0,0"); // survey-in: short/loose
+  delay(250);
+  sendPQTM("PQTMSAVEPAR");
+  delay(400);
+  sendPQTM("PAIR023");                       // reboot to apply base mode
+  delay(3000);
+  while (Serial2.available()) Serial2.read();
+  sendPQTM("PAIR432,1"); delay(150);         // MSM7 observations
+  sendPQTM("PAIR434,1"); delay(150);         // 1005 station position
+  sendPQTM("PAIR436,1"); delay(150);         // ephemeris
+  sendPQTM("PAIR062,0,01"); delay(150);      // GGA (base disables NMEA)
+  Serial.println("[GPS] LC29HEA base: MSM7 + 1005 + ephemeris @ 1 Hz");
+}
+
+// Single entry point used at boot + on the `gps` reconfig command. With RTK
+// off this is EXACTLY configureLG290P() (byte-identical legacy path).
+void gnssConfigure() {
+  if (!config.rtk_enabled) { configureLG290P(); return; }
+  bool base = roleIsBase();
+  if (g_hw == HW_B1) { if (base) lc29hConfigBase();  else lc29hConfigRover();  }
+  else               { if (base) lg290pConfigBase(); else lg290pConfigRover(); }
+}
+
+// RTK relay init — set callbacks + alloc the rover ring. Inert unless enabled.
+void rtkRelayInit() {
+  if (!config.rtk_enabled) return;
+  if (roleIsBase()) {
+    g_rtcmTx.onFrame = rtcmBroadcastFrame;
+    Serial.println("[RTK] relay PRODUCER (RC base) armed");
+  } else {
+    g_rtcmRx.onFrame = rtcmRingPush;
+    g_rtcmRing = xStreamBufferCreate(4096, 1);   // SPSC byte ring, trigger level 1
+    Serial.printf("[RTK] relay CONSUMER (rover) armed, ring=%s\n", g_rtcmRing ? "ok" : "ALLOC FAIL");
+  }
+  appendBootLog(roleIsBase() ? "rtk relay base" : "rtk relay rover");
+}
+
+// ============================================================
 // READ GPS — NMEA text only (RTCM3 capture retired in .09)
 // ============================================================
 void readGPS() {
@@ -2284,6 +2457,26 @@ void readGPS() {
         parseNMEA(nmeaBuf);
         nmeaIdx = 0;
       }
+    } else if (nmeaIdx < (int)sizeof(nmeaBuf) - 1) {
+      nmeaBuf[nmeaIdx++] = c;
+    }
+  }
+}
+
+// RTK base read path: the LG290P/LC29HEA in base mode emits RTCM3 (binary)
+// interleaved with 1 Hz NMEA on Serial2. Demux is LENGTH-driven via the
+// RtcmFramer (never '$'-keyed — a 0x24 inside a binary payload must not flip
+// us into NMEA mode). Complete CRC-valid frames fire g_rtcmTx.onFrame
+// (rtcmBroadcastFrame); non-RTCM bytes feed the normal NMEA line parser.
+// Used only when rtk_enabled && role==rc_signal; otherwise readGPS() runs.
+void readGPSBase() {
+  while (Serial2.available()) {
+    uint8_t c = Serial2.read();
+    if (g_rtcmTx.feed(c)) continue;          // consumed as part of an RTCM frame
+    if (c == '$') {
+      nmeaIdx = 0; nmeaBuf[nmeaIdx++] = c;
+    } else if (c == '\n' || c == '\r') {
+      if (nmeaIdx > 5) { nmeaBuf[nmeaIdx] = '\0'; parseNMEA(nmeaBuf); nmeaIdx = 0; }
     } else if (nmeaIdx < (int)sizeof(nmeaBuf) - 1) {
       nmeaBuf[nmeaIdx++] = c;
     }
@@ -2393,6 +2586,15 @@ void parseNMEA(const char* s) {
         }
       }
     }
+  } else if (strstr(s, "GST")) {
+    // GST — position error statistics (RTK Phase-2 accuracy readout). Fields:
+    // 6 = latitude σ (m), 7 = longitude σ (m), 8 = altitude σ (m). Horizontal
+    // 1σ ≈ √(latσ²+lonσ²); ~1-2 cm at RTK FIXED, ~decimetres-metre at FLOAT.
+    // Enabled only on the RTK rover path (PQTMCFGMSGRATE,W,GST,1).
+    char f[32];
+    if (getField(s, 6, f, sizeof(f))) { float v = atof(f); if (v >= 0 && v < 1000) gps.lat_std = v; }
+    if (getField(s, 7, f, sizeof(f))) { float v = atof(f); if (v >= 0 && v < 1000) gps.lon_std = v; }
+    if (getField(s, 8, f, sizeof(f))) { float v = atof(f); if (v >= 0 && v < 1000) gps.alt_std = v; }
   }
 }
 
@@ -2779,6 +2981,7 @@ void loadConfig() {
     else if (k == "hardware_platform") v.toCharArray(config.hardware_platform, sizeof(config.hardware_platform));
     else if (k == "unit_role")         v.toCharArray(config.unit_role, sizeof(config.unit_role));
     else if (k == "config_version")    config.config_version = v.toInt();
+    else if (k == "rtk_enabled")       config.rtk_enabled = (v == "1" || v.equalsIgnoreCase("true"));
   }
   f.close();
 
@@ -6200,8 +6403,47 @@ void processCommand(String cmd, bool fromTelnet) {
 
   } else if (cmd == "gpscfg") {
     tprintln("Reconfiguring GPS...");
-    configureLG290P();
+    gnssConfigure();   // RTK off ⇒ configureLG290P(); on ⇒ base/rover per role+chip
     tprintln("GPS reconfigured");
+
+  } else if (cmd == "rtk") {
+    // RTK Phase-2 relay status (bench verification).
+    tprintf("rtk_enabled=%d role=%s (%s) hw=%s\n", config.rtk_enabled,
+            roleName(g_role), roleIsBase() ? "base/produce" : "rover/consume", hwName(g_hw));
+    tprintf("gps fix_quality=%d (4=RTK-FIXED 5=float 2=DGPS 1=GPS) sat=%d hdop=%.1f\n",
+            gps.fix_quality, gps.satellites, gps.hdop);
+    float hAcc = sqrtf(gps.lat_std * gps.lat_std + gps.lon_std * gps.lon_std);
+    tprintf("accuracy(GST 1sigma): h=%.3f m  lat=%.3f lon=%.3f alt=%.3f m%s\n",
+            hAcc, gps.lat_std, gps.lon_std, gps.alt_std,
+            (gps.lat_std == 0 && gps.lon_std == 0) ? "  (no GST yet)" : "");
+    if (roleIsBase()) {
+      tprintf("base: tx_msg_id=%u (frames fragmented+broadcast 2x)\n", (unsigned)g_rtcmTxMsgId);
+    } else {
+      tprintf("rover: pkts=%lu complete=%lu crc_fail=%lu dropped=%lu dup=%lu bad=%lu ring=%u\n",
+              g_rtcmRx.s_pkts, g_rtcmRx.s_complete, g_rtcmRx.s_crc_fail, g_rtcmRx.s_dropped,
+              g_rtcmRx.s_dup, g_rtcmRx.s_bad,
+              g_rtcmRing ? (unsigned)xStreamBufferBytesAvailable(g_rtcmRing) : 0);
+    }
+
+  } else if (cmd.startsWith("setcfg ")) {
+    // Bench helper: append a key=value to /config.txt so config can be set over
+    // USB/telnet without pulling the SD. APPEND-only ⇒ never rewrites existing
+    // identity/wifi lines (no corruption risk); loadConfig() takes the LAST
+    // occurrence of a key, so the appended value wins. Reboot to apply.
+    String kv = cmd.substring(7); kv.trim();
+    int eq = kv.indexOf('=');
+    if (eq < 1 || eq >= (int)kv.length() - 1) {
+      tprintln("usage: setcfg key=value   (e.g. setcfg rtk_enabled=1)");
+    } else {
+      File f = SD.open("/config.txt", FILE_APPEND);
+      if (!f) {
+        tprintln("setcfg: cannot open /config.txt");
+      } else {
+        f.print("\n"); f.print(kv); f.print("\n"); f.close();
+        tprintf("setcfg: appended '%s' — power-cycle/reset to apply (config is read at boot)\n",
+                kv.c_str());
+      }
+    }
 
   } else if (cmd == "wind") {
 #if ENABLE_WIND
@@ -7351,7 +7593,24 @@ void loop() {
   handleSerialCommand();
 
   g_loopSection = "gps";
-  readGPS();
+  if (config.rtk_enabled && roleIsBase()) readGPSBase();   // demux RTCM-out + 1 Hz NMEA
+  else                                    readGPS();        // unchanged NMEA-only path
+
+  // RTK Phase-2 — rover: drain reassembled RTCM from the ring (filled in the
+  // ESP-NOW recv callback) to the GNSS UART. Bounded + non-blocking: write only
+  // what fits the UART TX buffer this iteration, never flush a backlog.
+  if (config.rtk_enabled && roleIsRover() && g_rtcmRing) {
+    g_loopSection = "rtcm-drain";
+    uint8_t tmp[256];
+    for (int budget = 4; budget > 0; budget--) {
+      int canWrite = Serial2.availableForWrite();
+      if (canWrite <= 0) break;
+      if (canWrite > (int)sizeof(tmp)) canWrite = sizeof(tmp);
+      size_t n = xStreamBufferReceive(g_rtcmRing, tmp, (size_t)canWrite, 0);
+      if (n == 0) break;
+      Serial2.write(tmp, n);
+    }
+  }
 
   // Once per boot: when GPS time first becomes valid, stamp boot.log with
   // wall-clock + battery so we can correlate this session with the previous
