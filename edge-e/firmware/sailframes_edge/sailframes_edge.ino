@@ -120,7 +120,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.06.05.01"
+#define FW_VERSION    "2026.06.05.02"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -249,7 +249,11 @@ bool sendPQTM(const char* body) {
 // DATA STRUCTURES
 // ============================================================
 struct GPSData {
-  float lat = 0, lon = 0, alt = 0;
+  // lat/lon are DOUBLE, not float: a float32 near 42° has ~0.4 m resolution
+  // (worse at the atof parse step) — it silently quantizes away the cm RTK fix
+  // before the value is ever stored, capping OCS at ~0.5 m. Double preserves it.
+  double lat = 0, lon = 0;
+  float alt = 0;
   float speed_kts = 0, course = 0, hdop = 99.9;
   int satellites = 0, fix_quality = 0;
   char utc_time[12] = "000000.00";
@@ -2508,14 +2512,14 @@ void parseNMEA(const char* s) {
     char f[32];
     if (getField(s, 1, f, sizeof(f))) strncpy(gps.utc_time, f, sizeof(gps.utc_time) - 1);
     if (getField(s, 2, f, sizeof(f))) {
-      float raw = atof(f);
+      double raw = atof(f);              // double: preserve ddmm.mmmmmm to cm
       int deg = (int)(raw / 100);
       gps.lat = deg + (raw - deg * 100) / 60.0;
       char ns[4];
       if (getField(s, 3, ns, sizeof(ns)) && ns[0] == 'S') gps.lat = -gps.lat;
     }
     if (getField(s, 4, f, sizeof(f))) {
-      float raw = atof(f);
+      double raw = atof(f);              // double: preserve ddmm.mmmmmm to cm
       int deg = (int)(raw / 100);
       gps.lon = deg + (raw - deg * 100) / 60.0;
       char ew[4];
@@ -6785,6 +6789,57 @@ void processCommand(String cmd, bool fromTelnet) {
       tprintf("race armed locally: PIN(%.5f,%.5f) RC(%.5f,%.5f) T+0 in %d s\n",
               pln, plg, rln, rlg, secs);
       tprintf("mesh broadcast: %s (3x for reliability)\n", sent ? "OK" : "FAILED");
+    }
+
+  } else if (cmd.startsWith("race armrtk")) {
+    // Increment 2 — capture the start line in the RTK frame, so cm-accurate
+    // boats are measured against a cm-accurate line (not a ±2 m typed line).
+    //   RC end  = own position (RC base = committee end = RTK frame origin)
+    //   PIN end = the rc_pin peer's latest RTK-FIXED position over the mesh
+    // Then the existing ocsArm + MSG_RACE_ARMED fleet path, with cm coords.
+    int secs = -1;
+    if (sscanf(cmd.c_str(), "race armrtk %d", &secs) != 1 || secs < 0) {
+      tprintln("usage: race armrtk <secs_from_now>   (RC-only; captures line from base + rc_pin RTK)");
+    } else if (!config.rtk_enabled) {
+      tprintln("race armrtk: rtk_enabled is OFF (SD config). Use `race arm <coords>` for the manual line.");
+    } else if (g_role != ROLE_RC_SIGNAL) {
+      tprintln("race armrtk: RC-only — this boat is not unit_role=rc_signal (the base).");
+    } else if (!gps.valid || (gps.lat == 0 && gps.lon == 0)) {
+      tprintln("race armrtk: RC base has no position yet (survey-in not complete?).");
+    } else {
+      uint32_t now = millis();
+      int pin = -1;
+      for (int i = 0; i < g_mesh_peer_count; i++) {
+        if (g_mesh_peers[i].unit_role == ROLE_RC_PIN &&
+            (now - g_mesh_peers[i].last_seen_ms) < 5000) { pin = i; break; }
+      }
+      if (pin < 0) {
+        tprintln("race armrtk: no rc_pin peer in last 5s — is the pin boat on (unit_role=rc_pin) + in the mesh?");
+      } else if (g_mesh_peers[pin].fix_quality != 4) {
+        tprintf("race armrtk: rc_pin peer NOT RTK FIXED (q=%d) — wait for q=4 so the pin end is cm-accurate.\n",
+                g_mesh_peers[pin].fix_quality);
+      } else {
+        double pln = g_mesh_peers[pin].last_lat_e7 / 1e7;
+        double plg = g_mesh_peers[pin].last_lon_e7 / 1e7;
+        double rln = gps.lat, rlg = gps.lon;
+        // line-length sanity (equirectangular)
+        double refLat = ((pln + rln) / 2.0) * PI / 180.0;
+        double dx = (plg - rlg) * 111320.0 * cos(refLat);
+        double dy = (pln - rln) * 111320.0;
+        double lineLen = sqrt(dx * dx + dy * dy);
+        if (lineLen < 10.0 || lineLen > 1000.0) {
+          tprintf("race armrtk: line length %.1f m out of sane range (10-1000 m) — check positions. NOT armed.\n",
+                  lineLen);
+        } else {
+          uint32_t start_ms = now + (uint32_t)(secs * 1000);
+          ocsArm(pln, plg, rln, rlg, start_ms);
+          bool sent = meshBroadcastRaceArmed(pln, plg, rln, rlg, secs, 0, 30);
+          tprintf("race ARMED (RTK frame): PIN(%.7f,%.7f q=4)  RC(%.7f,%.7f base)  len=%.1f m  T+0 in %d s\n",
+                  pln, plg, rln, rlg, lineLen, secs);
+          tprintf("mesh broadcast: %s (3x). NOTE: RC end taken from base GGA — verify it equals the surveyed ARP (1005).\n",
+                  sent ? "OK" : "FAILED");
+        }
+      }
     }
 
   } else if (cmd == "race disarm" || cmd == "race off") {

@@ -99,7 +99,14 @@ static_assert(sizeof(RtcmFragPayload) == 4 + RTCM_FRAG_MAX, "RtcmFragPayload siz
 - Main loop GNSS section: drain ring → `Serial2.write()`. Name this `g_loopSection` (e.g. `"rtcm_drain"`) so the Core-1 loop watchdog can pinpoint it if it wedges.
 - Confirm fix via existing GGA quality parse: **4 = FIXED**, 5 = float.
 
-## 5. The line MUST be in the RTK frame (first-class deliverable)
+## 5. The line MUST be in the RTK frame (first-class deliverable) — ✅ IMPLEMENTED (increment 2, 2026-06-05)
+
+**Prerequisite found in review (increment 1.5): `gps.lat/lon` were `float`.** A float32 near 42° has ~0.4 m resolution (worse at the `atof` of `ddmm.mmmm`), silently quantizing away the cm RTK fix *before storage* — capping OCS at ~0.5 m regardless of fix quality, and invisible to fix_quality/GST tests. Fixed → `double` (parse + store); `lat_e7` wire pack unchanged (int32 e7 = 1.1 cm). This is a fleet-wide accuracy fix (not flag-gated; strict improvement, same CSV/wire formats).
+
+**Implementation:** new `race armrtk <secs>` command (RC `rc_signal` only, requires `rtk_enabled`): RC end = own position (base = committee end = frame origin), PIN end = the `rc_pin` peer's latest RTK-FIXED position from `g_mesh_peers`. Gates: rtk_enabled, role, own-pos valid, rc_pin peer seen <5 s + `fix_quality==4`, line length 10–1000 m. Then existing `ocsArm` + `meshBroadcastRaceArmed` (cm coords) → fleet arms; boats are cm RTK rovers (increment 1) → cm-consistent geometry. Typed `race arm <coords>` kept as manual fallback.
+
+**Open verification:** RC end is taken from base-mode GGA — must confirm empirically it equals the surveyed ARP (1005), else the RC end wanders ~1 m off the frame origin (does not cancel). **Honest scope: increment 2 removes the *line* error; OCS sub-0.5 m is still gated by heading×bow_offset (~0.2–0.4 m, IMU-limited at the start) + 10 Hz timing. Deliverable = "start line now in the RTK frame," not "OCS is 0.5 m."**
+
 
 The relay makes *boats* cm-accurate **relative to the base**. OCS compares the **bow to the start line**, so the **line endpoints must be captured in the same RTK frame** — otherwise cm boats are measured against 2 m autonomous-GPS line coordinates and the entire gain evaporates.
 
