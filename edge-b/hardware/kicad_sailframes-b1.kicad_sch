@@ -12989,7 +12989,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C2337"
+		(property "LCSC Part #" "C5116483"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -13088,7 +13088,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C2337"
+		(property "LCSC Part #" "C5156614"
 			(at -107.76 -96.81 0)
 			(hide yes)
 			(show_name no)
@@ -13374,7 +13374,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -13466,7 +13466,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C2337"
+		(property "LCSC Part #" "C57369"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -13759,7 +13759,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C125093"
+		(property "LCSC Part #" "C89811"
 			(at -188.54 -37.24 0)
 			(hide yes)
 			(show_name no)
@@ -14005,6 +14005,17 @@
 			)
 		)
 		(property "Footprint" "Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical"
+			(at 351.79 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part #" "C2932676"
 			(at 351.79 114.3 0)
 			(hide yes)
 			(show_name no)
@@ -14612,7 +14623,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -14891,7 +14902,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C2337"
+		(property "LCSC Part #" "C5116483"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -15362,7 +15373,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C2337"
+		(property "LCSC Part #" "C5116483"
 			(at 46.99 78.74 0)
 			(hide yes)
 			(show_name no)
@@ -15739,7 +15750,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -15832,7 +15843,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -15891,9 +15902,8 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "B1_JLC:VSSOP-8_DCU_2.3x2mm_P0.65mm"
-			(at 142.24 142.24 0)
-			(hide yes)
+		(property "Footprint" "B1_JLC:TSSOP8_74LVC1G74_C458768"
+			(at 141.732 133.858 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15924,7 +15934,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C70285"
+		(property "LCSC Part #" "C458768"
 			(at 2.03 1.74 0)
 			(hide yes)
 			(show_name no)
@@ -16035,7 +16045,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -16313,7 +16323,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C382139"
+		(property "LCSC Part #" "C16581"
 			(at 6.35 -5.08 0)
 			(hide yes)
 			(show_name no)
@@ -16717,7 +16727,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C2337"
+		(property "LCSC Part #" "C5116483"
 			(at 46.99 78.74 0)
 			(hide yes)
 			(show_name no)
@@ -16969,6 +16979,17 @@
 			)
 		)
 		(property "Footprint" "Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical"
+			(at 393.7 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC Part #" "C2932676"
 			(at 393.7 114.3 0)
 			(hide yes)
 			(show_name no)
@@ -17310,7 +17331,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C2337"
+		(property "LCSC Part #" "C32713272"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -17485,6 +17506,17 @@
 				)
 			)
 		)
+		(property "LCSC Part #" "C57369"
+			(at 312.42 35.56 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(property "Datasheet" ""
 			(at 312.42 35.56 0)
 			(hide yes)
@@ -17613,7 +17645,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -18475,7 +18507,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C2337"
+		(property "LCSC Part #" "C5156614"
 			(at 46.99 78.74 0)
 			(hide yes)
 			(show_name no)
@@ -18763,7 +18795,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -18949,7 +18981,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 10.46 -43.75 0)
 			(hide yes)
 			(show_name no)
@@ -19042,7 +19074,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -19135,7 +19167,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C15401"
+		(property "LCSC Part #" "C25804"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
@@ -19227,7 +19259,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C125093"
+		(property "LCSC Part #" "C99289"
 			(at -187.27 -4.46 0)
 			(hide yes)
 			(show_name no)
@@ -20142,7 +20174,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C2337"
+		(property "LCSC Part #" "C5116483"
 			(at 0 0 0)
 			(hide yes)
 			(show_name no)
