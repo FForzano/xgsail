@@ -57,11 +57,13 @@ def analyze(path):
         i_fix = col_index(header, "fix", "fix_quality")
         i_hdop = col_index(header, "hdop")
         i_ms = col_index(header, "ms")
+        i_hacc = col_index(header, "hacc")   # GST horizontal 1-sigma (m), FW >= 2026.06.05.03
         if i_fix is None:
             return {"path": path, "error": "no 'fix' column in header"}
 
         counts = {}        # fix_quality -> row count
         hdop_fixed = []    # hdop samples while FIXED
+        hacc_fixed = []    # GST horizontal 1-sigma (m) samples while FIXED
         first_ms = last_ms = None
         cur_streak = best_streak = 0
         total = 0
@@ -91,6 +93,13 @@ def analyze(path):
                         hdop_fixed.append(float(row[i_hdop]))
                     except ValueError:
                         pass
+                if i_hacc is not None and len(row) > i_hacc:
+                    try:
+                        v = float(row[i_hacc])
+                        if v > 0:
+                            hacc_fixed.append(v)
+                    except ValueError:
+                        pass
             else:
                 cur_streak = 0
 
@@ -99,6 +108,8 @@ def analyze(path):
         "path": path, "total": total, "counts": counts, "dur_s": dur_s,
         "best_streak": best_streak,
         "hdop_fixed_mean": (sum(hdop_fixed) / len(hdop_fixed)) if hdop_fixed else None,
+        "hacc_fixed_mean": (sum(hacc_fixed) / len(hacc_fixed)) if hacc_fixed else None,
+        "hacc_fixed_max": max(hacc_fixed) if hacc_fixed else None,
         # assume ~10 Hz logging: streak samples -> seconds estimate
         "best_streak_s": (best_streak / 10.0) if best_streak else 0,
     }
@@ -130,6 +141,9 @@ def report(res):
     print(f"  --> RTK FIXED {fixed_pct:.1f}% of the track"
           + (f"; longest FIXED run ~{res['best_streak_s']:.0f}s ({res['best_streak']} samples)" if res['best_streak'] else "")
           + (f"; mean HDOP@FIXED {res['hdop_fixed_mean']:.2f}" if res['hdop_fixed_mean'] else ""))
+    if res.get("hacc_fixed_mean"):
+        print(f"  --> accuracy@FIXED (GST 1sigma h): mean {res['hacc_fixed_mean']*100:.1f} cm, "
+              f"worst {res['hacc_fixed_max']*100:.1f} cm")
 
 
 def main(argv):

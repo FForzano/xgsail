@@ -120,7 +120,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.06.05.02"
+#define FW_VERSION    "2026.06.05.03"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -3361,7 +3361,7 @@ void startLogging() {
   if (navFile) {
     logging = true;
     logStart = millis();
-    navFile.println("ms,utc,lat,lon,alt,sog,cog,sat,hdop,fix,gps_date");
+    navFile.println("ms,utc,lat,lon,alt,sog,cog,sat,hdop,fix,gps_date,hacc");
     navFile.flush();
     if (imuFile) {
       imuFile.println("ms,utc,ax,ay,az,gx,gy,gz,lax,lay,laz,mx,my,mz,heel,pitch,heading,stability,accuracy");
@@ -3399,10 +3399,12 @@ void logNav() {
   if (!navFile || !logging) return;
   sdWriting = true;
   unsigned long e = millis() - logStart;
-  navFile.printf("%lu,%s,%.10f,%.10f,%.3f,%.3f,%.2f,%d,%.2f,%d,%s\n",
+  // hacc = GST horizontal 1-sigma (m); 0 unless RTK rover w/ GST. ~cm at FIXED.
+  float hacc = sqrtf(gps.lat_std * gps.lat_std + gps.lon_std * gps.lon_std);
+  navFile.printf("%lu,%s,%.10f,%.10f,%.3f,%.3f,%.2f,%d,%.2f,%d,%s,%.3f\n",
     e, gps.utc_time, gps.lat, gps.lon, gps.alt,
-    gps.speed_kts, gps.course, gps.satellites, gps.hdop, gps.fix_quality, gps.date);
-  totalBytes += 90;
+    gps.speed_kts, gps.course, gps.satellites, gps.hdop, gps.fix_quality, gps.date, hacc);
+  totalBytes += 98;
   sdWriting = false;
 }
 
@@ -5533,6 +5535,11 @@ static const char* CLOUD_CONFIG_ALLOW_KEYS[] = {
     "start_delay_sec",
     "stop_delay_sec",
     "unit_role",
+    "rtk_enabled",   // RTK operating mode — settable via cloud so the fleet's
+                     // base/rover assignment is OTA-managed (not identity/conn,
+                     // so consistent with the allow-list philosophy, gotcha #27).
+                     // Applying it reconfigures the GNSS + reboots (gated on
+                     // !armed && !logging by the cloud-apply path).
     nullptr
 };
 
