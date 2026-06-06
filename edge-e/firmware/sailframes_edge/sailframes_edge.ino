@@ -120,7 +120,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.06.05.03"
+#define FW_VERSION    "2026.06.05.04"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -346,6 +346,8 @@ struct MeshPeerState {
     uint8_t  unit_role;
     uint8_t  fix_quality;
     uint8_t  sat_count;
+    uint8_t  hdop_x10;             // RTK Phase-2: HDOP*10 from peer (0 = no data)
+    uint8_t  hacc_mm;             // RTK Phase-2: GST horiz 1-sigma mm from peer (0 = no data)
     uint32_t last_seen_ms;
     uint32_t msg_count;
     uint16_t last_seq;
@@ -1126,6 +1128,8 @@ static void meshOnReceive(const esp_now_recv_info_t* info, const uint8_t* data, 
     g_mesh_peers[idx].unit_role         = p->unit_role;
     g_mesh_peers[idx].fix_quality       = p->fix_quality;
     g_mesh_peers[idx].sat_count         = p->sat_count;
+    g_mesh_peers[idx].hdop_x10          = p->hdop_x10;   // 0 = no data
+    g_mesh_peers[idx].hacc_mm           = p->hacc_mm;    // 0 = no data
     g_mesh_peers[idx].last_seen_ms      = millis();
     g_mesh_peers[idx].last_seq          = h->seq;
     g_mesh_peers[idx].msg_count++;
@@ -1320,11 +1324,17 @@ static void meshBuildAndSendBoatState() {
   p->fix_quality    = (uint8_t)gps.fix_quality;
   p->sat_count      = (uint8_t)gps.satellites;
   p->unit_role      = (uint8_t)g_role;
-  // reserved is uint8_t[2] in mesh.h (struct sized to 20 bytes per spec).
-  // The earlier version of this line wrote reserved[0..2] which overran
-  // by 1 byte off the end of buf[36] and crashed every meshTick call
-  // via __stack_chk_fail — the .10/.11 fleet-brick bug.
-  p->reserved[0] = p->reserved[1] = 0;
+  // Per-boat quality for the RC pre-race panel (former reserved[2], same 20 B
+  // wire). 0 = "no data" (no fix / no GST) so the RC renders "--", never 0.
+  // Clamp: hdop is 99.9 with no fix (×10 overflows u8), hacc could exceed 255 mm.
+  if (gps.valid && gps.hdop > 0.1f && gps.hdop < 25.5f) {
+    p->hdop_x10 = (uint8_t)lroundf(gps.hdop * 10.0f);
+  } else {
+    p->hdop_x10 = 0;   // no data
+  }
+  float hacc_m = sqrtf(gps.lat_std * gps.lat_std + gps.lon_std * gps.lon_std);
+  float hacc_mm = hacc_m * 1000.0f;
+  p->hacc_mm = (hacc_mm > 0.5f) ? (uint8_t)fminf(255.0f, lroundf(hacc_mm)) : 0;  // 0 = no GST
 
   esp_err_t err = esp_now_send(MESH_BROADCAST_ADDR, buf, sizeof(buf));
   if (err == ESP_OK) {
@@ -1852,6 +1862,102 @@ void drawRcFleetPanel() {
     tft.setTextColor(sc, COLOR_BG);
     tft.drawString(ss, 238, y + 6, 4);
     tft.setTextSize(1);
+  }
+}
+
+// ============================================================
+// RC pre-race panel — shown on the RC (rc_signal) when NOT armed
+// ============================================================
+// The RC's job before the start is to confirm every boat is connected and has
+// a good fix — so the RC never shows the nav (COG/SOG) display. Instead this
+// fleet-connection roster: per-boat fix quality + sat count + link freshness,
+// plus this base's own status and a "<fixed>/<connected> FIX" readiness gauge.
+// Partial per-row redraw (on change) avoids flicker; link is OK/STALE rather
+// than a ticking age (which would force a 1 Hz full repaint).
+bool g_rcPrePanelShown = false;
+
+void drawRcPreRacePanel() {
+  static uint32_t prevSender[MESH_PEER_MAX];
+  static int8_t   prevQ[MESH_PEER_MAX], prevLink[MESH_PEER_MAX];
+  static int      prevSat[MESH_PEER_MAX], prevHdop[MESH_PEER_MAX], prevHacc[MESH_PEER_MAX];
+  static int      prevConn = -1, prevFixed = -1, prevBaseSat = -1;
+  static int8_t   prevBaseReady = -1;
+
+  unsigned long now = millis();
+  int conn = g_mesh_peer_count, fixed = 0;
+  for (int i = 0; i < g_mesh_peer_count; i++)
+    if (g_mesh_peers[i].fix_quality == 4) fixed++;
+  int8_t baseReady = (gps.valid && (gps.lat != 0 || gps.lon != 0)) ? 1 : 0;
+
+  // Static layout — repaint on first show or when the peer COUNT changes.
+  if (!g_rcPrePanelShown || conn != prevConn) {
+    g_rcPrePanelShown = true;
+    prevConn = -999; prevFixed = -999; prevBaseSat = -1; prevBaseReady = -1;
+    for (int i = 0; i < MESH_PEER_MAX; i++) {
+      prevSender[i]=0; prevQ[i]=-2; prevSat[i]=-1; prevLink[i]=-2; prevHdop[i]=-1; prevHacc[i]=-1;
+    }
+    tft.fillScreen(COLOR_BG);
+    tft.fillRect(0, 0, SCREEN_WIDTH, 34, TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK); tft.setTextDatum(TL_DATUM);
+    tft.drawString("RC PRE-RACE", 6, 8, 4);
+    tft.drawFastHLine(0, 92, SCREEN_WIDTH, COLOR_DIVIDER);
+  }
+
+  // Header right: "<fixed>/<connected> FIX" readiness gauge (green when all fixed).
+  if (conn != prevConn || fixed != prevFixed) {
+    prevConn = conn; prevFixed = fixed;
+    tft.fillRect(168, 0, SCREEN_WIDTH - 168, 34, TFT_BLACK);
+    tft.setTextColor((conn > 0 && fixed == conn) ? TFT_GREEN : TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(TR_DATUM);
+    char hb[20]; snprintf(hb, sizeof(hb), "%d/%d FIX", fixed, conn);
+    tft.drawString(hb, SCREEN_WIDTH - 6, 8, 4);
+  }
+
+  // This base's own status line (y 44-88). (Base has no GST accuracy — it's the
+  // frame origin — so just sat + READY/SURVEY.)
+  if (baseReady != prevBaseReady || gps.satellites != prevBaseSat) {
+    prevBaseReady = baseReady; prevBaseSat = gps.satellites;
+    tft.fillRect(0, 44, SCREEN_WIDTH, 46, COLOR_BG);
+    tft.setTextDatum(TL_DATUM); tft.setTextSize(1);
+    tft.setTextColor(COLOR_LABEL, COLOR_BG); tft.drawString("BASE", 8, 52, 4);
+    char bs[16]; snprintf(bs, sizeof(bs), "sat %d", gps.satellites);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG); tft.drawString(bs, 110, 52, 4);
+    tft.setTextColor(baseReady ? COLOR_GOOD : TFT_ORANGE, COLOR_BG);
+    tft.drawString(baseReady ? "READY" : "SURVEY", 218, 52, 4);
+  }
+
+  // Per-boat rows — two lines each: line1 = name + fix (big); line2 = acc/hdop/
+  // sat/link (small). hdop/hacc come from the peer's broadcast (0 = no data → "--").
+  const int rowH = 62, y0 = 98;
+  int maxRows = (SCREEN_HEIGHT - y0) / rowH;
+  for (int i = 0; i < g_mesh_peer_count && i < maxRows; i++) {
+    const MeshPeerState& p = g_mesh_peers[i];
+    int q = p.fix_quality, sat = p.sat_count, hd = p.hdop_x10, ha = p.hacc_mm;
+    int8_t link = ((now - p.last_seen_ms) < 2500) ? 0 : 1;   // 0=OK 1=STALE
+    if (p.sender_id == prevSender[i] && q == prevQ[i] && sat == prevSat[i] &&
+        link == prevLink[i] && hd == prevHdop[i] && ha == prevHacc[i]) continue;
+    prevSender[i]=p.sender_id; prevQ[i]=q; prevSat[i]=sat; prevLink[i]=link; prevHdop[i]=hd; prevHacc[i]=ha;
+    int y = y0 + i * rowH;
+    tft.fillRect(0, y, SCREEN_WIDTH, rowH - 4, COLOR_BG);
+    // line 1: name (left) + fix (right, color-coded)
+    tft.setTextSize(1); tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.drawString(boatNameForSender(p.sender_id), 8, y + 2, 4);
+    const char* fs = q==4?"FIX":q==5?"FLT":q==2?"DGP":q==1?"GPS":"---";
+    uint16_t fc = q==4 ? COLOR_GOOD : (q>=1 ? TFT_ORANGE : COLOR_ERROR);  // orange reads on white; yellow doesn't
+    tft.setTextDatum(TR_DATUM); tft.setTextColor(fc, COLOR_BG);
+    tft.drawString(fs, SCREEN_WIDTH - 8, y + 2, 4);
+    // line 2 (small): acc / hdop / sat / link
+    tft.setTextDatum(TL_DATUM); tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    char accs[16], hds[14], sts[12];
+    if (ha > 0) snprintf(accs, sizeof(accs), "acc %.1fcm", ha / 10.0); else strcpy(accs, "acc --");
+    if (hd > 0) snprintf(hds, sizeof(hds), "hdop %.1f", hd / 10.0);    else strcpy(hds, "hdop --");
+    snprintf(sts, sizeof(sts), "sat %d", sat);
+    tft.drawString(accs, 8,   y + 38, 2);
+    tft.drawString(hds,  128, y + 38, 2);
+    tft.drawString(sts,  210, y + 38, 2);
+    tft.setTextColor(link == 0 ? COLOR_GOOD : TFT_ORANGE, COLOR_BG);
+    tft.drawString(link == 0 ? "OK" : "..", 280, y + 38, 2);
   }
 }
 
@@ -4093,7 +4199,15 @@ void updateDisplay() {
   // and OCS state. (Checked before the boat-local OCS alarm: a stationary
   // committee boat "over" its own line isn't meaningful; it monitors the fleet.)
   if (g_role == ROLE_RC_SIGNAL && g_ocs.armed) {
+    g_rcPrePanelShown = false;   // force pre-race panel repaint when we later disarm
     drawRcFleetPanel();
+    return;
+  }
+  // RC, not armed: pre-race fleet-connection roster instead of the nav (COG/SOG)
+  // display. The committee boat confirms every boat is connected + fixed here.
+  if (g_role == ROLE_RC_SIGNAL) {
+    g_rcPanelShown = false;      // OCS panel not shown; force its repaint on next arm
+    drawRcPreRacePanel();
     return;
   }
   if (g_rcPanelShown) {  // just left the RC panel — repaint the nav display

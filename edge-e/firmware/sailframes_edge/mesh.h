@@ -50,9 +50,13 @@ struct __attribute__((packed)) BoatStatePayload {
     uint8_t  fix_quality;   // NMEA fix indicator
     uint8_t  sat_count;
     uint8_t  unit_role;     // sender's UnitRole enum value
-    uint8_t  reserved[2];   // pad to 20 bytes (spec said "[3]" but its
-                            // own size arithmetic listed 20 bytes total —
-                            // 4+4+2+2+2+1+1+1+1+2 = 20)
+    // The former reserved[2] pad, now carrying per-boat quality so the RC
+    // pre-race panel can show it. SAME 20-byte wire format (no size change, no
+    // rollout compat surface): old firmware sent these as 0 and old receivers
+    // ignored them. 0 == "no data" (old FW / no fix), NOT "perfect" — render as
+    // "--". Named fields (not an array) to avoid the gotcha-#25 index footgun.
+    uint8_t  hdop_x10;      // HDOP * 10, saturated 0..255; 0 = no data
+    uint8_t  hacc_mm;       // GST horizontal 1-sigma in mm, saturated 0..255; 0 = no data
 };
 static_assert(sizeof(BoatStatePayload) == 20, "BoatStatePayload must be 20 bytes");
 
