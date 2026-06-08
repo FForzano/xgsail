@@ -120,7 +120,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.06.08.01"
+#define FW_VERSION    "2026.06.08.02"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -1823,6 +1823,53 @@ void fleetWatchTick() {
 // armed. Refresh cadence is sped up by the loop's dispGate while armed.
 bool g_rcPanelShown = false;
 
+// --- RC panel chrome: top-of-screen clock + bottom FW/battery footer ----
+// Added 2026-06-08 per request: first row = time-of-day (HH:MM:SS), last
+// row = firmware version + battery %. Shared by both RC panels (armed
+// fleet view + pre-race roster); each repaints only on change so they
+// don't fight the panels' partial-redraw flicker control.
+#define RC_FOOTER_H            28
+// Venue-local clock offset from UTC, in minutes. Boston EDT (summer) = -240.
+// Manual knob — no automatic DST: Boston EST (winter) = -300, 0 = raw UTC.
+#define RC_CLOCK_TZ_OFFSET_MIN (-240)
+
+static void drawRcClock(bool force) {
+  static int prevSec = -1;
+  int sod = -1;  // local seconds-of-day (-1 = no valid GPS time yet)
+  if (gps.valid && strlen(gps.utc_time) >= 6) {
+    int hh = (gps.utc_time[0]-'0')*10 + (gps.utc_time[1]-'0');
+    int mm = (gps.utc_time[2]-'0')*10 + (gps.utc_time[3]-'0');
+    int ss = (gps.utc_time[4]-'0')*10 + (gps.utc_time[5]-'0');
+    sod = (((hh*3600 + mm*60 + ss) + RC_CLOCK_TZ_OFFSET_MIN*60) % 86400 + 86400) % 86400;
+  }
+  if (!force && sod == prevSec) return;
+  prevSec = sod;
+  tft.fillRect(0, 0, 150, 34, TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextDatum(TL_DATUM);
+  char tb[16];
+  if (sod >= 0) snprintf(tb, sizeof(tb), "%02d:%02d:%02d", sod/3600, (sod/60)%60, sod%60);
+  else          strcpy(tb, "--:--:--");
+  tft.drawString(tb, 6, 8, 4);
+}
+
+static void drawRcFooter(bool force) {
+  static int prevBatt = -999;
+  if (!force && battery.percent == prevBatt) return;
+  prevBatt = battery.percent;
+  const int FY = SCREEN_HEIGHT - RC_FOOTER_H;
+  tft.fillRect(0, FY, SCREEN_WIDTH, RC_FOOTER_H, TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  char fb[40];
+  snprintf(fb, sizeof(fb), "FW %s", FW_VERSION);
+  tft.setTextDatum(TL_DATUM);
+  tft.drawString(fb, 6, FY + 6, 2);
+  char bb[12];
+  snprintf(bb, sizeof(bb), "BAT %d%%", battery.percent);
+  tft.setTextDatum(TR_DATUM);
+  tft.drawString(bb, SCREEN_WIDTH - 6, FY + 6, 2);
+}
+
 void drawRcFleetPanel() {
   static int      prevCount = -1;
   static uint32_t prevSender[MESH_PEER_MAX];
@@ -1833,16 +1880,16 @@ void drawRcFleetPanel() {
   unsigned long now = millis();
   int tsec = (int)((int32_t)(g_ocs.start_time_ms - now) / 1000);
 
-  if (!g_rcPanelShown || g_mesh_peer_count != prevCount) {
+  bool full = (!g_rcPanelShown || g_mesh_peer_count != prevCount);
+  if (full) {
     g_rcPanelShown = true;
     prevCount = g_mesh_peer_count;
     prevTsec = -99999;
     for (int i = 0; i < MESH_PEER_MAX; i++) { prevSender[i] = 0; prevDm[i] = -1000000; prevSt[i] = -2; }
     tft.fillScreen(COLOR_BG);
     tft.fillRect(0, 0, SCREEN_WIDTH, 34, TFT_BLACK);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextDatum(TL_DATUM);
-    tft.drawString("RC FLEET", 6, 8, 4);
+    // Top-left "RC FLEET" label dropped — the time-of-day clock now lives
+    // there (drawRcClock); the countdown stays on the right of the bar.
     tft.setTextColor(COLOR_LABEL, COLOR_BG);
     tft.drawString("BOAT", 8, 42, 2);
     tft.drawString("DIST", 95, 42, 2);
@@ -1860,7 +1907,7 @@ void drawRcFleetPanel() {
     tft.drawString(tb, SCREEN_WIDTH - 6, 8, 4);
   }
 
-  const int rowH = 64, y0 = 70, maxRows = (SCREEN_HEIGHT - y0) / rowH;
+  const int rowH = 64, y0 = 70, maxRows = (SCREEN_HEIGHT - RC_FOOTER_H - y0) / rowH;
   for (int i = 0; i < g_mesh_peer_count && i < maxRows; i++) {
     const MeshPeerState& p = g_mesh_peers[i];
     int dm = (int)lroundf(p.rc_distance_m * 10.0f);
@@ -1881,6 +1928,9 @@ void drawRcFleetPanel() {
     tft.drawString(ss, 238, y + 6, 4);
     tft.setTextSize(1);
   }
+
+  drawRcClock(full);
+  drawRcFooter(full);
 }
 
 // ============================================================
@@ -1915,7 +1965,8 @@ void drawRcPreRacePanel() {
   int8_t baseReady = (gps.valid && (gps.lat != 0 || gps.lon != 0)) ? 1 : 0;
 
   // Static layout — repaint on first show or when the peer COUNT changes.
-  if (!g_rcPrePanelShown || conn != prevConn) {
+  bool full = (!g_rcPrePanelShown || conn != prevConn);
+  if (full) {
     g_rcPrePanelShown = true;
     prevConn = -999; prevFixed = -999;
     prevBaseSat = -1; prevBaseHdop = -1; prevBaseHacc = -1; prevBaseReady = -1;
@@ -1924,8 +1975,8 @@ void drawRcPreRacePanel() {
     }
     tft.fillScreen(COLOR_BG);
     tft.fillRect(0, 0, SCREEN_WIDTH, 34, TFT_BLACK);
-    tft.setTextColor(TFT_WHITE, TFT_BLACK); tft.setTextDatum(TL_DATUM);
-    tft.drawString("RC PRE-RACE", 6, 8, 4);
+    // Top-left "RC PRE-RACE" label dropped — the time-of-day clock now
+    // occupies the top bar (drawRcClock); FIX gauge stays on the right.
     tft.setTextColor(COLOR_TEXT, COLOR_BG); tft.setTextDatum(TL_DATUM);
     tft.drawString("BOAT", CX_NAME, HDR_Y, 2);
     tft.drawString("ST",   CX_FIX,  HDR_Y, 2);
@@ -1966,7 +2017,7 @@ void drawRcPreRacePanel() {
   }
 
   // Peer rows (below the BASE row) — name · FIX · ACC · HDOP · SAT, big + black.
-  int maxRows = (SCREEN_HEIGHT - (ROW0 + rowH)) / rowH;
+  int maxRows = (SCREEN_HEIGHT - RC_FOOTER_H - (ROW0 + rowH)) / rowH;
   for (int i = 0; i < g_mesh_peer_count && i < maxRows; i++) {
     const MeshPeerState& p = g_mesh_peers[i];
     int q = p.fix_quality, sat = p.sat_count, hd = p.hdop_x10, ha = p.hacc_mm;
@@ -1986,6 +2037,9 @@ void drawRcPreRacePanel() {
     tft.drawString(h, CX_HDOP, y + 4, 4);
     tft.drawString(s, CX_SAT,  y + 4, 4);
   }
+
+  drawRcClock(full);
+  drawRcFooter(full);
 }
 
 // Format gps.utc_time (HHMMSS) + gps.date (DDMMYY) into ISO8601 "YYYY-MM-DDTHH:MM:SSZ".
