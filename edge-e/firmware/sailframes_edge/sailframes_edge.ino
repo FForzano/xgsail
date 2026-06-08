@@ -120,7 +120,7 @@
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.06.08.02"
+#define FW_VERSION    "2026.06.08.03"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -7079,7 +7079,8 @@ void processCommand(String cmd, bool fromTelnet) {
       unsigned long now = millis();
       for (int i = 0; i < g_mesh_peer_count; i++) {
         const MeshPeerState& p = g_mesh_peers[i];
-        tprintf("  peer 0x%08lx role=%u age=%lus rssi=%ddBm msgs=%lu lat=%.7f lon=%.7f sog=%.1fkt cog=%d hdg.heel=%d\n",
+        tprintf("  %-3s 0x%08lx role=%u age=%lus rssi=%ddBm msgs=%lu lat=%.7f lon=%.7f sog=%.1fkt cog=%d hdg.heel=%d\n",
+                boatNameForSender(p.sender_id),
                 (unsigned long)p.sender_id,
                 (unsigned)p.unit_role,
                 (now - p.last_seen_ms) / 1000,
