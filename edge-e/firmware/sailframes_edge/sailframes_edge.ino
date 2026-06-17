@@ -2256,8 +2256,7 @@ void setup() {
   tft.init();
   tft.setRotation(2);  // Portrait orientation (180° from rotation 0)
 #ifdef BUILD_B1
-  // ILI9341 IPS: if colors look inverted on the bench, flip this to true.
-  tft.invertDisplay(false);
+  tft.invertDisplay(true);   // ILI9341 IPS on B1 — bench-confirmed colors need inversion
 #else
   tft.invertDisplay(true);  // Required for correct colors on this ST7796 panel
 #endif
@@ -2318,7 +2317,11 @@ void setup() {
 
   // Draw device ID in HUGE font (fill most of the screen)
   tft.setTextColor(COLOR_TEXT, COLOR_BG);
+#ifdef BUILD_B1
+  tft.setTextSize(3);   // 2.8" 240px wide: a 5-char id ("UNCFG") must fit
+#else
   tft.setTextSize(8);
+#endif
   tft.drawString(config.boat_id, SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - 60, 4);
 
   // "Sailframes.com" - black, medium size
@@ -2328,7 +2331,11 @@ void setup() {
 
   // Firmware version at bottom - large enough to read across the cabin
   tft.setTextColor(COLOR_LABEL, COLOR_BG);
+#ifdef BUILD_B1
+  tft.setTextSize(1);   // "2026.06.08.03" at size 2 font 4 overflows 240px
+#else
   tft.setTextSize(2);
+#endif
   tft.drawString(FW_VERSION, SCREEN_WIDTH/2, SCREEN_HEIGHT - 40, 4);
   tft.setTextSize(1);
 
@@ -2661,7 +2668,18 @@ void lc29hConfigBase() {
 // Single entry point used at boot + on the `gps` reconfig command. With RTK
 // off this is EXACTLY configureLG290P() (byte-identical legacy path).
 void gnssConfigure() {
-  if (!config.rtk_enabled) { configureLG290P(); return; }
+  if (!config.rtk_enabled) {
+    configureLG290P();
+#ifdef BUILD_B1
+    // B1/LC29HEA: enable EPE (estimated position error) so gps.hacc_m gives a
+    // live horizontal-accuracy readout on the TFT even with RTK off. Sent after
+    // configureLG290P()'s save+restart → RAM-only, re-applied every boot. Kept
+    // out of configureLG290P() so the E (LG290P) build stays byte-identical.
+    sendPQTM("PQTMCFGMSGRATE,W,PQTMEPE,1,2");
+    delay(150);
+#endif
+    return;
+  }
   bool base = roleIsBase();
   if (g_hw == HW_B1) { if (base) lc29hConfigBase();  else lc29hConfigRover();  }
   else               { if (base) lg290pConfigBase(); else lg290pConfigRover(); }
@@ -3816,6 +3834,66 @@ static int prevDispSats = -1;
 static int prevRecState = -1;
 // d2LayoutDrawn declared globally near other display flags
 
+// ---- D2 layout geometry ----------------------------------------------------
+// E (3.5" 320x480): the original constants — the #else values below are byte-
+// identical to the literals this layout shipped with, so the E build is
+// unchanged. B1 (2.8" 240x320): the big fonts shrink to Font 8 x1 (75px) and
+// everything repacks into 320 px tall / 240 px wide; the HDOP cell is dropped
+// from the top bar (no room at 240 px).
+#ifdef BUILD_B1
+  #define D2_TOPBAR_H      22
+  #define D2_TB_TXT_Y       4
+  #define D2_TB_REC_X       3
+  #define D2_TB_FIX_X      66
+  #define D2_TB_SAT_X     108
+  #define D2_TB_SATN_X    150
+  #define D2_LBL_X          3
+  #define D2_LBL_FONT       2
+  #define D2_COG_LBL_Y     24
+  #define D2_COG_CLR_Y     42
+  #define D2_COG_CLR_H     80
+  #define D2_COG_VAL_Y     84
+  #define D2_DIV_Y        145
+  #define D2_SOG_LBL_Y    148
+  #define D2_SOG_CLR_Y    166
+  #define D2_SOG_CLR_H     80
+  #define D2_SOG_VAL_Y    210
+  #define D2_BIG_SZ         1
+  #define D2_BAR_CLR_Y    270
+  #define D2_BAR_CLR_H     50
+  #define D2_BAR_FILL_Y   272
+  #define D2_BAR_FILL_H    48
+  #define D2_ROW1_Y       278
+  #define D2_ROW2_Y       300
+#else
+  #define D2_TOPBAR_H      30
+  #define D2_TB_TXT_Y       7
+  #define D2_TB_REC_X       5
+  #define D2_TB_FIX_X     100
+  #define D2_TB_SAT_X     145
+  #define D2_TB_SATN_X    180
+  #define D2_TB_HDOP_X    210
+  #define D2_TB_HDOPV_X   250
+  #define D2_LBL_X          5
+  #define D2_LBL_FONT       4
+  #define D2_COG_LBL_Y     35
+  #define D2_COG_CLR_Y     60
+  #define D2_COG_CLR_H    155
+  #define D2_COG_VAL_Y    130
+  #define D2_DIV_Y        220
+  #define D2_SOG_LBL_Y    225
+  #define D2_SOG_CLR_Y    250
+  #define D2_SOG_CLR_H    155
+  #define D2_SOG_VAL_Y    320
+  #define D2_BIG_SZ         2
+  #define D2_BAR_CLR_Y    430
+  #define D2_BAR_CLR_H     50
+  #define D2_BAR_FILL_Y   440
+  #define D2_BAR_FILL_H    40
+  #define D2_ROW1_Y       440
+  #define D2_ROW2_Y       456
+#endif
+
 // Compact firmware tag for the status bar — YY.MM.DD.N from
 // FW_VERSION "YYYY.MM.DD.NN" (e.g. "26.05.20.2" from "2026.05.20.02").
 // Lazy-cached.
@@ -3878,19 +3956,19 @@ void updateDisplayD2() {
     // [BLACK: H P AWS AWA / BAT% W | WiFi N R ]  (50px, two rows)
 
     // BLACK bars for top and bottom
-    tft.fillRect(0, 0, SCREEN_WIDTH, 30, TFT_BLACK);
-    tft.fillRect(0, 440, SCREEN_WIDTH, 40, TFT_BLACK);
+    tft.fillRect(0, 0, SCREEN_WIDTH, D2_TOPBAR_H, TFT_BLACK);
+    tft.fillRect(0, D2_BAR_FILL_Y, SCREEN_WIDTH, D2_BAR_FILL_H, TFT_BLACK);
 
     // Divider between COG and SOG
     uint16_t lineColor = tft.color565(180, 180, 180);
-    tft.drawFastHLine(0, 220, SCREEN_WIDTH, lineColor);
+    tft.drawFastHLine(0, D2_DIV_Y, SCREEN_WIDTH, lineColor);
 
-    // Labels for COG and SOG - LARGE (Font 4 = 26px)
+    // Labels for COG and SOG - LARGE (Font 4 = 26px on E, Font 2 on B1)
     uint16_t labelColor = tft.color565(100, 100, 100);
     tft.setTextColor(labelColor, COLOR_BG);
     tft.setTextDatum(TL_DATUM);
-    tft.drawString("COG", 5, 35, 4);
-    tft.drawString("SOG", 5, 225, 4);
+    tft.drawString("COG", D2_LBL_X, D2_COG_LBL_Y, D2_LBL_FONT);
+    tft.drawString("SOG", D2_LBL_X, D2_SOG_LBL_Y, D2_LBL_FONT);
 
     // Reset prev values
     prevSOG = prevCOG = prevHeel = prevPitch = -999;
@@ -3911,7 +3989,7 @@ void updateDisplayD2() {
 
     // TOP BAR: WHITE text on BLACK background
     // Clear entire top bar first to prevent any ghosting
-    tft.fillRect(0, 0, SCREEN_WIDTH, 30, TFT_BLACK);
+    tft.fillRect(0, 0, SCREEN_WIDTH, D2_TOPBAR_H, TFT_BLACK);
 
     // Recording state (left side)
     const char* recStr;
@@ -3924,7 +4002,7 @@ void updateDisplayD2() {
     }
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(recStr, 5, 7, 2);
+    tft.drawString(recStr, D2_TB_REC_X, D2_TB_TXT_Y, 2);
 
     // Fix type (0=none, 1=GPS, 2=DGPS/SBAS, 4=RTK fix, 5=RTK float)
     const char* fixStr;
@@ -3935,17 +4013,19 @@ void updateDisplayD2() {
       case 5: fixStr = "FLT"; break;
       default: fixStr = "---"; break;
     }
-    tft.drawString(fixStr, 100, 7, 2);
+    tft.drawString(fixStr, D2_TB_FIX_X, D2_TB_TXT_Y, 2);
 
     // SAT count
-    tft.drawString("SAT", 145, 7, 2);
+    tft.drawString("SAT", D2_TB_SAT_X, D2_TB_TXT_Y, 2);
     snprintf(buf, sizeof(buf), "%2d", dispSats);
-    tft.drawString(buf, 180, 7, 2);
+    tft.drawString(buf, D2_TB_SATN_X, D2_TB_TXT_Y, 2);
 
-    // HDOP
-    tft.drawString("HDOP", 210, 7, 2);
+#ifndef BUILD_B1
+    // HDOP (dropped on B1 — no room at 240 px wide)
+    tft.drawString("HDOP", D2_TB_HDOP_X, D2_TB_TXT_Y, 2);
     snprintf(buf, sizeof(buf), "%.1f", gps.hdop);
-    tft.drawString(buf, 250, 7, 2);
+    tft.drawString(buf, D2_TB_HDOPV_X, D2_TB_TXT_Y, 2);
+#endif
     // WiFi status removed from top bar - shown on bottom bar instead
   }
 
@@ -3953,12 +4033,12 @@ void updateDisplayD2() {
   // COG area: 30-220 (190px), center at 130 (moved down to not overlap label)
   if (abs(gps.course - prevCOG) > 0.5) {
     prevCOG = gps.course;
-    tft.fillRect(0, 60, SCREEN_WIDTH, 155, COLOR_BG);
+    tft.fillRect(0, D2_COG_CLR_Y, SCREEN_WIDTH, D2_COG_CLR_H, COLOR_BG);
     tft.setTextColor(TFT_BLACK, COLOR_BG);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(2);
+    tft.setTextSize(D2_BIG_SZ);
     snprintf(buf, sizeof(buf), "%03d", (int)gps.course);
-    tft.drawString(buf, SCREEN_WIDTH/2, 130, 8);
+    tft.drawString(buf, SCREEN_WIDTH/2, D2_COG_VAL_Y, 8);
     tft.setTextSize(1);
   }
 
@@ -3978,13 +4058,42 @@ void updateDisplayD2() {
   if (strcmp(newSogBuf, prevSogBuf) != 0) {
     strcpy(prevSogBuf, newSogBuf);
     prevSOG = gps.speed_kts;
-    tft.fillRect(0, 250, SCREEN_WIDTH, 155, COLOR_BG);
+    tft.fillRect(0, D2_SOG_CLR_Y, SCREEN_WIDTH, D2_SOG_CLR_H, COLOR_BG);
     tft.setTextColor(TFT_BLACK, COLOR_BG);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextSize(2);
-    tft.drawString(newSogBuf, SCREEN_WIDTH/2, 320, 8);
+    tft.setTextSize(D2_BIG_SZ);
+    tft.drawString(newSogBuf, SCREEN_WIDTH/2, D2_SOG_VAL_Y, 8);
     tft.setTextSize(1);
   }
+
+#ifdef BUILD_B1
+  // B1: live GNSS quality in the COG/SOG label rows (top-right). HDOP next to
+  // COG; horizontal 1-sigma accuracy (gps.hacc_m from $PQTMEPE) next to SOG.
+  // These rows sit above the big-number clear regions, so value redraws don't
+  // wipe them. Updated only on change.
+  static float prevHDOP2 = -999, prevHacc = -999;
+  if (fabsf(gps.hdop - prevHDOP2) > 0.1f) {
+    prevHDOP2 = gps.hdop;
+    tft.fillRect(80, D2_COG_LBL_Y, SCREEN_WIDTH - 80, 18, COLOR_BG);
+    tft.setTextColor(tft.color565(100, 100, 100), COLOR_BG);
+    tft.setTextDatum(TR_DATUM);
+    char hb[16]; snprintf(hb, sizeof(hb), "HDOP %.1f", gps.hdop);
+    tft.drawString(hb, SCREEN_WIDTH - 3, D2_COG_LBL_Y, 2);
+    tft.setTextDatum(TL_DATUM);
+  }
+  if (fabsf(gps.hacc_m - prevHacc) > 0.005f) {
+    prevHacc = gps.hacc_m;
+    tft.fillRect(80, D2_SOG_LBL_Y, SCREEN_WIDTH - 80, 18, COLOR_BG);
+    tft.setTextColor(tft.color565(100, 100, 100), COLOR_BG);
+    tft.setTextDatum(TR_DATUM);
+    char ab[16];
+    if      (gps.hacc_m <= 0.0f) snprintf(ab, sizeof(ab), "ACC --");
+    else if (gps.hacc_m < 1.0f)  snprintf(ab, sizeof(ab), "ACC %dcm", (int)lroundf(gps.hacc_m * 100));
+    else                         snprintf(ab, sizeof(ab), "ACC %.1fm", gps.hacc_m);
+    tft.drawString(ab, SCREEN_WIDTH - 3, D2_SOG_LBL_Y, 2);
+    tft.setTextDatum(TL_DATUM);
+  }
+#endif
 
   // Bottom status bar - two rows on BLACK background
   static bool prevWindConnected = true;
@@ -4020,8 +4129,8 @@ void updateDisplayD2() {
     prevArmed = g_ocs.armed;
 
     // BOTTOM BAR: Two rows - WHITE on BLACK
-    // Clear entire bottom bar first (50px tall)
-    tft.fillRect(0, 430, SCREEN_WIDTH, 50, TFT_BLACK);
+    // Clear entire bottom bar first
+    tft.fillRect(0, D2_BAR_CLR_Y, SCREEN_WIDTH, D2_BAR_CLR_H, TFT_BLACK);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
     // Row 1 (y=440): Heel + Pitch always; AWS + AWA appended when wind connected.
@@ -4038,7 +4147,7 @@ void updateDisplayD2() {
       snprintf(row1, sizeof(row1), "H %+.0f  P %+.0f%s", imu.heel, imu.pitch, lineTag);
     }
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(row1, SCREEN_WIDTH/2, 440, 2);
+    tft.drawString(row1, SCREEN_WIDTH/2, D2_ROW1_Y, 2);
 
     // Row 2 (y=458):
     //   Left:  "BAT N% W"   (W appears immediately after BAT% when wind connected)
@@ -4055,7 +4164,7 @@ void updateDisplayD2() {
     } else {
       snprintf(left, sizeof(left), "BAT %d%% FW%s", battery.percent, fwShortTag());
     }
-    tft.drawString(left, 5, 456, 2);
+    tft.drawString(left, D2_LBL_X, D2_ROW2_Y, 2);
 
     // Right side: WiFi + IP when idle, falls back to counts during traffic.
     // IP next to the SSID indicator gives a debug surface for telnet/curl
@@ -4073,7 +4182,7 @@ void updateDisplayD2() {
       snprintf(right, sizeof(right), "%s", wifiInd);
     }
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(right, SCREEN_WIDTH - 5, 456, 2);
+    tft.drawString(right, SCREEN_WIDTH - 5, D2_ROW2_Y, 2);
     tft.setTextDatum(TL_DATUM);
   }
 }
