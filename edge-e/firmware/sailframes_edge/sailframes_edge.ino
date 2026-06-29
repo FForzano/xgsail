@@ -131,14 +131,26 @@
 #define B1_BATT_CUTOFF_MS   20000       // ...sustained this long (ride out GNSS/TFT sag transients)
 #define B1_CHARGED_V        4.15f       // battery-plateau "charged" inference (no TP4056 STDBY pin wired)
 #define B1_IDLE_OFF_MS      1800000UL   // 30 min charged+uploaded+idle on pad -> store-and-forget off
-#define B1_QI_DEBOUNCE_MS   200         // QI_PRESENT debounce (coil seating / contact bounce)
+// QI_PRESENT debounce, asymmetric (hysteresis): quick to latch ON (docking
+// stops recording promptly) but slow to release OFF, so a brief Qi-link wobble
+// from imperfect pad coupling doesn't flip the display or reset the on-pad
+// timers. A real lift holds QI low continuously, so OFF still fires in ~2.5 s.
+#define B1_QI_ON_MS         200
+#define B1_QI_OFF_MS        2500
 #endif
 
 // ============================================================
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.06.29.02"
+// Platform-specific so a B-only change doesn't re-rev (and needlessly re-OTA)
+// the E fleet, and vice versa. Bump the line for the platform you changed; CI
+// builds + publishes each variant at its own version.
+#ifdef BUILD_B1
+#define FW_VERSION    "2026.06.29.03"   // B (LC29HEA)
+#else
+#define FW_VERSION    "2026.06.29.02"   // E (LG290P)
+#endif
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -2996,6 +3008,10 @@ void updateBattery() {
   if (v < 2.5f || v > 4.35f) {
     if (battery.valid) { battery.lastRead = millis(); return; }
   }
+  // EMA-smooth the flaky B1 sense so the gauge doesn't bounce read-to-read
+  // (e.g. the 34/45/38% chatter seen on a poorly-coupled pad). Slow enough to
+  // steady the display, fast enough to track real charge/discharge over minutes.
+  if (battery.valid) v = 0.75f * battery.voltage + 0.25f * v;
 #endif
   battery.voltage = v;
   battery.percent = getBatteryPercent(v);
@@ -3048,14 +3064,21 @@ void handleLowBattery() {
 // Read QI_PRESENT with a simple debounce so coil-seating bounce / contact
 // chatter doesn't toggle the on-pad state. Returns the debounced level.
 static bool b1ReadQiPresent() {
-  static int lastRaw = -1;
-  static unsigned long lastChangeMs = 0;
-  static bool stable = false;
+  static unsigned long highSinceMs = 0;  // when raw last went HIGH (0 = currently low)
+  static unsigned long lowSinceMs  = 0;  // when raw last went LOW  (0 = currently high)
+  static bool state = false;             // debounced on-pad state
   int raw = digitalRead(QI_PRESENT_PIN);
   unsigned long now = millis();
-  if (raw != lastRaw) { lastRaw = raw; lastChangeMs = now; }
-  else if (now - lastChangeMs >= B1_QI_DEBOUNCE_MS) stable = (raw == HIGH);
-  return stable;
+  if (raw == HIGH) {
+    lowSinceMs = 0;
+    if (highSinceMs == 0) highSinceMs = now;
+    if (!state && now - highSinceMs >= B1_QI_ON_MS) state = true;    // quick latch ON
+  } else {
+    highSinceMs = 0;
+    if (lowSinceMs == 0) lowSinceMs = now;
+    if (state && now - lowSinceMs >= B1_QI_OFF_MS) state = false;    // slow release OFF (hysteresis)
+  }
+  return state;
 }
 
 // Release the self-power latch. Flush + close any open files and record the

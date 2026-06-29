@@ -56,16 +56,19 @@ jobs:
           cp edge-e/firmware/sailframes_edge/User_Setup.h "$TFT_LIB/User_Setup.h"
           echo "Installed User_Setup.h into $TFT_LIB"
 
-      - name: Extract firmware version
+      - name: Extract firmware versions (E + B are versioned independently)
         id: version
         run: |
-          VERSION=$(grep '#define FW_VERSION' edge-e/firmware/sailframes_edge/sailframes_edge.ino | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          if [ -z "$VERSION" ]; then
-            echo "Failed to extract FW_VERSION"
+          INO=edge-e/firmware/sailframes_edge/sailframes_edge.ino
+          V_E=$(grep '#define FW_VERSION' "$INO" | grep 'E (LG290P)'  | sed 's/.*"\([^"]*\)".*/\1/')
+          V_B=$(grep '#define FW_VERSION' "$INO" | grep 'B (LC29HEA)' | sed 's/.*"\([^"]*\)".*/\1/')
+          if [ -z "$V_E" ] || [ -z "$V_B" ]; then
+            echo "Failed to extract E/B FW_VERSION (check the #ifdef BUILD_B1 block + platform comments)"
             exit 1
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Firmware version: $VERSION"
+          echo "version_e=$V_E" >> "$GITHUB_OUTPUT"
+          echo "version_b=$V_B" >> "$GITHUB_OUTPUT"
+          echo "E firmware: $V_E   B firmware: $V_B"
 
       # Two binaries from one source: E (LG290P, default) and B1 (LC29HEA,
       # -DBUILD_B1). They are NOT interchangeable — GPIO19 is TFT_BL on E but
@@ -106,29 +109,30 @@ jobs:
 
       - name: Rename and hash artifacts
         run: |
-          V="${{ steps.version.outputs.version }}"
+          V_E="${{ steps.version.outputs.version_e }}"
+          V_B="${{ steps.version.outputs.version_b }}"
           mkdir -p build
-          cp build_e/sailframes_edge.ino.bin  "build/sailframes_edge_${V}.bin"
-          cp build_b1/sailframes_edge.ino.bin "build/sailframes_edge_b1_${V}.bin"
+          cp build_e/sailframes_edge.ino.bin  "build/sailframes_edge_${V_E}.bin"
+          cp build_b1/sailframes_edge.ino.bin "build/sailframes_edge_b1_${V_B}.bin"
           # bootloader + partitions (E variant — reference for a full USB flash)
-          cp build_e/sailframes_edge.ino.partitions.bin "build/sailframes_edge_${V}.partitions.bin" 2>/dev/null || true
-          cp build_e/sailframes_edge.ino.bootloader.bin "build/sailframes_edge_${V}.bootloader.bin" 2>/dev/null || true
+          cp build_e/sailframes_edge.ino.partitions.bin "build/sailframes_edge_${V_E}.partitions.bin" 2>/dev/null || true
+          cp build_e/sailframes_edge.ino.bootloader.bin "build/sailframes_edge_${V_E}.bootloader.bin" 2>/dev/null || true
           cd build
-          sha256sum "sailframes_edge_${V}.bin"    > "sailframes_edge_${V}.bin.sha256"
-          sha256sum "sailframes_edge_b1_${V}.bin" > "sailframes_edge_b1_${V}.bin.sha256"
+          sha256sum "sailframes_edge_${V_E}.bin"    > "sailframes_edge_${V_E}.bin.sha256"
+          sha256sum "sailframes_edge_b1_${V_B}.bin" > "sailframes_edge_b1_${V_B}.bin.sha256"
           ls -la
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: edge-firmware-${{ steps.version.outputs.version }}-${{ github.sha }}
+          name: edge-firmware-E${{ steps.version.outputs.version_e }}-B${{ steps.version.outputs.version_b }}-${{ github.sha }}
           path: |
-            build/sailframes_edge_${{ steps.version.outputs.version }}.bin
-            build/sailframes_edge_${{ steps.version.outputs.version }}.bin.sha256
-            build/sailframes_edge_b1_${{ steps.version.outputs.version }}.bin
-            build/sailframes_edge_b1_${{ steps.version.outputs.version }}.bin.sha256
-            build/sailframes_edge_${{ steps.version.outputs.version }}.partitions.bin
-            build/sailframes_edge_${{ steps.version.outputs.version }}.bootloader.bin
+            build/sailframes_edge_${{ steps.version.outputs.version_e }}.bin
+            build/sailframes_edge_${{ steps.version.outputs.version_e }}.bin.sha256
+            build/sailframes_edge_b1_${{ steps.version.outputs.version_b }}.bin
+            build/sailframes_edge_b1_${{ steps.version.outputs.version_b }}.bin.sha256
+            build/sailframes_edge_${{ steps.version.outputs.version_e }}.partitions.bin
+            build/sailframes_edge_${{ steps.version.outputs.version_e }}.bootloader.bin
           retention-days: 90
           if-no-files-found: warn
 
@@ -137,12 +141,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/sailframes_edge_${{ steps.version.outputs.version }}.bin
-            build/sailframes_edge_${{ steps.version.outputs.version }}.bin.sha256
-            build/sailframes_edge_b1_${{ steps.version.outputs.version }}.bin
-            build/sailframes_edge_b1_${{ steps.version.outputs.version }}.bin.sha256
-            build/sailframes_edge_${{ steps.version.outputs.version }}.partitions.bin
-            build/sailframes_edge_${{ steps.version.outputs.version }}.bootloader.bin
+            build/sailframes_edge_${{ steps.version.outputs.version_e }}.bin
+            build/sailframes_edge_${{ steps.version.outputs.version_e }}.bin.sha256
+            build/sailframes_edge_b1_${{ steps.version.outputs.version_b }}.bin
+            build/sailframes_edge_b1_${{ steps.version.outputs.version_b }}.bin.sha256
+            build/sailframes_edge_${{ steps.version.outputs.version_e }}.partitions.bin
+            build/sailframes_edge_${{ steps.version.outputs.version_e }}.bootloader.bin
 
       # OTA manifest publish — only on green main builds (not PRs).
       # Each device GETs firmware/<boat_id>/latest.json. The E and B1 binaries
@@ -161,18 +165,27 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
-          V="${{ steps.version.outputs.version }}"
+          V_E="${{ steps.version.outputs.version_e }}"
+          V_B="${{ steps.version.outputs.version_b }}"
           BUCKET="sailframes-fleet-data-prod"
           REGION="us-east-1"
 
-          # publish_variant <local-bin> <s3-key> <boat-id>...
-          # uploads the binary once at an immutable key, then fans a manifest
-          # pointing at it to each named boat's firmware/<boat>/latest.json.
+          # publish_variant <local-bin> <s3-key> <version> <boat-id>...
+          # Skips entirely if this variant's binary is byte-identical to what the
+          # fleet already runs (first boat's live manifest sha == new sha) — so a
+          # B-only change never re-uploads or re-manifests the unchanged E build.
+          # (E/B are versioned independently, so even a non-skip leaves the E
+          # manifest version unchanged and the E boats do not re-OTA.)
           publish_variant() {
-            local BIN_LOCAL="$1"; local KEY="$2"; shift 2
-            local SIZE SHA URL MANIFEST B
+            local BIN_LOCAL="$1"; local KEY="$2"; local VER="$3"; shift 3
+            local SIZE SHA URL MANIFEST B LIVE_SHA
             SIZE=$(stat -c%s "$BIN_LOCAL")
             SHA=$(sha256sum "$BIN_LOCAL" | awk '{print $1}')
+            LIVE_SHA=$(aws s3 cp "s3://${BUCKET}/firmware/$1/latest.json" - 2>/dev/null \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('sha256',''))" 2>/dev/null || echo "")
+            if [ "$LIVE_SHA" = "$SHA" ]; then
+              echo "Skip [$*] — already on ${SHA:0:12} (binary unchanged)"; return
+            fi
             URL="http://${BUCKET}.s3.${REGION}.amazonaws.com/${KEY}"
             echo "Uploading $BIN_LOCAL -> s3://${BUCKET}/${KEY}"
             aws s3 cp "$BIN_LOCAL" "s3://${BUCKET}/${KEY}" \
@@ -180,8 +193,8 @@ jobs:
               --cache-control "max-age=31536000,immutable"
             MANIFEST=$(mktemp)
             printf '{\n  "version": "%s",\n  "url": "%s",\n  "size": %s,\n  "sha256": "%s",\n  "git_sha": "%s",\n  "built_at": "%s"\n}\n' \
-              "$V" "$URL" "$SIZE" "$SHA" "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$MANIFEST"
-            echo "Manifest for $*:"; cat "$MANIFEST"
+              "$VER" "$URL" "$SIZE" "$SHA" "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$MANIFEST"
+            echo "Manifest for [$*]:"; cat "$MANIFEST"
             for B in "$@"; do
               aws s3 cp "$MANIFEST" "s3://${BUCKET}/firmware/${B}/latest.json" \
                 --content-type application/json \
@@ -192,5 +205,5 @@ jobs:
 
           # E fleet -> E binary.  B fleet -> B1 binary. Add new B units (B3, B4,
           # ...) to the B list as they're provisioned with a boat_id.
-          publish_variant "build/sailframes_edge_${V}.bin"    "firmware/sailframes_edge_${V}.bin"    E1 E2 E3 E4 E5 E6
-          publish_variant "build/sailframes_edge_b1_${V}.bin" "firmware/sailframes_edge_b1_${V}.bin" B1 B2
+          publish_variant "build/sailframes_edge_${V_E}.bin"    "firmware/sailframes_edge_${V_E}.bin"    "$V_E" E1 E2 E3 E4 E5 E6
+          publish_variant "build/sailframes_edge_b1_${V_B}.bin" "firmware/sailframes_edge_b1_${V_B}.bin" "$V_B" B1 B2
