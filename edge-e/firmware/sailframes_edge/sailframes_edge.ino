@@ -116,11 +116,29 @@
 // Power control: Hardware switch on boost converter
 // No software deep sleep - hardware switch cuts all power when OFF
 
+#ifdef BUILD_B1
+// ---- B1 v0.13 Qi-pad self-power latch (edge-b/hardware/B1_V013_QI_POWER.md) ----
+// B1 has NO hardware power switch. The ESP32 holds its own power: PWR_HOLD
+// (GPIO19) drives /LATCH_Q through R28(0 Ohm) -> MT3608 boost EN + Q_PWR gate.
+// HIGH = latched on (survives lift off the Qi pad); LOW = release (off, once
+// off the pad — on the pad the D7 rail keeps the MCU alive until lifted).
+// QI_PRESENT (GPIO15) reads the V_QI divider: HIGH = on the pad. Both pins are
+// free on B (TFT_BL is GPIO25 here); on E this block is compiled out and GPIO19
+// is the E backlight (TFT_BL in User_Setup.h) — never drive it there.
+#define PWR_HOLD_PIN        19
+#define QI_PRESENT_PIN      15
+#define B1_BATT_CUTOFF_V    3.30f       // off-pad auto-power-off threshold (LiPo overdischarge guard)
+#define B1_BATT_CUTOFF_MS   20000       // ...sustained this long (ride out GNSS/TFT sag transients)
+#define B1_CHARGED_V        4.15f       // battery-plateau "charged" inference (no TP4056 STDBY pin wired)
+#define B1_IDLE_OFF_MS      1800000UL   // 30 min charged+uploaded+idle on pad -> store-and-forget off
+#define B1_QI_DEBOUNCE_MS   200         // QI_PRESENT debounce (coil seating / contact bounce)
+#endif
+
 // ============================================================
 // CONFIGURATION
 // ============================================================
 // Firmware version: YYYY.MM.DD.N (date + daily build number)
-#define FW_VERSION    "2026.06.08.03"
+#define FW_VERSION    "2026.06.29.02"
 // v2.0.0 foundation: HW platform / unit role / radio mode skeleton.
 // 10 Hz GNSS + 10 Hz IMU are now baked-in firmware defaults (no longer
 // per-boat config knobs). config.txt holds per-boat / per-club state
@@ -457,6 +475,21 @@ char connectedSSID[64] = "";
 int uploadCount = 0, uploadTotal = 0;
 int uploadSuccess = 0, uploadFailed = 0;
 char uploadCurrentFile[32] = "";  // Short name of file being uploaded
+
+#ifdef BUILD_B1
+// B1 v0.13 Qi-pad self-power latch state (see PWR_HOLD/QI_PRESENT defines).
+// "Parked" is a non-blocking loop STATE, not a halt: loop() early-returns each
+// iteration after g_loopIter++/wdt-feed, so the Core-1 loop watchdog (gotcha
+// #22) never fires an esp_restart() that would re-run setup() and re-latch
+// PWR_HOLD HIGH (powering the unit back on). It dies when lifted off the pad.
+bool g_b1Parked            = false;  // latch released; loop() is in the parked early-return
+bool g_b1QiPresent         = false;  // debounced: device is on the Qi pad
+bool g_b1ParkScreenDrawn   = false;  // parked screen painted once
+bool g_b1ChargeShown       = false;  // on-pad charging screen painted once
+bool g_b1ChargeScreenActive = false; // charging screen currently owns the display
+unsigned long g_b1LowBattSinceMs = 0;  // 0 = not currently below cutoff while off-pad
+unsigned long g_b1IdleSinceMs    = 0;  // 0 = idle-on-pad (store-and-forget) timer not running
+#endif
 
 // Get short WiFi indicator based on connected SSID
 const char* getWifiIndicator() {
@@ -2072,6 +2105,16 @@ static bool formatGpsIso(char* out, size_t outSize) {
 }
 
 void setup() {
+#ifdef BUILD_B1
+  // FIRST GPIO op (before any slow init): latch our own power ON. A B1 always
+  // cold-boots on the Qi pad via the D7 rail; driving PWR_HOLD HIGH now makes
+  // the MT3608 boost self-sustaining so the unit survives being lifted off the
+  // pad. GPIO15=QI_PRESENT as INPUT (no pull) so the off-pad read is a solid
+  // LOW (the V_QI divider drives it HIGH on the pad). See B1_V013_QI_POWER.md.
+  pinMode(PWR_HOLD_PIN, OUTPUT);
+  digitalWrite(PWR_HOLD_PIN, HIGH);
+  pinMode(QI_PRESENT_PIN, INPUT);
+#endif
   Serial.begin(SERIAL_BAUD);
   delay(500);
 
@@ -2089,6 +2132,9 @@ void setup() {
                 ESP.getFreeHeap(),
                 (unsigned)esp_get_minimum_free_heap_size());
   Serial.println("=================================");
+#ifdef BUILD_B1
+  Serial.println("[B1PWR] PWR_HOLD(GPIO19)=HIGH — self-power latched. QI_PRESENT=GPIO15.");
+#endif
 
   // Create SD mutex for dual-core safety
   sdMutex = xSemaphoreCreateMutex();
@@ -2871,7 +2917,14 @@ void parseNMEA(const char* s) {
 // Calibrated: 4.165V actual = 3.70V displayed → ratio = 4.165/3.70 * 2.0 = 2.25
 // LiPo range 3.0V-4.2V → ADC sees 1.5V-2.1V (within ESP32 3.3V limit)
 // Current drain: 0.021mA (negligible)
+#ifdef BUILD_B1
+// B1 calibrated 2026-06-29: multimeter 4.096V (no load) read as 4.41V at ratio
+// 2.25 -> corrected ratio = 2.25 * 4.096/4.41 = 2.09. (B1's divider is nearer
+// the nominal 2.0 than E1's; the 2.25 was an E1-specific ADC-nonlinearity fudge.)
+const float BATT_DIVIDER_RATIO = 2.09;
+#else
 const float BATT_DIVIDER_RATIO = 2.25;
+#endif
 const int BATT_SAMPLES = 16;  // Average multiple readings for stability
 
 void setupBattery() {
@@ -2933,14 +2986,32 @@ bool isBatteryCritical() {
 }
 
 void updateBattery() {
-  battery.voltage = readBatteryVoltage();
-  battery.percent = getBatteryPercent(battery.voltage);
+  float v = readBatteryVoltage();
+#ifdef BUILD_B1
+  // B1's GPIO34 sense is flaky — it logs 0.00 V and 4.48 V for a pack that is
+  // really ~4.1 V (see /boot.log). Reject physically-impossible reads (a LiPo
+  // lives in ~2.5–4.35 V) and hold the last good value. This stops the gauge
+  // from flapping AND stops the on-pad charging screen from redrawing the big
+  // %% on every garbage sample (an avoidable SPI/CPU load spike near the lift).
+  if (v < 2.5f || v > 4.35f) {
+    if (battery.valid) { battery.lastRead = millis(); return; }
+  }
+#endif
+  battery.voltage = v;
+  battery.percent = getBatteryPercent(v);
   battery.critical = isBatteryCritical();
   battery.valid = true;
   battery.lastRead = millis();
 }
 
 void handleLowBattery() {
+#ifdef BUILD_B1
+  // B1 has no power switch and must never halt: low-battery power-off is owned
+  // by b1PowerTick() (off-pad + sustained -> b1EnterParked, a non-blocking loop
+  // state). A spin-halt here would freeze g_loopIter and the Core-1 loop
+  // watchdog (gotcha #22) would esp_restart() + re-latch PWR_HOLD back ON.
+  return;
+#else
   if (!battery.critical) return;
 
   Serial.println("[BATT] CRITICAL LOW BATTERY - Please flip power switch OFF!");
@@ -2967,7 +3038,165 @@ void handleLowBattery() {
   while (true) {
     delay(1000);
   }
+#endif
 }
+
+#ifdef BUILD_B1
+// ============================================================
+// B1 v0.13 Qi-pad self-power management (B1_V013_QI_POWER.md §6)
+// ============================================================
+// Read QI_PRESENT with a simple debounce so coil-seating bounce / contact
+// chatter doesn't toggle the on-pad state. Returns the debounced level.
+static bool b1ReadQiPresent() {
+  static int lastRaw = -1;
+  static unsigned long lastChangeMs = 0;
+  static bool stable = false;
+  int raw = digitalRead(QI_PRESENT_PIN);
+  unsigned long now = millis();
+  if (raw != lastRaw) { lastRaw = raw; lastChangeMs = now; }
+  else if (now - lastChangeMs >= B1_QI_DEBOUNCE_MS) stable = (raw == HIGH);
+  return stable;
+}
+
+// Release the self-power latch. Flush + close any open files and record the
+// cause to /boot.log BEFORE dropping PWR_HOLD — off the pad that drop is
+// instant power loss. On the pad the MCU stays alive on the D7 rail and loop()
+// parks (non-blocking) until the unit is lifted, at which point it dies.
+void b1EnterParked(const char* reason) {
+  if (g_b1Parked) return;
+  Serial.printf("[B1PWR] POWER OFF (%s) — releasing latch.\n", reason);
+  if (logging) {
+    if (navFile)  { navFile.flush();  navFile.close(); }
+    if (imuFile)  { imuFile.flush();  imuFile.close(); }
+    if (windFile) { windFile.flush(); windFile.close(); }
+    if (presFile) { presFile.flush(); presFile.close(); }
+    logging = false;
+  }
+  char line[96];
+  snprintf(line, sizeof(line), "poweroff reason=%s batt=%.2fV %d%%",
+           reason, battery.voltage, battery.percent);
+  appendBootLog(line);
+  Serial.flush();
+  g_b1Parked = true;
+  g_b1ParkScreenDrawn = false;
+  digitalWrite(PWR_HOLD_PIN, LOW);
+}
+
+// Non-blocking parked state — run every loop() iteration (after the wdt feed)
+// once g_b1Parked is set. Holds PWR_HOLD LOW, paints the parked screen once,
+// and idles briefly so g_loopIter keeps advancing (watchdogs stay fed, no
+// auto-restart). The unit powers down for real when lifted off the pad.
+void b1ParkedLoop() {
+  digitalWrite(PWR_HOLD_PIN, LOW);
+  if (oledOK && !g_b1ParkScreenDrawn) {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("POWERED OFF", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20, 4);
+    tft.drawString("lift off pad to finish", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 20, 2);
+    tft.setTextDatum(TL_DATUM);
+    g_b1ParkScreenDrawn = true;
+  }
+  delay(20);
+}
+
+// Power-management tick — evaluates the auto power-off triggers once per loop()
+// in the normal (non-parked) path. Deliberate off is the `poweroff` serial/
+// telnet command; there is intentionally NO lift-and-replace gesture (a coil-
+// alignment nudge on the pad would false-trigger it).
+void b1PowerTick() {
+  unsigned long now = millis();
+  g_b1QiPresent = b1ReadQiPresent();
+
+  // On the pad while recording = the sail is over and you've docked it. Stop
+  // the session (same as `stoprec`) so the stationary-upload path can ship it
+  // and the unit charges. Auto-start is speed-gated, so a stationary on-pad
+  // unit won't re-start. This is what makes "set it on the pad" mean
+  // stop+upload+charge for the sealed, button-less B unit.
+  if (g_b1QiPresent && logging) {
+    Serial.println("[B1PWR] on pad while recording — stopping session for upload.");
+    if (xSemaphoreTake(sdMutex, pdMS_TO_TICKS(1000))) {
+      if (navFile)  { navFile.flush();  navFile.close(); }
+      if (imuFile)  { imuFile.flush();  imuFile.close(); }
+      if (windFile) { windFile.flush(); windFile.close(); }
+      if (presFile) { presFile.flush(); presFile.close(); }
+      xSemaphoreGive(sdMutex);
+    }
+    logging = false;
+    recState = REC_IDLE;
+  }
+
+  // Trigger 1 — low battery while OFF the pad, sustained (ride out the sag from
+  // a GNSS fix burst / TFT redraw). On the pad we're charging: cutoff ignored.
+  bool battKnown = battery.valid && battery.voltage > 0.5f;
+  if (!g_b1QiPresent && battKnown && battery.voltage < B1_BATT_CUTOFF_V) {
+    if (g_b1LowBattSinceMs == 0) g_b1LowBattSinceMs = now;
+    else if (now - g_b1LowBattSinceMs >= B1_BATT_CUTOFF_MS) { b1EnterParked("low-batt"); return; }
+  } else {
+    g_b1LowBattSinceMs = 0;
+  }
+
+  // Trigger 3 — store-and-forget: charged + nothing left to upload + idle,
+  // sitting on the pad continuously for 30 min. Charge-complete itself NEVER
+  // drops PWR_HOLD (a charged unit must still race when lifted — §6 foot-gun);
+  // only this compound + timer does.
+  bool idleReady = g_b1QiPresent && battKnown && battery.voltage >= B1_CHARGED_V &&
+                   pendingUploads == 0 && !uploading && !triggerUpload && !logging;
+  if (idleReady) {
+    if (g_b1IdleSinceMs == 0) g_b1IdleSinceMs = now;
+    else if (now - g_b1IdleSinceMs >= B1_IDLE_OFF_MS) { b1EnterParked("idle-on-pad"); return; }
+  } else {
+    g_b1IdleSinceMs = 0;
+  }
+}
+
+// On-pad charging screen — paint-once + update-on-change (like the OCS screen)
+// to avoid per-tick flicker. Shows big battery %, and "CHARGED / LIFT to RACE"
+// once the pack plateaus.
+void drawB1ChargingScreen() {
+  if (!oledOK) return;
+  static int  prevPct = -1;
+  static bool prevFull = false;
+  bool full = battery.voltage >= B1_CHARGED_V;
+  if (!g_b1ChargeShown) {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("ON CHARGE", SCREEN_WIDTH / 2, 70, 4);
+    tft.setTextDatum(TL_DATUM);
+    g_b1ChargeShown = true;
+    prevPct = -1;
+    prevFull = !full;
+  }
+  if (battery.percent != prevPct) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d%%", battery.percent);
+    tft.fillRect(0, SCREEN_HEIGHT / 2 - 45, SCREEN_WIDTH, 95, TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextSize(2);  // font 4 x2 (~52px) — full charset, so '%' renders (fonts 6/7/8 are numeric-only)
+    tft.drawString(buf, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 4);
+    tft.setTextSize(1);
+    tft.setTextDatum(TL_DATUM);
+    prevPct = battery.percent;
+  }
+  if (full != prevFull) {
+    tft.fillRect(0, SCREEN_HEIGHT - 80, SCREEN_WIDTH, 60, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    if (full) {
+      tft.setTextColor(TFT_GREEN, TFT_BLACK);
+      tft.drawString("CHARGED", SCREEN_WIDTH / 2, SCREEN_HEIGHT - 58, 4);
+      tft.setTextColor(TFT_WHITE, TFT_BLACK);
+      tft.drawString("LIFT to RACE", SCREEN_WIDTH / 2, SCREEN_HEIGHT - 28, 2);
+    } else {
+      tft.setTextColor(TFT_WHITE, TFT_BLACK);
+      tft.drawString("charging...", SCREEN_WIDTH / 2, SCREEN_HEIGHT - 48, 2);
+    }
+    tft.setTextDatum(TL_DATUM);
+    prevFull = full;
+  }
+}
+#endif // BUILD_B1
 
 // Draw battery percentage at specified position (legacy function, battery now in main display)
 void drawBatteryPercent(int x, int y) {
@@ -4438,6 +4667,23 @@ void updateDisplayD3() {
 // flight, Core 0 owns the TFT exclusively; Core 1 stands down here.
 void updateDisplay() {
   if (otaInProgress) return;
+
+#ifdef BUILD_B1
+  // On the Qi pad and not recording: dedicated charging screen (takes priority
+  // over the nav/RC views — on the pad you're charging regardless of role).
+  if (g_b1QiPresent && !logging && !g_b1Parked) {
+    drawB1ChargingScreen();
+    g_b1ChargeScreenActive = true;
+    return;
+  }
+  if (g_b1ChargeScreenActive) {     // just lifted off the pad — force a nav repaint
+    g_b1ChargeScreenActive = false;
+    g_b1ChargeShown = false;
+    d2LayoutDrawn = false;
+    d3LayoutDrawn = false;
+    lastFullRedraw = 0;
+  }
+#endif
 
   // RC fleet panel takes over the screen while this unit is the armed Race
   // Committee — a live, colour-coded table of every peer's distance-to-line
@@ -7062,6 +7308,22 @@ void processCommand(String cmd, bool fromTelnet) {
     tprintf("Start threshold: >%.1f kt for %d sec\n", config.start_speed_knots, config.start_delay_sec);
     tprintf("Stop threshold: <%.1f kt for %d sec\n", config.stop_speed_knots, config.stop_delay_sec);
 
+#ifdef BUILD_B1
+  } else if (cmd == "power" || cmd == "qi") {
+    // B1 Qi-pad self-power latch status
+    tprintln("=== B1 Power (Qi latch) ===");
+    tprintf("PWR_HOLD(GPIO19): %s\n", digitalRead(PWR_HOLD_PIN) ? "HIGH (on)" : "LOW (released)");
+    tprintf("QI_PRESENT(GPIO15): %s\n", g_b1QiPresent ? "ON PAD" : "off pad");
+    tprintf("Battery: %.2fV %d%% %s\n", battery.voltage, battery.percent,
+            battery.voltage >= B1_CHARGED_V ? "(charged)" : "");
+    tprintf("Parked: %s\n", g_b1Parked ? "YES" : "no");
+  } else if (cmd == "poweroff" || cmd == "pwroff") {
+    // Deliberate power-off (sealed unit, no button). On the pad the unit stays
+    // alive on D7 and parks until lifted; off the pad it powers down now.
+    tprintln("[B1PWR] poweroff requested — releasing latch.");
+    b1EnterParked("cmd");
+#endif
+
   // v2.0.0 foundation commands (SF_FIRMWARE_V2_SPEC.md Stage 1)
   } else if (cmd == "hwid") {
     tprintf("platform=%s (config=%s)\n", hwName(g_hw), config.hardware_platform);
@@ -7917,6 +8179,13 @@ void loop() {
   g_loopSection = "top";
   unsigned long now = millis();
 
+#ifdef BUILD_B1
+  // B1 self-power latch released: stay in a non-blocking parked state. This is
+  // AFTER g_loopIter++/wdt-reset so both watchdogs keep being fed — a halt here
+  // would trip the Core-1 loop watchdog into a restart that re-latches power.
+  if (g_b1Parked) { g_loopSection = "b1-parked"; b1ParkedLoop(); return; }
+#endif
+
   // Stage 3.6 — cloud config apply rebooted-in-3s mechanism. The
   // upload task sets g_configRebootPending after a successful
   // config rewrite; we restart here on Core 1 so the upload task
@@ -8011,6 +8280,13 @@ void loop() {
 
   g_loopSection = "serial-cmd";
   handleSerialCommand();
+
+#ifdef BUILD_B1
+  // B1 Qi-pad power management: QI sense + the auto power-off triggers.
+  g_loopSection = "b1-power";
+  b1PowerTick();
+  if (g_b1Parked) return;   // tripped a trigger this iteration — out before logging
+#endif
 
   g_loopSection = "gps";
   if (config.rtk_enabled && roleIsBase()) readGPSBase();   // demux RTCM-out + 1 Hz NMEA

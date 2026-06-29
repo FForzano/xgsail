@@ -1,10 +1,20 @@
 # B1 v0.13 — Qi-pad on/off (magnet + button both removed)
 
-**Status: schematic + PCB COMPLETE on branch `b1/v013-qi-power` — DRC-clean and
-netlist-verified (J5 microSD fix + antenna keepout landed in the same pass). Firmware is
-spec-only (§6) — not yet written. Before fab: write the firmware, finish Option-1 antenna
-notch/overhang + LiPo (§7 — keepout done, overhang TBD), regenerate fab outputs, and
-ideally validate the antenna fix on an E1 bench unit first.**
+**Status: VALIDATED ON HARDWARE (2026-06-29) — survives multi-lift off the pad on battery
+at full radio load (FW 2026.06.29.01). The latch is proven good at the J17 `LATCH_DBG`
+header: LATCH_Q=3.269 V (R28 is a true 0 Ω jumper), MOSFET_GATE=12.6 mV (AO3401A load switch
+hard on). NOTE: an early "dies on lift" scare was a LOOSE BATTERY JST connector, not the
+power stage — reseat/verify the battery connector on every fresh board. Battery gauge
+calibrated for B1: GPIO34 divider ratio 2.09 (E1 stays 2.25); multimeter 4.096 V read as
+4.41 V at 2.25. v0.13 boards arrived 2026-06-28 — the self-power latch
+VALIDATED: a board boots on the pad and survives lift-off once PWR_HOLD is driven HIGH.
+FIRMWARE IMPLEMENTED in `sailframes_edge.ino` (FW 2026.06.28.01, all under `#ifdef BUILD_B1`;
+E build verified byte-identical except the version string). Two deltas from the original §6
+spec, both deliberate (see §6): (1) "parked" is a non-blocking loop state, never a halt —
+a spin would trip the Core-1 loop watchdog into a restart that re-latches power ON;
+(2) the lift-and-replace gesture was DROPPED (a coil-alignment nudge would false-trigger it)
+— deliberate off is the `poweroff` serial/telnet command, plus the 30-min idle-on-pad
+store-and-forget trigger.**
 
 This replaces the magnetic hall latch with **the Qi charging pad as the power switch** —
 no magnet, no button, **zero enclosure penetration** (best possible IP68). Place B1 on
@@ -117,10 +127,27 @@ enough.)
    trust DRC alone (the v0.12 microSD + U_HALL bugs were DRC-clean).
 6. Regenerate fab outputs (gerbers/BOM/CPL) only after DRC + the J5 + antenna fixes (§7).
 
-## 6. Firmware (spec — not yet written; B-platform gated)
+## 6. Firmware (IMPLEMENTED — FW 2026.06.28.01, gated `#ifdef BUILD_B1`)
 
-In `sailframes_edge.ino`, under `hardware_platform == B`. Set GPIO15 = `INPUT` (no pull)
-right after boot (see §3 divider note).
+In `sailframes_edge.ino`, gated at **compile time** by `#ifdef BUILD_B1` (NOT runtime
+`g_hw`): GPIO19 is physically `TFT_BL` on E (User_Setup.h), so an E binary must never
+touch it. Implemented as: `setup()` drives PWR_HOLD HIGH + GPIO15 `INPUT` as the first GPIO
+op; `b1PowerTick()` (per loop) evaluates the triggers; `b1EnterParked()` releases the latch;
+`b1ParkedLoop()` is the non-blocking parked state; `drawB1ChargingScreen()` is the on-pad UI;
+`power`/`poweroff` serial commands. Set GPIO15 = `INPUT` (no pull) right after boot (see §3
+divider note).
+
+> **Two deliberate deltas from the original spec below** (kept the spec text for context):
+> - **Parked = non-blocking loop state, never a halt.** `b1EnterParked()` sets `g_b1Parked`,
+>   drops PWR_HOLD, and `loop()` early-returns each iteration *after* `g_loopIter++`/wdt-feed.
+>   A `while(true)` halt would freeze `g_loopIter`, the Core-1 loop watchdog (gotcha #22)
+>   would `esp_restart()`, and `setup()` would re-latch PWR_HOLD HIGH ~90 s later → the unit
+>   powers itself back ON. Off-pad the latch drop is instant death anyway; on-pad it dies
+>   when lifted.
+> - **No lift-and-replace gesture (was trigger 2).** Qi coil alignment means users routinely
+>   nudge a board on the pad — a lift+replace within 3 s = normal handling, not a deliberate
+>   act. Deliberate off is now the **`poweroff`** serial/telnet command; store-and-forget is
+>   the **30-min idle-on-pad** trigger (3).
 
 **Core rule: `PWR_HOLD` stays HIGH the whole time the MCU is running, EXCEPT for three
 explicit power-off triggers.** This is the fix for the otherwise-fatal conflict below.

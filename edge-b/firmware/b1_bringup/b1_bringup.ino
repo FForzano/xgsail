@@ -53,7 +53,11 @@
 #define GNSS_PPS   39     // input-only
 // Battery + power latch
 #define PIN_VBAT   34     // ADC1_6, 100K/100K divider on VBAT
-#define PIN_LATCH  19     // LATCH_Q_RB (read-only — latch set => board ON)
+// v0.13 Qi-power: GPIO19 = PWR_HOLD. OUTPUT, drives /LATCH_Q via R28(0R).
+// HIGH = boost latched on (survives lift-off pad); LOW/hi-Z = off (R_PD pulls
+// LATCH_Q low). Must be driven HIGH as the FIRST GPIO op in setup(). On the pad
+// the MCU also lives on the D7/Qi rail, so the latch only matters once lifted.
+#define PIN_PWR_HOLD 19
 // Status LEDs (active LOW, 220R)
 #define LED_RED    33     // D4
 #define LED_WHITE  32     // D5
@@ -94,10 +98,12 @@ static void testBattery() {
 }
 
 static void testLatch() {
-  pinMode(PIN_LATCH, INPUT);
-  int q = digitalRead(PIN_LATCH);
-  Serial.printf("[LATCH] LATCH_Q_RB (GPIO19) = %d  -> latch %s (we're running, so should read HIGH)\n",
-                q, q ? "SET / board ON" : "CLEAR (?)");
+  // v0.13: GPIO19 is PWR_HOLD (OUTPUT). DO NOT pinMode(INPUT) — that tri-states
+  // it, R_PD pulls /LATCH_Q low, and the board powers ITSELF off the moment it's
+  // off-pad. digitalRead() on an OUTPUT returns the latched output register.
+  int q = digitalRead(PIN_PWR_HOLD);
+  Serial.printf("[LATCH] PWR_HOLD (GPIO19) driven = %d  -> boost latch %s (held by firmware)\n",
+                q, q ? "ON / will survive lift-off pad" : "OFF (?) — board would die on lift");
 }
 
 // ---------------- LEDs ----------------
@@ -252,6 +258,13 @@ static void help() {
 }
 
 void setup() {
+  // v0.13 Qi-power: latch our own power ON before anything slow. On the pad we
+  // boot via the D7/Qi rail; this drives /LATCH_Q (R28 0R) so the MT3608 boost
+  // stays enabled and V5_SW survives being lifted off the pad. WITHOUT this the
+  // board dies the instant Qi power is removed (see B1_V013_QI_POWER.md §6).
+  pinMode(PIN_PWR_HOLD, OUTPUT);
+  digitalWrite(PIN_PWR_HOLD, HIGH);
+
   Serial.begin(115200);
   delay(400);
   analogReadResolution(12);
@@ -279,7 +292,7 @@ void loop() {
   else if (cmd == "m") {
     Serial.println(F("[MON] battery + latch every 1s; send any line to stop"));
     while (!Serial.available()) {
-      Serial.printf("  BAT %.2fV  LATCH %d  heap %u\n", readBattV(), digitalRead(PIN_LATCH), ESP.getFreeHeap());
+      Serial.printf("  BAT %.2fV  PWR_HOLD %d  heap %u\n", readBattV(), digitalRead(PIN_PWR_HOLD), ESP.getFreeHeap());
       delay(1000);
     }
     Serial.readStringUntil('\n');
