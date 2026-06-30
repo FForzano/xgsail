@@ -171,21 +171,24 @@ jobs:
           REGION="us-east-1"
 
           # publish_variant <local-bin> <s3-key> <version> <boat-id>...
-          # Skips entirely if this variant's binary is byte-identical to what the
-          # fleet already runs (first boat's live manifest sha == new sha) — so a
-          # B-only change never re-uploads or re-manifests the unchanged E build.
-          # (E/B are versioned independently, so even a non-skip leaves the E
-          # manifest version unchanged and the E boats do not re-OTA.)
+          # Skips entirely if this variant's version already matches what the
+          # fleet's manifest advertises (first boat's live manifest version ==
+          # VER) — so a B-only change (which leaves V_E untouched) never
+          # re-uploads or re-manifests the E build. Version, not sha, because CI
+          # builds aren't byte-reproducible (embedded build metadata). This is
+          # consistent with the device OTA, which is itself version-equality
+          # gated: same version => no update would happen anyway. Bump the
+          # variant's FW_VERSION to deploy it.
           publish_variant() {
             local BIN_LOCAL="$1"; local KEY="$2"; local VER="$3"; shift 3
-            local SIZE SHA URL MANIFEST B LIVE_SHA
+            local SIZE SHA URL MANIFEST B LIVE_VER
+            LIVE_VER=$(aws s3 cp "s3://${BUCKET}/firmware/$1/latest.json" - 2>/dev/null \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
+            if [ "$LIVE_VER" = "$VER" ]; then
+              echo "Skip [$*] — manifest already at $VER (bump FW_VERSION to deploy)"; return
+            fi
             SIZE=$(stat -c%s "$BIN_LOCAL")
             SHA=$(sha256sum "$BIN_LOCAL" | awk '{print $1}')
-            LIVE_SHA=$(aws s3 cp "s3://${BUCKET}/firmware/$1/latest.json" - 2>/dev/null \
-              | python3 -c "import sys,json; print(json.load(sys.stdin).get('sha256',''))" 2>/dev/null || echo "")
-            if [ "$LIVE_SHA" = "$SHA" ]; then
-              echo "Skip [$*] — already on ${SHA:0:12} (binary unchanged)"; return
-            fi
             URL="http://${BUCKET}.s3.${REGION}.amazonaws.com/${KEY}"
             echo "Uploading $BIN_LOCAL -> s3://${BUCKET}/${KEY}"
             aws s3 cp "$BIN_LOCAL" "s3://${BUCKET}/${KEY}" \
