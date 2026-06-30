@@ -156,6 +156,10 @@
 
     <script>
     const BUCKET_BASE = 'https://sailframes-fleet-data-prod.s3.us-east-1.amazonaws.com';
+    // Self-hosted (MinIO) reads _boot.log through the API proxy; cloud reads
+    // the bucket directly. Toggled by config.js.
+    const API_BASE = window.SAILFRAMES_API_URL || window.location.origin;
+    const FLEET_VIA_API = !!window.SAILFRAMES_FLEET_VIA_API;
     const BOATS = ['E1','E2','E3','E4','E5','E6'];
     // Stable per-boat color palette (matches race.html assignment style).
     const BOAT_COLORS = {
@@ -248,7 +252,9 @@
 
     // --- Fetch ----------------------------------------------------------
     async function fetchBoat(boat) {
-        const url = `${BUCKET_BASE}/raw/${boat}/_boot.log?t=${Date.now()}`;
+        const url = FLEET_VIA_API
+            ? `${API_BASE}/api/fleet/bootlog/${boat}?t=${Date.now()}`
+            : `${BUCKET_BASE}/raw/${boat}/_boot.log?t=${Date.now()}`;
         try {
             const r = await fetch(url);
             if (!r.ok) return { boat, missing: true, status: r.status };

@@ -38,8 +38,26 @@ def _csv_reader(content):
     consume the rest of the file. Use everywhere a CSV is parsed."""
     return csv.DictReader(StringIO(content), quoting=csv.QUOTE_NONE)
 
-s3 = boto3.client('s3')
+def _make_s3_client():
+    """S3 client pointed at AWS S3 or, when SAILFRAMES_S3_ENDPOINT is set,
+    a self-hosted MinIO (path-style addressing). Duplicated from
+    web/api/storage.py so the Lambda deployment stays self-contained."""
+    endpoint = os.environ.get('SAILFRAMES_S3_ENDPOINT')
+    if not endpoint:
+        return boto3.client('s3')
+    from botocore.config import Config
+    return boto3.client(
+        's3', endpoint_url=endpoint,
+        config=Config(s3={'addressing_style': 'path'}),
+    )
+
+
+s3 = _make_s3_client()
 DATA_BUCKET = os.environ.get('DATA_BUCKET', 'sailframes-fleet-data-prod')
+
+# Self-hosted (MinIO) has no Lambda service: the deprecated RTCM3/PPK
+# trigger is skipped. RTCM3 was retired in firmware .09 anyway.
+SELF_HOSTED = bool(os.environ.get('SAILFRAMES_S3_ENDPOINT'))
 
 # Maximum gap between sessions to consider them part of the same sailing day
 SESSION_MERGE_GAP_MINUTES = 10
@@ -401,6 +419,10 @@ def process_file(bucket: str, key: str):
 
     # Handle RTCM3 files (raw GNSS data for PPK processing) - BEFORE downloading as text
     if sensor_type == 'rtcm3':
+        # Self-hosted has no PPK Lambda to trigger; RTCM3 is retired (firmware .09).
+        if SELF_HOSTED:
+            logger.info(f"RTCM3 file ignored in self-hosted mode: {filename}")
+            return
         # RTCM3 files are binary - just update manifest to track PPK status
         logger.info(f"RTCM3 file detected: {filename}")
 

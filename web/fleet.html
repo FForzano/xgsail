@@ -147,6 +147,10 @@
     <script>
     // -- Data model -------------------------------------------------
     const BUCKET_BASE = 'https://sailframes-fleet-data-prod.s3.us-east-1.amazonaws.com';
+    // Self-hosted (MinIO) reads the per-boat status files through the API
+    // proxy; cloud keeps reading the bucket directly. Toggled by config.js.
+    const API_BASE = window.SAILFRAMES_API_URL || window.location.origin;
+    const FLEET_VIA_API = !!window.SAILFRAMES_FLEET_VIA_API;
     const BOATS = ['E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
 
     // -- Named locations -------------------------------------------
@@ -368,8 +372,12 @@
     };
 
     async function fetchOne(boat) {
-        const url = `${BUCKET_BASE}/raw/${boat}/_health.json?t=${Date.now()}`;
-        const sdUrl = `${BUCKET_BASE}/raw/${boat}/_sd_health.json?t=${Date.now()}`;
+        const url = FLEET_VIA_API
+            ? `${API_BASE}/api/fleet/health/${boat}?t=${Date.now()}`
+            : `${BUCKET_BASE}/raw/${boat}/_health.json?t=${Date.now()}`;
+        const sdUrl = FLEET_VIA_API
+            ? `${API_BASE}/api/fleet/sd-health/${boat}?t=${Date.now()}`
+            : `${BUCKET_BASE}/raw/${boat}/_sd_health.json?t=${Date.now()}`;
         try {
             // Fetch both in parallel — SD health is independent of liveness
             // snapshot, so failure of one doesn't poison the other.

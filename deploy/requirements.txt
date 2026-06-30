@@ -1,0 +1,16 @@
+# Python deps for the self-hosted SailFrames API service (Docker).
+# numpy/pandas are required by the processing pipeline; slim/Debian base
+# pulls precompiled wheels (do not switch to alpine — see deploy/README.md).
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+boto3>=1.28
+requests>=2.31
+python-multipart>=0.0.9   # GPX UploadFile endpoint in web/api/race.py
+numpy>=1.24
+pandas>=2.0
+
+# Postgres metadata backend (SAILFRAMES_METADATA_BACKEND=postgres). Unused by
+# the default object backend, but harmless to install.
+sqlalchemy>=2.0
+psycopg[binary]>=3.1

@@ -9,13 +9,17 @@ import json
 import os
 from pathlib import Path
 
-import boto3
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from fastapi.responses import StreamingResponse
+
 from .auth import require_admin
 from .race import router as race_router
+from .ingest import router as ingest_router
+from .repositories import get_repos
+from .storage import get_blob_store, BlobNotFound
 
 app = FastAPI(
     title="SailFrames Analysis API",
@@ -32,79 +36,49 @@ app.add_middleware(
 
 # Include race/regatta router
 app.include_router(race_router)
+# Include self-hosted ingest webhook + download/fleet proxies (inert on cloud)
+app.include_router(ingest_router)
+
+
+@app.on_event("startup")
+def _seed_rbac():
+    """Seed default RBAC roles/permissions when using the Postgres backend."""
+    if os.environ.get("SAILFRAMES_METADATA_BACKEND", "object").lower() == "postgres":
+        from .auth import seed_defaults
+        from .db import get_sessionmaker
+        seed_defaults(get_sessionmaker())
 
 # Configuration
-S3_BUCKET = os.environ.get("SAILFRAMES_BUCKET", "sailframes-fleet-data-prod")
 DATA_PREFIX = os.environ.get("SAILFRAMES_DATA_PREFIX", "processed")
-LOCAL_DATA_DIR = os.environ.get("SAILFRAMES_LOCAL_DATA", None)
 
-s3 = boto3.client("s3") if not LOCAL_DATA_DIR else None
+# Single storage abstraction (s3 | minio | local), selected from env.
+blob = get_blob_store()
+# Structured metadata (sessions, boats, …) via the repository layer.
+repos = get_repos()
 
 
 def _load_json(key: str) -> dict:
-    """Load JSON from S3 or local filesystem."""
-    if LOCAL_DATA_DIR:
-        path = Path(LOCAL_DATA_DIR) / key
-        if not path.exists():
-            raise HTTPException(404, f"Data not found: {key}")
-        return json.loads(path.read_text())
-    resp = s3.get_object(Bucket=S3_BUCKET, Key=key)
-    return json.loads(resp["Body"].read())
+    """Load JSON from the configured blob store (404 if missing)."""
+    try:
+        return blob.get_json(key)
+    except BlobNotFound:
+        raise HTTPException(404, f"Data not found: {key}")
 
 
 def _list_keys(prefix: str) -> list[str]:
-    """List S3 keys or local files under prefix."""
-    if LOCAL_DATA_DIR:
-        base = Path(LOCAL_DATA_DIR) / prefix
-        if not base.exists():
-            return []
-        return [str(p.relative_to(Path(LOCAL_DATA_DIR))) for p in base.rglob("*") if p.is_file()]
-    keys = []
-    paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            keys.append(obj["Key"])
-    return keys
+    """List keys under prefix."""
+    return blob.list_keys(prefix)
 
 
 def _list_objects_with_metadata(prefix: str) -> list[dict]:
-    """List S3 objects with size and last modified metadata."""
-    if LOCAL_DATA_DIR:
-        base = Path(LOCAL_DATA_DIR) / prefix
-        if not base.exists():
-            return []
-        results = []
-        for p in base.rglob("*"):
-            if p.is_file():
-                stat = p.stat()
-                from datetime import datetime
-                results.append({
-                    "key": str(p.relative_to(Path(LOCAL_DATA_DIR))),
-                    "size": stat.st_size,
-                    "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat() + "Z",
-                })
-        return results
-    results = []
-    paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            results.append({
-                "key": obj["Key"],
-                "size": obj["Size"],
-                "last_modified": obj["LastModified"].isoformat(),
-            })
-    return results
+    """List objects with size and last modified metadata."""
+    return blob.list_with_metadata(prefix)
 
 
 def _generate_presigned_url(key: str, expiry: int = 3600) -> str:
-    """Generate presigned GET URL for S3 object."""
-    if LOCAL_DATA_DIR:
-        return f"/api/e1/download/{key}"
-    return s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": S3_BUCKET, "Key": key},
-        ExpiresIn=expiry,
-    )
+    """A browser-fetchable reference for a key: presigned URL (AWS) or proxy
+    path (MinIO / local). Backend decides; see ``BlobStore.download_ref``."""
+    return blob.download_ref(key, expiry)
 
 
 def _detect_file_type(filename: str) -> str:
@@ -265,46 +239,43 @@ def get_e1_file(device_id: str, date: str, filename: str):
     key = f"raw/{device_id}/{date}/{filename}"
 
     # Try raw first, then processed
-    try:
-        if LOCAL_DATA_DIR:
-            path = Path(LOCAL_DATA_DIR) / key
-            if not path.exists():
-                key = f"processed/{device_id}/{date}/{filename}"
-                path = Path(LOCAL_DATA_DIR) / key
-            if not path.exists():
-                raise HTTPException(404, f"File not found: {filename}")
-            stat = path.stat()
-            from datetime import datetime
-            metadata = {
-                "size_bytes": stat.st_size,
-                "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat() + "Z",
-                "content_type": "text/csv" if filename.endswith(".csv") else "application/octet-stream",
-            }
-        else:
-            try:
-                resp = s3.head_object(Bucket=S3_BUCKET, Key=key)
-            except Exception:
-                key = f"processed/{device_id}/{date}/{filename}"
-                resp = s3.head_object(Bucket=S3_BUCKET, Key=key)
-            metadata = {
-                "size_bytes": resp["ContentLength"],
-                "last_modified": resp["LastModified"].isoformat(),
-                "content_type": resp.get("ContentType", "application/octet-stream"),
-            }
-    except Exception as e:
+    meta = blob.head(key)
+    if meta is None:
+        key = f"processed/{device_id}/{date}/{filename}"
+        meta = blob.head(key)
+    if meta is None:
         raise HTTPException(404, f"File not found: {filename}")
+
+    last_modified = meta["last_modified"]
+    last_modified = last_modified.isoformat() if hasattr(last_modified, "isoformat") else str(last_modified)
 
     return {
         "key": key,
         "filename": filename,
         "file_type": _detect_file_type(filename),
-        "size_bytes": metadata["size_bytes"],
-        "size_formatted": _format_bytes(metadata["size_bytes"]),
-        "last_modified": metadata["last_modified"],
-        "content_type": metadata["content_type"],
+        "size_bytes": meta["size"],
+        "size_formatted": _format_bytes(meta["size"]),
+        "last_modified": last_modified,
+        "content_type": meta["content_type"],
         "download_url": _generate_presigned_url(key),
         "download_url_expires_in": 3600,
     }
+
+
+@app.get("/api/e1/download/{key:path}")
+def download_e1_file(key: str):
+    """Stream an object out of the blob store (used as the download target for
+    the ``local`` backend; harmless on other backends)."""
+    try:
+        chunks, content_type, _ = blob.open_stream(key)
+    except BlobNotFound:
+        raise HTTPException(404, f"File not found: {key}")
+    filename = key.rsplit("/", 1)[-1]
+    return StreamingResponse(
+        chunks,
+        media_type=content_type,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
 
 
 # --- Sessions ---
@@ -312,49 +283,23 @@ def get_e1_file(device_id: str, date: str, filename: str):
 @app.get("/api/sessions")
 def list_sessions():
     """List all available race sessions."""
-    keys = _list_keys(f"{DATA_PREFIX}/")
-    manifests = [k for k in keys if k.endswith("manifest.json")]
-
     sessions = []
-    for key in manifests:
-        try:
-            manifest = _load_json(key)
-            parts = key.split("/")
-            device_id = parts[1] if len(parts) > 2 else "unknown"
-            date = parts[2] if len(parts) > 2 else "unknown"
-
-            # Calculate duration from start_time/end_time if not in manifest
-            duration_sec = manifest.get("duration_sec")
-            if not duration_sec:
-                start_time = manifest.get("start_time")
-                end_time = manifest.get("end_time")
-                if start_time and end_time:
-                    try:
-                        from datetime import datetime
-                        start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                        end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
-                        duration_sec = int((end_dt - start_dt).total_seconds())
-                    except (ValueError, TypeError):
-                        duration_sec = 0
-                else:
-                    duration_sec = 0
-
-            sessions.append({
-                "device_id": device_id,
-                "date": date,
-                "start_time": manifest.get("start_time"),
-                "end_time": manifest.get("end_time"),
-                "duration_sec": duration_sec,
-                "duration_minutes": round(duration_sec / 60) if duration_sec else 0,
-                "sensors": manifest.get("sensors", []),
-                "has_video": manifest.get("has_video", False),
-                "has_analysis": manifest.get("has_analysis", False),
-                "boat": manifest.get("boat"),
-                "name": manifest.get("name"),
-                "session_id": manifest.get("session_id"),
-            })
-        except Exception:
-            continue
+    for s in repos.sessions.list():
+        duration_sec = s.duration_sec or 0
+        sessions.append({
+            "device_id": s.device_id,
+            "date": s.date,
+            "start_time": s.start_time,
+            "end_time": s.end_time,
+            "duration_sec": duration_sec,
+            "duration_minutes": round(duration_sec / 60) if duration_sec else 0,
+            "sensors": s.sensors if s.sensors is not None else [],
+            "has_video": s.has_video,
+            "has_analysis": s.has_analysis,
+            "boat": s.boat,
+            "name": s.name,
+            "session_id": s.session_id,
+        })
 
     return {"sessions": sorted(sessions, key=lambda s: s["date"], reverse=True)}
 
@@ -362,8 +307,10 @@ def list_sessions():
 @app.get("/api/sessions/{device_id}/{date}")
 def get_session(device_id: str, date: str):
     """Get session metadata and manifest."""
-    key = f"{DATA_PREFIX}/{device_id}/{date}/manifest.json"
-    return _load_json(key)
+    session = repos.sessions.get(device_id, date)
+    if session is None:
+        raise HTTPException(404, f"Session not found: {device_id}/{date}")
+    return session.to_dict()
 
 
 # --- Sensor Data ---
@@ -491,21 +438,16 @@ def get_stats(device_id: str, date: str):
 @app.get("/api/boats")
 def list_boats():
     """List all boat profiles."""
-    key = f"{DATA_PREFIX}/boats.json"
-    try:
-        return _load_json(key)
-    except HTTPException:
-        return {"boats": []}
+    return {"boats": [b.to_dict() for b in repos.boats.list()]}
 
 
 @app.get("/api/boats/{boat_id}")
 def get_boat(boat_id: str):
     """Get a specific boat profile."""
-    boats = list_boats()
-    for boat in boats.get("boats", []):
-        if boat.get("boat_id") == boat_id:
-            return boat
-    raise HTTPException(404, f"Boat not found: {boat_id}")
+    boat = repos.boats.get(boat_id)
+    if boat is None:
+        raise HTTPException(404, f"Boat not found: {boat_id}")
+    return boat.to_dict()
 
 
 # --- Leaderboard ---
@@ -558,31 +500,8 @@ def get_video(device_id: str, date: str):
 # --- Session Management ---
 
 def _delete_s3_prefix(prefix: str) -> int:
-    """Delete all objects under an S3 prefix. Returns count of deleted objects."""
-    if LOCAL_DATA_DIR:
-        base = Path(LOCAL_DATA_DIR) / prefix
-        count = 0
-        if base.exists():
-            import shutil
-            for p in base.rglob("*"):
-                if p.is_file():
-                    p.unlink()
-                    count += 1
-            # Remove empty directories
-            shutil.rmtree(base, ignore_errors=True)
-        return count
-
-    deleted = 0
-    paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
-        objects = page.get("Contents", [])
-        if objects:
-            s3.delete_objects(
-                Bucket=S3_BUCKET,
-                Delete={"Objects": [{"Key": obj["Key"]} for obj in objects]}
-            )
-            deleted += len(objects)
-    return deleted
+    """Delete all objects under a prefix. Returns count of deleted objects."""
+    return blob.delete_prefix(prefix)
 
 
 @app.delete("/api/sessions/{device_id}/{date}")
