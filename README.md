@@ -1,99 +1,103 @@
-# SailFrames
+# SailFrames One
 
-Open-source sailboat racing data logger and analytics platform.
+Open sailing analytics platform for race analysis, session replay, and fleet performance — self-hostable, hardware-agnostic, and built for extensibility.
 
-[sailframes.com](https://sailframes.com) | [github.com/sailframes](https://github.com/sailframes) | Apache 2.0 License
+SailFrames One is a software-first evolution of the original SailFrames project. It focuses on the application layer: user management, authentication, roles, data ingestion, storage, analytics, and web-based workflows for sailors, coaches, and teams.
 
-## What is SailFrames?
+## What SailFrames One Is
 
-SailFrames is a self-contained, waterproof data acquisition device for competitive sailboat racing. It captures high-precision GPS tracks, wind speed and direction, boat motion (heel/pitch/heading), barometric pressure, and cockpit video — all synchronized with GPS timestamps. Data syncs to AWS after each session for web-based race analysis and replay.
+SailFrames One is a platform for collecting, storing, and analyzing sailing session data.
 
-## Repository Structure
+It is designed to support:
 
-```
-sailframes/core/
-├── edge-s/            # Raspberry Pi edge device
-│   ├── services/      # Sensor acquisition (GPS, IMU, wind, pressure, camera)
-│   ├── scripts/       # Install, start, stop, Wi-Fi mode
-│   ├── config/        # Device configuration
-│   └── tests/         # Sensor connectivity tests
-├── edge-e/            # ESP32 edge device
-│   ├── hardware/      # KiCad PCB designs
-│   └── firmware/      # ESP32 Arduino firmware
-├── web/               # Dashboard web application
-│   ├── api/           # Backend API
-│   └── frontend/      # React frontend
-├── lambda/            # AWS Lambda functions
-├── processing/        # Post-race data processing
-├── infrastructure/    # AWS CDK/Terraform
-├── scripts/           # Utility scripts
-├── services/          # Systemd service definitions
-├── config/            # Shared configuration
-└── tests/             # Integration tests
-```
+- Self-hosted deployments
+- User authentication and role-based access
+- Database-backed storage
+- Session and race analysis workflows
+- Replay and coaching-oriented review tools
+- Hardware-agnostic ingestion through a defined protocol
 
-## Hardware
+The goal is to provide an open platform for sailing analytics that can work with dedicated devices, custom integrations, or external data sources, without tying the application to one specific hardware stack.
 
-| Component | Part | Interface |
-|-----------|------|-----------|
-| Compute | Raspberry Pi 5 | — |
-| GPS | u-blox ZED-F9P | USB |
-| Wind | Calypso Ultrasonic Mini | BLE 5.1 |
-| IMU | BNO085 (GY-BNO08X) | I2C @ 0x4A |
-| Pressure | DPS310 | I2C @ 0x77 |
-| Camera | Pi Camera 3 Wide | CSI |
-| Display | 1602 LCD + PCF8574T | I2C @ 0x27 |
-| Enclosure | IP67 sealed | Gore-Tex vent |
+## What SailFrames One Is Not
 
-## Quick Start (Edge Device)
+SailFrames One is **not** the hardware, firmware, or embedded edge stack from the original SailFrames repository.
 
-```bash
-# Clone the repo
-git clone https://github.com/sailframes/core.git
-cd core
+Those components may integrate with SailFrames One, but this repository is focused on the software platform and its data contract.
 
-# Run the installer on Raspberry Pi
-sudo bash edge-s/scripts/install.sh
+## Project Scope
 
-# Test all sensors
-python3 edge-s/tests/test_gps.py
-python3 edge-s/tests/test_imu.py
-python3 edge-s/tests/test_pressure.py
-python3 edge-s/tests/test_wind.py
-python3 edge-s/tests/test_camera.py
+This repository is intended to contain:
 
-# Start all services
-sudo bash edge-s/scripts/start.sh
+- Backend API
+- Frontend application
+- Database models and migrations
+- Authentication and authorization
+- Storage and ingestion services
+- Analytics and replay workflows
+- Protocol and integration documentation
+- Self-hosted deployment configuration
 
-# Check status
-sudo systemctl status sailframes-*
-```
+## Architecture Direction
 
-## Data Format
+SailFrames One follows a software-platform approach:
 
-All sensor data is timestamped with GPS time (UTC):
+1. Devices or external tools produce sailing data.
+2. Data is uploaded using a stable ingestion contract.
+3. The backend validates, stores, and processes session data.
+4. The web application exposes analysis, replay, and management features.
 
-```
-/mnt/sailframes-data/
-├── 2026-03-15/
-│   ├── gps/
-│   │   └── track_20260315_140000.csv
-│   ├── imu/
-│   │   └── imu_20260315_140000.csv
-│   ├── pressure/
-│   │   └── pressure_20260315_140000.csv
-│   ├── wind/
-│   │   └── wind_20260315_140000.csv
-│   └── video/
-│       └── cockpit_20260315_140000.mp4
-```
+This separation allows the platform to evolve independently from any one hardware implementation.
 
-## Fleet
+## Repository Status
 
-- 6 devices deployed
-- Sonar 23 and J/80 class boats
-- Boston Harbor, Massachusetts
+SailFrames One is currently under active development.
+
+The current focus includes:
+
+- Introducing users, login, and roles
+- Moving toward database-backed persistence
+- Replacing legacy cloud-specific assumptions
+- Defining a cleaner ingestion model for future device compatibility
+- Restructuring backend and frontend for long-term maintainability
+
+## Planned Capabilities
+
+- User accounts and organization/team workflows
+- Roles and permissions
+- Session import and ingestion APIs
+- Boat, crew, and event management
+- Race/session replay
+- Performance metrics and comparative analysis
+- Self-hosted deployment
+- Support for multiple device or data-provider integrations
+
+## Relationship to SailFrames Core
+
+SailFrames One is derived from the broader SailFrames effort, but it intentionally narrows the scope to the software application layer.
+
+Where the original project includes hardware, firmware, edge devices, and AWS-oriented infrastructure, SailFrames One aims to become a cleaner, self-hostable analytics platform with a stable integration surface for present and future devices.
+
+## Principles
+
+- **Open** — users can inspect, run, and extend the platform
+- **Self-hostable** — no mandatory vendor lock-in
+- **Hardware-agnostic** — devices integrate through protocols, not tight coupling
+- **Maintainable** — clear boundaries between frontend, backend, storage, and processing
+- **Extensible** — new integrations should not require rewriting the core platform
+
+## Development
+
+Project structure and local setup documentation will be expanded as the repository is stabilized.
+
+Planned top-level areas include:
+
+- `backend/`
+- `frontend/`
+- `docs/`
+- `examples/`
+- `scripts/`
 
 ## License
 
-Apache 2.0
+Apache 2.0, consistent with the original upstream project unless stated otherwise.

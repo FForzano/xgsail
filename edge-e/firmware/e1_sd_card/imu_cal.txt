@@ -1,2 +1,0 @@
-heel_offset=180.37
-pitch_offset=6.74
