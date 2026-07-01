@@ -21,6 +21,9 @@ from ...db.models import (
     ClubMemberORM,
     GroupORM,
     GroupMemberORM,
+    DeviceORM,
+    DeviceAssignmentORM,
+    SessionCrewORM,
     AuthRefreshTokenORM,
 )
 
@@ -70,6 +73,38 @@ def group_to_domain(orm: GroupORM) -> domain.Group:
             )
             for m in orm.members
         ],
+    )
+
+
+# --- Device (+ attribution windows) ---
+
+def assignment_to_domain(orm: DeviceAssignmentORM) -> domain.DeviceAssignment:
+    return domain.DeviceAssignment(
+        id=orm.id,
+        device_id=orm.device_id,
+        boat_id=orm.boat_id,
+        regatta_id=orm.regatta_id,
+        race_id=orm.race_id,
+        valid_from=orm.valid_from,
+        valid_to=orm.valid_to,
+        created_by=orm.created_by,
+        created_at=orm.created_at,
+    )
+
+
+def device_to_domain(orm: DeviceORM) -> domain.Device:
+    return domain.Device(
+        device_id=orm.device_id,
+        name=orm.name,
+        device_type=orm.device_type,
+        default_boat_id=orm.default_boat_id,
+        owner_type=orm.owner_type,
+        registered_by=orm.registered_by,
+        owned_by_club_id=orm.owned_by_club_id,
+        status=orm.status,
+        created_at=orm.created_at,
+        last_seen_at=orm.last_seen_at,
+        assignments=[assignment_to_domain(a) for a in orm.assignments],
     )
 
 
@@ -308,4 +343,17 @@ def session_to_domain(orm: SessionORM) -> domain.Session:
         has_video=orm.has_video,
         has_analysis=orm.has_analysis,
         trim=orm.trim,
+        owner_user_id=orm.owner_user_id,
+        boat_id=orm.boat_id,
+        visibility=orm.visibility or "private",
+        club_id=orm.club_id,
+        group_id=orm.group_id,
+        regatta_id=orm.regatta_id,
+        race_id=orm.race_id,
+        crew=[
+            domain.SessionCrew(
+                user_id=c.user_id, guest_name=c.guest_name, boat_role=c.boat_role
+            )
+            for c in orm.crew
+        ],
     )

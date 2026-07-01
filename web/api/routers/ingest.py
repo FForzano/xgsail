@@ -10,6 +10,7 @@ The companion self-hosted plumbing lives alongside this router:
 proxies).
 """
 
+import logging
 import os
 import urllib.parse
 
@@ -17,7 +18,49 @@ from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(tags=["ingest"])
 
+logger = logging.getLogger(__name__)
+
 HOOK_TOKEN = os.environ.get("SAILFRAMES_HOOK_TOKEN")
+
+
+def _attribute_sessions(records: list) -> None:
+    """Phase 4/5 ingest hook: resolve the device→boat snapshot for each freshly
+    processed session and persist ``boat_id``/``boat`` into the authoritative
+    store (DB row on Postgres, ``manifest.json`` on object) via
+    ``SessionRepo.upsert``.
+
+    Best-effort and idempotent: it never overwrites a session already claimed
+    (``owner_user_id`` set) and preserves crew/visibility. Wrapped by the caller
+    so an attribution failure can never fail the ingest itself. Attribution uses
+    the resolution order in ``DeviceRepo.resolve_boat`` (covering assignment
+    window at ``start_time`` → ``default_boat_id`` → unclaimed)."""
+    from ..repositories import get_repos
+
+    repos = get_repos()
+    seen = set()
+    for record in records:
+        try:
+            key = record["s3"]["object"]["key"]  # raw/{device_id}/{date}/{file}.csv
+        except (KeyError, TypeError):
+            continue
+        parts = key.split("/")
+        if len(parts) < 4:
+            continue
+        device_id, date = parts[1], parts[2]
+        if (device_id, date) in seen:
+            continue
+        seen.add((device_id, date))
+
+        session = repos.sessions.get(device_id, date)
+        if session is None or session.owner_user_id is not None:
+            continue  # not processed yet, or already user-claimed — leave it
+        at = session.start_time or date
+        boat_id = repos.devices.resolve_boat(device_id, at)
+        if boat_id and session.boat_id != boat_id:
+            session.boat_id = boat_id
+            if not session.boat:
+                session.boat = boat_id
+            repos.sessions.upsert(session)
 
 
 @router.post("/hooks/minio")
@@ -62,4 +105,12 @@ async def minio_hook(request: Request):
     from handler import lambda_handler
 
     result = lambda_handler({"Records": records}, None)
+
+    # Phase 4/5: attribute the freshly processed sessions to their boat. Never
+    # let an attribution error fail the ingest — the manifest is already written.
+    try:
+        _attribute_sessions(records)
+    except Exception:  # pragma: no cover - defensive
+        logger.exception("session boat-attribution failed (ingest still ok)")
+
     return {"status": "ok", "processed": len(records), "result": result}

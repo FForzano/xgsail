@@ -94,9 +94,10 @@ class SessionRepo(ABC):
     def get(self, device_id: str, date: str) -> Optional[domain.Session]: ...
 
     def upsert(self, session: domain.Session) -> domain.Session:
-        """Persist a session record. No-op for backends where the blob
-        manifest is the source of truth (object); the SQL backend writes a row.
-        Used by the ingest pipeline to keep the table populated."""
+        """Persist a session record to the deploy's authoritative store: the
+        blob ``manifest.json`` (object backend) or the ``sessions`` row + crew
+        (SQL backend). Used by the ingest boat-snapshot hook and the crew-edit
+        endpoint. The default is a no-op; both concrete backends override it."""
         return session
 
 
@@ -166,6 +167,28 @@ class GroupRepo(ABC):
     def is_member(self, group_id: int, user_id: int) -> bool: ...
 
 
+class DeviceRepo(ABC):
+    """Tracker registry + attribution windows. ``add_assignment`` rejects
+    overlapping windows for a device (raises ``ValueError`` → 409 at the
+    router). ``resolve_boat`` applies: covering window → default_boat_id →
+    None."""
+
+    @abstractmethod
+    def list(self) -> list[domain.Device]: ...
+    @abstractmethod
+    def get(self, device_id: str) -> Optional[domain.Device]: ...
+    @abstractmethod
+    def register(self, device: domain.Device) -> domain.Device: ...
+    @abstractmethod
+    def add_assignment(self, assignment: domain.DeviceAssignment) -> domain.DeviceAssignment: ...
+    @abstractmethod
+    def list_assignments(self, device_id: str) -> "list[domain.DeviceAssignment]": ...
+    @abstractmethod
+    def resolve_boat(self, device_id: str, at_iso: str) -> Optional[str]: ...
+    @abstractmethod
+    def touch_last_seen(self, device_id: str, at_iso: str) -> bool: ...
+
+
 class Repositories:
     """Facade bundling one repo per aggregate."""
 
@@ -180,6 +203,7 @@ class Repositories:
         auth_tokens: AuthTokenRepo,
         clubs: ClubRepo,
         groups: GroupRepo,
+        devices: DeviceRepo,
     ):
         self.regattas = regattas
         self.racedays = racedays
@@ -190,3 +214,4 @@ class Repositories:
         self.auth_tokens = auth_tokens
         self.clubs = clubs
         self.groups = groups
+        self.devices = devices

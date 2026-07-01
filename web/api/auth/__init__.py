@@ -14,9 +14,10 @@ from .permissions import (
     current_user,
     require_user,
     verify_csrf,
+    session_visible_to,
 )
 from .passwords import hash_password, verify_password
-from .seed import seed_defaults, seed_superadmin
+from .seed import seed_defaults, seed_superadmin, seed_devices
 
 __all__ = [
     "require_admin",
@@ -24,8 +25,10 @@ __all__ = [
     "current_user",
     "require_user",
     "verify_csrf",
+    "session_visible_to",
     "hash_password",
     "verify_password",
     "seed_defaults",
     "seed_superadmin",
+    "seed_devices",
 ]

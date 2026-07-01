@@ -9,7 +9,8 @@ from .raceday import RaceDayORM
 from .race import RaceORM, MarkORM, RaceBoatORM, RaceResultORM
 from .boat import BoatORM, BoatMemberORM
 from .group import GroupORM, GroupMemberORM
-from .session import SessionORM
+from .device import DeviceORM, DeviceAssignmentORM
+from .session import SessionORM, SessionCrewORM
 from .rbac import (
     UserORM,
     ClubORM,
@@ -32,7 +33,10 @@ __all__ = [
     "BoatMemberORM",
     "GroupORM",
     "GroupMemberORM",
+    "DeviceORM",
+    "DeviceAssignmentORM",
     "SessionORM",
+    "SessionCrewORM",
     "UserORM",
     "ClubORM",
     "ClubMemberORM",

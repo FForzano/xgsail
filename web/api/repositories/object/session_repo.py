@@ -69,3 +69,16 @@ class ObjectSessionRepo(SessionRepo):
         except BlobNotFound:
             return None
         return _to_session(manifest, device_id, date)
+
+    def upsert(self, session: domain.Session) -> domain.Session:
+        """Write the session back to its ``manifest.json`` — the source of truth
+        in object mode. Merges onto any existing manifest so unmodelled keys the
+        processing pipeline wrote (cameras, etc.) are preserved. Used by the
+        ingest boat-snapshot hook and the crew-edit endpoint."""
+        key = f"{self.data_prefix}/{session.device_id}/{session.date}/manifest.json"
+        try:
+            existing = self.blob.get_json(key)
+        except BlobNotFound:
+            existing = {}
+        self.blob.put_json(key, {**existing, **session.to_dict()})
+        return session

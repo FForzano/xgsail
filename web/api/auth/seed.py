@@ -74,6 +74,30 @@ def seed_defaults(session_factory) -> None:
         s.commit()
 
 
+# The real physical fleet (the only concrete devices we have). Mirrors the
+# `const BOATS` list in web/fleet.html. No fictional B* units.
+FLEET_DEVICE_IDS = ["E1", "E2", "E3", "E4", "E5", "E6"]
+
+
+def seed_devices(repos) -> None:
+    """Register the physical E1–E6 fleet in the device registry on both
+    metadata backends. Idempotent — skips devices that already exist, so it
+    never clobbers a hand-edited default_boat_id / assignment."""
+    for device_id in FLEET_DEVICE_IDS:
+        if repos.devices.get(device_id) is not None:
+            continue
+        from .. import domain
+
+        repos.devices.register(domain.Device(
+            device_id=device_id,
+            name=device_id,
+            device_type="sailframes_e",
+            owner_type="club",
+            status="active",
+            created_at=datetime.now(timezone.utc).isoformat(),
+        ))
+
+
 def seed_superadmin(repos) -> None:
     """Backend-agnostic bootstrap superadmin from env, via the user repo.
 

@@ -7,7 +7,15 @@ deletion, and the bulk cleanup of short/unassigned sessions.
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from ..auth import require_admin
+from .. import domain
+from ..auth import (
+    current_user,
+    require_admin,
+    require_user,
+    session_visible_to,
+    verify_csrf,
+)
+from ..schemas import SessionCrewModel
 from ._common import (
     DATA_PREFIX,
     delete_prefix,
@@ -18,12 +26,24 @@ from ._common import (
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
+# Standing-crew roles on a boat that may edit its sessions' crew/attribution.
+BOAT_MANAGE_ROLES = ["owner", "skipper"]
+
 
 @router.get("")
-def list_sessions():
-    """List all available race sessions."""
+def list_sessions(request: Request):
+    """List race sessions visible to the caller.
+
+    Stays open (no auth required) but the response is **filtered** by the
+    visibility rule: an anonymous caller sees only ``public`` sessions; a
+    logged-in caller also sees their own / crewed / club / group ones. Historical
+    sessions backfilled to ``public`` keep showing, so the public dashboard is
+    unaffected."""
+    user = current_user(request)
     sessions = []
     for s in repos.sessions.list():
+        if not session_visible_to(s, user):
+            continue
         duration_sec = s.duration_sec or 0
         sessions.append({
             "device_id": s.device_id,
@@ -38,18 +58,77 @@ def list_sessions():
             "boat": s.boat,
             "name": s.name,
             "session_id": s.session_id,
+            "visibility": s.visibility,
+            "boat_id": s.boat_id,
         })
 
     return {"sessions": sorted(sessions, key=lambda s: s["date"], reverse=True)}
 
 
 @router.get("/{device_id}/{date}")
-def get_session(device_id: str, date: str):
-    """Get session metadata and manifest."""
+def get_session(device_id: str, date: str, request: Request):
+    """Get session metadata and manifest (subject to the visibility rule)."""
     session = repos.sessions.get(device_id, date)
     if session is None:
         raise HTTPException(404, f"Session not found: {device_id}/{date}")
+    if not session_visible_to(session, current_user(request)):
+        # 404 (not 403) so a private session isn't even confirmed to exist.
+        raise HTTPException(404, f"Session not found: {device_id}/{date}")
     return session.to_dict()
+
+
+def _can_edit_session(session: domain.Session, device_id: str, user) -> bool:
+    """Owner/skipper of the attributed boat, whoever registered the device (for
+    an unclaimed session), the session owner, or a superadmin."""
+    if user.is_superadmin:
+        return True
+    if session.owner_user_id is not None and session.owner_user_id == user.id:
+        return True
+    if session.boat_id is not None and repos.boats.is_member(
+        session.boat_id, user.id, roles=BOAT_MANAGE_ROLES
+    ):
+        return True
+    if session.owner_user_id is None:
+        device = repos.devices.get(device_id)
+        if device is not None and device.registered_by == user.id:
+            return True
+    return False
+
+
+@router.patch("/{device_id}/{date}/crew")
+def edit_session_crew(device_id: str, date: str, body: SessionCrewModel, request: Request):
+    """Edit a session's crew (guests allowed) and optionally claim its boat /
+    set visibility. Writes to the deploy's authoritative store via the repo."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = repos.sessions.get(device_id, date)
+    if session is None:
+        raise HTTPException(404, f"Session not found: {device_id}/{date}")
+    if not _can_edit_session(session, device_id, user):
+        raise HTTPException(403, "Not allowed to edit this session")
+
+    crew = []
+    for slot in body.crew:
+        if (slot.user_id is None) == (slot.guest_name is None):
+            raise HTTPException(422, "Each crew slot needs exactly one of user_id / guest_name")
+        crew.append(domain.SessionCrew(
+            user_id=slot.user_id, guest_name=slot.guest_name, boat_role=slot.boat_role,
+        ))
+    session.crew = crew
+    if body.boat_id is not None:
+        session.boat_id = body.boat_id
+    if body.visibility is not None:
+        session.visibility = body.visibility
+    if body.club_id is not None:
+        session.club_id = body.club_id
+    if body.group_id is not None:
+        session.group_id = body.group_id
+    # Claim an unclaimed session for the editor.
+    if session.owner_user_id is None:
+        session.owner_user_id = user.id
+
+    repos.sessions.upsert(session)
+    return repos.sessions.get(device_id, date).to_dict()
 
 
 @router.delete("/{device_id}/{date}")

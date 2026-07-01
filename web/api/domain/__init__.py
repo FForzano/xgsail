@@ -14,11 +14,12 @@ from .regatta import Regatta
 from .raceday import RaceDay
 from .race import Race, Mark, RaceBoat, StartFinishLine, RaceResult
 from .boat import Boat, BoatMember
-from .session import Session
+from .session import Session, SessionCrew
 from .user import User
 from .auth_token import AuthRefreshToken
 from .club import Club, ClubMember
 from .group import Group, GroupMember
+from .device import Device, DeviceAssignment
 
 __all__ = [
     "DomainModel",
@@ -32,10 +33,13 @@ __all__ = [
     "Boat",
     "BoatMember",
     "Session",
+    "SessionCrew",
     "User",
     "AuthRefreshToken",
     "Club",
     "ClubMember",
     "Group",
     "GroupMember",
+    "Device",
+    "DeviceAssignment",
 ]
