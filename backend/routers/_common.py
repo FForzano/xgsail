@@ -79,21 +79,6 @@ def delete_prefix(prefix: str) -> int:
     return blob.delete_prefix(prefix)
 
 
-# --- Race dict helpers (repository-backed) --------------------------------
-# TODO(api-project): repos.races is None in the er-project phase (only the
-# disabled races router calls these; rebuild them with the new schema).
-
-def get_race_dict(race_id: str) -> dict:
-    """Load a race as a plain dict via the repository ({} if missing)."""
-    race = repos.races.get(race_id)
-    return race.to_dict() if race else {}
-
-
-def save_race_dict(race_data: dict) -> None:
-    """Persist a race dict back through the repository."""
-    repos.races.save_dict(race_data)
-
-
 # --- Misc -----------------------------------------------------------------
 
 def now_iso() -> str:

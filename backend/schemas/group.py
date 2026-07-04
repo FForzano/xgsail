@@ -1,21 +1,21 @@
-"""Group request DTOs."""
+"""Group request DTOs: groups + user_groups membership."""
 
+import uuid
 from typing import Optional
 
 from pydantic import BaseModel
 
 
-class GroupCreateModel(BaseModel):
-    name: str
+class GroupWriteModel(BaseModel):
+    name: Optional[str] = None  # required on create, enforced by the router
     description: Optional[str] = None
-    default_session_visibility: str = "private"
+    visibility: Optional[str] = None  # public | private
 
 
-class GroupInviteModel(BaseModel):
-    user_id: int
-    role: str = "member"  # admin | member
-    status: str = "invited"  # invited | active
+class GroupMemberModel(BaseModel):
+    user_id: Optional[uuid.UUID] = None  # omitted = the caller joins themselves
+    role: str = "member"  # owner | admin | member
 
 
-class GroupJoinModel(BaseModel):
-    group_id: int
+class GroupMemberRoleModel(BaseModel):
+    role: str

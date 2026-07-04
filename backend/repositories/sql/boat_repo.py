@@ -1,22 +1,24 @@
-"""SQL boat repository (+ ownership membership via ``user_boats``). Reads
-return ``BoatORM``; ``create``/``update`` take dicts (membership is managed via
-the dedicated member methods so a boat edit never clobbers the roster)."""
+"""SQL boat repository: boats + ``user_boats`` membership + ``boat_classes``
+catalog + ``boat_photos`` links. Reads return ORM rows; ``create``/``update``
+take dicts (membership is managed via the dedicated member methods so a boat
+edit never clobbers the roster)."""
 
 import uuid
 from typing import Optional
 
 from sqlalchemy import select, update
 
-from ...db.models import BoatORM, UserBoatORM
+from ...db.models import BoatClassORM, BoatORM, BoatPhotoORM, UserBoatORM
 
 _FIELDS = ("name", "type", "sail_number", "loa_m", "cert_id", "mbsa_id", "notes", "club_id")
+_CLASS_FIELDS = ("name", "description", "logo_id")
 
 
 class SqlBoatRepo:
     def __init__(self, session_factory):
         self.Session = session_factory
 
-    def list(self) -> list[BoatORM]:
+    def list(self) -> "list[BoatORM]":
         with self.Session() as s:
             return list(s.scalars(select(BoatORM)).all())
 
@@ -111,3 +113,91 @@ class SqlBoatRepo:
             if roles is not None:
                 q = q.where(UserBoatORM.role.in_(roles))
             return s.scalars(q).first() is not None
+
+    def list_boats_for_user(self, user_id: uuid.UUID,
+                            roles: "Optional[list]" = None) -> "list[BoatORM]":
+        with self.Session() as s:
+            q = (
+                select(BoatORM)
+                .join(UserBoatORM, UserBoatORM.boat_id == BoatORM.id)
+                .where(UserBoatORM.user_id == user_id)
+            )
+            if roles is not None:
+                q = q.where(UserBoatORM.role.in_(roles))
+            return list(s.scalars(q).all())
+
+    # --- boat_classes catalog ---
+
+    def list_classes(self) -> "list[BoatClassORM]":
+        with self.Session() as s:
+            return list(s.scalars(select(BoatClassORM)).all())
+
+    def get_class(self, class_id: uuid.UUID) -> Optional[BoatClassORM]:
+        with self.Session() as s:
+            return s.get(BoatClassORM, class_id)
+
+    def create_class(self, data: dict) -> BoatClassORM:
+        with self.Session() as s:
+            orm = BoatClassORM(**{k: data.get(k) for k in _CLASS_FIELDS if k in data})
+            s.add(orm)
+            s.commit()
+            new_id = orm.id
+        return self.get_class(new_id)
+
+    def update_class(self, class_id: uuid.UUID, changes: dict) -> Optional[BoatClassORM]:
+        with self.Session() as s:
+            orm = s.get(BoatClassORM, class_id)
+            if orm is None:
+                return None
+            for k, v in changes.items():
+                if k in _CLASS_FIELDS:
+                    setattr(orm, k, v)
+            s.commit()
+        return self.get_class(class_id)
+
+    def delete_class(self, class_id: uuid.UUID) -> bool:
+        with self.Session() as s:
+            orm = s.get(BoatClassORM, class_id)
+            if orm is None:
+                return False
+            s.delete(orm)
+            s.commit()
+            return True
+
+    # --- boat_photos links ---
+
+    def list_photos(self, boat_id: uuid.UUID) -> "list[BoatPhotoORM]":
+        with self.Session() as s:
+            return list(s.scalars(
+                select(BoatPhotoORM).where(BoatPhotoORM.boat_id == boat_id)
+            ).all())
+
+    def add_photo(self, boat_id: uuid.UUID, image_id: uuid.UUID) -> BoatPhotoORM:
+        with self.Session() as s:
+            orm = BoatPhotoORM(boat_id=boat_id, image_id=image_id)
+            s.add(orm)
+            s.commit()
+            s.refresh(orm)
+            s.expunge(orm)
+            return orm
+
+    def get_photo(self, boat_id: uuid.UUID, image_id: uuid.UUID) -> Optional[BoatPhotoORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(BoatPhotoORM).where(
+                    BoatPhotoORM.boat_id == boat_id, BoatPhotoORM.image_id == image_id
+                )
+            ).first()
+
+    def remove_photo(self, boat_id: uuid.UUID, image_id: uuid.UUID) -> bool:
+        with self.Session() as s:
+            orm = s.scalars(
+                select(BoatPhotoORM).where(
+                    BoatPhotoORM.boat_id == boat_id, BoatPhotoORM.image_id == image_id
+                )
+            ).first()
+            if orm is None:
+                return False
+            s.delete(orm)
+            s.commit()
+            return True

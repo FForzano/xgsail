@@ -51,6 +51,33 @@ class SqlUserRepo:
             new_id = orm.id
         return self.get_by_id(new_id)
 
+    def update(self, user_id: uuid.UUID, changes: dict) -> Optional[UserORM]:
+        allowed = ("first_name", "last_name", "dob", "profile_image_id",
+                   "terms_and_conditions", "password_hash")
+        with self.Session() as s:
+            orm = s.get(UserORM, user_id)
+            if orm is None:
+                return None
+            for k, v in changes.items():
+                if k in allowed:
+                    setattr(orm, k, v)
+            s.commit()
+        return self.get_by_id(user_id)
+
+    def soft_delete(self, user_id: uuid.UUID) -> bool:
+        """Matrix delete = soft: status=deleted, deactivated, timestamped."""
+        from datetime import datetime, timezone
+
+        with self.Session() as s:
+            orm = s.get(UserORM, user_id)
+            if orm is None:
+                return False
+            orm.status = "deleted"
+            orm.is_active = False
+            orm.deleted_at = datetime.now(timezone.utc)
+            s.commit()
+            return True
+
     @staticmethod
     def _by_email(s, email: str) -> Optional[UserORM]:
         return s.scalars(

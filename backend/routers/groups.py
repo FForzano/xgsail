@@ -1,94 +1,189 @@
-"""Group endpoints (``/api/groups*``).
+"""Group endpoints (``/api/groups``).
 
-Free social groups, independent of clubs and boats — anyone can create one, the
-creator becomes an ``admin`` member. Plain membership (``group_members``) feeds
-the session-visibility filter; the ``admin`` role (not a single owner) grants
-management. Create/invite/join are authenticated + CSRF-protected. Listing is
-open, but ``?member=me`` narrows to the caller's own groups (and requires auth).
+Matrix: read pub if ``visibility=public`` else members only; create = auth
+(creator becomes ``user_groups.role=owner``); update owner/admin; delete owner
+(soft). Membership: invite by owner/admin, self-join only on public groups,
+role changes by owner.
 """
+
+import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ..auth import require_user, verify_csrf
-from ..schemas import GroupCreateModel, GroupInviteModel
-from ._common import now_iso, repos
+from ..auth import current_user, require_user, verify_csrf
+from ..schemas import GroupMemberModel, GroupMemberRoleModel, GroupWriteModel
+from ..services import media
+from ._common import repos
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
 
-def _is_active_admin(group, user) -> bool:
-    return any(
-        m.user_id == user.id and m.role == "admin" and m.status == "active"
-        for m in group.members
-    )
+def _require_group(group_id: uuid.UUID):
+    group = repos.groups.get(group_id)
+    if group is None or group.deleted_at is not None:
+        raise HTTPException(404, "Group not found")
+    return group
 
 
-def _can_manage(group, user) -> bool:
-    return user.is_superadmin or _is_active_admin(group, user)
+def _can_read(group, user) -> bool:
+    if group.visibility == "public":
+        return True
+    if user is None:
+        return False
+    return user.is_superadmin or repos.groups.is_member(group.id, user.id)
+
+
+def _is_manager(user, group_id: uuid.UUID, *, owner_only: bool = False) -> bool:
+    if user is None:
+        return False
+    if user.is_superadmin:
+        return True
+    roles = ["owner"] if owner_only else ["owner", "admin"]
+    return repos.groups.is_member(group_id, user.id, roles=roles)
+
+
+def _group_payload(group, *, include_members: bool) -> dict:
+    d = group.to_dict()
+    if not include_members:
+        d.pop("members", None)
+    d["profile_image"] = media.image_payload(group.profile_image_id)
+    return d
 
 
 @router.get("")
-def list_groups(request: Request, member: str = ""):
-    """List all groups, or only the caller's own with ``?member=me``."""
-    if member == "me":
-        user = require_user(request)
-        return {"groups": [
-            g.to_dict() for g in repos.groups.list()
-            if repos.groups.is_member(g.id, user.id)
-        ]}
-    return {"groups": [g.to_dict() for g in repos.groups.list()]}
+def list_groups(request: Request, mine: bool = False):
+    user = current_user(request)
+    groups = [g for g in repos.groups.list() if g.deleted_at is None]
+    if mine:
+        if user is None:
+            raise HTTPException(401, "Authentication required")
+        groups = [g for g in groups if repos.groups.is_member(g.id, user.id)]
+    else:
+        groups = [g for g in groups if _can_read(g, user)]
+    return [
+        _group_payload(g, include_members=user is not None
+                       and (user.is_superadmin or repos.groups.is_member(g.id, user.id)))
+        for g in groups
+    ]
 
 
 @router.get("/{group_id}")
-def get_group(group_id: int):
-    group = repos.groups.get(group_id)
-    if group is None:
-        raise HTTPException(404, f"Group not found: {group_id}")
-    return group.to_dict()
+def get_group(group_id: uuid.UUID, request: Request):
+    user = current_user(request)
+    group = _require_group(group_id)
+    if not _can_read(group, user):
+        raise HTTPException(404, "Group not found")  # don't reveal private groups
+    include = user is not None and (user.is_superadmin or repos.groups.is_member(group_id, user.id))
+    return _group_payload(group, include_members=include)
 
 
 @router.post("")
-def create_group(body: GroupCreateModel, request: Request):
-    """Create a group; the caller becomes an active ``admin`` member."""
+def create_group(body: GroupWriteModel, request: Request):
     verify_csrf(request)
     user = require_user(request)
-    group = repos.groups.create({
-        "name": body.name,
-        "description": body.description,
-        "created_by": user.id,
-        "default_session_visibility": body.default_session_visibility,
-        "created_at": now_iso(),
-    })
-    repos.groups.add_member(group.id, user_id=user.id, role="admin", status="active", joined_at=now_iso())
-    return repos.groups.get(group.id).to_dict()
+    if not body.name:
+        raise HTTPException(422, "name is required")
+    data = body.model_dump(exclude_unset=True)
+    data["created_by"] = user.id
+    group = repos.groups.create(data)
+    repos.groups.add_member(group.id, user_id=user.id, role="owner")
+    return _group_payload(repos.groups.get(group.id), include_members=True)
 
+
+@router.patch("/{group_id}")
+def update_group(group_id: uuid.UUID, body: GroupWriteModel, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    _require_group(group_id)
+    if not _is_manager(user, group_id):
+        raise HTTPException(403, "Group owner/admin required")
+    return _group_payload(repos.groups.update(group_id, body.model_dump(exclude_unset=True)),
+                          include_members=True)
+
+
+@router.delete("/{group_id}")
+def delete_group(group_id: uuid.UUID, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    _require_group(group_id)
+    if not _is_manager(user, group_id, owner_only=True):
+        raise HTTPException(403, "Group owner required")
+    repos.groups.soft_delete(group_id, deleted_by=user.id)
+    return {"ok": True}
+
+
+# --- membership (user_groups) --------------------------------------------------
 
 @router.post("/{group_id}/members")
-def invite_member(group_id: int, body: GroupInviteModel, request: Request):
-    """Invite a user (group admin / superadmin only)."""
+def add_member(group_id: uuid.UUID, body: GroupMemberModel, request: Request):
     verify_csrf(request)
     user = require_user(request)
-    group = repos.groups.get(group_id)
-    if group is None:
-        raise HTTPException(404, f"Group not found: {group_id}")
-    if not _can_manage(group, user):
-        raise HTTPException(403, "Not allowed to manage this group")
-    if repos.users.get_by_id(body.user_id) is None:
-        raise HTTPException(404, f"User not found: {body.user_id}")
-    added = repos.groups.add_member(group_id, user_id=body.user_id, role=body.role, status=body.status, joined_at=now_iso())
-    if not added:
+    group = _require_group(group_id)
+    target = body.user_id or user.id
+    if target == user.id:
+        # Self-join: allowed only on public groups (private = invite-only).
+        if group.visibility != "public" and not _is_manager(user, group_id):
+            raise HTTPException(403, "Private group: invite only")
+        role = "member"
+    else:
+        if not _is_manager(user, group_id):
+            raise HTTPException(403, "Group owner/admin required")
+        role = body.role
+        if repos.users.get_by_id(target) is None:
+            raise HTTPException(404, "User not found")
+    if not repos.groups.add_member(group_id, user_id=target, role=role):
         raise HTTPException(409, "Already a member")
-    return repos.groups.get(group_id).to_dict()
+    return {"ok": True}
 
 
-@router.post("/{group_id}/join")
-def join_group(group_id: int, request: Request):
-    """Caller joins: activates a pending invite, or adds an active membership."""
+@router.patch("/{group_id}/members/{user_id}")
+def set_member_role(group_id: uuid.UUID, user_id: uuid.UUID,
+                    body: GroupMemberRoleModel, request: Request):
     verify_csrf(request)
     user = require_user(request)
-    group = repos.groups.get(group_id)
-    if group is None:
-        raise HTTPException(404, f"Group not found: {group_id}")
-    if not repos.groups.set_member_status(group_id, user.id, "active"):
-        repos.groups.add_member(group_id, user_id=user.id, role="member", status="active", joined_at=now_iso())
-    return repos.groups.get(group_id).to_dict()
+    _require_group(group_id)
+    if not _is_manager(user, group_id, owner_only=True):
+        raise HTTPException(403, "Group owner required")
+    if not repos.groups.set_member_role(group_id, user_id, body.role):
+        raise HTTPException(404, "Member not found")
+    return {"ok": True}
+
+
+@router.delete("/{group_id}/members/{user_id}")
+def remove_member(group_id: uuid.UUID, user_id: uuid.UUID, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    _require_group(group_id)
+    if user.id != user_id and not _is_manager(user, group_id):
+        raise HTTPException(403, "Group owner/admin required (or leave yourself)")
+    if not repos.groups.remove_member(group_id, user_id):
+        raise HTTPException(404, "Member not found")
+    return {"ok": True}
+
+
+# --- profile image ---------------------------------------------------------------
+
+@router.post("/{group_id}/profile-image")
+def upload_profile_image(group_id: uuid.UUID, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    _require_group(group_id)
+    if not _is_manager(user, group_id):
+        raise HTTPException(403, "Group owner/admin required")
+    payload = media.create_image_upload(user.id)
+    repos.groups.update(group_id, {"profile_image_id": payload["image_id"]})
+    return payload
+
+
+@router.post("/{group_id}/profile-image/{image_id}/confirm")
+def confirm_profile_image(group_id: uuid.UUID, image_id: uuid.UUID, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    group = _require_group(group_id)
+    if not _is_manager(user, group_id):
+        raise HTTPException(403, "Group owner/admin required")
+    if group.profile_image_id != image_id:
+        raise HTTPException(404, "Image not found")
+    if not media.confirm_image(image_id):
+        raise HTTPException(409, "Image not uploaded yet")
+    return {"ok": True}

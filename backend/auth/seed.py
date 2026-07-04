@@ -25,6 +25,7 @@ DEFAULT_PERMISSIONS = {
     "race.manage": "CRUD races",
     "result.manage": "CRUD race results",
     "mark.manage": "CRUD marks for race activities",
+    "activity.manage": "Manage club-linked activities and their marks",
 }
 
 _RACE_OFFICER_KEYS = [
@@ -33,6 +34,7 @@ _RACE_OFFICER_KEYS = [
     "race.manage",
     "result.manage",
     "mark.manage",
+    "activity.manage",
 ]
 
 # role name -> (description, [permission keys])

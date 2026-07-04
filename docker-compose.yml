@@ -128,6 +128,10 @@ services:
       AWS_ACCESS_KEY_ID: *minio-user
       AWS_SECRET_ACCESS_KEY: *minio-pass
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      # Workers are DB-blind: results/status flow back through the backend
+      # system API (docs/api-project.md, actor `system`).
+      BACKEND_CALLBACK_URL: "http://backend:8000"
+      SAILFRAMES_HOOK_TOKEN: ${SAILFRAMES_HOOK_TOKEN:-dev-hook-token}
     depends_on:
       minio-init:
         condition: service_completed_successfully
@@ -145,6 +149,20 @@ services:
     depends_on:
       minio-init:
         condition: service_completed_successfully
+
+  wind-scheduler:
+    image: curlimages/curl:latest
+    entrypoint: ["/bin/sh", "/init/wind-scheduler.sh"]
+    volumes:
+      - ./deploy/wind-scheduler.sh:/init/wind-scheduler.sh:ro
+    environment:
+      BACKEND_URL: "http://backend:8000"
+      SAILFRAMES_HOOK_TOKEN: ${SAILFRAMES_HOOK_TOKEN:-dev-hook-token}
+      WIND_FETCH_INTERVAL_MIN_NOAA_NDBC: ${WIND_FETCH_INTERVAL_MIN_NOAA_NDBC:-30}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   minio-data:

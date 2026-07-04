@@ -8,7 +8,7 @@ is set. ``make_s3_client`` is re-exported for callers that need the raw client.
 import os
 
 from .base import BlobStore, BlobNotFound
-from .object_store import ObjectBlobStore, make_s3_client
+from .object_store import ObjectBlobStore, make_s3_client, verify_upload_token
 
 _blob_store: BlobStore | None = None
 
@@ -32,6 +32,7 @@ __all__ = [
     "BlobNotFound",
     "ObjectBlobStore",
     "make_s3_client",
+    "verify_upload_token",
     "get_blob_store",
     "build_blob_store",
 ]

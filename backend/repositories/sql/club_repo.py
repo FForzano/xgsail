@@ -14,7 +14,7 @@ class SqlClubRepo:
     def __init__(self, session_factory):
         self.Session = session_factory
 
-    def list(self) -> list[ClubORM]:
+    def list(self) -> "list[ClubORM]":
         with self.Session() as s:
             return list(s.scalars(select(ClubORM)).all())
 
@@ -54,6 +54,51 @@ class SqlClubRepo:
             )
             s.commit()
             return res.rowcount > 0
+
+    def update(self, club_id: uuid.UUID, changes: dict) -> Optional[ClubORM]:
+        allowed = ("name", "description", "address_line_1", "address_line_2",
+                   "city", "state_province", "postal_code", "country", "lat", "lng",
+                   "founded_year", "website", "contact_email", "logo_id", "is_active")
+        with self.Session() as s:
+            orm = s.get(ClubORM, club_id)
+            if orm is None:
+                return None
+            for k, v in changes.items():
+                if k in allowed:
+                    setattr(orm, k, v)
+            s.commit()
+        return self.get(club_id)
+
+    def list_members(self, club_id: uuid.UUID) -> "list[UserClubORM]":
+        with self.Session() as s:
+            return list(s.scalars(
+                select(UserClubORM).where(UserClubORM.club_id == club_id)
+            ).all())
+
+    def get_member(self, club_id: uuid.UUID, user_id: uuid.UUID) -> Optional[UserClubORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(UserClubORM).where(
+                    UserClubORM.club_id == club_id, UserClubORM.user_id == user_id
+                )
+            ).first()
+
+    def remove_member(self, club_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Soft removal: status=deleted + deleted_at (history preserved)."""
+        from datetime import datetime, timezone
+
+        with self.Session() as s:
+            orm = s.scalars(
+                select(UserClubORM).where(
+                    UserClubORM.club_id == club_id, UserClubORM.user_id == user_id
+                )
+            ).first()
+            if orm is None:
+                return False
+            orm.status = "deleted"
+            orm.deleted_at = datetime.now(timezone.utc)
+            s.commit()
+            return True
 
     def is_active_member(self, club_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         with self.Session() as s:

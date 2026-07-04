@@ -1,33 +1,45 @@
 """Authentication & authorization for the SailFrames API.
 
-- ``require_admin`` / ``require_permission`` — endpoint guards (permissions.py),
-  resolving identity from the ``sf_access`` JWT cookie against Postgres RBAC
-- RBAC seed (seed.py) and password hashing (passwords.py)
-
-``require_admin`` is kept as the broad gate existing endpoints already call;
-``require_permission`` adds fine-grained, optionally club-scoped checks.
+Principals and guards (see docs/api-project.md, "Ruoli e permessi"):
+- ``require_user`` / ``current_user`` — cookie-JWT users.
+- ``require_permission`` (scoped RBAC, raising) and ``user_has_permission``
+  (non-raising, for "ownership OR permission" guards).
+- ``require_superadmin`` — the ``users.is_superadmin`` flag gate.
+- ``current_device`` / ``require_system`` (device.py) — DeviceKey-authenticated
+  hardware and hook-token system callers.
+- Visibility rules: ``activity_visible_to`` / ``session_visible_to`` /
+  ``can_edit_activity``.
 """
 
 from .permissions import (
-    require_admin,
     require_permission,
+    user_has_permission,
+    require_superadmin,
     current_user,
     require_user,
     verify_csrf,
+    activity_visible_to,
     session_visible_to,
+    can_edit_activity,
     effective_capabilities,
 )
+from .device import current_device, require_system
 from .passwords import hash_password, verify_password
 from .seed import seed_defaults, seed_superadmin, seed_device_types
 
 __all__ = [
-    "require_admin",
     "require_permission",
+    "user_has_permission",
+    "require_superadmin",
     "current_user",
     "require_user",
     "verify_csrf",
+    "activity_visible_to",
     "session_visible_to",
+    "can_edit_activity",
     "effective_capabilities",
+    "current_device",
+    "require_system",
     "hash_password",
     "verify_password",
     "seed_defaults",

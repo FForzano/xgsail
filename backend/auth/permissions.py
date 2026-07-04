@@ -21,8 +21,6 @@ from sqlalchemy import select
 
 from .tokens import ACCESS_COOKIE, CSRF_COOKIE, decode_access_token
 
-ADMIN_PERMISSION = "admin"
-
 
 def current_user(request: Request):
     """Resolve the authenticated user (a ``UserORM``) from the access JWT
@@ -121,13 +119,56 @@ def effective_capabilities(user) -> dict:
     }
 
 
+def activity_visible_to(activity, user) -> bool:
+    """Visibility rule on activities (public|club|group|private).
+
+    public → anyone (also anonymous); club → active club members (or scoped
+    club.manage); group → group members; private → creator only. Superadmin
+    always sees everything."""
+    from ..repositories import get_repos
+
+    if activity is None:
+        return False
+    if activity.visibility == "public":
+        return True
+    if user is None:
+        return False
+    if user.is_superadmin or activity.created_by == user.id:
+        return True
+    repos = get_repos()
+    if activity.visibility == "club" and activity.club_id is not None:
+        return (repos.clubs.is_active_member(activity.club_id, user.id)
+                or user_has_permission(user, "club.manage", club_id=activity.club_id))
+    if activity.visibility == "group" and activity.group_id is not None:
+        return repos.groups.is_member(activity.group_id, user.id)
+    return False
+
+
 def session_visible_to(session, user) -> bool:
-    """TODO(api-project): visibility now lives on the parent activity
-    (``activities.visibility`` public|club|group|private crossed with
-    session_crew / user_boats / user_clubs / user_groups), so this needs the
-    activity join once the sessions API is rebuilt. No enabled router calls
-    this in the er-project phase — superadmin-only until then."""
-    return user is not None and user.is_superadmin
+    """A session is visible to its crew and to the boat's members regardless
+    of activity visibility; everyone else follows the parent activity."""
+    from ..repositories import get_repos
+
+    repos = get_repos()
+    if user is not None:
+        if user.is_superadmin:
+            return True
+        if repos.sessions.is_crew(session.id, user.id):
+            return True
+        if repos.boats.is_member(session.boat_id, user.id):
+            return True
+    return activity_visible_to(repos.activities.get(session.activity_id), user)
+
+
+def can_edit_activity(activity, user) -> bool:
+    """Creator, superadmin, or club-scoped activity.manage when club-linked."""
+    if user is None or activity is None:
+        return False
+    if user.is_superadmin or activity.created_by == user.id:
+        return True
+    if activity.club_id is not None:
+        return user_has_permission(user, "activity.manage", club_id=activity.club_id)
+    return False
 
 
 def verify_csrf(request: Request) -> None:
@@ -194,7 +235,27 @@ def require_permission(request: Request, key: str, *, club_id: Optional[uuid.UUI
     return _check_permission(request, key, club_id)
 
 
-def require_admin(request: Request) -> bool:
+def user_has_permission(user, key: str, *, club_id: Optional[uuid.UUID] = None) -> bool:
+    """Non-raising permission check for "ownership OR permission" guards and
+    visibility rules. ``user`` is the ORM row from ``current_user``."""
+    from ..db import get_sessionmaker
+
+    if user is None:
+        return False
+    with get_sessionmaker()() as session:
+        orm = _resolve_user(session, user.email)
+        if orm is None:
+            return False
+        return _user_has_permission(session, orm, key, club_id)
+
+
+def require_superadmin(request: Request):
+    """Superadmin-only gate (``users.is_superadmin`` — a flag, not a role)."""
     if os.environ.get("SAILFRAMES_ADMIN_BYPASS"):
-        return True
-    return _check_permission(request, ADMIN_PERMISSION, None)
+        return None
+    user = current_user(request)
+    if user is None:
+        raise HTTPException(401, "Authentication required")
+    if not user.is_superadmin:
+        raise HTTPException(403, "Superadmin required")
+    return user

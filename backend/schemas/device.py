@@ -1,23 +1,59 @@
-"""Device request DTOs."""
+"""Device request DTOs: claim flow + management + device-key upload API.
 
+Shapes follow docs/device-protocol.md to the letter — firmware is written
+against these."""
+
+import uuid
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 
-class DeviceRegisterModel(BaseModel):
-    name: Optional[str] = None
-    device_type: str = "sailframes_e"  # sailframes_e | sailframes_b | external
-    owner_type: str = "user"  # user | club
-    # Boat-private device (owner_type=user): the boat it lives on.
-    default_boat_id: Optional[str] = None
-    # Club/RC device (owner_type=club): the owning club.
-    owned_by_club_id: Optional[int] = None
+class DeviceTypeWriteModel(BaseModel):
+    name: Optional[str] = None  # required on create, enforced by the router
+    category: Optional[str] = None  # boat_tracker | wearable
+    default_sensors: Optional[list] = None
+    parser_key: Optional[str] = None
 
 
-class DeviceAssignmentModel(BaseModel):
-    boat_id: str
-    valid_from: Optional[str] = None
-    valid_to: Optional[str] = None
-    regatta_id: Optional[str] = None
-    race_id: Optional[str] = None
+class ClaimRequestModel(BaseModel):
+    device_type_id: uuid.UUID
+    nickname: Optional[str] = None
+    # Claim target — the router requires exactly one of the three.
+    owner_user_id: Optional[uuid.UUID] = None
+    owner_boat_id: Optional[uuid.UUID] = None
+    owner_club_id: Optional[uuid.UUID] = None
+
+
+class ClaimConfirmModel(BaseModel):
+    external_id: str
+    claim_code: str
+
+
+class DeviceUpdateModel(BaseModel):
+    nickname: Optional[str] = None
+
+
+class DeviceSessionUploadCreateModel(BaseModel):
+    boat_id: Optional[uuid.UUID] = None  # default: devices.owner_boat_id (boat_tracker)
+    activity_id: Optional[uuid.UUID] = None
+    started_at: AwareDatetime
+    ended_at: Optional[AwareDatetime] = None
+    sequence_number: int = 0
+    is_final: bool = True
+    subject_type: str = "boat"  # boat | crew_member
+    subject_user_id: Optional[uuid.UUID] = None
+    filename: str = "data.csv"  # bundle object name under raw/uploads/{id}/
+
+
+class DeviceUploadPatchModel(BaseModel):
+    is_final: Optional[bool] = None
+    status: Optional[str] = None  # only "failed" is accepted from devices
+
+
+class DeviceHealthModel(BaseModel):
+    battery_pct: Optional[float] = None
+    battery_v: Optional[float] = None
+    heap_free: Optional[int] = None
+    firmware_version: Optional[str] = None
+    uptime_s: Optional[int] = None

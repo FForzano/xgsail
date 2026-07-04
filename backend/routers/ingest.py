@@ -1,16 +1,15 @@
-"""Self-hosted (MinIO) ingest webhook (``POST /hooks/minio``).
+"""Storage-event webhook (``/hooks/minio``) — dispatch-only.
 
-Receives MinIO bucket-notification events and dispatches them to the standalone
-processing workers — the self-hosted replacement for the AWS S3 ObjectCreated →
-Lambda trigger. CSV uploads go to the ``process_upload`` worker; MP4 uploads go
-to the ``video`` worker. Both are separate containers exposing the AWS Lambda
-Runtime Interface (``POST /2015-03-31/functions/function/invocations``), so the
-*same* images run on Lambda in the cloud.
+MinIO (or an S3 notification in the AWS deploy) POSTs ObjectCreated events
+here; the webhook routes them to the processing workers over HTTP (Lambda
+RIE endpoints). All DB writes happen later, when the worker calls back on
+``/api/system/ingest/complete`` — this endpoint never touches Postgres.
 
-After the ``process_upload`` worker returns, the freshly processed sessions are
-attributed to their boat here (that needs the DB/repos, which the worker doesn't
-carry). The worker URLs are configured via env; unset means that upload class is
-ignored (e.g. video disabled).
+Handled keys (docs/device-protocol.md layout):
+- ``raw/uploads/{session_upload_id}/*.csv`` → process_upload worker
+- ``raw/uploads/{session_upload_id}/*.mp4`` → video worker (when configured)
+- ``raw/imports/*`` → ignored (processing is dispatched by /api/imports/{id}/complete)
+- anything else → ignored
 """
 
 import logging
@@ -18,110 +17,58 @@ import os
 import urllib.parse
 
 import requests
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 
-router = APIRouter(tags=["ingest"])
+from ..auth import require_system
 
 logger = logging.getLogger(__name__)
 
-HOOK_TOKEN = os.environ.get("SAILFRAMES_HOOK_TOKEN")
-PROCESS_UPLOAD_URL = os.environ.get("PROCESS_UPLOAD_URL")
-VIDEO_WORKER_URL = os.environ.get("VIDEO_WORKER_URL")
-WORKER_TIMEOUT = int(os.environ.get("WORKER_TIMEOUT_SEC", "300"))
+router = APIRouter(tags=["ingest"])
+
+UPLOADS_PREFIX = "raw/uploads/"
 
 
-def _invoke_worker(url: str, records: list) -> object:
-    """POST an S3-shaped event to a worker's Lambda RIE endpoint."""
-    resp = requests.post(url, json={"Records": records}, timeout=WORKER_TIMEOUT)
-    resp.raise_for_status()
+def _invoke_worker(url: str, records: list[dict]) -> None:
+    """Runs as a background task (threadpool): the Lambda RIE invoke is
+    synchronous and the worker calls BACK into this backend on completion —
+    invoking inline on the event loop would deadlock the callback."""
+    timeout = int(os.environ.get("WORKER_TIMEOUT_SEC", "300"))
     try:
-        return resp.json()
-    except ValueError:
-        return resp.text
-
-
-def _attribute_sessions(records: list) -> None:
-    """Resolve each freshly processed session's device→boat snapshot and persist
-    ``boat_id``/``boat`` (Phase 4/5). Best-effort and idempotent: never overwrites
-    a session already claimed (``owner_user_id`` set), and uses
-    ``DeviceRepo.resolve_boat`` (covering assignment window at ``start_time`` →
-    ``default_boat_id`` → unclaimed)."""
-    from ..repositories import get_repos
-
-    repos = get_repos()
-    seen = set()
-    for record in records:
-        try:
-            key = record["s3"]["object"]["key"]  # raw/{device_id}/{date}/{file}.csv
-        except (KeyError, TypeError):
-            continue
-        parts = key.split("/")
-        if len(parts) < 4:
-            continue
-        device_id, date = parts[1], parts[2]
-        if (device_id, date) in seen:
-            continue
-        seen.add((device_id, date))
-
-        session = repos.sessions.get(device_id, date)
-        if session is None or session.owner_user_id is not None:
-            continue  # not processed yet, or already user-claimed — leave it
-        at = session.start_time or date
-        boat_id = repos.devices.resolve_boat(device_id, at)
-        if boat_id and session.boat_id != boat_id:
-            repos.sessions.attribute_boat(device_id, date, boat_id)
+        resp = requests.post(url, json={"Records": records}, timeout=timeout)
+        resp.raise_for_status()
+    except Exception:
+        logger.exception("Worker invocation failed (%s, %d records)", url, len(records))
 
 
 @router.post("/hooks/minio")
-async def minio_hook(request: Request):
-    """Receive a MinIO bucket-notification and route new uploads to the workers.
-
-    MinIO posts an S3-compatible event body (``Records[].s3.object.key``), the
-    same shape the workers expect. We gate on a shared token, URL-decode keys,
-    split CSV vs MP4, dispatch each class to its worker, then attribute the
-    freshly processed sessions to their boat."""
-    if HOOK_TOKEN:
-        auth = request.headers.get("authorization", "")
-        presented = auth[7:] if auth.lower().startswith("bearer ") else auth
-        if presented != HOOK_TOKEN:
-            raise HTTPException(401, "Invalid hook token")
-
+async def minio_hook(request: Request, background_tasks: BackgroundTasks):
+    require_system(request)
     event = await request.json()
 
-    csv_records: list = []
-    video_records: list = []
+    csv_records: list[dict] = []
+    video_records: list[dict] = []
+    ignored = 0
     for record in event.get("Records", []):
-        try:
-            raw_key = record["s3"]["object"]["key"]
-        except (KeyError, TypeError):
+        s3 = record.get("s3") or {}
+        key = urllib.parse.unquote_plus((s3.get("object") or {}).get("key", ""))
+        if not key.startswith(UPLOADS_PREFIX):
+            ignored += 1
             continue
-        key = urllib.parse.unquote_plus(raw_key)
-        record = {**record, "s3": {**record["s3"],
-                                   "object": {**record["s3"]["object"], "key": key}}}
-        # Only newly uploaded raw/ CSVs (skip markers / _health / _sd_health that
-        # processing itself writes back into raw/) and raw/ video MP4s.
-        if key.startswith("raw/") and key.endswith(".csv"):
-            csv_records.append(record)
-        elif key.endswith(".mp4") and "/video/" in key:
-            video_records.append(record)
+        clean = {"s3": {"bucket": s3.get("bucket"), "object": {"key": key}}}
+        if key.endswith(".csv"):
+            csv_records.append(clean)
+        elif key.endswith(".mp4"):
+            video_records.append(clean)
+        else:
+            ignored += 1
 
-    result: dict = {"status": "ok", "processed": 0}
-
-    if csv_records:
-        if not PROCESS_UPLOAD_URL:
-            raise HTTPException(503, "PROCESS_UPLOAD_URL not configured")
-        result["process_upload"] = _invoke_worker(PROCESS_UPLOAD_URL, csv_records)
-        result["processed"] += len(csv_records)
-        # Attribute after processing; never let it fail the ingest.
-        try:
-            _attribute_sessions(csv_records)
-        except Exception:  # pragma: no cover - defensive
-            logger.exception("session boat-attribution failed (ingest still ok)")
-
-    if video_records and VIDEO_WORKER_URL:
-        result["video"] = _invoke_worker(VIDEO_WORKER_URL, video_records)
-        result["processed"] += len(video_records)
-
-    if not result["processed"]:
-        return {"status": "ignored", "processed": 0}
-    return result
+    queued = {"csv": 0, "video": 0, "ignored": ignored}
+    process_url = os.environ.get("PROCESS_UPLOAD_URL")
+    if csv_records and process_url:
+        background_tasks.add_task(_invoke_worker, process_url, csv_records)
+        queued["csv"] = len(csv_records)
+    video_url = os.environ.get("VIDEO_WORKER_URL")
+    if video_records and video_url:
+        background_tasks.add_task(_invoke_worker, video_url, video_records)
+        queued["video"] = len(video_records)
+    return queued

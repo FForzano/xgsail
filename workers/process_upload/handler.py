@@ -1,11 +1,11 @@
 """
 SailFrames Data Processing Lambda
-Triggered when CSV files are uploaded to raw/ prefix.
-Downsamples sensor data and outputs JSON for web visualization.
-
-Session Merging Logic:
-- Sessions on the same day with GPS timestamps less than 10 minutes apart are merged
-- This handles cases where E1 device creates multiple recording sessions during a single sailing day
+Triggered by storage events on ``raw/uploads/{session_upload_id}/*.csv``
+(docs/device-protocol.md layout). Downsamples sensor data, writes JSON to
+``processed/uploads/{session_upload_id}/``, and reports results to the
+backend system API (``BACKEND_CALLBACK_URL``) — the worker itself never
+touches the DB. Session grouping/merging is the backend's job now (the
+find-or-create logic in ``backend/services/ingestion.py``).
 """
 
 import json
@@ -55,13 +55,6 @@ def _make_s3_client():
 s3 = _make_s3_client()
 DATA_BUCKET = os.environ.get('DATA_BUCKET', 'sailframes-fleet-data-prod')
 
-# Self-hosted (MinIO) has no Lambda service: the deprecated RTCM3/PPK
-# trigger is skipped. RTCM3 was retired in firmware .09 anyway.
-SELF_HOSTED = bool(os.environ.get('SAILFRAMES_S3_ENDPOINT'))
-
-# Maximum gap between sessions to consider them part of the same sailing day
-SESSION_MERGE_GAP_MINUTES = 10
-
 
 def lambda_handler(event, context):
     """Process uploaded CSV files and create downsampled JSON.
@@ -70,11 +63,10 @@ def lambda_handler(event, context):
     Failures are logged and collected, but don't prevent remaining files from processing.
 
     A record may also carry ``{"analyze": {"prefix": ...}, "bucket": ...}``
-    instead of the usual S3 event shape — the backend's manual-GPX-session
-    flow dispatches that to run the analysis pipeline against an
-    already-processed ``gps.json`` (see ``backend/services/gpx_processing.py``),
-    reusing this worker's numpy/pandas/``processing/*`` deps instead of
-    duplicating them in the lean API container.
+    instead of the usual S3 event shape — the backend dispatches that to run
+    the analysis pipeline against an already-processed ``gps.json`` (manual
+    imports), reusing this worker's numpy/pandas/``processing/*`` deps instead
+    of duplicating them in the lean API container.
     """
     errors = []
     for record in event.get('Records', []):
@@ -108,14 +100,13 @@ def lambda_handler(event, context):
 
 
 def process_analyze_prefix(bucket: str, prefix: str):
-    """Run the analysis pipeline against an already-processed session
-    directory (``gps.json`` + optional ``imu``/``wind``/``pressure.json`` +
-    ``manifest.json``) and write ``analysis.json`` back next to it.
+    """Run the analysis pipeline against a processed upload prefix
+    (``gps.json`` + optional ``imu``/``wind``/``pressure.json``) and write
+    ``analysis.json`` back next to it.
 
-    Used for manual/GPX-sourced sessions, which write ``gps.json`` directly
-    (see ``backend/services/gpx_processing.py``) instead of going through the
-    CSV pipeline above — everything downstream of "we have a gps.json" is
-    identical, so this reuses ``analyzer.analyze_session`` unchanged.
+    Dispatched by the backend after streams are registered (manual imports,
+    or re-analysis of a device upload) — everything downstream of "we have a
+    gps.json" reuses ``analyzer.analyze_session`` unchanged.
     """
     import tempfile
     from pathlib import Path
@@ -124,11 +115,11 @@ def process_analyze_prefix(bucket: str, prefix: str):
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
-        for name in ('gps.json', 'imu.json', 'wind.json', 'pressure.json', 'manifest.json'):
+        for name in ('gps.json', 'imu.json', 'wind.json', 'pressure.json'):
             try:
                 obj = s3.get_object(Bucket=bucket, Key=f"{prefix}{name}")
             except Exception:
-                continue  # optional sensor file / manifest not present — analyzer tolerates missing files
+                continue  # optional sensor file not present — analyzer tolerates missing files
             (tmp_path / name).write_bytes(obj['Body'].read())
 
         result = analyze_session(tmp_path)
@@ -137,227 +128,6 @@ def process_analyze_prefix(bucket: str, prefix: str):
         Bucket=bucket, Key=f"{prefix}analysis.json",
         Body=json.dumps(result, indent=2).encode(), ContentType='application/json',
     )
-
-    try:
-        manifest_obj = s3.get_object(Bucket=bucket, Key=f"{prefix}manifest.json")
-        manifest = json.loads(manifest_obj['Body'].read().decode('utf-8'))
-        manifest['has_analysis'] = 'error' not in result
-        manifest['updated_at'] = datetime.now(timezone.utc).isoformat()
-        s3.put_object(
-            Bucket=bucket, Key=f"{prefix}manifest.json",
-            Body=json.dumps(manifest, indent=2).encode(), ContentType='application/json',
-        )
-    except Exception:
-        logger.exception(f"Failed to update manifest has_analysis flag at {prefix}")
-
-
-def find_session_actual_date(bucket: str, device_id: str, session_id: str, path_date: str) -> str:
-    """Find the actual date for a session by looking for existing manifests.
-
-    When processing non-GPS files, the GPS file might have already been processed
-    with the correct date (from gps_date column). This function searches for
-    existing manifests with the same session_id to find the correct date.
-
-    Args:
-        bucket: S3 bucket name
-        device_id: Device ID (e.g., 'E1')
-        session_id: Session ID (e.g., 's001-000061')
-        path_date: Date from the upload path (may be incorrect)
-
-    Returns:
-        The actual date string (YYYY-MM-DD) if found, or path_date as fallback
-    """
-    # Search for manifests with this session_id
-    # Pattern: processed/{device_id}/YYYY-MM-DD-{session_id}/manifest.json
-    prefix = f"processed/{device_id}/"
-
-    try:
-        paginator = s3.get_paginator('list_objects_v2')
-        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            for obj in page.get('Contents', []):
-                key = obj['Key']
-                if key.endswith('/manifest.json') and session_id in key:
-                    # Extract date from folder name
-                    # Format: processed/E1/2026-04-04-s001-000061/manifest.json
-                    parts = key.split('/')
-                    if len(parts) >= 3:
-                        folder = parts[2]  # e.g., "2026-04-04-s001-000061"
-                        # Check if this folder contains our session_id
-                        if folder.endswith(f"-{session_id}"):
-                            # Extract date (first 10 chars: YYYY-MM-DD)
-                            found_date = folder[:10]
-                            if found_date != path_date:
-                                logger.info(f"Found existing manifest at {key} with date {found_date}")
-                                return found_date
-    except Exception as e:
-        logger.warning(f"Error searching for existing session: {e}")
-
-    return path_date
-
-
-def find_session_to_merge(bucket: str, device_id: str, date: str, new_start_time: str) -> str:
-    """Find an existing session on the same day to merge with based on time gap.
-
-    Sessions are merged if the gap between the end of an existing session
-    and the start of the new data is less than SESSION_MERGE_GAP_MINUTES.
-
-    Args:
-        bucket: S3 bucket name
-        device_id: Device ID (e.g., 'E1')
-        date: Date string (YYYY-MM-DD)
-        new_start_time: ISO timestamp of the first record in new data
-
-    Returns:
-        Folder name of the session to merge with, or None if no match found
-    """
-    if not new_start_time:
-        return None
-
-    try:
-        new_start_dt = datetime.fromisoformat(new_start_time.replace('Z', '+00:00'))
-    except (ValueError, AttributeError):
-        logger.warning(f"Could not parse new_start_time: {new_start_time}")
-        return None
-
-    # List all sessions for this device on this date
-    prefix = f"processed/{device_id}/{date}"
-    candidates = []
-
-    try:
-        paginator = s3.get_paginator('list_objects_v2')
-        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            for obj in page.get('Contents', []):
-                key = obj['Key']
-                if key.endswith('/manifest.json'):
-                    # Extract folder from key: processed/E1/2026-04-04-s001-000061/manifest.json
-                    parts = key.split('/')
-                    if len(parts) >= 3:
-                        folder = parts[2]
-                        # Only consider folders that start with this date
-                        if folder.startswith(date):
-                            candidates.append((folder, key))
-    except Exception as e:
-        logger.warning(f"Error listing sessions for merge check: {e}")
-        return None
-
-    # Check each candidate session for time proximity
-    best_match = None
-    smallest_gap = timedelta(minutes=SESSION_MERGE_GAP_MINUTES + 1)  # Start with gap larger than threshold
-
-    for folder, manifest_key in candidates:
-        try:
-            response = s3.get_object(Bucket=bucket, Key=manifest_key)
-            manifest = json.loads(response['Body'].read().decode('utf-8'))
-
-            end_time_str = manifest.get('end_time')
-            if not end_time_str:
-                continue
-
-            end_dt = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
-
-            # Calculate gap between sessions
-            start_dt = None
-            start_time_str = manifest.get('start_time')
-            if start_time_str:
-                try:
-                    start_dt = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
-                except (ValueError, AttributeError):
-                    pass
-
-            if new_start_dt >= end_dt:
-                # New session starts after existing session ends
-                gap = new_start_dt - end_dt
-            elif start_dt and new_start_dt < start_dt:
-                # New session starts before existing session starts —
-                # check gap from new start to existing start (we don't
-                # know the new session's end yet)
-                gap = start_dt - new_start_dt
-            else:
-                # New data overlaps the existing session's time range
-                # — e.g., a non-GPS file uploaded after its paired GPS
-                # file. Genuine merge candidate.
-                #
-                # BUT only if the existing manifest's window is
-                # credible. A bogus full-day window (start=00:00:00 /
-                # end=23:59:59, seen when process_gps mis-dated rows
-                # across UTC midnight) would otherwise swallow every
-                # later upload that day. Skip the candidate when
-                # start_dt is missing or the window spans more than
-                # 12 hours.
-                if start_dt is None:
-                    logger.info(f"Skipping {folder}: existing manifest missing start_time")
-                    continue
-                if (end_dt - start_dt) > timedelta(hours=12):
-                    logger.info(f"Skipping {folder}: existing window > 12h (likely bogus)")
-                    continue
-                gap = timedelta(seconds=0)
-
-            logger.info(f"Session {folder}: end={end_time_str}, new_start={new_start_time}, gap={gap}")
-
-            if gap < timedelta(minutes=SESSION_MERGE_GAP_MINUTES):
-                if gap < smallest_gap:
-                    smallest_gap = gap
-                    best_match = folder
-                    logger.info(f"Found merge candidate: {folder} (gap: {gap})")
-
-        except Exception as e:
-            logger.warning(f"Error reading manifest {manifest_key}: {e}")
-            continue
-
-    if best_match:
-        logger.info(f"Will merge new data into existing session: {best_match}")
-    else:
-        logger.info(f"No nearby session found for merging on {date}")
-
-    return best_match
-
-
-def find_merged_session_for_id(bucket: str, device_id: str, date: str, session_id: str) -> str:
-    """Find if a session_id was merged into another session.
-
-    When GPS data is merged, the manifest records which session_ids were combined.
-    This function looks for a session that contains the given session_id.
-
-    Args:
-        bucket: S3 bucket name
-        device_id: Device ID (e.g., 'E1')
-        date: Date string (YYYY-MM-DD)
-        session_id: Session ID to look for (e.g., 's001-000061')
-
-    Returns:
-        Folder name of the session containing this session_id, or None
-    """
-    prefix = f"processed/{device_id}/{date}"
-
-    try:
-        paginator = s3.get_paginator('list_objects_v2')
-        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            for obj in page.get('Contents', []):
-                key = obj['Key']
-                if key.endswith('/manifest.json'):
-                    parts = key.split('/')
-                    if len(parts) >= 3:
-                        folder = parts[2]
-                        # Skip if this is the exact folder for this session_id
-                        if folder == f"{date}-{session_id}":
-                            continue
-
-                        try:
-                            response = s3.get_object(Bucket=bucket, Key=key)
-                            manifest = json.loads(response['Body'].read().decode('utf-8'))
-
-                            # Check if this session contains data from our session_id
-                            merged_sessions = manifest.get('merged_sessions', [])
-                            if session_id in merged_sessions:
-                                logger.info(f"Found session_id {session_id} merged into {folder}")
-                                return folder
-                        except Exception as e:
-                            logger.warning(f"Error reading manifest {key}: {e}")
-                            continue
-    except Exception as e:
-        logger.warning(f"Error searching for merged session: {e}")
-
-    return None
 
 
 def extract_start_time_from_filename(filename: str) -> str:
@@ -379,330 +149,165 @@ def extract_start_time_from_filename(filename: str) -> str:
     return ''
 
 
-def extract_session_id_from_filename(filename: str) -> str:
-    """Extract session ID from E1 filename.
 
-    Supports multiple E1 filename formats:
-    - E1_s001_000464_nav.csv -> 's001-000464'
-    - E1_boot17_122131_nav.csv -> 'boot17-122131'
-    - E1_20260407_141829_nav.csv -> '141829' (time-based session ID)
+def _extract_date_from_filename(filename: str) -> str:
+    """``E1_20260701_163325_nav.csv`` → ``2026-07-01`` (fallback date anchor
+    for corruption filtering in process_gps)."""
+    parts = filename.split('_')
+    if len(parts) >= 2 and len(parts[1]) == 8 and parts[1].isdigit():
+        d = parts[1]
+        return f"{d[0:4]}-{d[4:6]}-{d[6:8]}"
+    return None
 
-    The session ID is used to group files into separate processed folders.
-    For datetime-based filenames, the HHMMSS time portion serves as the session ID
-    so that separate recording sessions on the same day stay separate.
-    """
-    import re
-    parts = filename.replace('.csv', '').replace('.rtcm3', '').split('_')
 
-    session_part = None
-    numeric_part = None
-    date_part = None
+def _sensor_from_filename(filename: str) -> str:
+    if '_nav.csv' in filename:
+        return 'gps'
+    if '_imu.csv' in filename:
+        return 'imu'
+    if '_pressure.csv' in filename or '_pres.csv' in filename or '_baro.csv' in filename:
+        return 'pressure'
+    if '_wind.csv' in filename:
+        return 'wind'
+    return None
 
-    for part in parts:
-        # Match session patterns: s001, s002, boot17, etc.
-        if re.match(r'^(s\d+|boot\d+)$', part):
-            session_part = part
-        # Match 8-digit date: YYYYMMDD
-        elif len(part) == 8 and part.isdigit() and part[:4] in ('2025', '2026', '2027', '2028'):
-            date_part = part
-        # Match any 6-digit numeric part (recording ID or time)
-        elif len(part) == 6 and part.isdigit():
-            numeric_part = part
 
-    if session_part and numeric_part:
-        return f"{session_part}-{numeric_part}"
-    elif session_part:
-        return session_part
-    # Datetime-based filename (E1_YYYYMMDD_HHMMSS_sensor.csv): use time as session ID
-    elif date_part and numeric_part:
-        return numeric_part
-    return ''
+def _post_callback(payload: dict):
+    """Report processing results to the backend system API (3 attempts).
+
+    Workers are DB-blind by design: the backend owns every DB write. When
+    BACKEND_CALLBACK_URL is unset the worker runs in pure-storage mode and
+    skips the callback silently."""
+    base = os.environ.get('BACKEND_CALLBACK_URL')
+    token = os.environ.get('SAILFRAMES_HOOK_TOKEN')
+    if not base or not token:
+        logger.info("BACKEND_CALLBACK_URL/hook token unset - skipping callback")
+        return
+    import time
+    import urllib.request
+
+    url = f"{base.rstrip('/')}/api/system/ingest/complete"
+    body = json.dumps(payload).encode()
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(
+                url, data=body, method='POST',
+                headers={'Content-Type': 'application/json',
+                         'Authorization': f'Bearer {token}'},
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                logger.info(f"Callback OK ({resp.status}) for {payload.get('session_upload_id')}")
+                return
+        except Exception as e:
+            logger.warning(f"Callback attempt {attempt + 1}/3 failed: {e}")
+            time.sleep(2 ** attempt)
+    logger.error(f"Callback permanently failed for {payload.get('session_upload_id')}")
 
 
 def process_file(bucket: str, key: str):
-    """Process a single CSV file.
+    """Process one file of a device upload bundle.
 
-    Supports two path structures:
-    - S1 format: raw/{device_id}/{date}/{sensor_type}/{filename}.csv (5+ parts)
-    - E1 format: raw/{device_id}/{date}/{filename}.csv (4 parts, sensor in filename)
-
-    For E1 files, extracts session ID (s001, boot17, etc.) from filename and
-    creates separate processed folders per session.
+    Only the protocol path shape is supported (docs/device-protocol.md):
+    ``raw/uploads/{session_upload_id}/{filename}`` — the session_upload row
+    already exists (created by the device API or an import), so there is no
+    folder/date/merge heuristics: output goes to
+    ``processed/uploads/{session_upload_id}/{sensor}.json`` and the results
+    are reported to the backend callback, which owns the DB.
     """
     parts = key.split('/')
+    if len(parts) != 4 or parts[0] != 'raw' or parts[1] != 'uploads':
+        logger.warning(f"Ignoring key outside the upload layout: {key}")
+        return
+    upload_id = parts[2]
+    filename = parts[3]
 
-    session_id = None  # Only used for E1 files
-
-    if len(parts) >= 5:
-        # S1 format: raw/{device}/{date}/{sensor}/{file}.csv
-        device_id = parts[1]
-        date = parts[2]
-        sensor_type = parts[3]
-        filename = parts[4]
-    elif len(parts) == 4:
-        # E1 format: raw/{device}/{date}/{file}.csv
-        device_id = parts[1]
-        date = parts[2]
-        filename = parts[3]
-        # Extract session ID for E1 files
-        session_id = extract_session_id_from_filename(filename)
-        logger.info(f"Extracted session ID from filename: {session_id}")
-        # Extract sensor type from filename suffix (e.g., E1_20260401_120000_nav.csv)
-        if '_nav.csv' in filename:
-            sensor_type = 'gps'
-        elif '_imu.csv' in filename:
-            sensor_type = 'imu'
-        elif '_pressure.csv' in filename or '_pres.csv' in filename or '_baro.csv' in filename:
-            sensor_type = 'pressure'
-        elif '_wind.csv' in filename:
-            sensor_type = 'wind'
-        elif '_raw.rtcm3' in filename or filename.endswith('.rtcm3'):
-            sensor_type = 'rtcm3'
-        else:
-            logger.warning(f"Unknown E1 file type: {filename}")
-            return
-    else:
-        logger.warning(f"Invalid path structure: {key}")
+    sensor_type = _sensor_from_filename(filename)
+    if sensor_type is None:
+        logger.warning(f"Unknown sensor file type, ignoring: {filename}")
         return
 
-    # Extract start time from filename for old E1 format fallback
+    date = _extract_date_from_filename(filename)
     start_time = extract_start_time_from_filename(filename)
-    logger.info(f"Extracted start time from filename: {start_time}")
 
-    # Track actual GPS date (may differ from path date for E1)
-    actual_date = date
+    try:
+        response = s3.get_object(Bucket=bucket, Key=key)
+        # errors='replace': SD/firmware corruption occasionally injects a
+        # non-UTF8 byte mid-file; losing one row beats losing the session.
+        csv_content = response['Body'].read().decode('utf-8', errors='replace')
 
-    # For E1 non-GPS/non-RTCM3 files, check if GPS was already processed with a different date
-    if session_id and sensor_type not in ('gps', 'rtcm3'):
-        correct_date = find_session_actual_date(bucket, device_id, session_id, date)
-        if correct_date and correct_date != date:
-            logger.info(f"Found existing session with date {correct_date}, using instead of path date {date}")
-            actual_date = correct_date
-
-    # Handle RTCM3 files (raw GNSS data for PPK processing) - BEFORE downloading as text
-    if sensor_type == 'rtcm3':
-        # Self-hosted has no PPK Lambda to trigger; RTCM3 is retired (firmware .09).
-        if SELF_HOSTED:
-            logger.info(f"RTCM3 file ignored in self-hosted mode: {filename}")
-            return
-        # RTCM3 files are binary - just update manifest to track PPK status
-        logger.info(f"RTCM3 file detected: {filename}")
-
-        # Check if this session was merged into another
-        merge_folder = None
-        source_session_id = None
-        if session_id:
-            merge_folder = find_merged_session_for_id(bucket, device_id, actual_date, session_id)
-            if merge_folder:
-                output_folder = merge_folder
-                source_session_id = session_id
-                logger.info(f"RTCM3: Merging into existing session folder: {output_folder}")
-            else:
-                output_folder = f"{actual_date}-{session_id}"
+        data_10hz = None
+        if sensor_type == 'gps':
+            data, data_10hz, _actual_date, _drops = process_gps(csv_content, date, start_time)
+        elif sensor_type == 'imu':
+            data = process_imu(csv_content, date, start_time)
+        elif sensor_type == 'pressure':
+            data = process_pressure(csv_content, date, start_time)
         else:
-            output_folder = actual_date
+            data = process_wind(csv_content, date, start_time)
+    except Exception as e:
+        _post_callback({
+            'session_upload_id': upload_id,
+            'status': 'failed',
+            'error': str(e),
+            'streams': [],
+        })
+        raise
 
-        update_manifest_rtcm3(bucket, device_id, output_folder, key, source_session_id)
-        return
+    prefix = f"processed/uploads/{upload_id}/"
+    output_key = f"{prefix}{sensor_type}.json"
 
-    # Download CSV (only for text-based sensor files). Decode with
-    # `errors='replace'` because we have seen SD-card or firmware
-    # corruption occasionally inject a single non-UTF8 byte (e.g.
-    # 0x89) mid-file. A strict decode aborts the entire session
-    # silently; replacing the bad byte with U+FFFD only loses the
-    # one row whose float()/int() parse then fails inside the
-    # per-row try/except, which is the right outcome.
-    response = s3.get_object(Bucket=bucket, Key=key)
-    csv_content = response['Body'].read().decode('utf-8', errors='replace')
-
-    # Parse and downsample (pass date and start_time for E1 timestamp generation)
-    data_10hz = None  # Only populated for GPS
-    gps_drops = None  # Populated only for GPS
-    if sensor_type == 'gps':
-        # process_gps returns (data_1hz, data_10hz, actual_gps_date, drops_dict)
-        data, data_10hz, actual_date, gps_drops = process_gps(csv_content, date, start_time)
-        if actual_date != date:
-            logger.info(f"Using GPS date {actual_date} instead of path date {date}")
-    elif sensor_type == 'imu':
-        data = process_imu(csv_content, actual_date, start_time)
-    elif sensor_type == 'pressure':
-        data = process_pressure(csv_content, actual_date, start_time)
-    elif sensor_type == 'wind':
-        data = process_wind(csv_content, actual_date, start_time)
-    else:
-        logger.warning(f"Unknown sensor type: {sensor_type}")
-        return
-
-    # Session merging: Check if this data should be merged with an existing session
-    # Based on GPS UTC time gap (sessions < 10 min apart on same day get merged)
-    merge_folder = None
-    if sensor_type == 'gps' and data:
-        # Get the start time of the new GPS data
-        new_start_time = data[0].get('t') if data else None
-        if new_start_time:
-            merge_folder = find_session_to_merge(bucket, device_id, actual_date, new_start_time)
-
-    # For non-GPS files, check if there's already a merged session for this session_id
-    # by looking for manifests that might have absorbed this session
-    if sensor_type != 'gps' and session_id:
-        # Look for the session this data belongs to (may have been merged)
-        original_folder = f"{actual_date}-{session_id}"
-        # Check if this session was merged into another
-        merge_folder = find_merged_session_for_id(bucket, device_id, actual_date, session_id)
-
-    # Determine output folder: use merge target if found, otherwise create new
-    if merge_folder:
-        output_folder = merge_folder
-        logger.info(f"Merging into existing session folder: {output_folder}")
-    elif session_id:
-        output_folder = f"{actual_date}-{session_id}"
-    else:
-        output_folder = actual_date
-    output_key = f"processed/{device_id}/{output_folder}/{sensor_type}.json"
-
-    # Try to load existing data
+    # Merge with anything already processed for this upload (a bundle may
+    # contain several files of the same sensor): dedupe by timestamp, sort.
     existing_data = []
     try:
-        response = s3.get_object(Bucket=bucket, Key=output_key)
-        existing_data = json.loads(response['Body'].read().decode('utf-8'))
-        logger.info(f"Loaded {len(existing_data)} existing records from {output_key}")
-    except s3.exceptions.NoSuchKey:
+        existing = s3.get_object(Bucket=bucket, Key=output_key)
+        existing_data = json.loads(existing['Body'].read().decode('utf-8'))
+    except Exception:
         pass
-    except Exception as e:
-        logger.warning(f"Could not load existing data: {e}")
-
-    # Merge: combine existing + new, dedupe by timestamp, sort
-    all_data = existing_data + data
     seen = set()
     merged = []
-    for item in all_data:
+    for item in existing_data + data:
         t = item.get('t', '')
         if t and t not in seen:
             seen.add(t)
             merged.append(item)
     merged.sort(key=lambda x: x.get('t', ''))
 
-    logger.info(f"Merged: {len(existing_data)} existing + {len(data)} new = {len(merged)} total")
-
-    # Upload merged JSON
-    s3.put_object(
-        Bucket=bucket,
-        Key=output_key,
-        Body=json.dumps(merged, default=str),
-        ContentType='application/json'
-    )
+    s3.put_object(Bucket=bucket, Key=output_key,
+                  Body=json.dumps(merged, default=str), ContentType='application/json')
     logger.info(f"Wrote {len(merged)} records to {output_key}")
 
-    # For GPS, also save full 10Hz data
     if sensor_type == 'gps' and data_10hz:
-        output_key_10hz = f"processed/{device_id}/{output_folder}/gps_10hz.json"
-
-        # Try to load existing 10Hz data
+        key_10hz = f"{prefix}gps_10hz.json"
         existing_10hz = []
         try:
-            response = s3.get_object(Bucket=bucket, Key=output_key_10hz)
-            existing_10hz = json.loads(response['Body'].read().decode('utf-8'))
-            logger.info(f"Loaded {len(existing_10hz)} existing 10Hz records")
-        except s3.exceptions.NoSuchKey:
+            existing = s3.get_object(Bucket=bucket, Key=key_10hz)
+            existing_10hz = json.loads(existing['Body'].read().decode('utf-8'))
+        except Exception:
             pass
-        except Exception as e:
-            logger.warning(f"Could not load existing 10Hz data: {e}")
-
-        # Merge: combine existing + new, dedupe by timestamp, sort
-        all_10hz = existing_10hz + data_10hz
-        seen_10hz = set()
+        seen = set()
         merged_10hz = []
-        for item in all_10hz:
+        for item in existing_10hz + data_10hz:
             t = item.get('t', '')
-            if t and t not in seen_10hz:
-                seen_10hz.add(t)
+            if t and t not in seen:
+                seen.add(t)
                 merged_10hz.append(item)
         merged_10hz.sort(key=lambda x: x.get('t', ''))
+        s3.put_object(Bucket=bucket, Key=key_10hz,
+                      Body=json.dumps(merged_10hz, default=str), ContentType='application/json')
 
-        s3.put_object(
-            Bucket=bucket,
-            Key=output_key_10hz,
-            Body=json.dumps(merged_10hz, default=str),
-            ContentType='application/json'
-        )
-        logger.info(f"Wrote {len(merged_10hz)} 10Hz records to {output_key_10hz}")
-
-    # Update manifest with merged data (not just new data) to preserve correct bounds
-    # If merging into another session, track the source session_id
-    source_session_id = session_id if merge_folder and session_id else None
-    update_manifest(bucket, device_id, output_folder, sensor_type, merged, source_session_id)
-
-    # SD card health snapshot — only updated when we process a GPS
-    # (nav.csv) upload, since that's the high-rate write path where
-    # corruption manifests. Other sensors (imu/pres/wind) don't stress
-    # the card in the same way (per the 2026-05-26 fleet-wide analysis:
-    # boot.log writes from all 6 boats showed 0 corruption events,
-    # but E1's nav.csv had 99 events in 8.4 MB while the other 4
-    # boats' nav.csvs had 0 — clear card-specific failure).
-    if sensor_type == 'gps' and gps_drops is not None:
-        write_sd_health_snapshot(bucket, device_id, output_folder, key, gps_drops)
-
-
-def write_sd_health_snapshot(bucket: str, device_id: str, folder: str,
-                              source_key: str, drops: dict):
-    """Write/overwrite raw/<boat>/_sd_health.json with the most recent
-    nav.csv's corruption counts. Fleet dashboard reads this for the
-    SD Health column.
-
-    Schema is small + flat so the dashboard can render it directly:
-    {
-      "boat_id": "E1",
-      "updated_at": "...",
-      "last_session_folder": "2026-05-25-211627",
-      "last_nav_key": "raw/E1/2026-05-25/E1_20260525_211627_nav.csv",
-      "last_nav_bytes": 8408478,
-      "total_input_rows": 100515,
-      "kept_10hz_rows": 99804,
-      "total_dropped": 711,
-      "drops": {
-        "bad_gps_date": 60,
-        "pre_session_anchor": 1,
-        "row_convert_error": 0,
-        "latlon_outlier": 6
-      },
-      "drops_per_mb": 0.13
-    }
-    """
-    try:
-        head = s3.head_object(Bucket=bucket, Key=source_key)
-        nav_bytes = head['ContentLength']
-    except Exception:
-        nav_bytes = 0
-
-    total_dropped = sum(v for k, v in drops.items()
-                        if k not in ('total_input_rows', 'kept_10hz_rows'))
-    per_mb = (total_dropped * 1048576.0 / nav_bytes) if nav_bytes > 0 else 0.0
-
-    snapshot = {
-        'boat_id': device_id,
-        'updated_at': datetime.now(timezone.utc).isoformat(),
-        'last_session_folder': folder,
-        'last_nav_key': source_key,
-        'last_nav_bytes': nav_bytes,
-        'total_input_rows': drops.get('total_input_rows', 0),
-        'kept_10hz_rows': drops.get('kept_10hz_rows', 0),
-        'total_dropped': total_dropped,
-        'drops': {k: v for k, v in drops.items()
-                  if k not in ('total_input_rows', 'kept_10hz_rows')},
-        'drops_per_mb': round(per_mb, 2),
-    }
-
-    key = f"raw/{device_id}/_sd_health.json"
-    s3.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=json.dumps(snapshot, indent=2),
-        ContentType='application/json',
-    )
-    logger.info(
-        f"[SD-HEALTH] {device_id}: {total_dropped} dropped of "
-        f"{drops.get('total_input_rows', 0)} rows ({per_mb:.2f}/MB) → {key}"
-    )
+    _post_callback({
+        'session_upload_id': upload_id,
+        'status': 'processed',
+        'start_time': merged[0]['t'] if merged else None,
+        'end_time': merged[-1]['t'] if merged else None,
+        'streams': [{
+            'sensor_type': sensor_type,
+            'data_ref': output_key,
+            'sample_rate_hz': 1.0,
+            'row_count': len(merged),
+        }],
+    })
 
 
 def extract_gps_date_from_csv(csv_content: str) -> str:
@@ -1362,201 +967,3 @@ def process_wind(csv_content: str, date: str = None, start_time: str = None) -> 
         return result
 
 
-def update_manifest(bucket: str, device_id: str, folder: str, sensor_type: str, data: list,
-                    source_session_id: str = None):
-    """Update or create session manifest with metadata.
-
-    Args:
-        bucket: S3 bucket name
-        device_id: Device ID (e.g., 'E1')
-        folder: Folder name - either date (YYYY-MM-DD) or date-session (YYYY-MM-DD-s001)
-        sensor_type: Sensor type (gps, imu, wind, pressure)
-        data: Processed data records
-        source_session_id: Original session ID if data was merged from another session
-    """
-    manifest_key = f"processed/{device_id}/{folder}/manifest.json"
-
-    # Parse folder name to extract date and optional session_id
-    # Format: YYYY-MM-DD or YYYY-MM-DD-s001
-    parts = folder.split('-')
-    if len(parts) > 3:
-        # Has session ID: YYYY-MM-DD-s001
-        date = '-'.join(parts[:3])
-        session_id = '-'.join(parts[3:])
-    else:
-        date = folder
-        session_id = None
-
-    # Try to load existing manifest
-    try:
-        response = s3.get_object(Bucket=bucket, Key=manifest_key)
-        manifest = json.loads(response['Body'].read().decode('utf-8'))
-    except s3.exceptions.NoSuchKey:
-        manifest = {
-            'device_id': device_id,
-            'date': date,
-            'session_id': session_id,
-            'sensors': {},
-            'merged_sessions': [],
-            'created_at': datetime.now(timezone.utc).isoformat()
-        }
-
-    # Track merged session IDs (for non-GPS files to find their merged session)
-    if source_session_id:
-        merged_sessions = manifest.get('merged_sessions', [])
-        if source_session_id not in merged_sessions:
-            merged_sessions.append(source_session_id)
-            manifest['merged_sessions'] = merged_sessions
-            logger.info(f"Added {source_session_id} to merged_sessions for {folder}")
-
-    # Update sensor info
-    if data:
-        times = [d['t'] for d in data if 't' in d]
-        manifest['sensors'][sensor_type] = {
-            'samples': len(data),
-            'start_time': min(times) if times else None,
-            'end_time': max(times) if times else None
-        }
-
-        # Update session bounds — prefer GPS times (authoritative),
-        # fall back to all sensors if GPS not yet processed
-        gps_info = manifest['sensors'].get('gps')
-        if gps_info and gps_info.get('start_time') and gps_info.get('end_time'):
-            manifest['start_time'] = gps_info['start_time']
-            manifest['end_time'] = gps_info['end_time']
-        else:
-            all_times = []
-            for sensor_info in manifest['sensors'].values():
-                if sensor_info.get('start_time'):
-                    all_times.append(sensor_info['start_time'])
-                if sensor_info.get('end_time'):
-                    all_times.append(sensor_info['end_time'])
-            if all_times:
-                manifest['start_time'] = min(all_times)
-                manifest['end_time'] = max(all_times)
-
-        # Calculate track bounds from GPS
-        if sensor_type == 'gps' and data:
-            lats = [d['lat'] for d in data if d.get('lat')]
-            lons = [d['lon'] for d in data if d.get('lon')]
-            if lats and lons:
-                manifest['track_bounds'] = {
-                    'north': max(lats),
-                    'south': min(lats),
-                    'east': max(lons),
-                    'west': min(lons)
-                }
-
-    manifest['updated_at'] = datetime.now(timezone.utc).isoformat()
-
-    # Save manifest
-    s3.put_object(
-        Bucket=bucket,
-        Key=manifest_key,
-        Body=json.dumps(manifest, indent=2),
-        ContentType='application/json'
-    )
-    logger.info(f"Updated manifest: {manifest_key}")
-
-
-def update_manifest_rtcm3(bucket: str, device_id: str, folder: str, rtcm3_key: str,
-                         source_session_id: str = None):
-    """Update manifest when RTCM3 file is uploaded, setting PPK status.
-
-    Args:
-        bucket: S3 bucket name
-        device_id: Device ID (e.g., 'E1')
-        folder: Folder name (e.g., '2026-04-04-s001-000061')
-        rtcm3_key: S3 key of the RTCM3 file
-        source_session_id: Original session ID if data was merged from another session
-    """
-    manifest_key = f"processed/{device_id}/{folder}/manifest.json"
-
-    # Parse folder name to extract date and session_id
-    parts = folder.split('-')
-    if len(parts) > 3:
-        date = '-'.join(parts[:3])
-        session_id = '-'.join(parts[3:])
-    else:
-        date = folder
-        session_id = None
-
-    # Try to load existing manifest or create new one
-    try:
-        response = s3.get_object(Bucket=bucket, Key=manifest_key)
-        manifest = json.loads(response['Body'].read().decode('utf-8'))
-    except s3.exceptions.NoSuchKey:
-        manifest = {
-            'device_id': device_id,
-            'date': date,
-            'session_id': session_id,
-            'sensors': {},
-            'merged_sessions': [],
-            'created_at': datetime.now(timezone.utc).isoformat()
-        }
-
-    # Track merged session IDs
-    if source_session_id:
-        merged_sessions = manifest.get('merged_sessions', [])
-        if source_session_id not in merged_sessions:
-            merged_sessions.append(source_session_id)
-            manifest['merged_sessions'] = merged_sessions
-            logger.info(f"Added {source_session_id} to merged_sessions for {folder}")
-
-    # Get RTCM3 file size
-    try:
-        response = s3.head_object(Bucket=bucket, Key=rtcm3_key)
-        rtcm3_size = response['ContentLength']
-    except Exception:
-        rtcm3_size = 0
-
-    # Update RTCM3 info in sensors - KEEP THE LARGEST FILE
-    # Multiple RTCM3 files may be uploaded for a session (E1 creates chunks)
-    # The largest file typically contains the most observation data
-    existing_rtcm3 = manifest.get('sensors', {}).get('rtcm3', {})
-    existing_size = existing_rtcm3.get('size_bytes', 0)
-
-    if rtcm3_size > existing_size:
-        manifest['sensors']['rtcm3'] = {
-            's3_key': rtcm3_key,
-            'size_bytes': rtcm3_size,
-            'uploaded_at': datetime.now(timezone.utc).isoformat()
-        }
-        logger.info(f"Updated RTCM3 to larger file: {rtcm3_key} ({rtcm3_size} bytes > {existing_size} bytes)")
-    else:
-        logger.info(f"Keeping existing larger RTCM3: {existing_rtcm3.get('s3_key')} ({existing_size} bytes >= {rtcm3_size} bytes)")
-
-    # Trigger PPK pipeline if not already processed
-    if manifest.get('ppk_status') not in ['completed', 'processing']:
-        manifest['ppk_status'] = 'awaiting_cors'
-        manifest['ppk_updated_at'] = datetime.now(timezone.utc).isoformat()
-        logger.info(f"Set PPK status to awaiting_cors for {device_id}/{folder}")
-
-        # Trigger CORS download Lambda to check for data and start PPK
-        try:
-            lambda_client = boto3.client('lambda')
-            lambda_client.invoke(
-                FunctionName=os.environ.get('CORS_DOWNLOAD_FUNCTION', 'sailframes-cors-download'),
-                InvocationType='Event',  # Async
-                Payload=json.dumps({
-                    'session': {
-                        'device_id': device_id,
-                        'folder': folder,
-                        'date': date
-                    }
-                })
-            )
-            logger.info(f"Triggered CORS download for {device_id}/{folder}")
-        except Exception as e:
-            logger.warning(f"Failed to trigger CORS download (will retry on schedule): {e}")
-
-    manifest['updated_at'] = datetime.now(timezone.utc).isoformat()
-
-    # Save manifest
-    s3.put_object(
-        Bucket=bucket,
-        Key=manifest_key,
-        Body=json.dumps(manifest, indent=2),
-        ContentType='application/json'
-    )
-    logger.info(f"Updated manifest with RTCM3: {manifest_key}")

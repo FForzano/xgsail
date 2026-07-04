@@ -1,30 +1,30 @@
-"""Boat request DTOs (write endpoints + standing-crew management)."""
+"""Boat request DTOs: boats, user_boats membership, boat_classes."""
 
+import uuid
 from typing import Optional
 
 from pydantic import BaseModel
 
 
 class BoatWriteModel(BaseModel):
-    """Create/edit a boat. On create, ``boat_id`` is required; on PATCH every
-    field is optional (only provided fields are applied)."""
-
-    boat_id: Optional[str] = None
-    name: Optional[str] = None
+    name: Optional[str] = None  # required on create, enforced by the router
     type: Optional[str] = None
     sail_number: Optional[str] = None
-    club: Optional[str] = None
-    club_id: Optional[int] = None
     loa_m: Optional[float] = None
     notes: Optional[str] = None
+    club_id: Optional[uuid.UUID] = None
 
 
 class BoatMemberModel(BaseModel):
-    """Add / update a standing-crew member."""
-
-    user_id: int
-    role: str = "crew"  # owner | skipper | crew | viewer
+    user_id: uuid.UUID
+    role: str = "visitor"  # owner | admin | visitor
+    default_sailing_role: Optional[str] = None  # skipper | crew
 
 
 class BoatMemberRoleModel(BaseModel):
-    role: str  # owner | skipper | crew | viewer
+    role: str
+
+
+class BoatClassWriteModel(BaseModel):
+    name: Optional[str] = None  # required on create, enforced by the router
+    description: Optional[str] = None

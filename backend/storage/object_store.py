@@ -6,14 +6,37 @@ virtual-host-style buckets without DNS wildcard config). Credentials come from
 the standard AWS env vars (set to the MinIO root user/password in compose).
 """
 
+import hashlib
+import hmac
 import json
 import os
+import time
 from typing import Any, Iterator, Optional, Tuple
 
 from .base import BlobStore, BlobNotFound
 
 # boto3 is imported lazily (inside the functions) so importing this package
 # does not require boto3 to be installed until a call actually needs it.
+
+
+def _upload_secret() -> str:
+    secret = os.environ.get("SAILFRAMES_JWT_SECRET") or os.environ.get("SAILFRAMES_HOOK_TOKEN")
+    if not secret:
+        raise RuntimeError("SAILFRAMES_JWT_SECRET must be set to sign upload URLs")
+    return secret
+
+
+def sign_upload(key: str, expires: int) -> str:
+    """HMAC token that makes the MinIO proxy PUT URL self-authorizing (the
+    proxy-path equivalent of an S3 presigned URL)."""
+    msg = f"{key}:{expires}".encode()
+    return hmac.new(_upload_secret().encode(), msg, hashlib.sha256).hexdigest()
+
+
+def verify_upload_token(key: str, expires: int, token: str) -> bool:
+    if expires < int(time.time()):
+        return False
+    return hmac.compare_digest(sign_upload(key, expires), token)
 
 
 def make_s3_client(endpoint: Optional[str] = None):
@@ -159,8 +182,13 @@ class ObjectBlobStore(BlobStore):
         # Same reasoning as download_ref: MinIO's internal host isn't
         # browser-reachable, so proxy the PUT through the API (see
         # ``routers/uploads.py``); AWS gets a real presigned PUT URL.
+        # The proxy URL is HMAC-signed so it carries its own authorization,
+        # exactly like a presigned S3 URL (devices send no auth header on the
+        # PUT — docs/device-protocol.md §4.1).
         if self.endpoint:
-            return f"/api/uploads/{key}"
+            expires = int(time.time()) + expiry
+            token = sign_upload(key, expires)
+            return f"/api/uploads/{key}?expires={expires}&token={token}"
         return self._s3.generate_presigned_url(
             "put_object",
             Params={"Bucket": self.bucket, "Key": key, "ContentType": content_type},
