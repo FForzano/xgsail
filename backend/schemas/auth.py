@@ -20,3 +20,8 @@ class RegisterModel(BaseModel):
 class LoginModel(BaseModel):
     email: str
     password: str
+
+
+class ChangePasswordModel(BaseModel):
+    current_password: str
+    new_password: str

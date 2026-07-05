@@ -3,69 +3,72 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { authService } from "@/services/auth.service";
-import { ApiError, AUTH_EXPIRED_EVENT } from "@/utils/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { ApiError, AUTH_EXPIRED_EVENT } from "@/api/client";
+import { authService } from "@/services/auth";
 import type { Capabilities, User } from "@/types";
 
-type AuthStatus = "loading" | "authed" | "anon";
+export type AuthStatus = "loading" | "authed" | "anon";
 
 export interface AuthContextValue {
+  status: AuthStatus;
   user: User | null;
   caps: Capabilities | null;
-  status: AuthStatus;
-  isAuth: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
+  register: (body: {
+    email: string;
+    password: string;
+    first_name?: string;
+    last_name?: string;
+    terms_and_conditions: boolean;
+  }) => Promise<void>;
   logout: () => Promise<void>;
-  /** Re-fetch identity + capabilities (after membership/role changes). */
-  refresh: () => Promise<void>;
+  /** Re-fetch capabilities after membership/role-changing mutations. */
+  refreshCaps: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [caps, setCaps] = useState<Capabilities | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
-  const mounted = useRef(true);
+  const [caps, setCaps] = useState<Capabilities | null>(null);
+  const queryClient = useQueryClient();
 
   const loadIdentity = useCallback(async () => {
     try {
-      const me = await authService.me();
-      const capabilities = await authService.capabilities();
-      if (!mounted.current) return;
-      setUser(me);
-      setCaps(capabilities);
+      const c = await authService.capabilities();
+      setCaps(c);
       setStatus("authed");
-    } catch (err) {
-      if (!mounted.current) return;
-      // 401 == anonymous; anything else we still treat as anon but keep going.
-      if (!(err instanceof ApiError) || err.status === 401) {
-        setUser(null);
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
         setCaps(null);
+        setStatus("anon");
+      } else {
+        // Network/server error: stay anon but don't wipe a valid session's
+        // cookie state — a reload retries.
+        setCaps(null);
+        setStatus("anon");
       }
-      setStatus("anon");
     }
   }, []);
 
   useEffect(() => {
-    mounted.current = true;
     void loadIdentity();
+  }, [loadIdentity]);
+
+  // The api client dispatches this when a refresh attempt fails.
+  useEffect(() => {
     const onExpired = () => {
-      setUser(null);
       setCaps(null);
       setStatus("anon");
+      queryClient.clear();
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
-    return () => {
-      mounted.current = false;
-      window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
-    };
-  }, [loadIdentity]);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, [queryClient]);
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -76,36 +79,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const register = useCallback(
-    async (email: string, password: string, name?: string) => {
-      await authService.register(email, password, name);
-      await authService.login(email, password);
-      await loadIdentity();
+    async (body: Parameters<AuthContextValue["register"]>[0]) => {
+      await authService.register(body);
+      await login(body.email, body.password);
     },
-    [loadIdentity],
+    [login],
   );
 
   const logout = useCallback(async () => {
     try {
       await authService.logout();
     } finally {
-      setUser(null);
       setCaps(null);
       setStatus("anon");
+      queryClient.clear();
     }
-  }, []);
+  }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      user,
-      caps,
       status,
-      isAuth: status === "authed",
+      user: caps?.user ?? null,
+      caps,
       login,
       register,
       logout,
-      refresh: loadIdentity,
+      refreshCaps: loadIdentity,
     }),
-    [user, caps, status, login, register, logout, loadIdentity],
+    [status, caps, login, register, logout, loadIdentity],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -56,8 +56,13 @@ def _is_crew_or_manager(session, user) -> bool:
 
 @router.get("")
 def list_sessions(request: Request, activity_id: Optional[uuid.UUID] = None,
-                  boat_id: Optional[uuid.UUID] = None):
+                  boat_id: Optional[uuid.UUID] = None, mine: bool = False):
     user = current_user(request)
+    if mine:
+        if user is None:
+            raise HTTPException(401, "Authentication required")
+        # Boat membership / crew implies visibility — no extra filter needed.
+        return [s.to_dict() for s in repos.sessions.list_for_user(user.id)]
     sessions = repos.sessions.list(activity_id=activity_id, boat_id=boat_id)
     return [s.to_dict() for s in sessions if session_visible_to(s, user)]
 

@@ -33,7 +33,9 @@ class BoatORM(UUIDPKMixin, TimestampMixin, Base):
     __wire_children__ = {"members": "members"}
 
     name: Mapped[str] = mapped_column(String, nullable=False)
-    type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    boat_class_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("boat_classes.id", ondelete="SET NULL"), nullable=True
+    )
     sail_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     loa_m: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cert_id: Mapped[Optional[uuid.UUID]] = mapped_column(

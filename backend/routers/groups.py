@@ -2,8 +2,10 @@
 
 Matrix: read pub if ``visibility=public`` else members only; create = auth
 (creator becomes ``user_groups.role=owner``); update owner/admin; delete owner
-(soft). Membership: invite by owner/admin, self-join only on public groups,
-role changes by owner.
+(soft). Membership: invites by owner/admin land as ``status=invited`` (the
+invitee accepts via PATCH on their own row, or declines via self DELETE);
+self-join on public groups lands as ``requested`` (a manager approves); role
+changes by owner.
 """
 
 import uuid
@@ -11,9 +13,9 @@ import uuid
 from fastapi import APIRouter, HTTPException, Request
 
 from ..auth import current_user, require_user, verify_csrf
-from ..schemas import GroupMemberModel, GroupMemberRoleModel, GroupWriteModel
+from ..schemas import GroupMemberModel, GroupMemberUpdateModel, GroupWriteModel
 from ..services import media
-from ._common import repos
+from ._common import repos, with_user
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
@@ -44,7 +46,10 @@ def _is_manager(user, group_id: uuid.UUID, *, owner_only: bool = False) -> bool:
 
 def _group_payload(group, *, include_members: bool) -> dict:
     d = group.to_dict()
-    if not include_members:
+    if include_members:
+        d["members"] = [with_user(m.to_dict(), m.user_id)
+                        for m in repos.groups.list_members(group.id)]
+    else:
         d.pop("members", None)
     d["profile_image"] = media.image_payload(group.profile_image_id)
     return d
@@ -120,32 +125,47 @@ def add_member(group_id: uuid.UUID, body: GroupMemberModel, request: Request):
     user = require_user(request)
     group = _require_group(group_id)
     target = body.user_id or user.id
-    if target == user.id:
-        # Self-join: allowed only on public groups (private = invite-only).
-        if group.visibility != "public" and not _is_manager(user, group_id):
+    if target == user.id and not _is_manager(user, group_id):
+        # Self-join: allowed only on public groups (private = invite-only);
+        # lands as a request pending owner/admin approval.
+        if group.visibility != "public":
             raise HTTPException(403, "Private group: invite only")
-        role = "member"
+        role, status = "member", "requested"
     else:
         if not _is_manager(user, group_id):
             raise HTTPException(403, "Group owner/admin required")
         role = body.role
+        # Invites are pending until the invitee accepts (their own PATCH).
+        status = "active" if target == user.id else "invited"
         if repos.users.get_by_id(target) is None:
             raise HTTPException(404, "User not found")
-    if not repos.groups.add_member(group_id, user_id=target, role=role):
-        raise HTTPException(409, "Already a member")
-    return {"ok": True}
+    if not repos.groups.add_member(group_id, user_id=target, role=role, status=status):
+        raise HTTPException(409, "Already a member (or pending)")
+    return {"ok": True, "status": status}
 
 
 @router.patch("/{group_id}/members/{user_id}")
-def set_member_role(group_id: uuid.UUID, user_id: uuid.UUID,
-                    body: GroupMemberRoleModel, request: Request):
+def update_member(group_id: uuid.UUID, user_id: uuid.UUID,
+                  body: GroupMemberUpdateModel, request: Request):
+    """Role changes = owner. Status: managers set any (incl. approving a
+    ``requested`` row); the invited user may accept their own invite
+    (``invited → active`` only — declining is the self ``DELETE``)."""
     verify_csrf(request)
     user = require_user(request)
     _require_group(group_id)
-    if not _is_manager(user, group_id, owner_only=True):
-        raise HTTPException(403, "Group owner required")
-    if not repos.groups.set_member_role(group_id, user_id, body.role):
+    member = repos.groups.get_member(group_id, user_id)
+    if member is None:
         raise HTTPException(404, "Member not found")
+    if body.role is not None:
+        if not _is_manager(user, group_id, owner_only=True):
+            raise HTTPException(403, "Group owner required")
+        repos.groups.set_member_role(group_id, user_id, body.role)
+    if body.status is not None:
+        self_accept = (user.id == user_id and member.status == "invited"
+                       and body.status == "active")
+        if not self_accept and not _is_manager(user, group_id):
+            raise HTTPException(403, "Group owner/admin required")
+        repos.groups.set_member_status(group_id, user_id, body.status)
     return {"ok": True}
 
 

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 class BoatWriteModel(BaseModel):
     name: Optional[str] = None  # required on create, enforced by the router
-    type: Optional[str] = None
+    boat_class_id: Optional[uuid.UUID] = None
     sail_number: Optional[str] = None
     loa_m: Optional[float] = None
     notes: Optional[str] = None

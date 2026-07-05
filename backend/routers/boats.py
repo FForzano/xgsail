@@ -20,7 +20,7 @@ from ..schemas import (
     BoatWriteModel,
 )
 from ..services import media
-from ._common import repos
+from ._common import repos, with_user
 
 router = APIRouter(prefix="/api", tags=["boats"])
 
@@ -157,15 +157,7 @@ def list_members(boat_id: uuid.UUID, request: Request):
     _require_boat(boat_id)
     if not (user.is_superadmin or repos.boats.is_member(boat_id, user.id)):
         raise HTTPException(403, "Boat members only")
-    out = []
-    for m in repos.boats.list_members(boat_id):
-        d = m.to_dict()
-        u = repos.users.get_by_id(m.user_id)
-        if u is not None:
-            d["user"] = {"id": u.id, "first_name": u.first_name,
-                         "last_name": u.last_name, "email": u.email}
-        out.append(d)
-    return out
+    return [with_user(m.to_dict(), m.user_id) for m in repos.boats.list_members(boat_id)]
 
 
 @router.post("/boats/{boat_id}/members")

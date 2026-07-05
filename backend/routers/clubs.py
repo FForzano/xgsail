@@ -18,7 +18,7 @@ from ..auth import (
 )
 from ..schemas import ClubMemberModel, ClubMemberStatusModel, ClubWriteModel
 from ..services import media
-from ._common import repos
+from ._common import repos, with_user
 
 router = APIRouter(prefix="/api/clubs", tags=["clubs"])
 
@@ -85,16 +85,23 @@ def list_members(club_id: uuid.UUID, request: Request):
     user = require_user(request)
     _require_club(club_id)
     members = repos.clubs.list_members(club_id)
-    if user.is_superadmin or user_has_permission(user, "user_club.manage", club_id=club_id):
-        return [m.to_dict() | {"user_id": m.user_id} for m in members]
-    own = [m for m in members if m.user_id == user.id]
-    return [m.to_dict() | {"user_id": m.user_id} for m in own]
+    manages = user.is_superadmin or user_has_permission(
+        user, "user_club.manage", club_id=club_id
+    )
+    if not manages:
+        # Active members see the roster; outsiders (and invitees) only their own row.
+        if repos.clubs.is_active_member(club_id, user.id):
+            members = [m for m in members if m.status == "active" or m.user_id == user.id]
+        else:
+            members = [m for m in members if m.user_id == user.id]
+    return [with_user(m.to_dict(), m.user_id) for m in members]
 
 
 @router.post("/{club_id}/members")
 def add_member(club_id: uuid.UUID, body: ClubMemberModel, request: Request):
-    """Self-join lands as ``invited``; a scoped manager may add anyone directly
-    ``active``."""
+    """Self-join lands as ``requested`` (a manager approves); a manager adding
+    someone else lands as ``invited`` (the user accepts) unless an explicit
+    status is given."""
     verify_csrf(request)
     user = require_user(request)
     _require_club(club_id)
@@ -104,9 +111,10 @@ def add_member(club_id: uuid.UUID, body: ClubMemberModel, request: Request):
     target = body.user_id or user.id
     if target != user.id and not manages:
         raise HTTPException(403, "Only club managers add other users")
-    status = "invited"
-    if manages and body.status:
-        status = body.status
+    if target == user.id and not manages:
+        status = "requested"
+    else:
+        status = body.status or "invited"
     if repos.users.get_by_id(target) is None:
         raise HTTPException(404, "User not found")
     if not repos.clubs.add_member(club_id, user_id=target, status=status):
@@ -117,9 +125,19 @@ def add_member(club_id: uuid.UUID, body: ClubMemberModel, request: Request):
 @router.patch("/{club_id}/members/{user_id}")
 def set_member_status(club_id: uuid.UUID, user_id: uuid.UUID,
                       body: ClubMemberStatusModel, request: Request):
+    """Managers set any status; the invited user may accept their own invite
+    (``invited → active`` only — declining is the self ``DELETE``). A
+    ``requested`` row can only be activated by a manager (approval)."""
     verify_csrf(request)
+    user = require_user(request)
     _require_club(club_id)
-    require_permission(request, "user_club.manage", club_id=club_id)
+    member = repos.clubs.get_member(club_id, user_id)
+    if member is None:
+        raise HTTPException(404, "Member not found")
+    self_accept = (user.id == user_id and member.status == "invited"
+                   and body.status == "active")
+    if not self_accept:
+        require_permission(request, "user_club.manage", club_id=club_id)
     if not repos.clubs.set_member_status(club_id, user_id, body.status):
         raise HTTPException(404, "Member not found")
     return {"ok": True}

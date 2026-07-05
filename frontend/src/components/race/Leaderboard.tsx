@@ -1,18 +1,20 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useTimeState } from "@/stores/timeController";
 import { haversineMeters } from "@/utils/geo";
-import { indexAt, type BoatTrack } from "./raceModel";
+import { indexAt, type Track } from "./raceModel";
 
 // Live standings at the cursor: distance sailed so far (proxy for progress) +
 // current speed. Cumulative distance is precomputed once per track; each tick
 // only binary-searches the cursor index.
-export function Leaderboard({ tracks }: { tracks: BoatTrack[] }) {
+export function Leaderboard({ tracks }: { tracks: Track[] }) {
+  const { t } = useTranslation();
   const { cursor } = useTimeState();
 
   const cum = useMemo(() => {
     const map: Record<string, number[]> = {};
     for (const tr of tracks) {
-      const arr = new Array(tr.pts.length).fill(0);
+      const arr = new Array<number>(tr.pts.length).fill(0);
       for (let i = 1; i < tr.pts.length; i++) {
         arr[i] =
           arr[i - 1] +
@@ -26,28 +28,39 @@ export function Leaderboard({ tracks }: { tracks: BoatTrack[] }) {
   const rows = tracks
     .map((tr) => {
       const i = indexAt(tr, cursor);
-      const dist = i >= 0 ? cum[tr.id][i] : 0;
-      const sog = i >= 0 ? tr.pts[i].sog : 0;
-      const heel = i >= 0 ? tr.pts[i].heel : undefined;
-      return { tr, dist, sog, heel };
+      return {
+        tr,
+        dist: i >= 0 ? cum[tr.id][i] : 0,
+        sog: i >= 0 ? tr.pts[i].sog : 0,
+      };
     })
     .sort((a, b) => b.dist - a.dist);
 
   return (
-    <div className="sf-leaderboard">
-      <h3 className="sf-section-title">Leaderboard</h3>
-      <ol className="sf-lb">
-        {rows.map((r, idx) => (
-          <li key={r.tr.id} className="sf-lb__row">
-            <span className="sf-lb__rank">{idx + 1}</span>
-            <span className="sf-lb__dot" style={{ background: r.tr.color }} />
-            <span className="sf-lb__name">{r.tr.name}</span>
-            <span className="sf-lb__stat">{r.sog.toFixed(1)} kn</span>
-            {r.heel != null && <span className="sf-lb__stat">{r.heel.toFixed(0)}°</span>}
-            <span className="sf-lb__stat sf-muted">{(r.dist / 1000).toFixed(2)} km</span>
-          </li>
-        ))}
-      </ol>
+    <div className="sf-tablewrap">
+      <table className="sf-table">
+        <thead>
+          <tr>
+            <th>{t("race.position")}</th>
+            <th>{t("race.boat")}</th>
+            <th>{t("race.sog")}</th>
+            <th>{t("race.distance")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, idx) => (
+            <tr key={r.tr.id}>
+              <td>{idx + 1}</td>
+              <td>
+                <span className="sf-legend__dot" style={{ background: r.tr.color }} />
+                {r.tr.name}
+              </td>
+              <td>{r.sog.toFixed(1)} kn</td>
+              <td className="sf-muted">{(r.dist / 1852).toFixed(2)} nm</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

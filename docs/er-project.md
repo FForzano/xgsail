@@ -58,7 +58,7 @@ created_at
 ## boats
 id
 name
-type
+boat_class_id: FK boat_classes.id, opzionale
 sail_number
 loa_m
 cert_id: for. key for files

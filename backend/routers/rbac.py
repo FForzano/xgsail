@@ -18,7 +18,9 @@ router = APIRouter(prefix="/api", tags=["rbac"])
 
 @router.get("/roles")
 def list_roles(request: Request):
-    require_superadmin(request)
+    """Role catalog — any authenticated user (scoped managers need the ids to
+    grant club roles; the catalog itself is not sensitive)."""
+    require_user(request)
     return [r.to_dict() for r in repos.rbac.list_roles()]
 
 

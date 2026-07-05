@@ -1,11 +1,7 @@
 import { timeController, useTimeState } from "@/stores/timeController";
+import { fmtTime } from "@/utils/format";
 
 const SPEEDS = [1, 2, 4, 8];
-
-function fmtClock(ms: number): string {
-  if (!ms) return "--:--:--";
-  return new Date(ms).toLocaleTimeString(undefined, { hour12: false });
-}
 
 // Transport bar: play/pause, speed multipliers, a scrub range, and the clock.
 export function Timeline() {
@@ -13,14 +9,18 @@ export function Timeline() {
 
   return (
     <div className="sf-timeline">
-      <button className="sf-btn sf-btn--primary" onClick={() => timeController.toggle()}>
+      <button
+        className="sf-btn sf-btn--primary sf-btn--sm"
+        onClick={() => timeController.toggle()}
+        aria-label={playing ? "Pause" : "Play"}
+      >
         {playing ? "⏸" : "▶"}
       </button>
       <div className="sf-timeline__speeds">
         {SPEEDS.map((s) => (
           <button
             key={s}
-            className={`sf-btn sf-btn--ghost ${speed === s ? "is-active" : ""}`}
+            className={`sf-timeline__speed ${speed === s ? "active" : ""}`}
             onClick={() => timeController.setSpeed(s)}
           >
             {s}×
@@ -28,7 +28,6 @@ export function Timeline() {
         ))}
       </div>
       <input
-        className="sf-timeline__scrub"
         type="range"
         min={tMin}
         max={tMax}
@@ -36,7 +35,7 @@ export function Timeline() {
         step={100}
         onChange={(e) => timeController.seek(Number(e.target.value))}
       />
-      <span className="sf-timeline__clock">{fmtClock(cursor)}</span>
+      <span className="sf-timeline__clock">{tMax > tMin ? fmtTime(cursor) : "--:--:--"}</span>
     </div>
   );
 }

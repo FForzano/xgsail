@@ -10,7 +10,7 @@ from sqlalchemy import select, update
 
 from ...db.models import BoatClassORM, BoatORM, BoatPhotoORM, UserBoatORM
 
-_FIELDS = ("name", "type", "sail_number", "loa_m", "cert_id", "mbsa_id", "notes", "club_id")
+_FIELDS = ("name", "boat_class_id", "sail_number", "loa_m", "cert_id", "mbsa_id", "notes", "club_id")
 _CLASS_FIELDS = ("name", "description", "logo_id")
 
 

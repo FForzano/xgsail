@@ -32,7 +32,6 @@ from . import (
     uploads,
     download,
     video,
-    buoys,
 )
 
 ALL_ROUTERS = [
@@ -60,7 +59,6 @@ ALL_ROUTERS = [
     download.router,
     # Wind & external data
     wind.router,
-    buoys.router,
     # System callbacks (workers, scheduler)
     system.router,
     # Media playback (HLS passthrough)

@@ -41,6 +41,21 @@ class SqlSessionRepo:
                 q = q.where(SessionORM.boat_id == boat_id)
             return list(s.scalars(q).all())
 
+    def list_for_user(self, user_id: uuid.UUID) -> "list[SessionORM]":
+        """Sessions the user took part in: crew rows plus any session of a boat
+        they are a member of (``?mine=true``)."""
+        from ...db.models import UserBoatORM
+
+        with self.Session() as s:
+            boat_ids = select(UserBoatORM.boat_id).where(UserBoatORM.user_id == user_id)
+            crew_ids = select(SessionCrewORM.session_id).where(
+                SessionCrewORM.user_id == user_id
+            )
+            q = select(SessionORM).where(
+                SessionORM.boat_id.in_(boat_ids) | SessionORM.id.in_(crew_ids)
+            ).order_by(SessionORM.started_at.desc().nulls_last())
+            return list(s.scalars(q).all())
+
     def get(self, session_id: uuid.UUID) -> Optional[SessionORM]:
         with self.Session() as s:
             return s.get(SessionORM, session_id)

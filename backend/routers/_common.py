@@ -79,6 +79,23 @@ def delete_prefix(prefix: str) -> int:
     return blob.delete_prefix(prefix)
 
 
+# --- Wire helpers -----------------------------------------------------------
+
+def user_summary(user_id) -> dict | None:
+    """Minimal public user shape embedded in member/crew rows (boats, clubs,
+    groups) so rosters can render names without extra requests."""
+    u = repos.users.get_by_id(user_id)
+    if u is None:
+        return None
+    return {"id": u.id, "first_name": u.first_name,
+            "last_name": u.last_name, "email": u.email}
+
+
+def with_user(row_dict: dict, user_id) -> dict:
+    """Attach ``user_id`` + embedded ``user`` summary to a membership row."""
+    return row_dict | {"user_id": user_id, "user": user_summary(user_id)}
+
+
 # --- Misc -----------------------------------------------------------------
 
 def now_iso() -> str:

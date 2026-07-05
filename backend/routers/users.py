@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from ..auth import hash_password, require_superadmin, require_user, verify_csrf
 from ..schemas import UserUpdateModel
 from ..services import media
-from ._common import repos
+from ._common import repos, user_summary
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -36,6 +36,28 @@ def get_me(request: Request):
     d = user.to_dict()
     d["profile_image"] = media.image_payload(user.profile_image_id)
     return d
+
+
+@router.get("/me/memberships")
+def my_memberships(request: Request):
+    """All my club/group memberships including pending invites — one call for
+    the frontend's invites/notifications strip."""
+    user = require_user(request)
+    return {
+        "clubs": repos.clubs.list_memberships_for_user(user.id),
+        "groups": repos.groups.list_memberships_for_user(user.id),
+    }
+
+
+@router.get("/lookup")
+def lookup_user(email: str, request: Request):
+    """Exact-match user lookup for invite flows (club/group/boat/crew) — any
+    authenticated user, minimal fields only."""
+    require_user(request)
+    found = repos.users.get_by_email(email.strip())
+    if found is None or not found.is_active:
+        raise HTTPException(404, "User not found")
+    return user_summary(found.id)
 
 
 @router.get("/{user_id}")

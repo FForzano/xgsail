@@ -6,7 +6,7 @@ layer to keep in sync. All ids are UUIDs; timestamps are ``AwareDatetime``
 (naive datetimes are rejected at the edge).
 """
 
-from .auth import RegisterModel, LoginModel
+from .auth import RegisterModel, LoginModel, ChangePasswordModel
 from .user import UserUpdateModel
 from .boat import (
     BoatWriteModel,
@@ -15,7 +15,7 @@ from .boat import (
     BoatClassWriteModel,
 )
 from .club import ClubWriteModel, ClubMemberModel, ClubMemberStatusModel
-from .group import GroupWriteModel, GroupMemberModel, GroupMemberRoleModel
+from .group import GroupWriteModel, GroupMemberModel, GroupMemberUpdateModel
 from .device import (
     DeviceTypeWriteModel,
     ClaimRequestModel,
@@ -38,6 +38,7 @@ from .polar import PolarPointModel, PolarUpsertModel
 __all__ = [
     "RegisterModel",
     "LoginModel",
+    "ChangePasswordModel",
     "UserUpdateModel",
     "BoatWriteModel",
     "BoatMemberModel",
@@ -48,7 +49,7 @@ __all__ = [
     "ClubMemberStatusModel",
     "GroupWriteModel",
     "GroupMemberModel",
-    "GroupMemberRoleModel",
+    "GroupMemberUpdateModel",
     "DeviceTypeWriteModel",
     "ClaimRequestModel",
     "ClaimConfirmModel",

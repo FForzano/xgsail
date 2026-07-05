@@ -17,6 +17,9 @@ from ..base import Base, CreatedAtMixin, UUIDPKMixin, enum_check
 
 GROUP_VISIBILITIES = ("public", "private")
 USER_GROUP_ROLES = ("owner", "admin", "member")
+# invited = manager invited the user (user accepts); requested = user asked to
+# join a public group (manager approves). Mirrors user_clubs.status.
+USER_GROUP_STATUSES = ("invited", "requested", "active")
 
 
 class GroupORM(UUIDPKMixin, CreatedAtMixin, Base):
@@ -48,12 +51,16 @@ class UserGroupORM(UUIDPKMixin, CreatedAtMixin, Base):
     __table_args__ = (
         UniqueConstraint("user_id", "group_id"),
         enum_check("role", USER_GROUP_ROLES),
+        enum_check("status", USER_GROUP_STATUSES),
     )
     __wire_exclude__ = ("id", "group_id")
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     role: Mapped[str] = mapped_column(String, nullable=False, default="member")
+    # Removal stays deleted_at, so no "deleted" value here (unlike user_clubs).
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active",
+                                        server_default="active")
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     group: Mapped["GroupORM"] = relationship(back_populates="members")

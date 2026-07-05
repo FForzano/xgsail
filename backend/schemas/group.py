@@ -17,5 +17,6 @@ class GroupMemberModel(BaseModel):
     role: str = "member"  # owner | admin | member
 
 
-class GroupMemberRoleModel(BaseModel):
-    role: str
+class GroupMemberUpdateModel(BaseModel):
+    role: Optional[str] = None  # owner | admin | member (owner-only change)
+    status: Optional[str] = None  # invited | active (self-accept or manager)

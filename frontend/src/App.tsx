@@ -1,131 +1,78 @@
-import { Routes, Route } from "react-router-dom";
-import { MainContent } from "@/components/layout/MainContent";
-import { RequireAuth } from "@/utils/IsAuth";
-import {
-  requireBoatManager,
-  requireEventsAccess,
-  requireAdminArea,
-} from "@/utils/guards";
-import { Home } from "@/pages/Home";
-import { Login } from "@/pages/Login";
-import { Register } from "@/pages/Register";
-import { NotFound } from "@/pages/NotFound";
-import { Dashboard } from "@/pages/app/Dashboard";
-import { RacesBrowser } from "@/pages/public/RacesBrowser";
-import { RegattaDetail } from "@/pages/public/RegattaDetail";
-import { FleetStatus } from "@/pages/public/FleetStatus";
-import { Sessions } from "@/pages/public/Sessions";
-import { SessionView } from "@/pages/public/SessionView";
-import { RaceView } from "@/pages/public/RaceView";
-import { Bom } from "@/pages/public/Bom";
-import { Battery } from "@/pages/public/Battery";
-import { Clubs } from "@/pages/app/Clubs";
-import { Groups } from "@/pages/app/Groups";
-import { Boats } from "@/pages/app/Boats";
-import { Devices } from "@/pages/app/Devices";
-import { MySessions } from "@/pages/app/MySessions";
-import { Profile } from "@/pages/app/Profile";
-import { Events } from "@/pages/app/Events";
-import { Admin } from "@/pages/app/Admin";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { AppShell } from "@/components/layout/AppShell";
+import { RequireAuth, RequireSuperadmin } from "@/components/auth/RequireAuth";
+import { LoginPage } from "@/pages/Login";
+import { RegisterPage } from "@/pages/Register";
+import { NotFoundPage } from "@/pages/NotFound";
+import { DiarioLayout } from "@/pages/diario/DiarioLayout";
+import { SessionsPage } from "@/pages/diario/SessionsPage";
+import { SessionDetailPage } from "@/pages/diario/SessionDetailPage";
+import { ImportPage } from "@/pages/diario/ImportPage";
+import { ActivitiesPage } from "@/pages/diario/ActivitiesPage";
+import { ActivityDetailPage } from "@/pages/diario/ActivityDetailPage";
+import { RegattasPage } from "@/pages/diario/RegattasPage";
+import { RacePage } from "@/pages/diario/RacePage";
+import { GruppiLayout } from "@/pages/gruppi/GruppiLayout";
+import { GroupsPage } from "@/pages/gruppi/GroupsPage";
+import { GroupDetailPage } from "@/pages/gruppi/GroupDetailPage";
+import { ClubsPage } from "@/pages/gruppi/ClubsPage";
+import { ClubDetailPage } from "@/pages/gruppi/ClubDetailPage";
+import { ProfiloLayout } from "@/pages/profilo/ProfiloLayout";
+import { AnagraficaPage } from "@/pages/profilo/AnagraficaPage";
+import { ChangePasswordPage } from "@/pages/profilo/ChangePasswordPage";
+import { BoatsPage } from "@/pages/profilo/BoatsPage";
+import { BoatDetailPage } from "@/pages/profilo/BoatDetailPage";
+import { DevicesPage } from "@/pages/profilo/DevicesPage";
+import { DeviceDetailPage } from "@/pages/profilo/DeviceDetailPage";
+import { AdminPage } from "@/pages/admin/AdminPage";
 
-// Route table. Every route renders inside MainContent (the layout orchestrator,
-// which swaps Navbar/Sidebar/ActionBar by route + screen size). Personal-area
-// routes are wrapped in RequireAuth; capability-scoped ones also carry a guard
-// that mirrors the backend permission gate. Real feature pages replace the
-// Placeholders across milestones M1–M5.
 export default function App() {
   return (
     <Routes>
-      <Route element={<MainContent />}>
-        {/* Public */}
-        <Route index element={<Home />} />
-        <Route path="login" element={<Login />} />
-        <Route path="register" element={<Register />} />
-        <Route path="races" element={<RacesBrowser />} />
-        <Route path="races/:regattaId" element={<RegattaDetail />} />
-        <Route path="race/:raceId" element={<RaceView />} />
-        <Route path="fleet" element={<FleetStatus />} />
-        <Route path="sessions" element={<Sessions />} />
-        <Route path="session/:deviceId/:date" element={<SessionView />} />
-        <Route path="session/manual/:id" element={<SessionView />} />
-        <Route path="bom" element={<Bom />} />
-        <Route path="battery" element={<Battery />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
-        {/* Personal area — single capability-aware shell */}
-        <Route
-          path="app"
-          element={
-            <RequireAuth>
-              <Dashboard />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="app/sessions"
-          element={
-            <RequireAuth>
-              <MySessions />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="app/boats"
-          element={
-            <RequireAuth>
-              <Boats />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="app/clubs"
-          element={
-            <RequireAuth>
-              <Clubs />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="app/groups"
-          element={
-            <RequireAuth>
-              <Groups />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="app/devices"
-          element={
-            <RequireAuth guard={requireBoatManager}>
-              <Devices />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="app/events"
-          element={
-            <RequireAuth guard={requireEventsAccess}>
-              <Events />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="app/admin"
-          element={
-            <RequireAuth guard={requireAdminArea}>
-              <Admin />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="app/profile"
-          element={
-            <RequireAuth>
-              <Profile />
-            </RequireAuth>
-          }
-        />
+      {/* Login mandatory everywhere: the entire shell sits behind RequireAuth. */}
+      <Route element={<RequireAuth />}>
+        <Route element={<AppShell />}>
+          <Route path="/" element={<Navigate to="/diario/sessioni" replace />} />
 
-        <Route path="*" element={<NotFound />} />
+          <Route path="/diario" element={<DiarioLayout />}>
+            <Route index element={<Navigate to="sessioni" replace />} />
+            <Route path="sessioni" element={<SessionsPage />} />
+            <Route path="sessioni/import" element={<ImportPage />} />
+            <Route path="sessioni/:sessionId" element={<SessionDetailPage />} />
+            <Route path="activities" element={<ActivitiesPage />} />
+            <Route path="activities/:activityId" element={<ActivityDetailPage />} />
+            <Route path="regate" element={<RegattasPage />} />
+          </Route>
+          {/* The race dashboard is full-width, outside the tabbed layout. */}
+          <Route path="/diario/regate/race/:raceId" element={<RacePage />} />
+
+          <Route path="/gruppi" element={<GruppiLayout />}>
+            <Route index element={<Navigate to="gruppi" replace />} />
+            <Route path="gruppi" element={<GroupsPage />} />
+            <Route path="gruppi/:groupId" element={<GroupDetailPage />} />
+            <Route path="clubs" element={<ClubsPage />} />
+            <Route path="clubs/:clubId" element={<ClubDetailPage />} />
+          </Route>
+
+          <Route path="/profilo" element={<ProfiloLayout />}>
+            <Route index element={<Navigate to="anagrafica" replace />} />
+            <Route path="anagrafica" element={<AnagraficaPage />} />
+            <Route path="password" element={<ChangePasswordPage />} />
+            <Route path="barche" element={<BoatsPage />} />
+            <Route path="barche/:boatId" element={<BoatDetailPage />} />
+            <Route path="devices" element={<DevicesPage />} />
+            <Route path="devices/:deviceId" element={<DeviceDetailPage />} />
+          </Route>
+
+          <Route element={<RequireSuperadmin />}>
+            <Route path="/admin" element={<AdminPage />} />
+          </Route>
+
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
       </Route>
     </Routes>
   );

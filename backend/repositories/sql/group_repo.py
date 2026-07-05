@@ -1,5 +1,6 @@
 """SQL group repository (+ membership via ``user_groups``). Speculare to
-``SqlClubRepo``; membership is soft-deleted (``deleted_at``), not statused."""
+``SqlClubRepo``: membership carries ``status`` (invited|active) for invites;
+removal is soft (``deleted_at``)."""
 
 import uuid
 from typing import Optional
@@ -30,7 +31,7 @@ class SqlGroupRepo:
         return self.get(new_id)
 
     def add_member(self, group_id: uuid.UUID, *, user_id: uuid.UUID,
-                   role: str = "member") -> bool:
+                   role: str = "member", status: str = "active") -> bool:
         with self.Session() as s:
             exists = s.scalars(
                 select(UserGroupORM).where(
@@ -39,8 +40,15 @@ class SqlGroupRepo:
                 )
             ).first()
             if exists is not None:
+                # Re-inviting someone who previously left reactivates the row.
+                if exists.deleted_at is not None:
+                    exists.deleted_at = None
+                    exists.role = role
+                    exists.status = status
+                    s.commit()
+                    return True
                 return False
-            s.add(UserGroupORM(group_id=group_id, user_id=user_id, role=role))
+            s.add(UserGroupORM(group_id=group_id, user_id=user_id, role=role, status=status))
             s.commit()
             return True
 
@@ -53,6 +61,49 @@ class SqlGroupRepo:
             )
             s.commit()
             return res.rowcount > 0
+
+    def set_member_status(self, group_id: uuid.UUID, user_id: uuid.UUID, status: str) -> bool:
+        with self.Session() as s:
+            res = s.execute(
+                update(UserGroupORM)
+                .where(
+                    UserGroupORM.group_id == group_id,
+                    UserGroupORM.user_id == user_id,
+                    UserGroupORM.deleted_at.is_(None),
+                )
+                .values(status=status)
+            )
+            s.commit()
+            return res.rowcount > 0
+
+    def get_member(self, group_id: uuid.UUID, user_id: uuid.UUID) -> Optional[UserGroupORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(UserGroupORM).where(
+                    UserGroupORM.group_id == group_id,
+                    UserGroupORM.user_id == user_id,
+                    UserGroupORM.deleted_at.is_(None),
+                )
+            ).first()
+
+    def list_memberships_for_user(self, user_id: uuid.UUID) -> "list[dict]":
+        """My group memberships (incl. pending invites), with the group name —
+        powers ``GET /api/users/me/memberships``."""
+        with self.Session() as s:
+            rows = s.execute(
+                select(UserGroupORM, GroupORM.name)
+                .join(GroupORM, GroupORM.id == UserGroupORM.group_id)
+                .where(
+                    UserGroupORM.user_id == user_id,
+                    UserGroupORM.deleted_at.is_(None),
+                    GroupORM.deleted_at.is_(None),
+                )
+            ).all()
+            return [
+                {"group_id": m.group_id, "name": name, "role": m.role,
+                 "status": m.status, "created_at": m.created_at}
+                for m, name in rows
+            ]
 
     def update(self, group_id: uuid.UUID, changes: dict) -> Optional[GroupORM]:
         allowed = ("name", "description", "profile_image_id", "visibility")
@@ -107,10 +158,12 @@ class SqlGroupRepo:
 
     def is_member(self, group_id: uuid.UUID, user_id: uuid.UUID,
                   roles: "Optional[list]" = None) -> bool:
+        """Active members only — an ``invited`` row grants no access yet."""
         with self.Session() as s:
             q = select(UserGroupORM).where(
                 UserGroupORM.group_id == group_id,
                 UserGroupORM.user_id == user_id,
+                UserGroupORM.status == "active",
                 UserGroupORM.deleted_at.is_(None),
             )
             if roles is not None:

@@ -15,7 +15,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..base import Base, CreatedAtMixin, TimestampMixin, UUIDPKMixin, enum_check
 
-USER_CLUB_STATUSES = ("invited", "active", "deleted")
+# invited = manager invited the user (user accepts); requested = user asked to
+# join (manager approves). Both are pending, but who may activate them differs.
+USER_CLUB_STATUSES = ("invited", "requested", "active", "deleted")
 
 
 class ClubORM(UUIDPKMixin, TimestampMixin, Base):

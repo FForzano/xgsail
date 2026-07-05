@@ -31,7 +31,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const notify = useCallback(
-    (message: string, kind: ToastKind = "info", durationMs = 3000) => {
+    (message: string, kind: ToastKind = "info", durationMs = 3500) => {
       const id = ++seq;
       setToasts((t) => [...t, { id, message, kind }]);
       window.setTimeout(() => dismiss(id), durationMs);

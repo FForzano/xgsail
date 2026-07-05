@@ -100,6 +100,25 @@ class SqlClubRepo:
             s.commit()
             return True
 
+    def list_memberships_for_user(self, user_id: uuid.UUID) -> "list[dict]":
+        """My club memberships (incl. pending invites), with the club name —
+        powers ``GET /api/users/me/memberships``."""
+        with self.Session() as s:
+            rows = s.execute(
+                select(UserClubORM, ClubORM.name)
+                .join(ClubORM, ClubORM.id == UserClubORM.club_id)
+                .where(
+                    UserClubORM.user_id == user_id,
+                    UserClubORM.status != "deleted",
+                    ClubORM.is_active.is_(True),
+                )
+            ).all()
+            return [
+                {"club_id": m.club_id, "name": name, "status": m.status,
+                 "created_at": m.created_at}
+                for m, name in rows
+            ]
+
     def is_active_member(self, club_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         with self.Session() as s:
             return s.scalars(

@@ -1,32 +1,35 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ApiError } from "@/api/client";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ToastProvider } from "@/contexts/ToastContext";
 import App from "./App";
 import "./i18n";
 import "./styles/global.css";
-import { LoadingProvider } from "@/contexts/LoadingContext";
-import { ErrorProvider } from "@/contexts/ErrorContext";
-import { ToastProvider } from "@/contexts/ToastContext";
-import { AuthProvider } from "@/contexts/AuthContext";
 
-const root = document.getElementById("root");
-if (!root) throw new Error("Missing #root element");
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      // 401s are handled by the client's refresh replay; 4xx are final.
+      retry: (failureCount, error) =>
+        !(error instanceof ApiError && error.status < 500) && failureCount < 2,
+    },
+  },
+});
 
-// Provider order: Loading/Error/Toast are leaf infra Auth may use; Auth wraps
-// the app so identity + capabilities are available everywhere; Router is
-// outermost so route-aware hooks work inside AuthProvider too.
-createRoot(root).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <LoadingProvider>
-        <ErrorProvider>
-          <ToastProvider>
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          </ToastProvider>
-        </ErrorProvider>
-      </LoadingProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ToastProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </ToastProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   </StrictMode>,
 );

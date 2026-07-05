@@ -3,9 +3,8 @@ import { initReactI18next } from "react-i18next";
 import en from "./locales/en.json";
 import it from "./locales/it.json";
 
-// Language detection kept deliberately simple for M0: browser language with an
-// English fallback. A user-facing switcher + persistence lands in a later
-// milestone.
+// Browser language with an English fallback; persisted choice via localStorage.
+const stored = localStorage.getItem("sf-lang");
 const browserLang = navigator.language?.slice(0, 2);
 
 void i18n.use(initReactI18next).init({
@@ -13,9 +12,14 @@ void i18n.use(initReactI18next).init({
     en: { translation: en },
     it: { translation: it },
   },
-  lng: browserLang === "it" ? "it" : "en",
+  lng: stored ?? (browserLang === "it" ? "it" : "en"),
   fallbackLng: "en",
   interpolation: { escapeValue: false },
 });
+
+export function setLanguage(lang: "en" | "it") {
+  localStorage.setItem("sf-lang", lang);
+  void i18n.changeLanguage(lang);
+}
 
 export default i18n;

@@ -23,6 +23,7 @@ from ..auth import (
     effective_capabilities,
     hash_password,
     require_user,
+    verify_csrf,
     verify_password,
 )
 from ..auth.tokens import (
@@ -41,7 +42,7 @@ from ..auth.tokens import (
     refresh_expiry,
     refresh_max_age,
 )
-from ..schemas import LoginModel, RegisterModel
+from ..schemas import ChangePasswordModel, LoginModel, RegisterModel
 from ._common import repos
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -177,6 +178,23 @@ def refresh(request: Request, response: Response):
     csrf = _rotate_refresh(response, row.user_id, row.family_id, row.id)
     repos.auth_tokens.revoke(row.id, datetime.now(timezone.utc))
     return {"csrf_token": csrf}
+
+
+@router.post("/change-password")
+def change_password(body: ChangePasswordModel, request: Request, response: Response):
+    """Verify the current password, set the new one, and revoke every refresh
+    token (logs out all other sessions). Fresh cookies keep THIS session alive."""
+    verify_csrf(request)
+    user = require_user(request)
+    stored = repos.users.get_password_hash_by_email(user.email)
+    if not stored or not verify_password(body.current_password, stored):
+        raise HTTPException(403, "Current password is incorrect")
+    if len(body.new_password) < 8:
+        raise HTTPException(422, "Password must be at least 8 characters")
+    repos.users.update(user.id, {"password_hash": hash_password(body.new_password)})
+    repos.auth_tokens.revoke_all_for_user(user.id, datetime.now(timezone.utc))
+    csrf = _set_auth_cookies(response, user.id)
+    return {"ok": True, "csrf_token": csrf}
 
 
 @router.post("/logout")

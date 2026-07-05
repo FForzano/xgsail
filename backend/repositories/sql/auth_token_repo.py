@@ -55,3 +55,13 @@ class SqlAuthTokenRepo:
                 .values(revoked_at=revoked_at)
             )
             s.commit()
+
+    def revoke_all_for_user(self, user_id: uuid.UUID, revoked_at: datetime) -> None:
+        """Log the user out of every session (e.g. after a password change)."""
+        with self.Session() as s:
+            s.execute(
+                update(AuthRefreshTokenORM)
+                .where(AuthRefreshTokenORM.user_id == user_id, AuthRefreshTokenORM.revoked_at.is_(None))
+                .values(revoked_at=revoked_at)
+            )
+            s.commit()
