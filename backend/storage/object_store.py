@@ -68,12 +68,24 @@ def _is_not_found(exc: Exception) -> bool:
 
 
 class ObjectBlobStore(BlobStore):
-    """AWS S3 or MinIO. ``endpoint`` set => MinIO (path-style proxy downloads)."""
+    """AWS S3 or MinIO. ``endpoint`` set => MinIO.
+
+    Two clients when self-hosted: ``_s3`` (internal ``endpoint``, e.g.
+    ``http://minio:9000``) for every server-side operation, and ``_s3_public``
+    (``SAILFRAMES_S3_PUBLIC_ENDPOINT``) used ONLY to sign presigned URLs, so
+    the browser gets a real presigned PUT/GET straight to MinIO instead of
+    shovelling bytes through the backend+nginx proxy (which forced a memory
+    buffer and a hand-picked size cap). Falls back to the proxy routes
+    (``routers/uploads.py`` / ``routers/download.py``) when no public
+    endpoint is configured, e.g. a deployment that hasn't exposed MinIO
+    publicly yet."""
 
     def __init__(self, bucket: str, endpoint: Optional[str] = None):
         self.bucket = bucket
         self.endpoint = endpoint
         self._s3 = make_s3_client(endpoint)
+        public_endpoint = os.environ.get("SAILFRAMES_S3_PUBLIC_ENDPOINT")
+        self._s3_public = make_s3_client(public_endpoint) if public_endpoint else None
 
     def get_bytes(self, key: str) -> bytes:
         try:
@@ -168,28 +180,30 @@ class ObjectBlobStore(BlobStore):
         return obj["Body"].iter_chunks(), content_type, obj.get("LastModified")
 
     def download_ref(self, key: str, expiry: int = 3600) -> str:
-        # MinIO's endpoint host (minio:9000) is unreachable from the browser,
-        # so route through the API proxy; AWS gets a real presigned URL.
-        if self.endpoint:
+        # MinIO's internal endpoint (minio:9000) is unreachable from the
+        # browser. If a public endpoint is configured, sign a real presigned
+        # URL against it — same bytes-never-touch-the-app-tier path as AWS.
+        # Otherwise fall back to the API download proxy (routers/download.py).
+        if self.endpoint and self._s3_public is None:
             return f"/api/download/{key}"
-        return self._s3.generate_presigned_url(
+        client = self._s3_public or self._s3
+        return client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self.bucket, "Key": key},
             ExpiresIn=expiry,
         )
 
     def upload_ref(self, key: str, content_type: str = "application/octet-stream", expiry: int = 3600) -> str:
-        # Same reasoning as download_ref: MinIO's internal host isn't
-        # browser-reachable, so proxy the PUT through the API (see
-        # ``routers/uploads.py``); AWS gets a real presigned PUT URL.
-        # The proxy URL is HMAC-signed so it carries its own authorization,
-        # exactly like a presigned S3 URL (devices send no auth header on the
-        # PUT — docs/device-protocol.md §4.1).
-        if self.endpoint:
+        # Same reasoning as download_ref. Without a public endpoint, fall
+        # back to the HMAC-signed proxy PUT (routers/uploads.py) — carries
+        # its own authorization, exactly like a presigned S3 URL (devices
+        # send no auth header on the PUT — docs/device-protocol.md §4.1).
+        if self.endpoint and self._s3_public is None:
             expires = int(time.time()) + expiry
             token = sign_upload(key, expires)
             return f"/api/uploads/{key}?expires={expires}&token={token}"
-        return self._s3.generate_presigned_url(
+        client = self._s3_public or self._s3
+        return client.generate_presigned_url(
             "put_object",
             Params={"Bucket": self.bucket, "Key": key, "ContentType": content_type},
             ExpiresIn=expiry,

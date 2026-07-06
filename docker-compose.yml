@@ -66,6 +66,8 @@ services:
       MINIO_ROOT_USER: *minio-user
       MINIO_ROOT_PASSWORD: *minio-pass
       SAILFRAMES_BUCKET: ${SAILFRAMES_BUCKET:-sailframes-fleet-data-prod}
+      # Frontend origin allowed to CORS-fetch presigned URLs directly from MinIO.
+      SAILFRAMES_PUBLIC_ORIGIN: ${SAILFRAMES_PUBLIC_ORIGIN:-http://localhost:8080}
     entrypoint: ["/bin/sh", "/init/minio-init.sh"]
     volumes:
       - ./deploy/minio-init.sh:/init/minio-init.sh:ro
@@ -79,6 +81,12 @@ services:
       SAILFRAMES_BUCKET: ${SAILFRAMES_BUCKET:-sailframes-fleet-data-prod}
       SAILFRAMES_DATA_PREFIX: ${SAILFRAMES_DATA_PREFIX:-processed}
       SAILFRAMES_S3_ENDPOINT: "http://minio:9000"
+      # Browser-reachable MinIO address, used ONLY to sign presigned URLs so
+      # uploads/downloads go straight browser<->MinIO instead of through the
+      # backend+nginx proxy (see backend/storage/object_store.py). In a real
+      # self-hosted deploy this must be MinIO's actual public host — leave
+      # unset to fall back to the (size-capped) proxy routes.
+      SAILFRAMES_S3_PUBLIC_ENDPOINT: ${SAILFRAMES_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       AWS_ACCESS_KEY_ID: *minio-user
       AWS_SECRET_ACCESS_KEY: *minio-pass
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
