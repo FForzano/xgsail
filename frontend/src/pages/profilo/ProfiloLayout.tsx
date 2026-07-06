@@ -17,8 +17,9 @@ export function ProfiloLayout() {
   return (
     <SectionLayout
       header={
-        // On mobile the top navbar is gone — identity + logout live here.
-        <div className="sf-mobile-only sf-strip__item sf-strip__item--muted">
+        // Logout lives only here (both mobile and desktop) — the navbar no
+        // longer has its own logout button.
+        <div className="sf-strip__item sf-strip__item--muted">
           <span className="sf-muted">{user?.email}</span>
           <Button variant="ghost" className="sf-btn--sm" onClick={onLogout}>
             {t("auth.logout")}
