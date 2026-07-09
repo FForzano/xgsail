@@ -154,6 +154,27 @@ def process_analyze_prefix(bucket: str, prefix: str):
             except Exception as e:
                 logger.warning(f"Failed to render track thumbnail for {prefix}: {e}")
 
+        # Estimated position/motion (see processing/track.py) get their own
+        # blob artifacts — same reasoning as gps.json itself: thousands of
+        # points per session, not something to inline into analysis.json or
+        # the DB write below. Registered as session_streams so they're
+        # discoverable later, same mechanism as every other sensor stream.
+        streams = []
+        for field, sensor_type in (('estimated_position', 'estimated_position'),
+                                   ('estimated_motion', 'estimated_motion')):
+            points = result.pop(field, None)
+            if not points:
+                continue
+            key = f"{prefix}{sensor_type}.json"
+            s3.put_object(Bucket=bucket, Key=key,
+                          Body=json.dumps(points).encode(), ContentType='application/json')
+            streams.append({
+                'sensor_type': sensor_type, 'data_ref': key,
+                'sample_rate_hz': None, 'row_count': len(points),
+            })
+        if streams:
+            result['streams'] = streams
+
     s3.put_object(
         Bucket=bucket, Key=f"{prefix}analysis.json",
         Body=json.dumps(result, indent=2).encode(), ContentType='application/json',
@@ -405,6 +426,50 @@ def extract_gps_date_from_csv(csv_content: str) -> str:
     return None
 
 
+# GPS fix quality/plausibility gate shared by both the 10Hz and 1Hz E1 passes
+# below — kept in one place so the two passes can never drift apart (they
+# used to duplicate this inline).
+E1_LATLON_SANITY_DEG = 1.0
+
+
+def _e1_row_fields(row: dict) -> "Optional[dict]":
+    """Extract + validate one E1-format CSV row's GPS fields (fix/lat/lon/hdop
+    sanity gate). Raises ``(ValueError, TypeError)`` if a field can't even be
+    parsed (bit-flip corruption) — the caller counts that as a drop. Returns
+    ``None`` (not counted, just silently skipped) if the row parses fine but
+    fails the fix/hdop/coordinate sanity gate — same distinction the
+    pre-dedup code made."""
+    fix = int(row.get('fix', 0) or 0)
+    lat = float(row.get('lat', 0) or 0)
+    lon = float(row.get('lon', 0) or 0)
+    hdop = float(row.get('hdop', 99) or 99)
+    if not (fix >= 1 and abs(lat) > E1_LATLON_SANITY_DEG and abs(lon) > E1_LATLON_SANITY_DEG
+            and hdop < 10):
+        return None
+    return {
+        'lat': lat,
+        'lon': lon,
+        'speed_kn': round(float(row.get('sog', 0) or 0), 2),
+        'course': round(float(row.get('cog', 0) or 0), 1),
+        'fix': fix,
+        'sats': int(row.get('sat', 0) or 0),
+        'hdop': round(hdop, 1),
+    }
+
+
+def _s1_row_fields(row: dict) -> dict:
+    """Extract one S1-format CSV row's GPS fields — no validity gate today
+    (unlike E1, S1 rows are trusted as-is)."""
+    return {
+        'lat': float(row.get('latitude', 0) or 0),
+        'lon': float(row.get('longitude', 0) or 0),
+        'speed_kn': round(float(row.get('speed_knots', 0) or 0), 2),
+        'course': round(float(row.get('course_deg', 0) or 0), 1),
+        'fix': int(row.get('fix_quality', 0) or 0),
+        'sats': int(row.get('satellites', 0) or 0),
+    }
+
+
 def process_gps(csv_content: str, date: str = None, start_time: str = None) -> tuple:
     """Downsample GPS from 10Hz to 1Hz, keeping max speed per second.
     Also generates full 10Hz data for high-resolution track display.
@@ -553,26 +618,14 @@ def process_gps(csv_content: str, date: str = None, start_time: str = None) -> t
             # 2026-05-25 race had 6 such rows out of ~100k — without
             # this, conversion ValueError swallowed the entire session.
             try:
-                fix = int(row.get('fix', 0) or 0)
-                lat_raw = float(row.get('lat', 0) or 0)
-                lon_raw = float(row.get('lon', 0) or 0)
-                hdop = float(row.get('hdop', 99) or 99)
-                if fix >= 1 and abs(lat_raw) > 1.0 and abs(lon_raw) > 1.0 and hdop < 10:
-                    record = {
-                        't': full_ts,
-                        'lat': lat_raw,
-                        'lon': lon_raw,
-                        'speed_kn': round(float(row.get('sog', 0) or 0), 2),
-                        'course': round(float(row.get('cog', 0) or 0), 1),
-                        'fix': fix,
-                        'sats': int(row.get('sat', 0) or 0),
-                        'hdop': round(hdop, 1)
-                    }
-                    all_valid_records.append(record)
-                    by_second[second].append(row)
+                fields = _e1_row_fields(row)
             except (ValueError, TypeError):
                 drops['row_convert_error'] += 1
                 continue
+            if fields is None:
+                continue
+            all_valid_records.append({'t': full_ts, **fields})
+            by_second[second].append(row)
         else:
             # S1 format: utc_time is ISO timestamp
             ts = row.get('utc_time', '')
@@ -592,16 +645,7 @@ def process_gps(csv_content: str, date: str = None, start_time: str = None) -> t
                 second = ts[:19]
                 full_ts = second + 'Z'
 
-            record = {
-                't': full_ts,
-                'lat': float(row.get('latitude', 0) or 0),
-                'lon': float(row.get('longitude', 0) or 0),
-                'speed_kn': round(float(row.get('speed_knots', 0) or 0), 2),
-                'course': round(float(row.get('course_deg', 0) or 0), 1),
-                'fix': int(row.get('fix_quality', 0) or 0),
-                'sats': int(row.get('satellites', 0) or 0)
-            }
-            all_valid_records.append(record)
+            all_valid_records.append({'t': full_ts, **_s1_row_fields(row)})
             by_second[second].append(row)
 
     # Sort 10Hz data by timestamp
@@ -645,45 +689,27 @@ def process_gps(csv_content: str, date: str = None, start_time: str = None) -> t
     result_1hz = []
     for second, samples in sorted(by_second.items()):
         if is_e1_format:
-            valid_samples = []
+            # Every row here already passed _e1_row_fields once in the 10Hz
+            # pass above (that's how it got into by_second) — re-extract
+            # (cheap) rather than re-deriving the same fields a third way,
+            # then apply the same outlier filter as the 10Hz path.
+            valid_fields = []
             for s in samples:
-                fix = int(s.get('fix', 0) or 0)
-                lat_raw = float(s.get('lat', 0) or 0)
-                lon_raw = float(s.get('lon', 0) or 0)
-                hdop = float(s.get('hdop', 99) or 99)
-                if fix >= 1 and abs(lat_raw) > 1.0 and abs(lon_raw) > 1.0 and hdop < 10:
-                    # Apply same outlier filter as 10Hz path
-                    if median_lat is not None and (
-                        abs(lat_raw - median_lat) > LATLON_OUTLIER_DEG
-                        or abs(lon_raw - median_lon) > LATLON_OUTLIER_DEG
-                    ):
-                        continue
-                    valid_samples.append(s)
-            if not valid_samples:
+                fields = _e1_row_fields(s)
+                if fields is None:
+                    continue
+                if median_lat is not None and (
+                    abs(fields['lat'] - median_lat) > LATLON_OUTLIER_DEG
+                    or abs(fields['lon'] - median_lon) > LATLON_OUTLIER_DEG
+                ):
+                    continue
+                valid_fields.append(fields)
+            if not valid_fields:
                 continue
-            best = max(valid_samples, key=lambda r: float(r.get('sog', 0) or 0))
-            result_1hz.append({
-                't': second + 'Z',
-                'lat': float(best.get('lat', 0) or 0),
-                'lon': float(best.get('lon', 0) or 0),
-                'speed_kn': round(float(best.get('sog', 0) or 0), 2),
-                'course': round(float(best.get('cog', 0) or 0), 1),
-                'fix': int(best.get('fix', 0) or 0),
-                'sats': int(best.get('sat', 0) or 0),
-                'hdop': round(float(best.get('hdop', 99) or 99), 1)
-            })
+            best = max(valid_fields, key=lambda f: f['speed_kn'])
         else:
-            best = max(samples, key=lambda r: float(r.get('speed_knots', 0) or 0))
-            result_1hz.append({
-                't': second + 'Z',
-                'lat': float(best.get('latitude', 0) or 0),
-                'lon': float(best.get('longitude', 0) or 0),
-                'speed_kn': round(float(best.get('speed_knots', 0) or 0), 2),
-                'course': round(float(best.get('course_deg', 0) or 0), 1),
-                'fix': int(best.get('fix_quality', 0) or 0),
-                'sats': int(best.get('satellites', 0) or 0),
-                'hdop': round(float(best.get('hdop', 99) or 99), 1)
-            })
+            best = max((_s1_row_fields(s) for s in samples), key=lambda f: f['speed_kn'])
+        result_1hz.append({'t': second + 'Z', **best})
 
     drops['total_input_rows'] = len(rows)
     drops['kept_10hz_rows'] = len(all_valid_records)

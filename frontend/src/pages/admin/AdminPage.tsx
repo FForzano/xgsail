@@ -14,8 +14,8 @@ import { Spinner } from "@/components/ui/Spinner";
 import { fmtDateTime, userLabel } from "@/utils/format";
 import type { UUID, WindStation } from "@/types";
 
-const PROVIDERS = ["noaa_ndbc", "noaa_metar", "open_meteo", "custom_device"];
-const STATION_TYPES = ["buoy", "metar", "forecast_grid", "custom_device"];
+const PROVIDERS = ["noaa_ndbc", "noaa_metar", "custom_device"];
+const STATION_TYPES = ["buoy", "metar", "custom_device"];
 
 function WindStations() {
   const { t } = useTranslation();
@@ -29,7 +29,6 @@ function WindStations() {
     lat: "",
     lng: "",
   });
-  const isCoordProvider = form.provider === "open_meteo";
   const [observing, setObserving] = useState<WindStation | null>(null);
   const [page, setPage] = useState(0);
   const OBS_PAGE_SIZE = 50;
@@ -49,9 +48,7 @@ function WindStations() {
     mutationFn: () =>
       windService.createStation({
         provider: form.provider,
-        // Derived server-side for open_meteo (see routers/wind.py) — omit
-        // the manually-typed id so it can't fight the derived one.
-        external_station_id: isCoordProvider ? undefined : form.external_station_id,
+        external_station_id: form.external_station_id,
         name: form.name || undefined,
         station_type: form.station_type,
         lat: form.lat ? Number(form.lat) : undefined,
@@ -92,11 +89,7 @@ function WindStations() {
             {stations.data?.map((s) => (
               <tr key={s.id}>
                 <td>{s.provider}</td>
-                <td>
-                  {s.provider === "open_meteo" && s.lat != null && s.lng != null
-                    ? `${s.lat.toFixed(3)}, ${s.lng.toFixed(3)}`
-                    : s.external_station_id}
-                </td>
+                <td>{s.external_station_id}</td>
                 <td>{s.name ?? "—"}</td>
                 <td>{s.station_type}</td>
                 <td style={{ display: "flex", gap: "0.4rem" }}>
@@ -188,14 +181,7 @@ function WindStations() {
           label={t("admin.provider")}
           id="ws-provider"
           value={form.provider}
-          onChange={(e) => {
-            const provider = e.target.value;
-            setForm((f) => ({
-              ...f,
-              provider,
-              station_type: provider === "open_meteo" ? "forecast_grid" : f.station_type,
-            }));
-          }}
+          onChange={(e) => setForm((f) => ({ ...f, provider: e.target.value }))}
         >
           {PROVIDERS.map((p) => (
             <option key={p} value={p}>
@@ -203,39 +189,32 @@ function WindStations() {
             </option>
           ))}
         </Select>
-        {isCoordProvider ? (
-          <>
-            <InputField
-              label="Lat"
-              id="ws-lat"
-              type="number"
-              step="any"
-              value={form.lat}
-              onChange={(e) => setForm((f) => ({ ...f, lat: e.target.value }))}
-              placeholder="44.79"
-              required
-            />
-            <InputField
-              label="Lng"
-              id="ws-lng"
-              type="number"
-              step="any"
-              value={form.lng}
-              onChange={(e) => setForm((f) => ({ ...f, lng: e.target.value }))}
-              placeholder="12.33"
-              required
-            />
-          </>
-        ) : (
-          <InputField
-            label={t("admin.stationId")}
-            id="ws-ext"
-            value={form.external_station_id}
-            onChange={(e) => setForm((f) => ({ ...f, external_station_id: e.target.value }))}
-            placeholder="44013"
-            required
-          />
-        )}
+        <InputField
+          label={t("admin.stationId")}
+          id="ws-ext"
+          value={form.external_station_id}
+          onChange={(e) => setForm((f) => ({ ...f, external_station_id: e.target.value }))}
+          placeholder="44013"
+          required
+        />
+        <InputField
+          label="Lat"
+          id="ws-lat"
+          type="number"
+          step="any"
+          value={form.lat}
+          onChange={(e) => setForm((f) => ({ ...f, lat: e.target.value }))}
+          placeholder="44.79"
+        />
+        <InputField
+          label="Lng"
+          id="ws-lng"
+          type="number"
+          step="any"
+          value={form.lng}
+          onChange={(e) => setForm((f) => ({ ...f, lng: e.target.value }))}
+          placeholder="12.33"
+        />
         <InputField
           label={t("common.name")}
           id="ws-name"

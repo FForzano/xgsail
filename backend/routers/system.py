@@ -5,6 +5,7 @@ streams/stats here (workers stay DB-blind; the backend owns every DB write),
 and the wind scheduler triggers the periodic fetch.
 """
 
+import logging
 import time
 import uuid
 from datetime import datetime, timezone
@@ -15,15 +16,17 @@ from pydantic import AwareDatetime, BaseModel
 
 from ..auth import require_system
 from ..schemas import WindFetchModel
-from ..services import ingestion, media, wind_lookup
+from ..services import ingestion, media, wind_estimate_refinement, wind_estimates
 from ..services.wind_providers import PROVIDERS
 from ._common import repos
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 
 class StreamPayload(BaseModel):
-    sensor_type: str  # gps | imu | wind | pressure | heart_rate | other
+    sensor_type: str  # gps | imu | wind | pressure | heart_rate | estimated_position | estimated_motion | other
     data_ref: str
     sample_rate_hz: Optional[float] = None
     row_count: Optional[int] = None
@@ -126,6 +129,12 @@ def upsert_session_analysis(upload_id: uuid.UUID, payload: dict, request: Reques
                              points=payload.get("polar_points") or [])
     repos.sessions.upsert_maneuvers(sid, payload.get("maneuvers") or [])
     repos.sessions.upsert_legs(sid, payload.get("legs") or [])
+    # Estimated position/motion blobs (see processing/track.py) — registered
+    # the same way any other sensor stream is, just sourced from analysis
+    # instead of raw ingestion.
+    streams = payload.get("streams") or []
+    if streams:
+        repos.ingest.upsert_streams(upload_id, streams)
 
     analysis_fields = {
         "correlations": payload.get("correlations"),
@@ -135,6 +144,7 @@ def upsert_session_analysis(upload_id: uuid.UUID, payload: dict, request: Reques
         "sensor_stats": payload.get("session_stats"),
         "vmg_series": payload.get("vmg_series"),
         "polar_target": payload.get("polar_target"),
+        "true_wind": payload.get("true_wind"),
         "computed_at": now,
     }
     # The worker already wrote the PNG straight to storage (it stays DB-blind)
@@ -156,6 +166,7 @@ def upsert_session_analysis(upload_id: uuid.UUID, payload: dict, request: Reques
                 media.delete_image(previous.thumbnail_image_id, deleted_by=None,
                                    keep_blob=same_key)
     repos.sessions.upsert_analysis(sid, analysis_fields)
+    _apply_wind_refinements(sid, payload.get("wind_refinements") or [])
 
     # This session now has a track to show — (re)build the parent activity's
     # overlay thumbnail from every sibling session's most recently processed
@@ -174,6 +185,35 @@ def upsert_session_analysis(upload_id: uuid.UUID, payload: dict, request: Reques
         if session is not None:
             background_tasks.add_task(_regenerate_activity_thumbnail, session.activity_id)
     return {"ok": True, "session_id": sid}
+
+
+def _apply_wind_refinements(session_id: uuid.UUID, refinements: list) -> None:
+    """Fold the worker's onboard-sensor wind observations into the
+    ``wind_estimates`` grid — only ever called with real measurements (the
+    worker emits these solely when it had an actual sensor, not a cached/
+    estimated fallback). Combination logic is a pluggable skeleton, see
+    ``services/wind_estimate_refinement.py`` — this just wires it to the
+    grid cell/bucket the observation falls into."""
+    for r in refinements:
+        try:
+            observed_at = r["observed_at"]
+            if isinstance(observed_at, str):
+                observed_at = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+            cell_lat, cell_lng = wind_estimates.grid_cell(r["lat"], r["lng"])
+            bucket = wind_estimates.time_bucket(observed_at)
+            existing = repos.wind.get_estimate(cell_lat, cell_lng, bucket)
+            new_estimate = wind_estimate_refinement.refine(
+                existing.to_dict() if existing else None,
+                {
+                    "twd_deg": r.get("twd_deg"), "tws_kts": r.get("tws_kts"),
+                    "gust_kts": r.get("gust_kts"), "type": r.get("source", "onboard_sensor"),
+                    "session_id": str(session_id), "observed_at": r["observed_at"],
+                },
+            )
+            repos.wind.upsert_estimate(cell_lat, cell_lng, bucket, new_estimate)
+        except Exception:
+            logger.warning("wind refinement failed for session %s: %r", session_id, r,
+                           exc_info=True)
 
 
 def _regenerate_activity_thumbnail(activity_id: uuid.UUID) -> None:
@@ -247,13 +287,3 @@ def wind_fetch(payload: WindFetchModel, request: Request):
             except Exception as exc:  # one bad station must not stop the sweep
                 errors.append(f"{provider}/{station.external_station_id}: {exc}")
     return {"stations": stations_hit, "inserted": inserted, "errors": errors}
-
-
-@router.post("/wind/reconcile")
-def wind_reconcile(request: Request):
-    """Periodic reconciliation trigger (wind-scheduler service): replaces
-    provisional Open-Meteo forecast readings with the archive's settled
-    (reanalysis) values once they're old enough for it to have caught up —
-    see ``services/wind_lookup.reconcile_forecasts``."""
-    require_system(request)
-    return wind_lookup.reconcile_forecasts()

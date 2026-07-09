@@ -1,10 +1,13 @@
-"""Wind endpoints (``/api/wind``): station catalog + cached observations.
+"""Wind endpoints (``/api/wind``): real-station catalog + cached
+observations, plus a live snapshot for the WindCard/map display.
 
-Matrix: stations/observations are pub-readable; writes are system (fetch job)
-or superadmin (station registration) — except ``/nearest``, any authenticated
-user can trigger an on-demand Open-Meteo lookup/auto-creation for their own
-session/race location (see ``services/wind_lookup.py``). The periodic fetch
-is triggered on ``/api/system/wind/fetch`` by the wind-scheduler service.
+Matrix: stations/observations are pub-readable; writes are system (fetch
+job) or superadmin (station registration). ``/nearest`` is any authenticated
+user, and is a quick display value only (see ``services/wind_lookup.
+live_snapshot``) — it is *not* the rigorous per-session wind estimate used
+by analysis (that lives with the session's own processed data, computed by
+the worker). The periodic fetch for real stations is triggered on
+``/api/system/wind/fetch`` by the wind-scheduler service.
 """
 
 import uuid
@@ -45,17 +48,9 @@ def get_station(station_id: uuid.UUID):
 def create_station(body: WindStationWriteModel, request: Request):
     verify_csrf(request)
     require_superadmin(request)
-    if not body.provider or not body.station_type:
-        raise HTTPException(422, "provider and station_type are required")
+    if not body.provider or not body.station_type or not body.external_station_id:
+        raise HTTPException(422, "provider, station_type and external_station_id are required")
     data = body.model_dump(exclude_unset=True)
-    if body.provider == "open_meteo":
-        # No real "station id" for a forecast grid — the adapter queries by
-        # coordinate, so external_station_id is derived, not user-entered.
-        if body.lat is None or body.lng is None:
-            raise HTTPException(422, "lat and lng are required for open_meteo")
-        data["external_station_id"] = f"{body.lat},{body.lng}"
-    elif not body.external_station_id:
-        raise HTTPException(422, "external_station_id is required")
     if repos.wind.get_by_provider_external(body.provider, data["external_station_id"]):
         raise HTTPException(409, "Station already registered")
     return repos.wind.create(data).to_dict()
@@ -91,24 +86,19 @@ def list_observations(station_id: uuid.UUID,
     if start is None and end is None:
         end = datetime.now(timezone.utc)
         start = end - timedelta(hours=OBSERVATIONS_DEFAULT_WINDOW_HOURS)
-    # A range further back than the scheduler/forecast fetch ever covers has no
-    # cached rows — the shared primitive backfills from the archive on demand,
-    # rather than silently returning nothing (or the wrong-window "latest").
-    rows = wind_lookup.list_observations_with_backfill(
-        station, start, end, limit=limit, offset=offset)
+    rows = repos.wind.list_observations(station.id, start=start, end=end,
+                                        limit=limit, offset=offset)
     return [o.to_dict() for o in rows]
 
 
 @router.get("/nearest")
-def nearest_station(lat: float, lng: float, request: Request, at: Optional[datetime] = None):
-    """Get-or-create the best wind station for a coordinate (real sensor
-    within 50km, else an existing Open-Meteo grid point within 25km, else a
-    freshly auto-created one) — any authenticated user, used by session/race
-    pages that have no wind data yet.
-
-    ``at``: pass the session/race's actual time (not "now") so a real sensor
-    with no historical data for that date falls through to the Open-Meteo
-    grid tier instead of being returned empty-handed — see
-    ``services/wind_lookup.find_or_create_station``."""
+def nearest_wind(lat: float, lng: float, request: Request, at: Optional[datetime] = None):
+    """Quick live snapshot for a coordinate/time — WindCard/map display
+    only. Prefers a real station in range with data near ``at``; otherwise
+    an unblended Open-Meteo candidate model. Nothing is created/persisted —
+    see ``services/wind_lookup.live_snapshot``."""
     require_user(request)
-    return wind_lookup.find_or_create_station(lat, lng, at=at).to_dict()
+    snapshot = wind_lookup.live_snapshot(lat, lng, at)
+    if snapshot is None:
+        raise HTTPException(404, "No wind data available near this point")
+    return snapshot

@@ -1,24 +1,33 @@
-"""Wind/meteo tables: ``wind_stations`` + ``wind_observations``.
+"""Wind/meteo tables — two distinct concepts, not one:
 
-Local cache of external providers (NOAA NDBC/METAR, Open-Meteo) or a custom
-fixed station at the club — avoids re-fetching on every render and preserves
-history past the upstream API's retention window. ``observed_at`` is the
-weather timestamp; ``fetched_at`` when we downloaded it (audit/cache). Which
-station(s) to aggregate for a regatta/session is decided at runtime, not
-persisted here.
+- ``wind_stations`` + ``wind_observations``: raw acquisition from real,
+  fixed-position sensors only (NOAA NDBC/METAR, a club's custom device).
+  Algorithmic APIs with no fixed position and their own accessible history
+  (Open-Meteo) are never persisted here — they're queried on demand (see
+  ``services/wind_providers/open_meteo.py``) since there's nothing to cache:
+  any lat/lng, any past date, always available from the provider itself.
+  ``keeps_local_history`` is per-station: real sensors whose own retention
+  window is short (NDBC/METAR trim their public history) need us to keep
+  what we've fetched; a future provider with its own full history wouldn't.
+- ``wind_estimates``: the *determined* wind for a place and time — a
+  spatiotemporal grid, not tied to one session, so sessions that pass
+  through the same cell/time share (and refine) the same estimate. How raw
+  observations turn into (or refine) a cell's estimate is a pluggable
+  algorithm — see ``services/wind_estimate_refinement.py`` — deliberately
+  left as a skeleton here.
 """
 
 import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..base import Base, UUIDPKMixin, enum_check
 
-WIND_PROVIDERS = ("noaa_ndbc", "noaa_metar", "open_meteo", "custom_device")
-WIND_STATION_TYPES = ("buoy", "metar", "forecast_grid", "custom_device")
+WIND_PROVIDERS = ("noaa_ndbc", "noaa_metar", "custom_device")
+WIND_STATION_TYPES = ("buoy", "metar", "custom_device")
 
 
 class WindStationORM(UUIDPKMixin, Base):
@@ -35,9 +44,17 @@ class WindStationORM(UUIDPKMixin, Base):
     station_type: Mapped[str] = mapped_column(String, nullable=False)
     lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     lng: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Whether we need to persist this station's readings ourselves (its own
+    # history isn't reliably accessible later) or can always query it live.
+    # True for every provider today (NDBC/METAR/custom_device all have a
+    # short or no public retention window).
+    keeps_local_history: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class WindObservationORM(UUIDPKMixin, Base):
+    """A raw reading from a real, fixed-position station — never Open-Meteo
+    or any other algorithmic/position-agnostic API (see module docstring)."""
+
     __tablename__ = "wind_observations"
     __table_args__ = (
         # Unique keeps the periodic fetch job idempotent; doubles as the
@@ -52,12 +69,36 @@ class WindObservationORM(UUIDPKMixin, Base):
     twd_deg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     tws_kts: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     gust_kts: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    # True for Open-Meteo forecast-endpoint rows (provisional); false for
-    # archive/reanalysis rows and for every non-Open-Meteo provider (real
-    # sensors are never "forecast"). Lets the reconciliation job find rows
-    # to overwrite once the archive has caught up — see
-    # ``services/wind_lookup.reconcile_forecasts``.
-    is_forecast: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class WindEstimateORM(UUIDPKMixin, Base):
+    """The determined wind for one spatiotemporal grid cell — refined over
+    time as new raw observations (real stations, onboard sensors passing
+    through, Open-Meteo models) land in that cell/bucket. Cell size and
+    bucket width are runtime constants (see ``services/wind_estimates.py``),
+    not encoded here — this table just stores whatever key they produce."""
+
+    __tablename__ = "wind_estimates"
+    __table_args__ = (
+        UniqueConstraint("grid_lat", "grid_lng", "time_bucket"),
+    )
+
+    grid_lat: Mapped[float] = mapped_column(Float, nullable=False)
+    grid_lng: Mapped[float] = mapped_column(Float, nullable=False)
+    time_bucket: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    twd_deg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    tws_kts: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    gust_kts: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Meaning left entirely to the refinement algorithm (see
+    # services/wind_estimate_refinement.py) — not interpreted anywhere else.
+    confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Every observation that contributed, e.g.
+    # [{"type": "onboard_sensor", "session_id": "...", "observed_at": "..."},
+    #  {"type": "open_meteo", "model": "icon_d2", "observed_at": "..."}]
+    sources: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    refined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

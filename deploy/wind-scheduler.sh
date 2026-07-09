@@ -7,24 +7,20 @@
 # the unique (station, observed_at) key makes re-runs idempotent, so an
 # occasional double fire is harmless.
 #
-# Also periodically POSTs /api/system/wind/reconcile: Open-Meteo forecast
-# readings are provisional, so once its archive/reanalysis has had time to
-# catch up, this overwrites the cached rows with the settled values (see
-# services/wind_lookup.reconcile_forecasts). Independent of the fetch cadence
-# above — reconciliation only ever touches open_meteo stations.
+# Real, fixed-position stations only (NOAA NDBC/METAR, custom devices) —
+# Open-Meteo is never persisted, it's queried on demand (see
+# backend/services/wind_providers/open_meteo.py), so there's nothing for
+# this scheduler to do for it.
 #
-# Cadence env (minutes), one per provider:
-#   WIND_FETCH_INTERVAL_MIN_NOAA_NDBC        (default 30)
-#   WIND_RECONCILE_INTERVAL_MIN_OPEN_METEO   (default 1440, i.e. once a day)
+# Cadence env (minutes):
+#   WIND_FETCH_INTERVAL_MIN_NOAA_NDBC   (default 30)
 set -eu
 
 BACKEND_URL="${BACKEND_URL:-http://backend:8000}"
 TOKEN="${SAILFRAMES_HOOK_TOKEN:?SAILFRAMES_HOOK_TOKEN is required}"
 
 NDBC_INTERVAL_MIN="${WIND_FETCH_INTERVAL_MIN_NOAA_NDBC:-30}"
-RECONCILE_INTERVAL_MIN="${WIND_RECONCILE_INTERVAL_MIN_OPEN_METEO:-1440}"
 ndbc_last=0
-reconcile_last=0
 
 fetch() {
     provider="$1"
@@ -38,26 +34,12 @@ fetch() {
     echo ""
 }
 
-reconcile() {
-    echo "[wind-scheduler] reconciling open_meteo forecasts"
-    curl -fsS -X POST \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/json" \
-        "$BACKEND_URL/api/system/wind/reconcile" \
-        || echo "[wind-scheduler] reconcile failed (will retry next cycle)"
-    echo ""
-}
-
-echo "[wind-scheduler] started (noaa_ndbc every ${NDBC_INTERVAL_MIN}m, open_meteo reconcile every ${RECONCILE_INTERVAL_MIN}m)"
+echo "[wind-scheduler] started (noaa_ndbc every ${NDBC_INTERVAL_MIN}m)"
 while true; do
     now=$(date +%s)
     if [ $((now - ndbc_last)) -ge $((NDBC_INTERVAL_MIN * 60)) ]; then
         fetch "noaa_ndbc"
         ndbc_last=$now
-    fi
-    if [ $((now - reconcile_last)) -ge $((RECONCILE_INTERVAL_MIN * 60)) ]; then
-        reconcile
-        reconcile_last=$now
     fi
     sleep 60
 done

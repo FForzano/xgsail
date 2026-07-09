@@ -1,21 +1,28 @@
-"""SQL wind repository: ``wind_stations`` + ``wind_observations`` cache.
+"""SQL wind repository — two distinct concepts (see ``db/models/wind.py``):
 
-``upsert_observations`` relies on the unique (wind_station_id, observed_at)
-constraint with ``ON CONFLICT DO NOTHING`` so the periodic fetch job is
-idempotent by construction.
+- ``wind_stations``/``wind_observations``: raw acquisition, real fixed
+  stations only. ``upsert_observations`` relies on the unique
+  (wind_station_id, observed_at) constraint with ``ON CONFLICT DO NOTHING``
+  so the periodic fetch job is idempotent by construction.
+- ``wind_estimates``: the determined wind per grid cell/time bucket,
+  read/written by whatever refinement strategy is active (see
+  ``services/wind_estimate_refinement.py``) — this repo only stores
+  whatever it decides, no logic of its own.
 """
 
 import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from ...db.models import WindObservationORM, WindStationORM
+from ...db.models import WindEstimateORM, WindObservationORM, WindStationORM
 
-_STATION_FIELDS = ("provider", "external_station_id", "name", "station_type", "lat", "lng")
-_OBS_FIELDS = ("observed_at", "twd_deg", "tws_kts", "gust_kts", "is_forecast")
+_STATION_FIELDS = ("provider", "external_station_id", "name", "station_type", "lat", "lng",
+                   "keeps_local_history")
+_OBS_FIELDS = ("observed_at", "twd_deg", "tws_kts", "gust_kts")
+_ESTIMATE_FIELDS = ("twd_deg", "tws_kts", "gust_kts", "confidence", "sources")
 
 
 class SqlWindRepo:
@@ -73,7 +80,7 @@ class SqlWindRepo:
             s.commit()
             return True
 
-    # --- observations ---
+    # --- observations (real stations only — see module docstring) ---
 
     def upsert_observations(self, station_id: uuid.UUID, rows: "list[dict]") -> int:
         """Insert observations, silently skipping (station, observed_at)
@@ -81,8 +88,7 @@ class SqlWindRepo:
         if not rows:
             return 0
         values = [
-            {"wind_station_id": station_id,
-             **{k: r.get(k, False) if k == "is_forecast" else r.get(k) for k in _OBS_FIELDS}}
+            {"wind_station_id": station_id, **{k: r.get(k) for k in _OBS_FIELDS}}
             for r in rows
         ]
         with self.Session() as s:
@@ -95,63 +101,6 @@ class SqlWindRepo:
             inserted = len(s.execute(stmt).fetchall())
             s.commit()
             return inserted
-
-    def reconcile_observations(self, station_id: uuid.UUID, rows: "list[dict]") -> int:
-        """Overwrite existing (station, observed_at) rows with settled values
-        — unlike ``upsert_observations`` (which skips duplicates so the
-        periodic fetch stays cheap), this is for the reconciliation job
-        replacing provisional forecast readings with the archive's reanalysis
-        once it's had time to catch up. Returns the number of rows written."""
-        if not rows:
-            return 0
-        values = [
-            {"wind_station_id": station_id,
-             **{k: r.get(k, False) if k == "is_forecast" else r.get(k) for k in _OBS_FIELDS}}
-            for r in rows
-        ]
-        with self.Session() as s:
-            stmt = pg_insert(WindObservationORM).values(values)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["wind_station_id", "observed_at"],
-                set_={
-                    "twd_deg": stmt.excluded.twd_deg,
-                    "tws_kts": stmt.excluded.tws_kts,
-                    "gust_kts": stmt.excluded.gust_kts,
-                    "is_forecast": stmt.excluded.is_forecast,
-                    "fetched_at": func.now(),
-                },
-            )
-            s.execute(stmt)
-            s.commit()
-            return len(values)
-
-    def stations_with_stale_forecasts(self, cutoff: datetime) -> "list[uuid.UUID]":
-        """Distinct station ids that still have forecast-sourced rows older
-        than ``cutoff`` — candidates for the reconciliation job."""
-        with self.Session() as s:
-            q = (
-                select(WindObservationORM.wind_station_id)
-                .where(WindObservationORM.is_forecast.is_(True),
-                       WindObservationORM.observed_at < cutoff)
-                .distinct()
-            )
-            return list(s.scalars(q).all())
-
-    def stale_forecast_range(self, station_id: uuid.UUID,
-                             cutoff: datetime) -> "Optional[tuple[datetime, datetime]]":
-        """``(min, max) observed_at`` of a station's not-yet-reconciled
-        forecast rows older than ``cutoff``, or ``None`` if there are none —
-        lets the reconciliation job fetch one archive range per station
-        instead of one call per stale hour."""
-        with self.Session() as s:
-            lo, hi = s.execute(
-                select(func.min(WindObservationORM.observed_at),
-                      func.max(WindObservationORM.observed_at))
-                .where(WindObservationORM.wind_station_id == station_id,
-                      WindObservationORM.is_forecast.is_(True),
-                      WindObservationORM.observed_at < cutoff)
-            ).one()
-            return None if lo is None else (lo, hi)
 
     def list_observations(self, station_id: uuid.UUID, *,
                           start: Optional[datetime] = None,
@@ -175,11 +124,9 @@ class SqlWindRepo:
     def find_nearest(self, lat: float, lng: float, *,
                      providers: "Optional[list[str]]" = None,
                      max_km: float = 50) -> Optional[WindStationORM]:
-        """Closest station within ``max_km``, optionally restricted to
+        """Closest real station within ``max_km``, optionally restricted to
         ``providers`` (haversine, computed in Python — station counts are
-        small, no need for PostGIS). Provider quality tiers (real sensors vs.
-        forecast grid) are the caller's job — see
-        ``services/wind_lookup.find_or_create_station``."""
+        small, no need for PostGIS)."""
         from ...services.geo import haversine_m
 
         with self.Session() as s:
@@ -195,3 +142,63 @@ class SqlWindRepo:
             if km <= best_km:
                 best, best_km = st, km
         return best
+
+    # --- wind estimates (determined value per grid cell/time bucket) ---
+
+    def get_estimate(self, grid_lat: float, grid_lng: float,
+                     time_bucket: datetime) -> Optional[WindEstimateORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(WindEstimateORM).where(
+                    WindEstimateORM.grid_lat == grid_lat,
+                    WindEstimateORM.grid_lng == grid_lng,
+                    WindEstimateORM.time_bucket == time_bucket,
+                )
+            ).first()
+
+    def upsert_estimate(self, grid_lat: float, grid_lng: float, time_bucket: datetime,
+                        data: dict) -> WindEstimateORM:
+        """Write the row a refinement strategy decided on (see
+        ``services/wind_estimate_refinement.py``) — a full replace, not a
+        merge: the strategy already read the existing row (if any) via
+        ``get_estimate`` and decided the complete new state."""
+        values = {
+            "grid_lat": grid_lat, "grid_lng": grid_lng, "time_bucket": time_bucket,
+            **{k: data.get(k) for k in _ESTIMATE_FIELDS},
+        }
+        with self.Session() as s:
+            stmt = pg_insert(WindEstimateORM).values(values)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["grid_lat", "grid_lng", "time_bucket"],
+                set_={
+                    "twd_deg": stmt.excluded.twd_deg,
+                    "tws_kts": stmt.excluded.tws_kts,
+                    "gust_kts": stmt.excluded.gust_kts,
+                    "confidence": stmt.excluded.confidence,
+                    "sources": stmt.excluded.sources,
+                    "refined_at": func.now(),
+                },
+            )
+            s.execute(stmt)
+            s.commit()
+        return self.get_estimate(grid_lat, grid_lng, time_bucket)
+
+    def list_estimates_for_cells(self, cells: "list[tuple[float, float]]",
+                                 start: datetime, end: datetime) -> "list[WindEstimateORM]":
+        """Estimates already on file for a set of (grid_lat, grid_lng) cells
+        within ``[start, end]`` — used by ``ingestion.write_wind_cache`` to
+        bundle existing grid knowledge alongside freshly-fetched raw data for
+        a session's waypoints."""
+        if not cells:
+            return []
+        with self.Session() as s:
+            cell_match = or_(*[
+                (WindEstimateORM.grid_lat == lat) & (WindEstimateORM.grid_lng == lng)
+                for lat, lng in cells
+            ])
+            q = select(WindEstimateORM).where(
+                cell_match,
+                WindEstimateORM.time_bucket >= start,
+                WindEstimateORM.time_bucket <= end,
+            )
+            return list(s.scalars(q).all())

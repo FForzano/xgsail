@@ -11,6 +11,7 @@ Key layout (docs/device-protocol.md + api-project.md):
   referenced by ``session_streams.data_ref``.
 """
 
+import json
 import logging
 import os
 import uuid
@@ -21,7 +22,7 @@ import requests
 
 from ..repositories import get_repos
 from ..storage import get_blob_store
-from . import wind_lookup
+from . import wind_estimates, wind_lookup
 
 logger = logging.getLogger(__name__)
 
@@ -176,45 +177,44 @@ def sample_wind_waypoints(points: "list[dict]", max_points: int = WIND_WAYPOINTS
 
 def write_wind_cache(prefix: str, waypoints: "list[tuple[float, float]]",
                      start: datetime, end: datetime) -> None:
-    """Pre-fetch the region's wind for a session's time window, sampled at
-    several points along the track (``waypoints`` — see
-    ``sample_wind_waypoints``) rather than just the start, and drop it in the
-    processed prefix as ``wind_cache.json`` so the (DB-blind) worker can use
-    it as the true-wind source when the session has no onboard wind sensor.
-    Each cached row carries its source station's ``station_lat``/
-    ``station_lng`` so the worker can pick the spatially nearest one per GPS
-    point instead of assuming a single location for the whole session.
+    """Pre-fetch every raw wind source relevant to a session's track/time
+    window, sampled at several points along the track (``waypoints`` — see
+    ``sample_wind_waypoints``) rather than just the start, and drop it in
+    the processed prefix as ``wind_cache.json``. No selection happens here
+    — each entry bundles *every* raw source for that waypoint (real station,
+    every Open-Meteo candidate model, any existing grid estimate — see
+    ``wind_lookup.gather_raw_wind``); the worker's wind-estimation algorithm
+    decides what to do with it (``workers/process_upload/processing/
+    wind_estimation.py``).
 
-    Best-effort per waypoint: resolving a station triggers a historical
-    backfill when the cache is empty for an old date (see
-    ``wind_lookup.observations_in_window``). A waypoint that fails to resolve
-    just contributes nothing — the worker falls back to GPS-estimated wind
-    only if every waypoint fails."""
+    Waypoints landing in the same grid cell are deduped (they'd fetch
+    identical raw data — see ``services/wind_estimates.grid_cell``).
+    Best-effort per waypoint: a failure just means one fewer bundle in the
+    payload — the worker falls back to GPS-estimated wind only if every
+    waypoint fails."""
     payload: list[dict] = []
-    seen_station_ids: set = set()
+    seen_cells: set = set()
     for lat, lng in waypoints:
+        cell = wind_estimates.grid_cell(lat, lng)
+        if cell in seen_cells:
+            continue  # nearby waypoints share a cell — no need to fetch it twice
+        seen_cells.add(cell)
         try:
-            station, rows = wind_lookup.observations_in_window(lat, lng, start, end)
+            bundle = wind_lookup.gather_raw_wind(lat, lng, start, end, gps_points=waypoints)
         except Exception:
             logger.warning("wind cache pre-fetch failed for waypoint (%s, %s) prefix %s",
                            lat, lng, prefix, exc_info=True)
             continue
-        if station.id in seen_station_ids:
-            continue  # nearby waypoints resolve to the same station — no need to repeat it
-        seen_station_ids.add(station.id)
-        # Only the fields the worker needs, as JSON primitives — the blob store's
-        # put_json uses plain json.dumps (no UUID/datetime encoder like FastAPI).
-        payload.extend({
-            "station_lat": station.lat,
-            "station_lng": station.lng,
-            "observed_at": o.observed_at.isoformat(),
-            "twd_deg": o.twd_deg,
-            "tws_kts": o.tws_kts,
-            "gust_kts": o.gust_kts,
-        } for o in rows)
+        payload.append({"lat": lat, "lng": lng, **bundle})
     if payload:
         try:
-            get_blob_store().put_json(f"{prefix}wind_cache.json", payload)
+            # Plain json.dumps (not put_json — no UUID/datetime encoder like
+            # FastAPI's) with default=str for the datetime fields inside the bundle.
+            get_blob_store().put_bytes(
+                f"{prefix}wind_cache.json",
+                json.dumps(payload, default=str).encode(),
+                "application/json",
+            )
         except Exception:
             logger.warning("wind cache write failed for prefix %s", prefix, exc_info=True)
 
@@ -222,12 +222,11 @@ def write_wind_cache(prefix: str, waypoints: "list[tuple[float, float]]",
 def refresh_wind_cache(session_id: uuid.UUID) -> str:
     """Recompute ``wind_cache.json`` for a session's most recently uploaded
     processed prefix, sampling waypoints from its already-stored
-    ``gps.json`` — for a session ingested before the multi-waypoint
-    sampling / tighter Open-Meteo grid (``GRID_RADIUS_KM``) landed, so it can
-    pick up the improvement without a full re-import. Re-dispatches analysis
-    afterwards so VMG/polar/true-wind reflect the refreshed cache. Raises
-    ``ValueError`` (caller's job to turn into an HTTP error) if there's
-    nothing to refresh from.
+    ``gps.json`` — for a session ingested before the current wind-gathering
+    logic landed, so it can pick up improvements without a full re-import.
+    Re-dispatches analysis afterwards so VMG/polar/true-wind reflect the
+    refreshed cache. Raises ``ValueError`` (caller's job to turn into an
+    HTTP error) if there's nothing to refresh from.
 
     Works for both manual GPX imports and device uploads: the worker
     normalizes every source to the same ``{lat, lon, ...}`` shape in

@@ -107,6 +107,10 @@ def compute_true_wind_series(
             "awa_deg": w.apparent_angle_deg,
             "boat_speed_kts": round(speed, 2),
             "heading_deg": round(heading, 1),
+            # A real measurement (onboard sensor) — distinguishes this from
+            # "cache"/"gps_estimate" so callers know it's safe to feed back
+            # into the wind_estimates grid (see wind_estimation.refinements_from).
+            "source": "sensor",
         })
 
     return results

@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { useWindAt } from "@/hooks/useWindAt";
 import { fmtKnots } from "@/utils/format";
-import type { VmgPoint } from "@/types";
+import type { TrueWindPoint, VmgPoint } from "@/types";
 import {
   catmullRomInterval,
   pointAt,
@@ -56,6 +56,7 @@ export function MapView({
   marks = [],
   className = "sf-race__map",
   wind,
+  sessionWind,
   vmg,
   mapOptions,
   controls,
@@ -64,8 +65,16 @@ export function MapView({
   marks?: MapMark[];
   className?: string;
   /** Region to show a wind direction/speed overlay for (e.g. the session's
-   * start point + start time) — omit to hide the overlay entirely. */
+   * start point + start time) — omit to hide the overlay entirely. Ignored
+   * for the actual value shown whenever `sessionWind` has a usable point;
+   * still used as the time to look up (`wind.at`) and as the live-snapshot
+   * fallback when it doesn't. */
   wind?: { lat: number; lng: number; at?: string | null };
+  /** This session's own determined true-wind series (`session_analysis.
+   * true_wind`, see workers/process_upload/processing/wind_estimation.py)
+   * — preferred over the live WindCard-style snapshot when present, since
+   * it's what VMG/polar/legs were actually computed against. */
+  sessionWind?: TrueWindPoint[] | null;
   /** VMG series (session-scoped) — if given, the click-track popup shows VMG
    * alongside speed/course. */
   vmg?: VmgPoint[] | null;
@@ -88,6 +97,22 @@ export function MapView({
   // time) without forcing a full map rebuild on every playback tick.
   const cursorRef = useRef(cursor);
   const { data: windAt } = useWindAt(wind?.lat, wind?.lng, wind?.at);
+  // Prefer this session's own determined wind (closest-in-time point) over
+  // the live snapshot — it's what the session's own VMG/polar/legs were
+  // actually computed against, not just a nearby model/station guess.
+  const targetMs = wind?.at ? Date.parse(wind.at) : Date.now();
+  const sessionWindPoint = (sessionWind ?? []).reduce<TrueWindPoint | null>((best, p) => {
+    if (p.twd_deg == null) return best;
+    if (!best) return p;
+    return Math.abs(p.timestamp * 1000 - targetMs) < Math.abs(best.timestamp * 1000 - targetMs)
+      ? p
+      : best;
+  }, null);
+  const displayWind = sessionWindPoint
+    ? { twd_deg: sessionWindPoint.twd_deg, tws_kts: sessionWindPoint.tws_kts }
+    : windAt
+    ? { twd_deg: windAt.twd_deg, tws_kts: windAt.tws_kts }
+    : null;
 
   // One-time map + static layer setup (rebuilt when the data identity changes).
   useEffect(() => {
@@ -271,24 +296,23 @@ export function MapView({
     }
   }, [cursor, tracks]);
 
-  const observation = windAt?.observation;
   return (
     <div className={`${className} sf-map`}>
       <div ref={elRef} className="sf-map__surface" />
       {mapOptions && <div className="sf-map__options">{mapOptions}</div>}
       {controls && <div className="sf-map__controls">{controls}</div>}
-      {observation?.twd_deg != null && (
-        <div className="sf-map__wind" title={fmtKnots(observation.tws_kts)}>
+      {displayWind?.twd_deg != null && (
+        <div className="sf-map__wind" title={fmtKnots(displayWind.tws_kts)}>
           <span
             className="sf-map__wind-arrow"
             // twd_deg is where the wind comes FROM; rotate by +180 so the
             // arrow shows the direction it's blowing TOWARD (flow), not the
             // bearing to its source.
-            style={{ transform: `rotate(${(observation.twd_deg + 180) % 360}deg)` }}
+            style={{ transform: `rotate(${(displayWind.twd_deg + 180) % 360}deg)` }}
           >
             ↑
           </span>
-          <span className="sf-map__wind-speed">{fmtKnots(observation.tws_kts)}</span>
+          <span className="sf-map__wind-speed">{fmtKnots(displayWind.tws_kts)}</span>
         </div>
       )}
     </div>

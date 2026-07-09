@@ -208,6 +208,13 @@ class SessionAnalysisORM(Base):
     # `polar_points`) — same shape, kept alongside the other derived series
     # rather than as its own table since it isn't a relational/queryable datum.
     polar_target: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    # Per-timestamp true wind (twd_deg/tws_kts/source) this session's own
+    # analysis settled on — see workers/process_upload/processing/
+    # wind_estimation.py. The map/session views prefer this over the
+    # ephemeral WindCard/live snapshot (services/wind_lookup.live_snapshot)
+    # when present, since it's what VMG/polar/legs were actually computed
+    # against.
+    true_wind: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     # Small track-preview PNG rendered once by the worker from gps.json, so
     # the sessions list can show it without re-rendering the track per view.
     thumbnail_image_id: Mapped[Optional[uuid.UUID]] = mapped_column(

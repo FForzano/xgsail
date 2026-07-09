@@ -274,6 +274,7 @@ export function SessionDetailPage() {
               marks={marks}
               className="sf-race__map sf-map--session"
               vmg={analysis.data?.vmg_series}
+              sessionWind={analysis.data?.true_wind}
               wind={
                 tracks[0]?.pts[0]
                   ? { lat: tracks[0].pts[0].lat, lng: tracks[0].pts[0].lon, at: s.started_at }

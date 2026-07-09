@@ -25,7 +25,7 @@ from .session import (
     SessionAnalysisORM,
 )
 from .ingest import ImportORM, SessionUploadORM, SessionStreamORM
-from .wind import WindStationORM, WindObservationORM
+from .wind import WindStationORM, WindObservationORM, WindEstimateORM
 
 __all__ = [
     "ImageORM",
@@ -66,4 +66,5 @@ __all__ = [
     "SessionStreamORM",
     "WindStationORM",
     "WindObservationORM",
+    "WindEstimateORM",
 ]

@@ -34,7 +34,8 @@ IMPORT_STATUSES = ("pending", "processed", "failed")
 UPLOAD_STATUSES = ("pending", "processing", "processed", "failed")
 UPLOAD_SOURCE_TYPES = ("device", "manual_import")
 UPLOAD_SUBJECT_TYPES = ("boat", "crew_member")
-STREAM_SENSOR_TYPES = ("gps", "imu", "wind", "pressure", "heart_rate", "other")
+STREAM_SENSOR_TYPES = ("gps", "imu", "wind", "pressure", "heart_rate",
+                       "estimated_position", "estimated_motion", "other")
 
 
 class ImportORM(UUIDPKMixin, Base):

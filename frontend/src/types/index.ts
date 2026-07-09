@@ -322,6 +322,20 @@ export interface VmgPoint {
   tws_kts: number | null;
 }
 
+/** One point of the true wind this session's own analysis settled on (see
+ * workers/process_upload/processing/wind_estimation.py) — preferred over
+ * the ephemeral WindCard/map live snapshot when present, since it's what
+ * VMG/polar/legs were actually computed against. */
+export interface TrueWindPoint {
+  timestamp: number;
+  twd_deg: number | null;
+  tws_kts: number | null;
+  twa_deg?: number | null;
+  boat_speed_kts?: number;
+  heading_deg?: number;
+  source?: string;
+}
+
 /** Per-variable {mean,max,std,…} distributions (speed/apparent wind/heel/pitch). */
 export type SensorStats = Record<string, Record<string, number>>;
 
@@ -344,6 +358,7 @@ export interface SessionAnalysis {
   /** Max-speed-per-bucket "target" polar (vs. `points` from `/polar-points`,
    * which is the average/actual-performance polar). */
   polar_target: PolarPoint[] | null;
+  true_wind: TrueWindPoint[] | null;
   computed_at: string | null;
 }
 
@@ -473,6 +488,22 @@ export interface WindStation {
 }
 
 export interface WindObservation {
+  observed_at: string;
+  twd_deg: number | null;
+  tws_kts: number | null;
+  gust_kts: number | null;
+}
+
+/** Quick live value for WindCard/map display — NOT the per-session
+ * determined wind estimate (see MapView's `sessionWind` prop for that).
+ * Nothing behind this is persisted; `provider` is either a real station's
+ * (with `station_name`) or `"open_meteo"` (with `model`). */
+export interface WindSnapshot {
+  provider: string;
+  station_name?: string | null;
+  model?: string;
+  lat: number;
+  lng: number;
   observed_at: string;
   twd_deg: number | null;
   tws_kts: number | null;

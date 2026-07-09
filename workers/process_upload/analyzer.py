@@ -26,6 +26,7 @@ def _to_timestamp(t) -> float:
         return t.timestamp()
     return 0.0
 
+from processing import track
 from processing.maneuvers import detect_maneuvers, maneuver_summary
 from processing.models import GpsPoint, ImuReading, SessionMetadata, WindReading
 from processing.polar import generate_polar, polar_to_chart_data
@@ -37,11 +38,8 @@ from processing.stats import (
 )
 from processing.straight_lines import _haversine_nm, leg_comparison, segment_legs
 from processing.vmg import compute_vmg_series
-from processing.wind import (
-    compute_true_wind_series,
-    estimate_wind_from_gps,
-    true_wind_from_cached,
-)
+from processing.wind_estimation import estimate as estimate_wind
+from processing.wind_estimation import refinements_from
 
 
 def load_sensor_json(path: Path) -> list[dict]:
@@ -52,15 +50,14 @@ def load_sensor_json(path: Path) -> list[dict]:
     return data if isinstance(data, list) else data.get("data", [])
 
 
-def parse_gps(records: list[dict]) -> list[GpsPoint]:
-    return [GpsPoint(
-        timestamp=_to_timestamp(r.get("timestamp", r.get("t", ""))),
-        lat=r.get("lat", r.get("latitude", 0)),
-        lon=r.get("lon", r.get("longitude", 0)),
-        speed_kts=r.get("speed_kts", r.get("speed_kn", r.get("speed", 0))),
-        heading_deg=r.get("heading_deg", r.get("course", r.get("heading", 0))),
-        fix_quality=r.get("fix_quality", r.get("fix", 0)),
-    ) for r in records if "timestamp" in r or "t" in r]
+def parse_gps(records: list[dict]) -> "tuple[list[GpsPoint], list[dict], list[dict]]":
+    """Runs the joint position/motion estimator (see ``processing/track.py``)
+    and merges the result into the ``GpsPoint`` shape the rest of the
+    pipeline consumes. Returns ``(points, position, motion)`` — the two raw
+    series are needed by the caller to persist them as their own artifacts
+    (see ``analyze_session``)."""
+    position, motion = track.estimate(records)
+    return track.merge(position, motion), position, motion
 
 
 def parse_imu(records: list[dict]) -> list[ImuReading]:
@@ -94,35 +91,33 @@ def analyze_session(data_dir: Path) -> dict:
             pressure.json
             manifest.json
     """
-    gps = parse_gps(load_sensor_json(data_dir / "gps.json"))
+    gps, estimated_position, estimated_motion = parse_gps(load_sensor_json(data_dir / "gps.json"))
     imu = parse_imu(load_sensor_json(data_dir / "imu.json"))
     wind = parse_wind(load_sensor_json(data_dir / "wind.json"))
 
     if not gps:
         return {"error": "No GPS data found"}
 
-    # True wind calculation. Preference order:
-    #   1. onboard wind sensor (measured apparent → true),
-    #   2. cached regional wind (nearby station / forecast grid, from the
-    #      backend's wind_cache.json) interpolated onto the track,
-    #   3. a single rough direction estimated from the GPS tacks (maneuvers only).
-    true_wind = compute_true_wind_series(gps, wind, imu)
-    if not true_wind:
-        cached_wind = load_sensor_json(data_dir / "wind_cache.json")
-        true_wind = true_wind_from_cached(gps, cached_wind)
-
-    twd_estimate = None
-    if not true_wind:
-        est = estimate_wind_from_gps(gps)
-        if est:
-            twd_estimate = est[0]
+    # True wind calculation is a pluggable seam — see
+    # ``processing/wind_estimation.py`` for the strategy (today: onboard
+    # sensor > cached regional wind > rough GPS-tack estimate). wind_cache.json
+    # is the backend's raw multi-source bundle (real stations, every
+    # Open-Meteo candidate model, existing grid estimates) — see
+    # ``backend/services/wind_lookup.gather_raw_wind``, not a single
+    # pre-picked series.
+    raw_wind_bundle = load_sensor_json(data_dir / "wind_cache.json")
+    true_wind = estimate_wind(gps, wind, imu, raw_wind_bundle)
+    # Only non-empty when true_wind came from a real onboard sensor — fed
+    # back to the backend's wind_estimates grid (see routers/system.py::
+    # _apply_wind_refinements). Never derived from cache/GPS-estimate.
+    wind_refinements = refinements_from(gps, true_wind)
 
     avg_twd = None
     if true_wind:
         avg_twd = float(np.mean([tw["twd_deg"] for tw in true_wind]))
 
     # Maneuver detection
-    maneuvers = detect_maneuvers(gps, imu, avg_twd or twd_estimate)
+    maneuvers = detect_maneuvers(gps, imu, avg_twd)
     m_summary = maneuver_summary(maneuvers)
 
     # Leg segmentation
@@ -173,6 +168,15 @@ def analyze_session(data_dir: Path) -> dict:
         "violin": violin,
         "correlations": correlations,
         "leg_ranking": leg_ranking,
+        # Persisted separately as their own blob artifacts by the caller
+        # (handler.py::process_analyze_prefix) — not written directly here
+        # since analyze_session stays a pure function (dict in, dict out).
+        # The caller pops these back out before posting the rest of `result`
+        # to the backend, so they're stored once, not duplicated into
+        # analysis.json too.
+        "estimated_position": estimated_position,
+        "estimated_motion": estimated_motion,
+        "wind_refinements": wind_refinements,
     }
 
     return result
