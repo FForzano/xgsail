@@ -175,6 +175,23 @@ def sample_wind_waypoints(points: "list[dict]", max_points: int = WIND_WAYPOINTS
     return [(points[i]["lat"], points[i]["lon"]) for i in idxs]
 
 
+def _previous_wind_cache_by_cell(store, prefix: str) -> dict:
+    """The prior ``wind_cache.json`` for this prefix, indexed by grid cell —
+    the fallback source for ``write_wind_cache`` when a waypoint's fetch
+    fails. ``{}`` if there's no previous cache (first write) or it's
+    unreadable; either way there's simply nothing to fall back to."""
+    try:
+        old_payload = store.get_json(f"{prefix}wind_cache.json")
+    except Exception:
+        return {}
+    if not isinstance(old_payload, list):
+        return {}
+    return {
+        wind_estimates.grid_cell(e["lat"], e["lng"]): e
+        for e in old_payload if "lat" in e and "lng" in e
+    }
+
+
 def write_wind_cache(prefix: str, waypoints: "list[tuple[float, float]]",
                      start: datetime, end: datetime) -> None:
     """Pre-fetch every raw wind source relevant to a session's track/time
@@ -189,9 +206,23 @@ def write_wind_cache(prefix: str, waypoints: "list[tuple[float, float]]",
 
     Waypoints landing in the same grid cell are deduped (they'd fetch
     identical raw data — see ``services/wind_estimates.grid_cell``).
-    Best-effort per waypoint: a failure just means one fewer bundle in the
-    payload — the worker falls back to GPS-estimated wind only if every
-    waypoint fails."""
+
+    Best-effort per waypoint, merged against the previous cache on failure:
+    if a waypoint's fetch raises (a provider errored — e.g. it trimmed the
+    historical window we asked for), that cell falls back to whatever bundle
+    it held in the *previous* ``wind_cache.json``, instead of dropping the
+    cell entirely. This is deliberately scoped to actual failures, not to a
+    fetch that succeeds but is legitimately empty (no station in range right
+    now) — conflating the two would resurrect a station that's genuinely no
+    longer there. No staleness flag is needed on the carried-over bundle:
+    every observation inside it already carries its own ``observed_at``, so
+    the worker's existing per-observation time decay (``source_weight``'s
+    ``dt_seconds``) naturally discounts it as it ages, same as any other
+    observation. The worker falls back to GPS-estimated wind only if a cell
+    has neither a fresh nor a previous bundle."""
+    store = get_blob_store()
+    previous_by_cell = _previous_wind_cache_by_cell(store, prefix)
+
     payload: list[dict] = []
     seen_cells: set = set()
     for lat, lng in waypoints:
@@ -204,13 +235,18 @@ def write_wind_cache(prefix: str, waypoints: "list[tuple[float, float]]",
         except Exception:
             logger.warning("wind cache pre-fetch failed for waypoint (%s, %s) prefix %s",
                            lat, lng, prefix, exc_info=True)
+            fallback = previous_by_cell.get(cell)
+            if fallback is not None:
+                logger.info("wind cache: keeping previous bundle for cell %s (prefix %s) "
+                           "after fetch failure", cell, prefix)
+                payload.append(fallback)
             continue
         payload.append({"lat": lat, "lng": lng, **bundle})
     if payload:
         try:
             # Plain json.dumps (not put_json — no UUID/datetime encoder like
             # FastAPI's) with default=str for the datetime fields inside the bundle.
-            get_blob_store().put_bytes(
+            store.put_bytes(
                 f"{prefix}wind_cache.json",
                 json.dumps(payload, default=str).encode(),
                 "application/json",
