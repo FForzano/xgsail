@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sailframes-windfusion"
+name = "xgsail-windfusion"
 version = "0.1.0"
-description = "Pure wind-vector fusion + source-reliability weighting, shared by the SailFrames backend and the process_upload worker."
+description = "Pure wind-vector fusion + source-reliability weighting, shared by the XGSail backend and the process_upload worker."
 requires-python = ">=3.10"
 # Intentionally dependency-free (stdlib math only): the backend image is kept
 # numpy-free (see deploy/requirements.txt), so this package must not pull numpy
@@ -14,4 +14,4 @@ requires-python = ">=3.10"
 dependencies = []
 
 [tool.setuptools]
-packages = ["sailframes_windfusion"]
+packages = ["xgsail_windfusion"]

@@ -24,7 +24,7 @@ Two strategies ship:
 - ``sensor_cache_gps`` (legacy): picks ONE source per waypoint
   (``_flatten_bundle``) — no blending.
 - ``weighted_fusion`` (default): blends every source per waypoint with the
-  shared ``sailframes_windfusion`` weighting (``_fuse_bundle``), so a real
+  shared ``xgsail_windfusion`` weighting (``_fuse_bundle``), so a real
   station, several Open-Meteo models, and a grid estimate all contribute in
   proportion to their reliability instead of the first one winning.
 """
@@ -35,7 +35,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from sailframes_windfusion import source_weight, weighted_wind_mean
+from xgsail_windfusion import source_weight, weighted_wind_mean
 
 from .models import GpsPoint, ImuReading, WindReading
 from .wind import (
@@ -133,7 +133,7 @@ def _fuse_bundle(raw_wind_bundle: "list[dict]") -> "list[dict]":
 
     1. prepare each source (real station, every Open-Meteo model, grid) as an
        interpolatable series with a reliability weight from
-       ``sailframes_windfusion.source_weight``;
+       ``xgsail_windfusion.source_weight``;
     2. on the union of all their timestamps, interpolate each source to that
        time and ``weighted_wind_mean`` the ones that cover it.
 
@@ -286,7 +286,7 @@ def weighted_fusion(
     """Default behavior. Same tiering as ``sensor_then_cache_then_gps``, but
     tier 2 *blends* every source per waypoint (``_fuse_bundle``) instead of
     picking the first, weighting each by reliability (source type, station
-    distance, grid confidence) via the shared ``sailframes_windfusion``.
+    distance, grid confidence) via the shared ``xgsail_windfusion``.
 
     Tier 1 (onboard sensor) is unchanged and still the sole feeder of the
     ``wind_estimates`` grid via ``refinements_from`` — the blended tier is

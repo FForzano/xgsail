@@ -6,10 +6,10 @@ truth and predict them by fusing every OTHER source (the other stations plus
 the Open-Meteo models) at that station's location and time. Search a grid of
 ``WeightConfig`` values for the one that minimizes the mean direction error,
 and print it as a suggested replacement for the shipped defaults in
-``libs/sailframes_windfusion``.
+``libs/xgsail_windfusion``.
 
 This is the practical entry point for Fase 4; the pure evaluation/search core
-lives in ``sailframes_windfusion.calibration`` (and is unit-tested). This
+lives in ``xgsail_windfusion.calibration`` (and is unit-tested). This
 script only assembles real observations into that core's ``Site`` shape.
 
 Run it with the backend environment configured (DB + network for Open-Meteo),
@@ -29,8 +29,8 @@ from backend.repositories import get_repos
 from backend.services.geo import haversine_m
 from backend.services.wind_lookup import REAL_SENSOR_PROVIDERS
 from backend.services.wind_providers import open_meteo
-from sailframes_windfusion import DEFAULT_CONFIG
-from sailframes_windfusion import calibration as cal
+from xgsail_windfusion import DEFAULT_CONFIG
+from xgsail_windfusion import calibration as cal
 
 # Open-Meteo model name -> reliability class. Mirrors the worker's
 # _MODEL_SOURCE_TYPE (workers/process_upload/processing/wind_estimation.py);
@@ -154,7 +154,7 @@ def main():
     for source_type, weight in sorted(best.priors.items()):
         print(f"  prior[{source_type}] = {weight:.3f}")
     print("\nReview the error before applying; update SOURCE_PRIORS / decay "
-          "constants in libs/sailframes_windfusion/__init__.py by hand.")
+          "constants in libs/xgsail_windfusion/xgsail_windfusion/__init__.py by hand.")
 
 
 if __name__ == "__main__":

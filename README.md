@@ -1,12 +1,20 @@
-# SailFrames One
+# XGSail
 
 Open sailing analytics platform for race analysis, session replay, and fleet performance — self-hostable, hardware-agnostic, and built for extensibility.
 
-SailFrames One is a software-first evolution of the original SailFrames project. It focuses on the application layer: user management, authentication, roles, data ingestion, storage, analytics, and web-based workflows for sailors, coaches, and teams.
+> **XGSail is a fork of SailFrames (originally released as "SailFrames One").**
+> It keeps the original's Apache 2.0 license and general purpose — sailing
+> session analytics — but is **not a drop-in copy**: the data model, API
+> surface, and frontend have been substantially redesigned rather than
+> incrementally patched (see "Structural differences from upstream" below).
+> The name change reflects that divergence and matches the domain this fork
+> is hosted under.
 
-## What SailFrames One Is
+XGSail is a software-first evolution of the original SailFrames project. It focuses on the application layer: user management, authentication, roles, data ingestion, storage, analytics, and web-based workflows for sailors, coaches, and teams.
 
-SailFrames One is a platform for collecting, storing, and analyzing sailing session data.
+## What XGSail Is
+
+XGSail is a platform for collecting, storing, and analyzing sailing session data.
 
 It provides:
 
@@ -19,11 +27,11 @@ It provides:
 
 The goal is to provide an open platform for sailing analytics that can work with dedicated devices, custom integrations, or external data sources, without tying the application to one specific hardware stack.
 
-## What SailFrames One Is Not
+## What XGSail Is Not
 
-SailFrames One is **not** the hardware, firmware, or embedded edge stack from the original SailFrames repository.
+XGSail is **not** the hardware, firmware, or embedded edge stack from the original SailFrames repository.
 
-Those components may integrate with SailFrames One through the device protocol, but this repository is focused on the software platform and its data contract.
+Those components may integrate with XGSail through the device protocol, but this repository is focused on the software platform and its data contract.
 
 ## Project Scope
 
@@ -40,7 +48,7 @@ This repository contains:
 
 ## Architecture Direction
 
-SailFrames One follows a software-platform approach:
+XGSail follows a software-platform approach:
 
 1. Devices or external tools produce sailing data.
 2. Data is uploaded using a stable ingestion contract.
@@ -51,7 +59,7 @@ This separation allows the platform to evolve independently from any one hardwar
 
 ## Repository Status
 
-SailFrames One is under active development. The core platform is implemented and usable end to end:
+XGSail is under active development. The core platform is implemented and usable end to end:
 
 - Users, authentication, and scoped RBAC (superadmin / club admin / race officer) plus per-resource ownership for boats and groups
 - Clubs, groups, boats, and devices, with a claim-flow device protocol for ingestion
@@ -63,9 +71,20 @@ Ongoing work is on usability and polish of the existing frontend, and rounding o
 
 ## Relationship to SailFrames Core
 
-SailFrames One is derived from the broader SailFrames effort, but it intentionally narrows the scope to the software application layer.
+XGSail is derived from the broader SailFrames effort, but it intentionally narrows the scope to the software application layer.
 
-Where the original project includes hardware, firmware, edge devices, and AWS-oriented infrastructure, SailFrames One aims to become a cleaner, self-hostable analytics platform with a stable integration surface for present and future devices.
+Where the original project includes hardware, firmware, edge devices, and AWS-oriented infrastructure, XGSail aims to become a cleaner, self-hostable analytics platform with a stable integration surface for present and future devices.
+
+### Structural differences from upstream
+
+This is a fork in lineage and license, not a rebrand of the same codebase. Concretely:
+
+- **Data model**: the users/auth/roles/clubs/groups/devices/sessions schema was redesigned from scratch (see `docs/er-project.md`), not incrementally extended from the original tables.
+- **API surface**: routes, permission model, and ingestion contract were rebuilt around that new schema (`docs/api-project.md`), including a hardware-agnostic device-claim + device-key ingestion flow (`docs/device-protocol.md`) replacing the original's device-specific upload path.
+- **Frontend**: rebuilt on a simplified page structure and data-fetching approach (`docs/frontend-project.md`) rather than carried over as-is.
+- **Scope boundary**: firmware, PCB design, and embedded-device internals are excluded entirely — they remain in the upstream hardware repository, not mirrored here even partially.
+
+The four docs above are the source of truth for how far the schema/API/frontend have moved from upstream.
 
 ## Principles
 

@@ -5,8 +5,8 @@ import math
 
 import pytest
 
-import sailframes_windfusion as wf
-from sailframes_windfusion import calibration as cal
+import xgsail_windfusion as wf
+from xgsail_windfusion import calibration as cal
 
 
 @pytest.mark.parametrize("pred,true,expected", [

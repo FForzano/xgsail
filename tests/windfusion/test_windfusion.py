@@ -5,7 +5,7 @@ import math
 
 import pytest
 
-import sailframes_windfusion as wf
+import xgsail_windfusion as wf
 
 
 @pytest.mark.parametrize("twd,tws", [(0, 10), (90, 5), (180, 12), (270, 3), (45, 8), (359, 1)])

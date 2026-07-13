@@ -1,6 +1,6 @@
 # video worker — MP4 → HLS via ffmpeg.
 # AWS Lambda base image (same image runs on Lambda and locally via RIE):
-#   docker run -p 9000:8080 sailframes-video
+#   docker run -p 9000:8080 xgsail-video
 #   curl -XPOST localhost:9000/2015-03-31/functions/function/invocations -d @event.json
 FROM public.ecr.aws/lambda/python:3.12
 

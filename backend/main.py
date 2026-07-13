@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routers import ALL_ROUTERS
 
 app = FastAPI(
-    title="SailFrames Analysis API",
+    title="XGSail Analysis API",
     version="1.0.0",
     description="Sailboat racing analysis and replay dashboard",
 )

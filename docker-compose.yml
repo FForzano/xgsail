@@ -129,7 +129,7 @@ services:
   process_upload:
     build:
       # Context is the repo root (not the worker dir) so the build can reach
-      # the shared libs/sailframes_windfusion package. See the worker Dockerfile.
+      # the shared libs/xgsail_windfusion package. See the worker Dockerfile.
       context: .
       dockerfile: workers/process_upload/Dockerfile
     environment:

@@ -11,8 +11,8 @@ RUN pip install --no-cache-dir -r /app/deploy/requirements.txt
 
 # Shared wind-fusion math (also used by the process_upload worker). Pure
 # stdlib, so it doesn't pull numpy into this otherwise numpy-free image.
-COPY libs/sailframes_windfusion/ /app/libs/sailframes_windfusion/
-RUN pip install --no-cache-dir /app/libs/sailframes_windfusion
+COPY libs/xgsail_windfusion/ /app/libs/xgsail_windfusion/
+RUN pip install --no-cache-dir /app/libs/xgsail_windfusion
 
 # API code only — no static frontend, no processing pipeline (those are their
 # own containers).

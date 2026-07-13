@@ -1,12 +1,12 @@
 # Repo-root dev tooling config. NOT a build target — the deployable pieces
 # have their own setup (backend via deploy/requirements.txt, worker via its
-# Dockerfile, the shared lib via libs/sailframes_windfusion/pyproject.toml).
+# Dockerfile, the shared lib via libs/xgsail_windfusion/pyproject.toml).
 # This file exists to configure pytest, the repo's first test harness.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Make the three importable roots resolvable without installing anything:
-#   .                          -> `import backend.services...`
-#   workers/process_upload     -> `import processing.wind_estimation`, `handler`, `analyzer`
-#   libs/sailframes_windfusion -> `import sailframes_windfusion`
-pythonpath = [".", "workers/process_upload", "libs/sailframes_windfusion"]
+#   .                        -> `import backend.services...`
+#   workers/process_upload   -> `import processing.wind_estimation`, `handler`, `analyzer`
+#   libs/xgsail_windfusion   -> `import xgsail_windfusion`
+pythonpath = [".", "workers/process_upload", "libs/xgsail_windfusion"]

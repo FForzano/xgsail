@@ -28,7 +28,7 @@ import math
 from dataclasses import dataclass, field
 
 # --- reliability policy (starting values; calibrate with the leave-one-out
-# harness in ``sailframes_windfusion.calibration``) --------------------------
+# harness in ``xgsail_windfusion.calibration``) --------------------------
 
 # Base reliability per source type, before any spatial/temporal decay.
 # Onboard sensor and a real fixed station are the most trustworthy; regional

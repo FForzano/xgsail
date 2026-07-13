@@ -8,7 +8,7 @@ Two strategies ship:
 - ``first_write_wins`` (placeholder): store the first observation, ignore
   every later one.
 - ``weighted_merge`` (default): blend the existing cell estimate with the
-  new observation using the shared ``sailframes_windfusion`` weighting — the
+  new observation using the shared ``xgsail_windfusion`` weighting — the
   *same* vector math and reliability priors the worker uses per-session
   (``workers/process_upload/processing/wind_estimation.py``), so the
   accumulated grid and the per-session estimate stay coherent.
@@ -16,7 +16,7 @@ Two strategies ship:
 
 from typing import Callable, Optional
 
-from sailframes_windfusion import source_weight, weighted_wind_mean
+from xgsail_windfusion import source_weight, weighted_wind_mean
 
 # (existing estimate dict or None, new raw observation) -> new estimate dict
 # to write. ``observation`` shape: {twd_deg, tws_kts, gust_kts, type: str,
