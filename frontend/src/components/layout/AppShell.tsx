@@ -50,6 +50,7 @@ export function AppShell() {
     <div className="sf-shell">
       <header className="sf-navbar">
         <NavLink to="/" className="sf-navbar__brand">
+          <img src="/logo.svg" alt="" className="sf-navbar__logo" />
           XGSail
         </NavLink>
         <nav className="sf-navbar__links" aria-label="Main">

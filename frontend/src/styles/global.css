@@ -92,6 +92,13 @@ h1, h2, h3 {
   font-weight: 800;
   font-size: 1.1rem;
   color: var(--sf-text);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sf-navbar__logo {
+  height: 1.8rem;
+  width: auto;
 }
 .sf-navbar__links {
   display: flex;
@@ -394,10 +401,29 @@ h1, h2, h3 {
   flex-direction: column;
   gap: 0.35rem;
 }
+.sf-authcard__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+.sf-authcard__logo {
+  height: 3rem;
+  width: auto;
+  margin-bottom: 0.5rem;
+}
 .sf-authcard__brand {
   font-size: 1.3rem;
   color: var(--sf-primary);
   margin-bottom: 0.25rem;
+}
+.sf-authcard__tagline {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sf-muted);
 }
 .sf-authcard h2 {
   font-size: 1.05rem;

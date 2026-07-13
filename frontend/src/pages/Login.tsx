@@ -33,7 +33,11 @@ export function LoginPage() {
   return (
     <div className="sf-authpage">
       <form className="sf-authcard" onSubmit={onSubmit}>
-        <h1 className="sf-authcard__brand">XGSail</h1>
+        <div className="sf-authcard__header">
+          <img src="/logo.svg" alt="" className="sf-authcard__logo" />
+          <h1 className="sf-authcard__brand">XGSail</h1>
+          <p className="sf-authcard__tagline">Next-Gen Sailing Analytics</p>
+        </div>
         <h2>{t("auth.loginTitle")}</h2>
         <InputField
           label={t("auth.email")}
