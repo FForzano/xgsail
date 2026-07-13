@@ -18,6 +18,7 @@
     "acceptTerms": "I accept the terms and conditions"
   },
   "common": {
+    "tagline": "Next-Gen Sailing Analytics",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "save": "Save",
@@ -47,6 +48,30 @@
   "errors": {
     "generic": "Something went wrong",
     "notFound": "This page does not exist"
+  },
+  "landing": {
+    "getStarted": "Get started",
+    "heroTitle": "Sailing analytics for every crew",
+    "heroSubtitle": "Record, replay and analyze your sessions and races — wind, polars, maneuvers and leaderboards in one place.",
+    "insightsTitle": "What you'll find inside",
+    "feature1Title": "Session playback",
+    "feature1Body": "Relive every session on the map with speed, wind and maneuver overlays.",
+    "feature2Title": "Performance analysis",
+    "feature2Body": "Polars, VMG, tack and gybe comparisons built from your own recorded data.",
+    "feature3Title": "Races & regattas",
+    "feature3Body": "Manage race days and results with automatic scoring and a live leaderboard.",
+    "feature4Title": "Clubs & groups",
+    "feature4Body": "Share activities with your crew, group or club, with roles and permissions to match.",
+    "feature5Title": "Hardware-agnostic devices",
+    "feature5Body": "Claim any tracker with a per-device key and start uploading — no vendor lock-in.",
+    "feature6Title": "Self-hosted & open source",
+    "feature6Body": "Run your own stack with one command, or use the hosted version at xgsail.com — your data, your choice.",
+    "footerAbout": "XGSail is an open-source fork of SailFrames, distributed under the Apache License 2.0.",
+    "github": "GitHub",
+    "license": "License",
+    "originalProject": "SailFrames (original project)",
+    "contact": "Contact",
+    "footer": "© {{year}} XGSail"
   },
   "memberships": {
     "accept": "Accept",

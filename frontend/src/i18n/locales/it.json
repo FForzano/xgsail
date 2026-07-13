@@ -18,6 +18,7 @@
     "acceptTerms": "Accetto i termini e le condizioni"
   },
   "common": {
+    "tagline": "Next-Gen Sailing Analytics",
     "cancel": "Annulla",
     "confirm": "Conferma",
     "save": "Salva",
@@ -47,6 +48,30 @@
   "errors": {
     "generic": "Qualcosa è andato storto",
     "notFound": "Questa pagina non esiste"
+  },
+  "landing": {
+    "getStarted": "Inizia ora",
+    "heroTitle": "Analisi velica per ogni equipaggio",
+    "heroSubtitle": "Registra, rivivi e analizza le tue sessioni e regate — vento, polari, manovre e classifiche in un unico posto.",
+    "insightsTitle": "Cosa troverai all'interno",
+    "feature1Title": "Replay delle sessioni",
+    "feature1Body": "Rivivi ogni sessione sulla mappa con velocità, vento e manovre in sovrapposizione.",
+    "feature2Title": "Analisi delle prestazioni",
+    "feature2Body": "Polari, VMG, confronto tra virate e strambate costruiti sui tuoi dati registrati.",
+    "feature3Title": "Regate",
+    "feature3Body": "Gestisci giornate di regata e risultati con calcolo automatico del punteggio e classifica live.",
+    "feature4Title": "Club e gruppi",
+    "feature4Body": "Condividi le attività con equipaggio, gruppo o club, con ruoli e permessi dedicati.",
+    "feature5Title": "Dispositivi hardware-agnostici",
+    "feature5Body": "Associa qualsiasi tracker con una chiave dedicata e inizia a caricare i dati — nessun vincolo di marca.",
+    "feature6Title": "Self-hosted e open source",
+    "feature6Body": "Avvia il tuo stack con un comando, oppure usa la versione hosted su xgsail.com — la scelta dei tuoi dati è tua.",
+    "footerAbout": "XGSail è un fork open source di SailFrames, distribuito con licenza Apache 2.0.",
+    "github": "GitHub",
+    "license": "Licenza",
+    "originalProject": "SailFrames (progetto originale)",
+    "contact": "Contatti",
+    "footer": "© {{year}} XGSail"
   },
   "memberships": {
     "accept": "Accetta",

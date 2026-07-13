@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth, RequireSuperadmin } from "@/components/auth/RequireAuth";
+import { LandingPage } from "@/pages/Landing";
 import { LoginPage } from "@/pages/Login";
 import { RegisterPage } from "@/pages/Register";
 import { NotFoundPage } from "@/pages/NotFound";
@@ -28,14 +29,13 @@ import { AdminPage } from "@/pages/admin/AdminPage";
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
-      {/* Login mandatory everywhere: the entire shell sits behind RequireAuth. */}
+      {/* Login mandatory everywhere else: the app shell sits behind RequireAuth. */}
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
-          <Route path="/" element={<Navigate to="/diario/activities" replace />} />
-
           <Route path="/diario" element={<DiarioLayout />}>
             <Route index element={<Navigate to="activities" replace />} />
             <Route path="activities" element={<ActivitiesPage />} />

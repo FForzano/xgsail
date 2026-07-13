@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
+import { AuthCardHeader } from "@/components/auth/AuthCardHeader";
 
 export function LoginPage() {
   const { t } = useTranslation();
@@ -33,11 +34,7 @@ export function LoginPage() {
   return (
     <div className="sf-authpage">
       <form className="sf-authcard" onSubmit={onSubmit}>
-        <div className="sf-authcard__header">
-          <img src="/logo.svg" alt="" className="sf-authcard__logo" />
-          <h1 className="sf-authcard__brand">XGSail</h1>
-          <p className="sf-authcard__tagline">Next-Gen Sailing Analytics</p>
-        </div>
+        <AuthCardHeader />
         <h2>{t("auth.loginTitle")}</h2>
         <InputField
           label={t("auth.email")}
