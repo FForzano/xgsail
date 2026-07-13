@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -14,15 +15,29 @@ import { sessionsService, sessionKeys } from "@/services/sessions";
 import { polarsService, polarKeys } from "@/services/polars";
 import { Card } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { fmtDuration, fmtDistanceNm, fmtKnots, fmtSeconds } from "@/utils/format";
 import { PolarChart } from "./PolarChart";
 import { legSequence } from "@/utils/legSequence";
 import type { PolarPoint, SessionLeg, SessionManeuver, UUID } from "@/types";
 
+const MANEUVER_TYPES = ["tack", "gybe", "course_change"] as const;
+
 /** Rich per-session analysis (maneuvers, polar, VMG, …), assembled from its
- * normalized DB homes. 404 until the processing pipeline has run. */
-export function SessionAnalysis({ sessionId }: { sessionId: UUID }) {
+ * normalized DB homes. 404 until the processing pipeline has run.
+ *
+ * `editMode` (from the session page's options menu) surfaces per-maneuver
+ * correct/reject/restore/delete actions on the table — see
+ * `backend/routers/sessions.py::correct_maneuver/reject_maneuver/
+ * delete_maneuver`. Outside edit mode, rejected maneuvers are hidden from
+ * both the table and the summary/violin charts below (they're not real
+ * maneuvers, by the user's own say-so). */
+export function SessionAnalysis({ sessionId, editMode = false }: { sessionId: UUID; editMode?: boolean }) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [deletingManeuverId, setDeletingManeuverId] = useState<UUID | null>(null);
   const analysis = useQuery({
     queryKey: sessionKeys.analysis(sessionId),
     queryFn: () => sessionsService.analysis(sessionId),
@@ -33,9 +48,29 @@ export function SessionAnalysis({ sessionId }: { sessionId: UUID }) {
     queryFn: () => polarsService.forSession(sessionId),
   });
 
+  const invalidateAnalysis = () => queryClient.invalidateQueries({ queryKey: sessionKeys.analysis(sessionId) });
+  const correctManeuver = useMutation({
+    mutationFn: ({ maneuverId, type }: { maneuverId: UUID; type: SessionManeuver["maneuver_type"] }) =>
+      sessionsService.correctManeuver(sessionId, maneuverId, type),
+    onSuccess: invalidateAnalysis,
+  });
+  const rejectManeuver = useMutation({
+    mutationFn: ({ maneuverId, rejected }: { maneuverId: UUID; rejected: boolean }) =>
+      sessionsService.rejectManeuver(sessionId, maneuverId, rejected),
+    onSuccess: invalidateAnalysis,
+  });
+  const deleteManeuver = useMutation({
+    mutationFn: (maneuverId: UUID) => sessionsService.deleteManeuver(sessionId, maneuverId),
+    onSuccess: () => {
+      setDeletingManeuverId(null);
+      return invalidateAnalysis();
+    },
+  });
+
   if (analysis.isLoading) return <Card title={t("sessions.analysis")}><Spinner /></Card>;
   if (!analysis.data) return null; // no analysis yet — hide the section entirely
   const a = analysis.data;
+  const visibleManeuvers = editMode ? a.maneuvers : a.maneuvers.filter((m) => !m.rejected);
 
   return (
     <Card title={t("sessions.analysis")}>
@@ -53,9 +88,15 @@ export function SessionAnalysis({ sessionId }: { sessionId: UUID }) {
             <TackBreakdown legs={a.legs} />
           </Section>
         )}
-        {!!a.maneuvers.length && (
+        {!!visibleManeuvers.length && (
           <Section title={t("sessions.maneuvers")}>
-            <ManeuversTable maneuvers={a.maneuvers} />
+            <ManeuversTable
+              maneuvers={visibleManeuvers}
+              editMode={editMode}
+              onCorrect={(maneuverId, type) => correctManeuver.mutate({ maneuverId, type })}
+              onReject={(maneuverId, rejected) => rejectManeuver.mutate({ maneuverId, rejected })}
+              onDelete={setDeletingManeuverId}
+            />
           </Section>
         )}
         {a.violin && (
@@ -64,6 +105,15 @@ export function SessionAnalysis({ sessionId }: { sessionId: UUID }) {
           </Section>
         )}
       </div>
+      {deletingManeuverId && (
+        <ConfirmDialog
+          title={t("common.delete")}
+          message={t("sessions.deleteManeuverConfirm")}
+          busy={deleteManeuver.isPending}
+          onConfirm={() => deleteManeuver.mutate(deletingManeuverId)}
+          onClose={() => setDeletingManeuverId(null)}
+        />
+      )}
     </Card>
   );
 }
@@ -115,7 +165,19 @@ function ManeuverSummary({ summary }: { summary: Record<string, unknown> }) {
   );
 }
 
-function ManeuversTable({ maneuvers }: { maneuvers: SessionManeuver[] }) {
+function ManeuversTable({
+  maneuvers,
+  editMode = false,
+  onCorrect,
+  onReject,
+  onDelete,
+}: {
+  maneuvers: SessionManeuver[];
+  editMode?: boolean;
+  onCorrect?: (maneuverId: UUID, type: SessionManeuver["maneuver_type"]) => void;
+  onReject?: (maneuverId: UUID, rejected: boolean) => void;
+  onDelete?: (maneuverId: UUID) => void;
+}) {
   const { t } = useTranslation();
   return (
     <div className="sf-tablewrap">
@@ -127,16 +189,56 @@ function ManeuversTable({ maneuvers }: { maneuvers: SessionManeuver[] }) {
             <th>{t("sessions.recovery")}</th>
             <th>{t("sessions.duration")}</th>
             <th>Δ°</th>
+            {editMode && <th />}
           </tr>
         </thead>
         <tbody>
           {maneuvers.map((m) => (
-            <tr key={m.id}>
-              <td>{t(`sessions.${m.maneuver_type}`)}</td>
+            <tr key={m.id} className={m.rejected ? "sf-row--muted" : undefined}>
+              <td>
+                {editMode ? (
+                  <span className="sf-maneuver-type-select">
+                    <Select
+                      label={t("sessions.correctManeuver")}
+                      id={`maneuver-type-${m.id}`}
+                      value={m.maneuver_type}
+                      disabled={m.pending}
+                      onChange={(e) => onCorrect?.(m.id, e.target.value as SessionManeuver["maneuver_type"])}
+                    >
+                      {MANEUVER_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {t(`sessions.${type}`)}
+                        </option>
+                      ))}
+                    </Select>
+                  </span>
+                ) : (
+                  t(`sessions.${m.maneuver_type}`)
+                )}
+                {m.pending && <span className="sf-badge sf-badge--pending"> {t("sessions.computing")}</span>}
+                {m.rejected && <span className="sf-badge"> {t("sessions.rejected")}</span>}
+              </td>
               <td>{fmtKnots(m.speed_loss_kts)}</td>
               <td>{fmtSeconds(m.recovery_time_sec)}</td>
               <td>{fmtSeconds(m.duration_sec)}</td>
               <td>{Math.abs(m.heading_change_deg).toFixed(0)}°</td>
+              {editMode && (
+                <td>
+                  {m.source === "manual" ? (
+                    <Button variant="danger" className="sf-btn--sm" onClick={() => onDelete?.(m.id)}>
+                      {t("common.delete")}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      className="sf-btn--sm"
+                      onClick={() => onReject?.(m.id, !m.rejected)}
+                    >
+                      {m.rejected ? t("sessions.restoreManeuver") : t("sessions.rejectManeuver")}
+                    </Button>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

@@ -167,6 +167,22 @@ services:
       minio-init:
         condition: service_completed_successfully
 
+  # Manual, on-demand training run for the Stage 2 ML maneuver classifier —
+  # NOT started by `docker compose up` (the "training" profile keeps it out
+  # of the default service group). Launch it explicitly:
+  #   docker compose --profile training run --rm train_maneuver \
+  #       python -m workers.train_maneuver.train \
+  #       --data /data/maneuvers.csv --output /data/model
+  # ./train-data/ holds the CSV from scripts/export_maneuver_training_data.py
+  # and receives the trained model.json/metadata.json.
+  train_maneuver:
+    profiles: ["training"]
+    build:
+      context: .
+      dockerfile: workers/train_maneuver/Dockerfile
+    volumes:
+      - ./train-data:/data
+
   wind-scheduler:
     image: curlimages/curl:latest
     entrypoint: ["/bin/sh", "/init/wind-scheduler.sh"]

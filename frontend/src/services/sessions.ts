@@ -8,6 +8,7 @@ import type {
   Session,
   SessionAnalysis,
   SessionCrew,
+  SessionManeuver,
   SessionStats,
   SessionStream,
   UUID,
@@ -41,6 +42,14 @@ export const sessionsService = {
   streams: (id: UUID) => api.get<SessionStream[]>(`/sessions/${id}/streams`),
   stats: (id: UUID) => api.get<SessionStats>(`/sessions/${id}/stats`),
   analysis: (id: UUID) => api.get<SessionAnalysis>(`/sessions/${id}/analysis`),
+
+  correctManeuver: (id: UUID, maneuverId: UUID, maneuverType: SessionManeuver["maneuver_type"]) =>
+    api.patch<SessionManeuver>(`/sessions/${id}/maneuvers/${maneuverId}`, { maneuver_type: maneuverType }),
+  rejectManeuver: (id: UUID, maneuverId: UUID, rejected: boolean) =>
+    api.patch<SessionManeuver>(`/sessions/${id}/maneuvers/${maneuverId}/reject`, { rejected }),
+  deleteManeuver: (id: UUID, maneuverId: UUID) => api.del(`/sessions/${id}/maneuvers/${maneuverId}`),
+  addManeuver: (id: UUID, body: { maneuver_type: SessionManeuver["maneuver_type"]; start_time: number; end_time: number }) =>
+    api.post<{ ok: boolean; maneuver_id: UUID; status: "pending" }>(`/sessions/${id}/maneuvers`, body),
 
   crew: (id: UUID) => api.get<SessionCrew[]>(`/sessions/${id}/crew`),
   addCrew: (id: UUID, body: { user_id: UUID; sailing_role?: SailingRole }) =>

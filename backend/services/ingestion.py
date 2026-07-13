@@ -156,6 +156,33 @@ def dispatch_activity_thumbnail(bucket: str, activity_id: uuid.UUID, prefixes: l
         logger.warning("activity thumbnail dispatch failed for %s", activity_id, exc_info=True)
 
 
+def dispatch_maneuver_compute(bucket: str, prefix: str, maneuver_id: uuid.UUID,
+                              maneuver_type: str, start_time: float, end_time: float) -> None:
+    """Ask the worker to compute full stats/features for a manually-added
+    maneuver (``POST /sessions/{id}/maneuvers``) — same dispatch-by-key
+    shape as ``dispatch_analysis``, scoped to one time window instead of the
+    whole session (see ``process_compute_maneuver`` in the worker).
+
+    Best-effort like the other dispatchers here: on failure the maneuver
+    row is left ``pending`` indefinitely (known limitation, see
+    ``repositories/sql/session_repo.py::add_manual_maneuver``) rather than
+    surfacing a 500 to the request that created it."""
+    url = os.environ.get("PROCESS_UPLOAD_URL")
+    if not url:
+        return
+    record = {
+        "compute_maneuver": {
+            "prefix": prefix, "maneuver_id": str(maneuver_id),
+            "maneuver_type": maneuver_type, "start_time": start_time, "end_time": end_time,
+        },
+        "bucket": bucket,
+    }
+    try:
+        requests.post(url, json={"Records": [record]}, timeout=_worker_timeout())
+    except requests.RequestException:
+        logger.warning("maneuver compute dispatch failed for %s", maneuver_id, exc_info=True)
+
+
 WIND_WAYPOINTS_MAX = 6
 
 

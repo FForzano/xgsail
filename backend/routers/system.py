@@ -264,6 +264,34 @@ def upsert_activity_thumbnail(activity_id: uuid.UUID, payload: ActivityThumbnail
     return {"ok": True, "activity_id": activity_id}
 
 
+class ManeuverComputedPayload(BaseModel):
+    duration_sec: float
+    speed_loss_kts: float
+    speed_before_kts: float
+    speed_min_kts: float
+    speed_after_kts: float
+    recovery_time_sec: float
+    heading_change_deg: float
+    distance_lost_m: Optional[float] = None
+    start_lat: Optional[float] = None
+    start_lon: Optional[float] = None
+    features: Optional[dict] = None
+
+
+@router.post("/maneuvers/{maneuver_id}/computed")
+def maneuver_computed(maneuver_id: uuid.UUID, payload: ManeuverComputedPayload, request: Request):
+    """Worker callback after computing a manually-added maneuver's stats
+    (see ``services/ingestion.dispatch_maneuver_compute`` and
+    ``workers/process_upload/handler.py::process_compute_maneuver``). Fills
+    the pending row's stat columns and clears ``pending`` — see
+    ``repos.sessions.fill_manual_maneuver``."""
+    require_system(request)
+    updated = repos.sessions.fill_manual_maneuver(maneuver_id, payload.model_dump())
+    if updated is None:
+        raise HTTPException(404, "Maneuver not found")
+    return {"ok": True}
+
+
 @router.post("/wind/fetch")
 def wind_fetch(payload: WindFetchModel, request: Request):
     """Periodic fetch trigger (wind-scheduler service). Iterates the DB

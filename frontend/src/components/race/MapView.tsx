@@ -40,9 +40,12 @@ export interface MapMark {
   /** preview marks (suggest/auto-start-line before apply) render dashed */
   preview?: boolean;
   /** "leg" marks render as a numbered circle (see `seq`); "maneuver" marks
-   * render as a small plain dot in a distinct color. Omit for the default
-   * diamond (race marks: start/windward/gate/finish…). */
-  kind?: "leg" | "maneuver";
+   * render as a small plain dot in a distinct color. "maneuver-pending" is a
+   * manually-added maneuver awaiting the worker's stat computation (see
+   * SessionDetailPage's maneuver-edit mode); "maneuver-draft" is the
+   * in-progress start/end pick before it's even submitted. Omit for the
+   * default diamond (race marks: start/windward/gate/finish…). */
+  kind?: "leg" | "maneuver" | "maneuver-pending" | "maneuver-draft";
   /** Progressive number shown on "leg" marks (matches the LegsTable `#` column). */
   seq?: number;
 }
@@ -60,6 +63,8 @@ export function MapView({
   vmg,
   mapOptions,
   controls,
+  placementMode = false,
+  onManeuverPlacement,
 }: {
   tracks: Track[];
   marks?: MapMark[];
@@ -83,6 +88,12 @@ export function MapView({
   mapOptions?: ReactNode;
   /** Rendered as a floating overlay, bottom-center (the playback transport). */
   controls?: ReactNode;
+  /** When true, clicking the track calls `onManeuverPlacement` with the
+   * nearest real fix instead of the normal seek+info-popup behavior — the
+   * session detail page's maneuver-edit mode uses this to let a user place
+   * a manual maneuver's start/end by clicking the track twice. */
+  placementMode?: boolean;
+  onManeuverPlacement?: (point: { lat: number; lon: number; timestamp: number }) => void;
 }) {
   const { t } = useTranslation();
   const elRef = useRef<HTMLDivElement>(null);
@@ -96,6 +107,12 @@ export function MapView({
   // Read from the recenter button's click handler (defined once at setup
   // time) without forcing a full map rebuild on every playback tick.
   const cursorRef = useRef(cursor);
+  // Same reasoning: read from the track's click handler (also set up once)
+  // without rebuilding the whole map every time edit mode toggles.
+  const placementModeRef = useRef(placementMode);
+  placementModeRef.current = placementMode;
+  const onManeuverPlacementRef = useRef(onManeuverPlacement);
+  onManeuverPlacementRef.current = onManeuverPlacement;
   const { data: windAt } = useWindAt(wind?.lat, wind?.lng, wind?.at);
   // Prefer this session's own determined wind (closest-in-time point) over
   // the live snapshot — it's what the session's own VMG/polar/legs were
@@ -199,6 +216,10 @@ export function MapView({
         .addTo(map)
         .on("click", (e: L.LeafletMouseEvent) => {
           const p = nearestPoint(tr, e.latlng);
+          if (placementModeRef.current) {
+            onManeuverPlacementRef.current?.({ lat: p.lat, lon: p.lon, timestamp: p.ms / 1000 });
+            return;
+          }
           timeController.seek(p.ms);
           L.popup({ closeButton: false, className: "sf-map-popup" })
             .setLatLng([p.lat, p.lon])
@@ -271,11 +292,15 @@ export function MapView({
           ? L.divIcon({ className: "sf-markicon sf-markicon--leg", html: `${mk.seq ?? ""}`, iconSize: [18, 18] })
           : mk.kind === "maneuver"
             ? L.divIcon({ className: "sf-markicon sf-markicon--maneuver", html: "", iconSize: [10, 10] })
-            : L.divIcon({
-                className: mk.preview ? "sf-markicon sf-markicon--preview" : "sf-markicon",
-                html: "◆",
-                iconSize: [16, 16],
-              });
+            : mk.kind === "maneuver-pending"
+              ? L.divIcon({ className: "sf-markicon sf-markicon--maneuver sf-markicon--pending", html: "", iconSize: [10, 10] })
+              : mk.kind === "maneuver-draft"
+                ? L.divIcon({ className: "sf-markicon sf-markicon--preview", html: "◆", iconSize: [12, 12] })
+                : L.divIcon({
+                    className: mk.preview ? "sf-markicon sf-markicon--preview" : "sf-markicon",
+                    html: "◆",
+                    iconSize: [16, 16],
+                  });
       L.marker([mk.lat, mk.lng], { icon }).bindTooltip(mk.mark_role).addTo(layer);
     }
     marksLayerRef.current = layer;

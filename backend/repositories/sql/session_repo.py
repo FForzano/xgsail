@@ -28,6 +28,11 @@ from ...db.models import (
 _FIELDS = ("activity_id", "boat_id", "started_at", "ended_at", "status")
 _STATS_FIELDS = ("distance_m", "avg_speed_kts", "max_speed_kts", "duration_s",
                  "avg_polar_pct", "max_polar_pct", "computed_at")
+# Fields copied verbatim from a fresh worker payload row when inserting a
+# 'detected' maneuver. Deliberately excludes source/rejected/pending/
+# original_maneuver_type/corrected_by_user — those are provenance/
+# correction state the worker never emits (it's DB-blind) and
+# upsert_maneuvers sets explicitly for every fresh insert.
 _MANEUVER_FIELDS = ("maneuver_type", "start_time", "end_time", "duration_sec",
                     "speed_loss_kts", "speed_before_kts", "speed_min_kts",
                     "speed_after_kts", "recovery_time_sec", "heading_change_deg",
@@ -341,7 +346,42 @@ class SqlSessionRepo:
             s.commit()
 
     def upsert_maneuvers(self, session_id: uuid.UUID, rows: "list[dict]") -> None:
-        self._replace_children(SessionManeuverORM, _MANEUVER_FIELDS, session_id, rows)
+        """Reconciling replace, NOT a blind full-replace: a fresh worker
+        payload (``rows``) only ever overwrites the session's "replaceable"
+        rows — pipeline-origin, never corrected, never rejected. Any row a
+        user has touched (manually added via ``add_maneuver``, retyped via
+        ``correct_maneuver``, or rejected via ``set_maneuver_rejected``) is
+        "preserved": left completely alone, and any fresh candidate whose
+        time window turns out to describe the same real-world event (see
+        ``services.maneuver_reconciliation.reconcile``) is dropped instead
+        of inserted next to it — user data always wins, and the session
+        never accumulates duplicates across reanalyses."""
+        from sqlalchemy import delete
+
+        from ...services.maneuver_reconciliation import reconcile
+
+        with self.Session() as s:
+            existing = list(s.scalars(
+                select(SessionManeuverORM).where(SessionManeuverORM.session_id == session_id)
+            ).all())
+            preserved = [m for m in existing
+                        if m.source == "manual" or m.corrected_by_user or m.rejected]
+            replaceable_ids = [m.id for m in existing if m not in preserved]
+
+            to_insert = reconcile(
+                [{"start_time": m.start_time, "end_time": m.end_time} for m in preserved],
+                rows,
+            )
+
+            if replaceable_ids:
+                s.execute(delete(SessionManeuverORM).where(SessionManeuverORM.id.in_(replaceable_ids)))
+            for r in to_insert:
+                s.add(SessionManeuverORM(
+                    session_id=session_id, source="detected", rejected=False, pending=False,
+                    original_maneuver_type=r.get("maneuver_type"), corrected_by_user=False,
+                    **{k: r.get(k) for k in _MANEUVER_FIELDS if k in r},
+                ))
+            s.commit()
 
     def list_maneuvers(self, session_id: uuid.UUID) -> "list[SessionManeuverORM]":
         with self.Session() as s:
@@ -350,6 +390,91 @@ class SqlSessionRepo:
                 .where(SessionManeuverORM.session_id == session_id)
                 .order_by(SessionManeuverORM.start_time)
             ).all())
+
+    def get_maneuver(self, maneuver_id: uuid.UUID) -> Optional[SessionManeuverORM]:
+        with self.Session() as s:
+            return s.get(SessionManeuverORM, maneuver_id)
+
+    def correct_maneuver(self, maneuver_id: uuid.UUID, maneuver_type: str) -> Optional[SessionManeuverORM]:
+        """User override of a detected maneuver's type. ``original_maneuver_type``
+        is left untouched — it's the provenance anchor training-data export
+        relies on (``maneuver_type != original_maneuver_type`` ⇒ human-corrected)."""
+        with self.Session() as s:
+            orm = s.get(SessionManeuverORM, maneuver_id)
+            if orm is None:
+                return None
+            orm.maneuver_type = maneuver_type
+            orm.corrected_by_user = True
+            s.commit()
+        return self.get_maneuver(maneuver_id)
+
+    def set_maneuver_rejected(self, maneuver_id: uuid.UUID, rejected: bool) -> Optional[SessionManeuverORM]:
+        """Tombstone (or restore) a 'detected' maneuver as "not a real
+        maneuver" — only valid for ``source=='detected'`` rows; the router
+        enforces that (manual rows get hard-deleted instead, see
+        ``delete_maneuver``). Rejecting keeps the row (so
+        ``upsert_maneuvers``/``reconcile`` can block a future reanalysis
+        from resurrecting it); restoring makes it replaceable again."""
+        with self.Session() as s:
+            orm = s.get(SessionManeuverORM, maneuver_id)
+            if orm is None:
+                return None
+            orm.rejected = rejected
+            s.commit()
+        return self.get_maneuver(maneuver_id)
+
+    def delete_maneuver(self, maneuver_id: uuid.UUID) -> bool:
+        """Hard delete — only safe for ``source=='manual'`` rows (the router
+        enforces that): there's no algorithm-origin counterpart that could
+        reappear and duplicate it, unlike a 'detected' row (use
+        ``set_maneuver_rejected`` for those)."""
+        with self.Session() as s:
+            orm = s.get(SessionManeuverORM, maneuver_id)
+            if orm is None:
+                return False
+            s.delete(orm)
+            s.commit()
+            return True
+
+    def add_manual_maneuver(self, session_id: uuid.UUID, maneuver_type: str,
+                            start_time: float, end_time: float) -> SessionManeuverORM:
+        """Insert a placeholder row for a user-added maneuver (``pending=True``,
+        stat columns at a 0.0 sentinel — the worker fills them in
+        asynchronously, see ``fill_manual_maneuver``). ``source='manual'``
+        makes it "preserved" immediately, before the worker ever responds,
+        so a reanalysis kicked off in the meantime can't duplicate it."""
+        with self.Session() as s:
+            orm = SessionManeuverORM(
+                session_id=session_id, source="manual", rejected=False, pending=True,
+                maneuver_type=maneuver_type, original_maneuver_type=maneuver_type,
+                corrected_by_user=False,
+                start_time=start_time, end_time=end_time, duration_sec=end_time - start_time,
+                speed_loss_kts=0.0, speed_before_kts=0.0, speed_min_kts=0.0,
+                speed_after_kts=0.0, recovery_time_sec=0.0, heading_change_deg=0.0,
+            )
+            s.add(orm)
+            s.commit()
+            new_id = orm.id
+        return self.get_maneuver(new_id)
+
+    def fill_manual_maneuver(self, maneuver_id: uuid.UUID, data: dict) -> Optional[SessionManeuverORM]:
+        """Worker callback landing point (``POST /api/system/maneuvers/{id}/
+        computed``): fills the real stats/features onto a pending manual
+        row and clears ``pending``. Does not touch ``maneuver_type``/
+        ``source``/timestamps — those were already fixed at creation."""
+        fields = ("duration_sec", "speed_loss_kts", "speed_before_kts", "speed_min_kts",
+                 "speed_after_kts", "recovery_time_sec", "heading_change_deg",
+                 "distance_lost_m", "start_lat", "start_lon", "features")
+        with self.Session() as s:
+            orm = s.get(SessionManeuverORM, maneuver_id)
+            if orm is None:
+                return None
+            for k in fields:
+                if k in data:
+                    setattr(orm, k, data[k])
+            orm.pending = False
+            s.commit()
+        return self.get_maneuver(maneuver_id)
 
     def upsert_legs(self, session_id: uuid.UUID, rows: "list[dict]") -> None:
         self._replace_children(SessionLegORM, _LEG_FIELDS, session_id, rows)

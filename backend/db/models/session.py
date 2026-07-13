@@ -14,6 +14,7 @@ from typing import Optional
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -32,6 +33,7 @@ SESSION_SAILING_ROLES = ("skipper", "crew", "guest")
 # Allowed by the schema but not produced by the current worker (the geometric
 # classifier only emits tack/gybe) — reserved for the future ML classifier.
 MANEUVER_TYPES = ("tack", "gybe", "course_change")
+MANEUVER_SOURCES = ("detected", "manual")
 LEG_TYPES = ("upwind", "downwind", "reach")
 TACK_SIDES = ("port", "starboard")
 
@@ -134,12 +136,42 @@ class SessionManeuverORM(UUIDPKMixin, Base):
     ``*_time`` are unix-epoch seconds (the worker's native shape), not TZ."""
 
     __tablename__ = "session_maneuvers"
-    __table_args__ = (enum_check("maneuver_type", MANEUVER_TYPES),)
+    __table_args__ = (
+        enum_check("maneuver_type", MANEUVER_TYPES),
+        enum_check("original_maneuver_type", MANEUVER_TYPES),
+        enum_check("source", MANEUVER_SOURCES),
+    )
 
     session_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     maneuver_type: Mapped[str] = mapped_column(String, nullable=False)
+    # 'detected' = pipeline output (the default; every row before this column
+    # existed). 'manual' = user-added via POST .../maneuvers — see
+    # routers/sessions.py::add_maneuver and services/maneuver_reconciliation.py
+    # for how source/corrected_by_user/rejected together decide which rows a
+    # reanalysis is allowed to delete/replace.
+    source: Mapped[str] = mapped_column(String, nullable=False, default="detected")
+    # User said "this proposed maneuver isn't real" — kept as a tombstone
+    # (not deleted) so a later reanalysis's re-detection of the same event
+    # doesn't resurrect it as a fresh row. Only meaningful for source=
+    # 'detected' rows (manual rows are hard-deleted instead, see
+    # routers/sessions.py::delete_maneuver).
+    rejected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # True between a manual maneuver's creation (stat columns are 0.0
+    # sentinels) and the worker's async computation of its real stats/
+    # features landing via POST /api/system/maneuvers/{id}/computed. Never
+    # true for source='detected' rows (the worker always computes stats
+    # before those are ever persisted).
+    pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Frozen at whatever the pipeline/classifier assigned on insert — never
+    # touched by a user correction (unlike `maneuver_type`, which a user
+    # correction overwrites). This is the ground-truth provenance signal for
+    # training data export: `maneuver_type != original_maneuver_type` means a
+    # human corrected this row. See `corrected_by_user` for the same fact as
+    # a direct flag, and routers/sessions.py::correct_maneuver.
+    original_maneuver_type: Mapped[str] = mapped_column(String, nullable=False)
+    corrected_by_user: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     start_time: Mapped[float] = mapped_column(Float, nullable=False)
     end_time: Mapped[float] = mapped_column(Float, nullable=False)
     duration_sec: Mapped[float] = mapped_column(Float, nullable=False)

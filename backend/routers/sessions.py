@@ -13,7 +13,13 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 from ..auth import current_user, require_user, session_visible_to, verify_csrf
-from ..schemas import SessionCrewModel, SessionWriteModel
+from ..schemas import (
+    ManeuverCorrectionModel,
+    ManeuverCreateModel,
+    ManeuverRejectionModel,
+    SessionCrewModel,
+    SessionWriteModel,
+)
 from ..services import ingestion, media
 from ._common import blob, repos, with_user
 
@@ -253,6 +259,117 @@ def get_analysis(session_id: uuid.UUID, request: Request):
     data["maneuvers"] = [m.to_dict() for m in maneuvers]
     data["legs"] = [l.to_dict() for l in legs]
     return data
+
+
+def _require_maneuver(session_id: uuid.UUID, maneuver_id: uuid.UUID):
+    maneuver = repos.sessions.get_maneuver(maneuver_id)
+    if maneuver is None or maneuver.session_id != session_id:
+        raise HTTPException(404, "Maneuver not found")
+    return maneuver
+
+
+@router.patch("/{session_id}/maneuvers/{maneuver_id}")
+def correct_maneuver(session_id: uuid.UUID, maneuver_id: uuid.UUID,
+                     body: ManeuverCorrectionModel, request: Request):
+    """User override of a detected maneuver's type (tack/gybe/course_change) —
+    same edit-level permission as PATCH /sessions/{id}. Marks the row
+    ``corrected_by_user`` and freezes ``original_maneuver_type`` at whatever
+    the pipeline first assigned, so the maneuver-classifier training set
+    (scripts/export_maneuver_training_data.py) can tell a human correction
+    from the algorithm's raw guess.
+
+    A correction survives a later reanalysis — see
+    ``repos.sessions.upsert_maneuvers``/``services.maneuver_reconciliation``:
+    a corrected row is never deleted, and a fresh candidate that turns out
+    to describe the same event is dropped instead of duplicating it."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = _require_session(session_id)
+    if not _can_edit(session, user):
+        raise HTTPException(403, "Not allowed")
+    _require_maneuver(session_id, maneuver_id)
+    updated = repos.sessions.correct_maneuver(maneuver_id, body.maneuver_type)
+    return updated.to_dict()
+
+
+@router.patch("/{session_id}/maneuvers/{maneuver_id}/reject")
+def reject_maneuver(session_id: uuid.UUID, maneuver_id: uuid.UUID,
+                    body: ManeuverRejectionModel, request: Request):
+    """User says a detected maneuver isn't real (``rejected: true``), or
+    takes that back (``rejected: false``). Rejecting keeps the row instead
+    of deleting it — a tombstone, so a later reanalysis's re-detection of
+    the same event doesn't resurrect it as a fresh row (see
+    ``services.maneuver_reconciliation``). Only valid for algorithm-origin
+    rows; a manually-added one has no algorithm counterpart to resurrect,
+    so it's deleted outright instead (``DELETE .../maneuvers/{id}``)."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = _require_session(session_id)
+    if not _can_edit(session, user):
+        raise HTTPException(403, "Not allowed")
+    maneuver = _require_maneuver(session_id, maneuver_id)
+    if maneuver.source == "manual":
+        raise HTTPException(400, "Manual maneuvers cannot be rejected; delete instead")
+    updated = repos.sessions.set_maneuver_rejected(maneuver_id, body.rejected)
+    return updated.to_dict()
+
+
+@router.delete("/{session_id}/maneuvers/{maneuver_id}")
+def delete_maneuver(session_id: uuid.UUID, maneuver_id: uuid.UUID, request: Request):
+    """Remove a manually-added maneuver outright — safe because there's no
+    algorithm-detected counterpart that could reappear and duplicate it
+    (unlike an algorithm-origin row, which uses the reject endpoint above so
+    reanalysis can't resurrect it)."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = _require_session(session_id)
+    if not _can_edit(session, user):
+        raise HTTPException(403, "Not allowed")
+    maneuver = _require_maneuver(session_id, maneuver_id)
+    if maneuver.source != "manual":
+        raise HTTPException(400, "Only manually-added maneuvers can be deleted; reject instead")
+    repos.sessions.delete_maneuver(maneuver_id)
+    return {"ok": True}
+
+
+def _run_compute_maneuver(maneuver_id: uuid.UUID, maneuver_type: str,
+                          start_time: float, end_time: float, prefix: str) -> None:
+    try:
+        ingestion.dispatch_maneuver_compute(
+            ingestion.bucket_name(), prefix, maneuver_id, maneuver_type, start_time, end_time,
+        )
+    except Exception:
+        logger.warning("maneuver compute job failed for %s", maneuver_id, exc_info=True)
+
+
+@router.post("/{session_id}/maneuvers", status_code=202)
+def add_maneuver(session_id: uuid.UUID, body: ManeuverCreateModel, request: Request,
+                 background_tasks: BackgroundTasks):
+    """Add a maneuver the algorithm missed, given the time window a user
+    picked (e.g. two clicks on the session track — see the frontend's
+    maneuver-edit mode). Inserts a ``pending`` placeholder immediately
+    (``source='manual'``, stat columns at a 0.0 sentinel) so it's visible
+    right away and already "preserved" against any reanalysis that starts in
+    the meantime, then dispatches the worker in the background to compute
+    real stats/features for the window (reusing the same math a detected
+    maneuver gets — see ``processing/maneuvers.py::compute_manual_maneuver``).
+    Poll ``GET .../analysis`` until the row's ``pending`` flips false."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = _require_session(session_id)
+    if not _can_edit(session, user):
+        raise HTTPException(403, "Not allowed")
+    if body.end_time <= body.start_time:
+        raise HTTPException(422, "end_time must be after start_time")
+    upload = _latest_upload_or_404(session_id)
+    maneuver = repos.sessions.add_manual_maneuver(
+        session_id, body.maneuver_type, body.start_time, body.end_time,
+    )
+    prefix = ingestion.processed_prefix(upload.id)
+    background_tasks.add_task(
+        _run_compute_maneuver, maneuver.id, body.maneuver_type, body.start_time, body.end_time, prefix,
+    )
+    return {"ok": True, "maneuver_id": maneuver.id, "status": "pending"}
 
 
 # --- crew ------------------------------------------------------------------------
