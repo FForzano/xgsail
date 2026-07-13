@@ -6,9 +6,10 @@ saving results alongside the processed data.
 
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -80,23 +81,35 @@ def parse_wind(records: list[dict]) -> list[WindReading]:
     ) for r in records if "timestamp" in r or "t" in r]
 
 
-def analyze_session(data_dir: Path) -> dict:
-    """Run full analysis pipeline on a session directory.
+@dataclass
+class SessionContext:
+    """Parsed sensor data + resolved true wind for one processed-upload
+    prefix — the setup step every entry point into the maneuver pipeline
+    needs, whether that's a full session analysis (``analyze_session``) or a
+    single manual maneuver's on-demand stat computation
+    (``workers/process_upload/handler.py::process_compute_maneuver``)."""
+    gps: list
+    imu: list
+    wind: list
+    true_wind: list
+    avg_twd: Optional[float]
+    estimated_position: list
+    estimated_motion: list
+    wind_refinements: list
 
-    Expects directory structure:
-        data_dir/
-            gps.json
-            imu.json
-            wind.json
-            pressure.json
-            manifest.json
-    """
+
+def load_session_context(data_dir: Path) -> Optional[SessionContext]:
+    """Parse ``gps.json``/``imu.json``/``wind.json``/``wind_cache.json`` from
+    a processed-upload prefix and resolve true wind. Returns ``None`` when
+    there's no GPS data — the caller decides how to report that
+    (``analyze_session`` returns an ``{"error": ...}`` dict; the manual
+    maneuver path raises)."""
     gps, estimated_position, estimated_motion = parse_gps(load_sensor_json(data_dir / "gps.json"))
     imu = parse_imu(load_sensor_json(data_dir / "imu.json"))
     wind = parse_wind(load_sensor_json(data_dir / "wind.json"))
 
     if not gps:
-        return {"error": "No GPS data found"}
+        return None
 
     # True wind calculation is a pluggable seam — see
     # ``processing/wind_estimation.py`` for the strategy (today: onboard
@@ -116,8 +129,36 @@ def analyze_session(data_dir: Path) -> dict:
     if true_wind:
         avg_twd = float(np.mean([tw["twd_deg"] for tw in true_wind]))
 
-    # Maneuver detection
-    maneuvers = detect_maneuvers(gps, imu, avg_twd)
+    return SessionContext(
+        gps=gps, imu=imu, wind=wind, true_wind=true_wind, avg_twd=avg_twd,
+        estimated_position=estimated_position, estimated_motion=estimated_motion,
+        wind_refinements=wind_refinements,
+    )
+
+
+def analyze_session(data_dir: Path) -> dict:
+    """Run full analysis pipeline on a session directory.
+
+    Expects directory structure:
+        data_dir/
+            gps.json
+            imu.json
+            wind.json
+            pressure.json
+            manifest.json
+    """
+    ctx = load_session_context(data_dir)
+    if ctx is None:
+        return {"error": "No GPS data found"}
+    gps, imu, wind = ctx.gps, ctx.imu, ctx.wind
+    true_wind, avg_twd = ctx.true_wind, ctx.avg_twd
+    estimated_position, estimated_motion = ctx.estimated_position, ctx.estimated_motion
+    wind_refinements = ctx.wind_refinements
+
+    # Maneuver detection. avg_twd sets the wind axis (detection/classification);
+    # the full true_wind series only feeds the TWA/VMG-based maneuver features,
+    # so passing it does not change which maneuvers are detected.
+    maneuvers = detect_maneuvers(gps, imu, avg_twd, true_wind)
     m_summary = maneuver_summary(maneuvers)
 
     # Leg segmentation

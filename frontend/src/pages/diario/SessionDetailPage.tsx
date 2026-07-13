@@ -79,6 +79,14 @@ export function SessionDetailPage() {
   const [gps, setGps] = useState<GpsPoint[] | null>(null);
   const [showLegs, setShowLegs] = useState(true);
   const [showManeuvers, setShowManeuvers] = useState(true);
+  const [maneuverEditMode, setManeuverEditMode] = useState(false);
+  // First of the two track clicks that bracket a manually-added maneuver
+  // (see MapView's placementMode) — the second click opens the confirm modal.
+  const [maneuverDraftStart, setManeuverDraftStart] =
+    useState<{ lat: number; lon: number; timestamp: number } | null>(null);
+  const [maneuverDraftEnd, setManeuverDraftEnd] =
+    useState<{ lat: number; lon: number; timestamp: number } | null>(null);
+  const [maneuverDraftType, setManeuverDraftType] = useState<"tack" | "gybe" | "course_change">("tack");
   // Sticky toast id for the reanalyze/wind-refresh job — created "pending"
   // when triggered, resolved to success/error once the poll below lands.
   const [reanalysisToastId, setReanalysisToastId] = useState<number | null>(null);
@@ -148,6 +156,11 @@ export function SessionDetailPage() {
     queryFn: () => sessionsService.analysis(sessionId!),
     enabled: !!sessionId,
     retry: false,
+    // A manually-added maneuver starts `pending` until the worker's
+    // async stat computation lands (see POST .../maneuvers) — poll while
+    // any maneuver is still pending, same 3s cadence as the reanalysis poll.
+    refetchInterval: (query) =>
+      query.state.data?.maneuvers.some((m) => m.pending) ? 3000 : false,
   });
 
   // The gps stream JSON lives in object storage — fetch via its download_url.
@@ -194,19 +207,32 @@ export function SessionDetailPage() {
       }
     }
     if (showManeuvers && analysis.data?.maneuvers.length) {
+      // Rejected maneuvers are hidden outside edit mode (same as the table,
+      // see ManeuversTable) — in edit mode they stay visible so a "restore"
+      // action is reachable.
       for (const m of analysis.data.maneuvers) {
         if (m.start_lat == null || m.start_lon == null) continue;
+        if (m.rejected && !maneuverEditMode) continue;
         out.push({
           id: m.id,
-          kind: "maneuver",
+          kind: m.pending ? "maneuver-pending" : "maneuver",
           mark_role: t(`sessions.${m.maneuver_type}`),
           lat: m.start_lat,
           lng: m.start_lon,
         });
       }
     }
+    if (maneuverDraftStart) {
+      out.push({
+        id: "maneuver-draft-start",
+        kind: "maneuver-draft",
+        mark_role: t("sessions.maneuverDraftStart"),
+        lat: maneuverDraftStart.lat,
+        lng: maneuverDraftStart.lon,
+      });
+    }
     return out;
-  }, [analysis.data, showLegs, showManeuvers, t]);
+  }, [analysis.data, showLegs, showManeuvers, maneuverEditMode, maneuverDraftStart, t]);
 
   const addCrew = useMutation({
     mutationFn: (userId: UUID) =>
@@ -245,6 +271,30 @@ export function SessionDetailPage() {
     onSuccess: startReanalysisPolling,
     onError: () => notify(t("errors.generic"), "error"),
   });
+  const addManeuver = useMutation({
+    mutationFn: () =>
+      sessionsService.addManeuver(sessionId!, {
+        maneuver_type: maneuverDraftType,
+        start_time: Math.min(maneuverDraftStart!.timestamp, maneuverDraftEnd!.timestamp),
+        end_time: Math.max(maneuverDraftStart!.timestamp, maneuverDraftEnd!.timestamp),
+      }),
+    onSuccess: async () => {
+      setManeuverDraftStart(null);
+      setManeuverDraftEnd(null);
+      setManeuverDraftType("tack");
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.analysis(sessionId!) });
+    },
+    onError: () => notify(t("errors.generic"), "error"),
+  });
+
+  const handleManeuverPlacement = (point: { lat: number; lon: number; timestamp: number }) => {
+    if (!maneuverDraftStart) {
+      setManeuverDraftStart(point);
+      return;
+    }
+    setManeuverDraftEnd(point);
+  };
+
   const removePhoto = useMutation({
     mutationFn: (imageId: UUID) => sessionsService.removePhoto(sessionId!, imageId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.photos(sessionId!) }),
@@ -289,6 +339,14 @@ export function SessionDetailPage() {
                   label: t("sessions.refreshWind"),
                   onClick: () => refreshWind.mutate(),
                   disabled: refreshWind.isPending || reanalysisPolling,
+                },
+                {
+                  label: maneuverEditMode ? t("sessions.editManeuversDone") : t("sessions.editManeuvers"),
+                  onClick: () => {
+                    setManeuverEditMode((v) => !v);
+                    setManeuverDraftStart(null);
+                    setManeuverDraftEnd(null);
+                  },
                 },
                 {
                   label: t("common.delete"),
@@ -336,7 +394,14 @@ export function SessionDetailPage() {
               controls={
                 <Timeline className="sf-timeline--overlay" stepMs={medianIntervalMs(tracks[0]) * 5} />
               }
+              placementMode={maneuverEditMode}
+              onManeuverPlacement={handleManeuverPlacement}
             />
+            {maneuverEditMode && (
+              <p className="sf-muted sf-card__pad">
+                {maneuverDraftStart ? t("sessions.maneuverPickEnd") : t("sessions.maneuverPickStart")}
+              </p>
+            )}
             <div className="sf-section__body sf-card__pad">
               <SpeedChart tracks={tracks} vmg={analysis.data?.vmg_series} />
               <PlaybackIndicators track={tracks[0]} vmg={analysis.data?.vmg_series} />
@@ -470,7 +535,7 @@ export function SessionDetailPage() {
         )}
       </Card>
 
-      <SessionAnalysis sessionId={sessionId} />
+      <SessionAnalysis sessionId={sessionId} editMode={maneuverEditMode} />
 
       {addingCrew && (
         <Modal
@@ -493,6 +558,31 @@ export function SessionDetailPage() {
             ))}
           </Select>
           <UserPicker busy={addCrew.isPending} onPick={(u) => addCrew.mutate(u.id)} />
+        </Modal>
+      )}
+      {maneuverDraftStart && maneuverDraftEnd && (
+        <Modal
+          title={t("sessions.addManeuver")}
+          onClose={() => {
+            setManeuverDraftStart(null);
+            setManeuverDraftEnd(null);
+          }}
+        >
+          <Select
+            label={t("sessions.type")}
+            id="maneuver-draft-type"
+            value={maneuverDraftType}
+            onChange={(e) => setManeuverDraftType(e.target.value as typeof maneuverDraftType)}
+          >
+            {(["tack", "gybe", "course_change"] as const).map((type) => (
+              <option key={type} value={type}>
+                {t(`sessions.${type}`)}
+              </option>
+            ))}
+          </Select>
+          <Button disabled={addManeuver.isPending} onClick={() => addManeuver.mutate()}>
+            {t("common.add")}
+          </Button>
         </Modal>
       )}
       {deleting && (

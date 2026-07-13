@@ -610,6 +610,23 @@ h1, h2, h3 {
 .sf-table tr:hover td {
   background: color-mix(in srgb, var(--sf-surface-2) 50%, transparent);
 }
+.sf-row--muted td {
+  opacity: 0.55;
+}
+.sf-maneuver-type-select .sf-field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.sf-maneuver-type-select .sf-field__input {
+  padding: 0.25rem 0.4rem;
+}
 .sf-session-thumb {
   display: block;
   width: 56px;
@@ -1355,6 +1372,14 @@ h1, h2, h3 {
   border-radius: 50%;
   background: var(--sf-warning);
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4);
+}
+.sf-markicon--pending {
+  opacity: 0.6;
+  animation: sf-markicon-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sf-markicon-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.85; }
 }
 
 .sf-legend__dot {

@@ -276,7 +276,22 @@ export interface SessionCrew {
 /** One detected tack/gybe. `*_time` are unix-epoch seconds (worker native). */
 export interface SessionManeuver {
   id: UUID;
-  maneuver_type: "tack" | "gybe";
+  maneuver_type: "tack" | "gybe" | "course_change";
+  // Frozen at whatever the pipeline first assigned; unaffected by a user
+  // correction (unlike maneuver_type). See PATCH .../maneuvers/{id}.
+  original_maneuver_type: "tack" | "gybe" | "course_change";
+  corrected_by_user: boolean;
+  // 'detected' = pipeline output (the default). 'manual' = user-added via
+  // POST .../maneuvers. See PATCH .../maneuvers/{id}/reject and
+  // DELETE .../maneuvers/{id}.
+  source: "detected" | "manual";
+  // User said "not a real maneuver" — kept, not deleted, so it survives a
+  // reanalysis without reappearing as a fresh row. Only ever true for
+  // source === "detected".
+  rejected: boolean;
+  // True between a manual maneuver's creation and the worker's async stat
+  // computation landing — stat fields below are 0.0 sentinels until then.
+  pending: boolean;
   start_time: number;
   end_time: number;
   duration_sec: number;
@@ -286,10 +301,12 @@ export interface SessionManeuver {
   speed_after_kts: number;
   recovery_time_sec: number;
   heading_change_deg: number;
-  max_heel_deg: number | null;
   distance_lost_m: number | null;
   start_lat: number | null;
   start_lon: number | null;
+  // Statistical feature vector computed at detection (e.g. max_heel_deg) —
+  // see workers/process_upload/processing/maneuver_features.py.
+  features: Record<string, unknown> | null;
 }
 
 /** One straight-line leg between maneuvers. */

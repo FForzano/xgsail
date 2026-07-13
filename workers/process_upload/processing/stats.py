@@ -33,8 +33,10 @@ def violin_plot_data(maneuvers: list[Maneuver]) -> dict:
         groups[key]["speed_loss_kts"].append(m.speed_loss_kts)
         groups[key]["recovery_time_sec"].append(m.recovery_time_sec)
         groups[key]["duration_sec"].append(m.duration_sec)
-        if m.max_heel_deg is not None:
-            groups[key]["max_heel_deg"].append(m.max_heel_deg)
+        # max_heel_deg lives only in `features` now (see maneuver_features.py).
+        heel = (m.features or {}).get("max_heel_deg")
+        if heel is not None:
+            groups[key]["max_heel_deg"].append(heel)
         groups[key]["heading_change_deg"].append(abs(m.heading_change_deg))
 
     result = {}

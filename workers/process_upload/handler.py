@@ -81,6 +81,17 @@ def lambda_handler(event, context):
                 errors.append({'key': prefix, 'error': str(e)})
             continue
 
+        if 'compute_maneuver' in record:
+            bucket = record.get('bucket', DATA_BUCKET)
+            spec = record['compute_maneuver']
+            logger.info(f"Computing manual maneuver {spec.get('maneuver_id')} in {bucket}/{spec.get('prefix')}")
+            try:
+                process_compute_maneuver(bucket, spec['prefix'], spec)
+            except Exception as e:
+                logger.error(f"Failed to compute maneuver {spec.get('maneuver_id')}: {e}", exc_info=True)
+                errors.append({'key': spec.get('maneuver_id'), 'error': str(e)})
+            continue
+
         if 'activity_thumbnail' in record:
             bucket = record.get('bucket', DATA_BUCKET)
             activity_id = record['activity_thumbnail']['activity_id']
@@ -185,6 +196,52 @@ def process_analyze_prefix(bucket: str, prefix: str):
     upload_id = prefix.rstrip('/').split('/')[-1]
     _post_system(f"session-uploads/{upload_id}/analysis", result,
                  label=f"analysis for {upload_id}")
+
+
+def process_compute_maneuver(bucket: str, prefix: str, spec: dict):
+    """Compute full stats/features for one user-added manual maneuver
+    (``POST /sessions/{id}/maneuvers`` on the backend) and report the result
+    back — the same round-trip shape as ``process_analyze_prefix``, scoped
+    to a single ``[start_time, end_time]`` window instead of the whole
+    session. ``spec`` = ``{maneuver_id, maneuver_type, start_time, end_time}``.
+
+    Reuses ``analyzer.load_session_context`` (same sensor parsing + true-wind
+    resolution as a full analysis) and
+    ``processing.maneuvers.compute_manual_maneuver`` (same stats/features math
+    detected maneuvers get) rather than duplicating either — see those
+    modules' docstrings.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from analyzer import load_session_context
+    from processing.maneuvers import compute_manual_maneuver
+    from processing.models import ManeuverType
+
+    maneuver_id = spec['maneuver_id']
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        for name in ('gps.json', 'imu.json', 'wind.json', 'wind_cache.json'):
+            try:
+                obj = s3.get_object(Bucket=bucket, Key=f"{prefix}{name}")
+            except Exception:
+                continue
+            (tmp_path / name).write_bytes(obj['Body'].read())
+
+        ctx = load_session_context(tmp_path)
+        if ctx is None:
+            raise ValueError(f"No GPS data found at {bucket}/{prefix}")
+
+        maneuver = compute_manual_maneuver(
+            ctx.gps, ctx.imu, ctx.avg_twd, ctx.true_wind,
+            float(spec['start_time']), float(spec['end_time']),
+            ManeuverType(spec['maneuver_type']),
+        )
+
+    from dataclasses import asdict
+    _post_system(f"maneuvers/{maneuver_id}/computed", asdict(maneuver),
+                 label=f"computed stats for manual maneuver {maneuver_id}")
 
 
 def process_activity_thumbnail(bucket: str, activity_id: str, prefixes: list):

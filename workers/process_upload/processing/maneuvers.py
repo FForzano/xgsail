@@ -1,14 +1,24 @@
-"""Tack and gybe detection with per-maneuver performance metrics.
+"""Maneuver detection — two-stage pipeline.
 
-Detects maneuvers by finding rapid heading changes while the boat
-is moving, then computes speed loss, recovery time, and other metrics.
+Stage 1 (this module): ``_detect_candidates`` finds significant course changes
+(debounced tack-side transitions), refines their boundaries, computes the
+type-independent performance metrics, and extracts a configurable statistical
+feature vector (see ``maneuver_features``). Stage 2
+(``maneuver_classification``): a pluggable classifier maps each candidate to a
+``ManeuverType`` — or to ``None`` (false alarm) so the candidate is dropped.
+
+``detect_maneuvers`` is the unchanged public entry point that composes the two
+stages; today's active ``geometric`` classifier reproduces the previous
+tack/gybe behavior exactly.
 """
-
-import math
 
 import numpy as np
 
-from .models import GpsPoint, ImuReading, Maneuver, ManeuverType
+from .angles import angular_diff as _angular_diff
+from .angles import circular_mean as _circular_mean
+from .maneuver_classification import classify_maneuver
+from .maneuver_features import FeatureContext, extract_features
+from .models import GpsPoint, ImuReading, Maneuver, ManeuverCandidate, ManeuverType
 
 
 # Detection thresholds
@@ -19,6 +29,8 @@ MAX_RECOVERY_WINDOW_SEC = 60
 TURN_RATE_THRESHOLD = 3.0  # deg/sec to detect turn
 TURN_WINDOW_EXTEND_SEC = 5  # extend window before/after rapid portion
 MIN_MANEUVER_SPACING_SEC = 20  # minimum time between maneuvers to avoid duplicates
+# backend/services/maneuver_reconciliation.py::OVERLAP_TOLERANCE_SEC (15s)
+# must stay strictly below this — see that module's docstring.
 HEADING_SMOOTH_WINDOW = 5  # samples, circular moving average before detection
 HOLD_WINDOW_SEC = 12  # min dwell time on a side for it to count as a real tack
 # A genuine tack/gybe is a real rotation, not just a slow drift that happens
@@ -36,40 +48,83 @@ def detect_maneuvers(
     gps: list[GpsPoint],
     imu: list[ImuReading] | None = None,
     twd_deg: float | None = None,
+    true_wind: list[dict] | None = None,
 ) -> list[Maneuver]:
-    """Detect tacks and gybes from heading changes.
+    """Detect tacks and gybes from heading changes (public entry point).
 
-    A maneuver is a genuine tack-side change (port/starboard relative to the
+    Composes the two stages: Stage 1 (``_detect_candidates``) produces the
+    significant-course-change candidates with their metrics + features; Stage 2
+    (``classify_maneuver``) labels each one (or rejects it as a false alarm).
+    The per-type minimum-heading-change filter and the inter-maneuver spacing
+    gate stay HERE, interleaved with classification and only advancing
+    ``last_maneuver_end`` on a real append — preserving the exact ordering of
+    the previous single-loop implementation.
+
+    ``true_wind`` (per-point series) only feeds the TWA/VMG-based *features*;
+    it does not affect which maneuvers are detected or how they're classified,
+    so the result is identical whether or not it is provided.
+    """
+    candidates = _detect_candidates(gps, imu, twd_deg, true_wind)
+
+    maneuvers: list[Maneuver] = []
+    last_maneuver_end = -999999
+    for cand in candidates:
+        # Inter-maneuver spacing: same semantics as before — measured against
+        # the end of the last ACCEPTED maneuver, so candidates dropped below
+        # never reset the baseline.
+        if cand.start_time < last_maneuver_end + MIN_MANEUVER_SPACING_SEC:
+            continue
+
+        maneuver_type = classify_maneuver(cand)
+        if maneuver_type is None:
+            continue  # false alarm — not a real maneuver
+
+        # LABEL-COLLECTION HOOK (future): here is where a "corrected label"
+        # from the user, or a training-data sink, would attach — cand.features
+        # is fully populated at this point.
+
+        maneuver = _finalize(cand, maneuver_type)
+        if maneuver is None:
+            continue  # below the per-type minimum heading change
+
+        maneuvers.append(maneuver)
+        last_maneuver_end = cand.end_time
+
+    return maneuvers
+
+
+def _detect_candidates(
+    gps: list[GpsPoint],
+    imu: list[ImuReading] | None,
+    twd_deg: float | None,
+    true_wind: list[dict] | None = None,
+) -> list[ManeuverCandidate]:
+    """Stage 1: find significant course-change candidates and describe them.
+
+    A candidate is a genuine tack-side change (port/starboard relative to the
     wind axis), not just any rapid heading change — a tactical heading wiggle
     or an aborted/failed maneuver that rounds back never really settles onto
     the new side, so neither should count. This is enforced structurally: the
     whole per-sample side sequence is first debounced (`_debounced_sides`),
     absorbing any side run shorter than `HOLD_WINDOW_SEC` into its
     predecessor, so every remaining transition is guaranteed to have *both* a
-    settled "before" and a settled "after" side — not just checked one-sided
-    after the fact. Only those transitions become maneuver candidates, each
-    then refined to its precise start/end (where the heading actually starts/
-    stops turning) for the duration/speed-loss metrics below. Without real
-    wind data (`twd_deg`), falls back to a synthetic axis (the track's
-    circular-mean heading) for the same side test, at reduced confidence.
+    settled "before" and a settled "after" side. Each surviving transition is
+    refined to its precise start/end (where the heading actually starts/stops
+    turning) and gets its type-independent metrics + feature vector computed.
+    Without real wind data (`twd_deg`), falls back to a synthetic axis (the
+    track's circular-mean heading) for the same side test, at reduced
+    confidence.
+
+    Applies only the classification-INDEPENDENT gates (duration, entry speed).
+    The spacing and per-type min-heading-change gates are applied by the caller
+    (`detect_maneuvers`), interleaved with classification, to preserve the
+    original ordering.
     """
     if len(gps) < 20:
         return []
 
-    # Use GPS course for heading - IMU heading often has mounting offset issues
-    times = np.array([p.timestamp for p in gps])
-    raw_headings = np.array([p.heading_deg for p in gps])
-    # Smoothed heading drives candidate detection — plain GPS-course jitter
-    # near head-to-wind/dead-downwind otherwise triggers spurious candidates.
-    headings = _smooth_heading(raw_headings)
-
-    # GPS speed series for speed loss calculation
-    gps_times = np.array([p.timestamp for p in gps])
-    gps_speeds = np.array([p.speed_kts for p in gps])
-    gps_lats = np.array([p.lat for p in gps])
-    gps_lons = np.array([p.lon for p in gps])
-
-    axis_deg = twd_deg if twd_deg is not None else _circular_mean(raw_headings)
+    times, raw_headings, headings, gps_speeds, gps_lats, gps_lons = _detection_arrays(gps)
+    axis_deg, had_wind_axis = resolve_wind_axis(raw_headings, twd_deg)
 
     # Window used only to refine each candidate's precise start/end once a
     # real transition has already been located (see WINDOW_SIZE usage below).
@@ -79,14 +134,16 @@ def detect_maneuvers(
     sides = _debounced_sides(sides, times, HOLD_WINDOW_SEC)
     transitions = np.where(np.diff(sides) != 0)[0]
 
-    maneuvers = []
-    last_maneuver_end = -999999
+    candidates: list[ManeuverCandidate] = []
 
     for pivot in transitions:
         # Refine the actual turn boundaries around the debounced transition:
         # scan backward for where the rapid heading change begins, forward
         # for where it stabilizes on the new side (same rate-of-turn logic
-        # as before, just anchored on a confirmed real transition).
+        # as before, just anchored on a confirmed real transition). This
+        # boundary search is specific to "found a transition, where exactly
+        # does it start/end" — a manual maneuver skips it entirely since the
+        # user already gives exact boundaries (see compute_manual_maneuver).
         start_idx = pivot
         floor = max(5, pivot - WINDOW_SIZE)
         while start_idx > floor:
@@ -103,95 +160,221 @@ def detect_maneuvers(
                 break
             end_idx += 1
 
-        t_start = times[start_idx]
-        t_end = times[end_idx]
-        duration = t_end - t_start
-
-        if duration > MAX_MANEUVER_DURATION_SEC:
-            continue
-        if t_start < last_maneuver_end + MIN_MANEUVER_SPACING_SEC:
+        t_start, t_end = times[start_idx], times[end_idx]
+        if t_end - t_start > MAX_MANEUVER_DURATION_SEC:
             continue
 
-        heading_before = headings[start_idx]
-        heading_after = headings[end_idx]
-        heading_change = _angular_diff(heading_after, heading_before)
-
-        # Speed metrics (interpolate GPS speed at maneuver boundaries)
-        speed_before = float(np.interp(t_start, gps_times, gps_speeds))
-        if speed_before < MIN_BOAT_SPEED_KTS:
-            continue
-
-        rel_before = _angular_diff(heading_before, axis_deg)
-        rel_after = _angular_diff(heading_after, axis_deg)
-
-        # Find minimum speed during maneuver
-        mask = (gps_times >= t_start) & (gps_times <= t_end)
-        if mask.sum() > 0:
-            speed_min = float(gps_speeds[mask].min())
-        else:
-            speed_min = float(np.interp((t_start + t_end) / 2, gps_times, gps_speeds))
-
-        # Find speed after and recovery time
-        speed_after, recovery_time = _compute_recovery(
-            gps_times, gps_speeds, t_end, speed_before
+        cand = _candidate_from_window(
+            gps, imu, true_wind, axis_deg, had_wind_axis,
+            times, headings, gps_speeds, gps_lats, gps_lons,
+            t_start, t_end,
         )
-
-        # Classify as tack or gybe
-        maneuver_type = _classify_maneuver(rel_before, rel_after)
-
-        min_change = (MIN_GYBE_HEADING_CHANGE_DEG if maneuver_type == ManeuverType.GYBE
-                     else MIN_TACK_HEADING_CHANGE_DEG)
-        if abs(heading_change) < min_change:
+        if cand is None:
             continue
+        candidates.append(cand)
 
-        # Heel during maneuver (from IMU)
-        max_heel = None
-        if imu:
-            imu_times_arr = np.array([r.timestamp for r in imu])
-            imu_heels = np.array([r.heel_deg for r in imu])
-            mask_imu = (imu_times_arr >= t_start) & (imu_times_arr <= t_end)
-            if mask_imu.sum() > 0:
-                max_heel = float(np.max(np.abs(imu_heels[mask_imu])))
-
-        # Start position
-        start_lat = float(np.interp(t_start, gps_times, gps_lats))
-        start_lon = float(np.interp(t_start, gps_times, gps_lons))
-
-        maneuvers.append(Maneuver(
-            maneuver_type=maneuver_type,
-            start_time=t_start,
-            end_time=t_end,
-            duration_sec=round(duration, 1),
-            speed_loss_kts=round(speed_before - speed_min, 2),
-            speed_before_kts=round(speed_before, 2),
-            speed_min_kts=round(speed_min, 2),
-            speed_after_kts=round(speed_after, 2),
-            recovery_time_sec=round(recovery_time, 1),
-            heading_change_deg=round(heading_change, 1),
-            max_heel_deg=round(max_heel, 1) if max_heel else None,
-            start_lat=start_lat,
-            start_lon=start_lon,
-        ))
-        last_maneuver_end = t_end
-
-    return maneuvers
+    return candidates
 
 
-def _angular_diff(a: float | np.ndarray, b: float | np.ndarray) -> float | np.ndarray:
-    """Signed angular difference a - b, result in [-180, 180]."""
-    d = a - b
-    if isinstance(d, np.ndarray):
-        d = (d + 180) % 360 - 180
+def _detection_arrays(gps: list[GpsPoint]):
+    """Series shared by every use of the maneuver pipeline (both automatic
+    detection and a manual maneuver's on-demand stat computation) — GPS
+    course, not IMU heading (mounting offset issues), drives everything.
+    ``headings`` is smoothed (plain GPS-course jitter near head-to-wind/
+    dead-downwind otherwise triggers spurious candidates); ``raw_headings``
+    is kept separately for the wind-axis fallback, which wants the track's
+    real shape, not the smoothed one."""
+    times = np.array([p.timestamp for p in gps])
+    raw_headings = np.array([p.heading_deg for p in gps])
+    headings = _smooth_heading(raw_headings)
+    gps_speeds = np.array([p.speed_kts for p in gps])
+    gps_lats = np.array([p.lat for p in gps])
+    gps_lons = np.array([p.lon for p in gps])
+    return times, raw_headings, headings, gps_speeds, gps_lats, gps_lons
+
+
+def resolve_wind_axis(raw_headings: np.ndarray, twd_deg: float | None) -> "tuple[float, bool]":
+    """Real wind axis when available, else a synthetic one (the track's
+    circular-mean heading) at reduced confidence — same fallback
+    ``_detect_candidates`` always used, factored out so the manual-maneuver
+    path resolves the axis identically."""
+    had_wind_axis = twd_deg is not None
+    axis_deg = twd_deg if had_wind_axis else _circular_mean(raw_headings)
+    return axis_deg, had_wind_axis
+
+
+def _candidate_from_window(
+    gps: list[GpsPoint],
+    imu: list[ImuReading] | None,
+    true_wind: list[dict] | None,
+    axis_deg: float,
+    had_wind_axis: bool,
+    times: np.ndarray,
+    headings: np.ndarray,
+    gps_speeds: np.ndarray,
+    gps_lats: np.ndarray,
+    gps_lons: np.ndarray,
+    t_start: float,
+    t_end: float,
+) -> "ManeuverCandidate | None":
+    """Compute a candidate's type-independent metrics + feature vector for a
+    given ``[t_start, t_end]`` window — the "given boundaries, describe this
+    maneuver" half of what used to be inlined in ``_detect_candidates``'s
+    per-transition loop. Boundary-finding stays the caller's job (either
+    ``_detect_candidates``'s rate-of-turn scan, or a user's explicit click
+    window — see ``compute_manual_maneuver``), so both paths get identical
+    stats/features for the same boundaries. Returns ``None`` if the boat was
+    nearly stopped at the start (same gate ``_detect_candidates`` always
+    applied) — a maneuver's speed-loss stats are meaningless below that."""
+    start_idx = int(np.searchsorted(times, t_start))
+    end_idx = min(int(np.searchsorted(times, t_end)), len(times) - 1)
+
+    heading_before = float(headings[start_idx])
+    heading_after = float(headings[end_idx])
+    heading_change = _angular_diff(heading_after, heading_before)
+
+    # Speed metrics (interpolate GPS speed at maneuver boundaries)
+    speed_before = float(np.interp(t_start, times, gps_speeds))
+    if speed_before < MIN_BOAT_SPEED_KTS:
+        return None
+
+    rel_before = _angular_diff(heading_before, axis_deg)
+    rel_after = _angular_diff(heading_after, axis_deg)
+
+    # Find minimum speed during maneuver
+    mask = (times >= t_start) & (times <= t_end)
+    if mask.sum() > 0:
+        speed_min = float(gps_speeds[mask].min())
     else:
-        d = (d + 180) % 360 - 180
-    return d
+        speed_min = float(np.interp((t_start + t_end) / 2, times, gps_speeds))
+
+    # Find speed after and recovery time
+    speed_after, recovery_time = _compute_recovery(times, gps_speeds, t_end, speed_before)
+
+    # Heel during maneuver (from IMU)
+    max_heel = None
+    if imu:
+        imu_times_arr = np.array([r.timestamp for r in imu])
+        imu_heels = np.array([r.heel_deg for r in imu])
+        mask_imu = (imu_times_arr >= t_start) & (imu_times_arr <= t_end)
+        if mask_imu.sum() > 0:
+            max_heel = float(np.max(np.abs(imu_heels[mask_imu])))
+
+    # Start position
+    start_lat = float(np.interp(t_start, times, gps_lats))
+    start_lon = float(np.interp(t_start, times, gps_lons))
+
+    ctx = FeatureContext(
+        gps=gps,
+        imu=imu,
+        true_wind=true_wind,
+        axis_deg=float(axis_deg),
+        had_wind_axis=had_wind_axis,
+        t_start=float(t_start),
+        t_end=float(t_end),
+        heading_before=heading_before,
+        heading_after=heading_after,
+        speed_before_kts=speed_before,
+        speed_min_kts=speed_min,
+        speed_after_kts=speed_after,
+        recovery_time_sec=recovery_time,
+        rel_before=float(rel_before),
+        rel_after=float(rel_after),
+        max_heel_deg=max_heel,
+    )
+
+    return ManeuverCandidate(
+        start_time=t_start,
+        end_time=t_end,
+        duration_sec=t_end - t_start,
+        heading_change_deg=heading_change,
+        speed_before_kts=speed_before,
+        speed_min_kts=speed_min,
+        speed_after_kts=speed_after,
+        recovery_time_sec=recovery_time,
+        start_lat=start_lat,
+        start_lon=start_lon,
+        features=extract_features(ctx),
+    )
 
 
-def _circular_mean(angles_deg: np.ndarray) -> float:
-    """Mean of a set of angles via their unit vectors — a plain arithmetic
-    mean breaks near the 0°/360° wraparound."""
-    rad = np.radians(angles_deg)
-    return float(np.degrees(np.arctan2(np.mean(np.sin(rad)), np.mean(np.cos(rad)))) % 360)
+def compute_manual_maneuver(
+    gps: list[GpsPoint],
+    imu: list[ImuReading] | None,
+    twd_deg: float | None,
+    true_wind: list[dict] | None,
+    t_start: float,
+    t_end: float,
+    maneuver_type: ManeuverType,
+) -> Maneuver:
+    """Stats/features for a user-specified maneuver window — the manual-add
+    counterpart to ``_detect_candidates``/``_finalize``, reusing the exact
+    same math via ``_candidate_from_window`` instead of duplicating it (see
+    ``routers/sessions.py::add_maneuver`` for the caller, via a worker
+    round-trip). Skips ``_detect_candidates``'s transition-scan entirely
+    (the user already gives exact boundaries) and bypasses ``_finalize``'s
+    per-type minimum-heading-change gate — a user explicitly placing a
+    maneuver overrides that heuristic; it exists to filter out the
+    algorithm's own noise, not a human's judgment.
+
+    Raises ``ValueError`` if the window isn't a valid maneuver window (boat
+    nearly stopped at the start) — the caller should surface this as an
+    error, not silently drop the request the way automatic detection does.
+    """
+    times, _raw_headings, headings, gps_speeds, gps_lats, gps_lons = _detection_arrays(gps)
+    axis_deg, had_wind_axis = resolve_wind_axis(_raw_headings, twd_deg)
+    cand = _candidate_from_window(
+        gps, imu, true_wind, axis_deg, had_wind_axis,
+        times, headings, gps_speeds, gps_lats, gps_lons,
+        t_start, t_end,
+    )
+    if cand is None:
+        raise ValueError(
+            f"Cannot compute a maneuver for [{t_start}, {t_end}]: "
+            f"boat speed at t_start is below {MIN_BOAT_SPEED_KTS}kts."
+        )
+    maneuver = _finalize(cand, maneuver_type, enforce_min_heading_change=False)
+    assert maneuver is not None  # enforce_min_heading_change=False never returns None
+    return maneuver
+
+
+def _finalize(
+    cand: ManeuverCandidate,
+    maneuver_type: ManeuverType,
+    enforce_min_heading_change: bool = True,
+) -> Maneuver | None:
+    """Apply the per-type minimum-heading-change gate and build the final
+    ``Maneuver``. Returns ``None`` (the old ``continue``) when the heading
+    change is below the type's floor. Rounding matches the previous inline
+    construction exactly; ``cand.features`` (which includes ``max_heel_deg`` —
+    see ``maneuver_features._max_heel_deg``) is carried onto the maneuver for
+    persistence.
+
+    ``enforce_min_heading_change=False`` (used only by
+    ``compute_manual_maneuver``) skips the gate entirely — a user placing a
+    maneuver by hand overrides the heuristic that exists to filter the
+    algorithm's own false positives, not a human's judgment."""
+    min_change = (MIN_GYBE_HEADING_CHANGE_DEG
+                  if maneuver_type in (ManeuverType.GYBE, ManeuverType.COURSE_CHANGE)
+                  else MIN_TACK_HEADING_CHANGE_DEG)
+    if enforce_min_heading_change and abs(cand.heading_change_deg) < min_change:
+        return None
+
+    return Maneuver(
+        maneuver_type=maneuver_type,
+        start_time=cand.start_time,
+        end_time=cand.end_time,
+        duration_sec=round(cand.duration_sec, 1),
+        speed_loss_kts=round(cand.speed_before_kts - cand.speed_min_kts, 2),
+        speed_before_kts=round(cand.speed_before_kts, 2),
+        speed_min_kts=round(cand.speed_min_kts, 2),
+        speed_after_kts=round(cand.speed_after_kts, 2),
+        recovery_time_sec=round(cand.recovery_time_sec, 1),
+        heading_change_deg=round(cand.heading_change_deg, 1),
+        start_lat=cand.start_lat,
+        start_lon=cand.start_lon,
+        features=cand.features,
+    )
 
 
 def _smooth_heading(headings_deg: np.ndarray, window: int = HEADING_SMOOTH_WINDOW) -> np.ndarray:
@@ -243,14 +426,6 @@ def _debounced_sides(sides: np.ndarray, times: np.ndarray, min_run_sec: float) -
     return sides
 
 
-def _classify_maneuver(rel_before: float, rel_after: float) -> ManeuverType:
-    """Tack = the bow crosses head-to-wind (both headings within 90° of the
-    wind axis); gybe = the stern crosses (both beyond 90°). Called only after
-    a real side change has already been confirmed by the caller."""
-    avg_abs_rel = (abs(rel_before) + abs(rel_after)) / 2
-    return ManeuverType.TACK if avg_abs_rel < 90 else ManeuverType.GYBE
-
-
 def _compute_recovery(
     gps_times: np.ndarray,
     gps_speeds: np.ndarray,
@@ -286,9 +461,15 @@ def _compute_recovery(
 
 
 def maneuver_summary(maneuvers: list[Maneuver]) -> dict:
-    """Compute summary statistics for all maneuvers."""
+    """Compute summary statistics for all maneuvers.
+
+    ``course_changes`` is emitted for completeness (the third class); with the
+    active geometric classifier no maneuver is labelled ``course_change``, so
+    it stays at ``{"count": 0}`` today.
+    """
     tacks = [m for m in maneuvers if m.maneuver_type == ManeuverType.TACK]
     gybes = [m for m in maneuvers if m.maneuver_type == ManeuverType.GYBE]
+    course_changes = [m for m in maneuvers if m.maneuver_type == ManeuverType.COURSE_CHANGE]
 
     def _stats(group: list[Maneuver]) -> dict:
         if not group:
@@ -308,5 +489,6 @@ def maneuver_summary(maneuvers: list[Maneuver]) -> dict:
     return {
         "tacks": _stats(tacks),
         "gybes": _stats(gybes),
+        "course_changes": _stats(course_changes),
         "total": len(maneuvers),
     }

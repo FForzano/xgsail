@@ -13,6 +13,17 @@ from typing import Optional
 class ManeuverType(str, Enum):
     TACK = "tack"
     GYBE = "gybe"
+    # A significant course change that does NOT cross the wind / change tacks
+    # (bearing away, luffing up, a reach-to-reach heading change, a mark
+    # rounding that isn't a tack/gybe). Introduced end-to-end but DORMANT: the
+    # active geometric classifier never emits it, so no maneuver is labelled
+    # course_change today. It becomes populated once (a) Stage 1 detection is
+    # broadened beyond wind-axis crossings and/or (b) the ML classifier
+    # (maneuver_classification._ml_classifier) is registered. When that lands,
+    # decide whether a course_change opens a new leg in segment_legs (it does
+    # NOT flip tacks the way a tack/gybe does). The DB CHECK constraint
+    # (backend/db/models/session.py: MANEUVER_TYPES) already allows it.
+    COURSE_CHANGE = "course_change"
 
 
 class PointOfSail(str, Enum):
@@ -88,10 +99,46 @@ class Maneuver:
     speed_after_kts: float
     recovery_time_sec: float  # time to regain 90% of entry speed
     heading_change_deg: float
-    max_heel_deg: Optional[float] = None
     distance_lost_m: Optional[float] = None
     start_lat: Optional[float] = None
     start_lon: Optional[float] = None
+    # The statistical feature vector for this maneuver (see
+    # processing/maneuver_features.py). Persisted as JSON on session_maneuvers
+    # to accumulate a training dataset for the future ML classifier. Additive:
+    # the set/values of the fields above are unchanged. May be None when no
+    # features were computed.
+    features: Optional[dict] = None
+
+
+@dataclass
+class ManeuverCandidate:
+    """A detected significant course change BEFORE it is classified — Stage 1
+    output. Carries the boundaries and the type-independent metrics already
+    computed during detection, plus the ``features`` dict a classifier
+    (geometric today, ML tomorrow) consumes. Internal to the worker: never
+    serialized or persisted directly; ``_finalize`` turns a classified
+    candidate into a ``Maneuver``.
+
+    Metrics that only describe the specific occurrence (position, timing) sit
+    here as their own fields and end up as ``Maneuver`` columns. Metrics that
+    characterize the maneuver itself (e.g. heel) go straight into ``features``
+    instead — see ``max_heel_deg`` handling in ``_detect_candidates``, which
+    feeds it directly into ``FeatureContext`` rather than carrying it as a
+    field here.
+    """
+    start_time: float
+    end_time: float
+    duration_sec: float
+    heading_change_deg: float
+    speed_before_kts: float
+    speed_min_kts: float
+    speed_after_kts: float
+    recovery_time_sec: float
+    start_lat: Optional[float] = None
+    start_lon: Optional[float] = None
+    # Classifier inputs (rel_before/rel_after to the wind axis) + the richer
+    # configurable statistics. Keys defined by maneuver_features.ENABLED_FEATURES.
+    features: dict = field(default_factory=dict)
 
 
 @dataclass

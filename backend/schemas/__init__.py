@@ -26,7 +26,13 @@ from .device import (
     DeviceHealthModel,
 )
 from .activity import ActivityWriteModel, MarkWriteModel
-from .session import SessionWriteModel, SessionCrewModel
+from .session import (
+    ManeuverCorrectionModel,
+    ManeuverCreateModel,
+    ManeuverRejectionModel,
+    SessionWriteModel,
+    SessionCrewModel,
+)
 from .regatta import RegattaWriteModel
 from .raceday import RaceDayWriteModel
 from .race import RaceWriteModel, ResultWriteModel
@@ -61,6 +67,9 @@ __all__ = [
     "MarkWriteModel",
     "SessionWriteModel",
     "SessionCrewModel",
+    "ManeuverCorrectionModel",
+    "ManeuverRejectionModel",
+    "ManeuverCreateModel",
     "RegattaWriteModel",
     "RaceDayWriteModel",
     "RaceWriteModel",

@@ -16,3 +16,19 @@ class SessionWriteModel(BaseModel):
 class SessionCrewModel(BaseModel):
     user_id: uuid.UUID
     sailing_role: Literal["skipper", "crew", "guest"] = "crew"
+
+
+class ManeuverCorrectionModel(BaseModel):
+    # Mirrors backend/db/models/session.py::MANEUVER_TYPES — kept as a
+    # literal (not imported) since schemas stay dependency-free of db/models.
+    maneuver_type: Literal["tack", "gybe", "course_change"]
+
+
+class ManeuverRejectionModel(BaseModel):
+    rejected: bool
+
+
+class ManeuverCreateModel(BaseModel):
+    maneuver_type: Literal["tack", "gybe", "course_change"]
+    start_time: float
+    end_time: float
