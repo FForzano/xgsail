@@ -172,6 +172,12 @@ services:
     command: ["tunnel", "run"]
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    # Lets this container reach the VM host's sshd (not itself a compose
+    # service) for the ssh.xgsail.com Public Hostname route — the app
+    # services are still reached by their compose service name on the
+    # regular bridge network, this is additive.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       frontend:
         condition: service_started

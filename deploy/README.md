@@ -106,6 +106,7 @@ this repo, since a token-based tunnel's routing lives in the dashboard:
 | `xgsail.com` | `http://frontend:80` |
 | `minio.xgsail.com` | `http://minio:9000` |
 | `api.xgsail.com` | `http://backend:8000` |
+| `ssh.xgsail.com` (type **SSH**, not HTTP) | `host.docker.internal:22` |
 
 `minio.xgsail.com` is what browsers use for presigned upload/download URLs
 (`SAILFRAMES_S3_PUBLIC_ENDPOINT` in `.env`) — safe to expose publicly since
@@ -119,6 +120,28 @@ hostname is additive, not a replacement. If a browser-based client (not
 just native apps) ever calls `api.xgsail.com` directly, add its origin to
 `SAILFRAMES_CORS_ORIGINS` (CSV, see `backend/main.py`) — native HTTP
 clients aren't subject to CORS, so no change is needed for them.
+
+### Reaching the VM (private network, no public IP)
+
+The VM sits on a private network, so `ssh.xgsail.com` — routed to the
+host's sshd via the `cloudflared` service's `extra_hosts` entry — is the
+only way in, not just a hardening option. Put a **Cloudflare Access**
+policy on that hostname (Zero Trust > Access > Applications), since it's
+now the sole front door: without one, anything reachable from
+`ssh.xgsail.com` is reachable by anyone who finds the hostname, protected
+only by your SSH key.
+
+Connect from a client with `cloudflared` installed locally:
+
+```bash
+ssh -o ProxyCommand='cloudflared access ssh --hostname ssh.xgsail.com' <user>@ssh.xgsail.com
+```
+
+(or the equivalent `ProxyCommand` entry in `~/.ssh/config`). Once
+connected, ordinary `-L` port forwarding works the same as any SSH
+session — e.g. for Postgres, add `-L 5432:localhost:5432` to reach
+`postgres:5432` from a local client without exposing it on any tunnel
+hostname.
 
 ## Notes / gotchas
 
