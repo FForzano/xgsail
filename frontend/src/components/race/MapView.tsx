@@ -117,7 +117,15 @@ export function MapView({
   // Prefer this session's own determined wind (closest-in-time point) over
   // the live snapshot — it's what the session's own VMG/polar/legs were
   // actually computed against, not just a nearby model/station guess.
-  const targetMs = wind?.at ? Date.parse(wind.at) : Date.now();
+  // When a true-wind series is available, track it against the live replay
+  // cursor (so the arrow updates as playback advances) rather than a fixed
+  // instant — the static `wind.at` fallback only applies to the live-
+  // snapshot case, where there's no series to scrub through.
+  const targetMs = sessionWind?.length
+    ? cursor
+    : wind?.at
+    ? Date.parse(wind.at)
+    : Date.now();
   const sessionWindPoint = (sessionWind ?? []).reduce<TrueWindPoint | null>((best, p) => {
     if (p.twd_deg == null) return best;
     if (!best) return p;
