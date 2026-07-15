@@ -26,7 +26,8 @@ from .wind_providers import open_meteo
 
 logger = logging.getLogger(__name__)
 
-REAL_SENSOR_PROVIDERS = ("custom_device", "noaa_ndbc", "noaa_metar")
+REAL_SENSOR_PROVIDERS = ("custom_device", "noaa_ndbc", "noaa_metar",
+                         "cumulus_realtime", "cumulus_gauges_json")
 REAL_SENSOR_RADIUS_KM = 50
 
 
