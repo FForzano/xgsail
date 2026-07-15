@@ -50,8 +50,8 @@ def parse_ndbc_line(header: "list[str]", line: str) -> Optional[dict]:
     }
 
 
-def fetch_station(external_station_id: str) -> "list[dict]":
-    resp = requests.get(NDBC_REALTIME_URL.format(station_id=external_station_id),
+def fetch_station(station) -> "list[dict]":
+    resp = requests.get(NDBC_REALTIME_URL.format(station_id=station.external_station_id),
                         timeout=FETCH_TIMEOUT_S)
     resp.raise_for_status()
 

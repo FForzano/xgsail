@@ -26,7 +26,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from ..base import Base, UUIDPKMixin, enum_check
 
-WIND_PROVIDERS = ("noaa_ndbc", "noaa_metar", "custom_device")
+WIND_PROVIDERS = ("noaa_ndbc", "noaa_metar", "custom_device", "cumulus_realtime",
+                  "cumulus_gauges_json")
 WIND_STATION_TYPES = ("buoy", "metar", "custom_device")
 
 
@@ -49,6 +50,10 @@ class WindStationORM(UUIDPKMixin, Base):
     # True for every provider today (NDBC/METAR/custom_device all have a
     # short or no public retention window).
     keeps_local_history: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # URL to poll for providers whose station is a live endpoint rather than
+    # a fixed API keyed by external_station_id (e.g. cumulus_realtime,
+    # cumulus_gauges_json).
+    source_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 class WindObservationORM(UUIDPKMixin, Base):

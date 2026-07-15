@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from ...db.models import WindEstimateORM, WindObservationORM, WindStationORM
 
 _STATION_FIELDS = ("provider", "external_station_id", "name", "station_type", "lat", "lng",
-                   "keeps_local_history")
+                   "keeps_local_history", "source_url")
 _OBS_FIELDS = ("observed_at", "twd_deg", "tws_kts", "gust_kts")
 _ESTIMATE_FIELDS = ("twd_deg", "tws_kts", "gust_kts", "confidence", "sources")
 

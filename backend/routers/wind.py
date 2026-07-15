@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from ..auth import require_superadmin, require_user, verify_csrf
 from ..schemas import WindStationWriteModel
 from ..services import wind_lookup
+from ..services.wind_providers import URL_BASED_PROVIDERS
 from ._common import repos
 
 router = APIRouter(prefix="/api/wind", tags=["wind"])
@@ -50,6 +51,8 @@ def create_station(body: WindStationWriteModel, request: Request):
     require_superadmin(request)
     if not body.provider or not body.station_type or not body.external_station_id:
         raise HTTPException(422, "provider, station_type and external_station_id are required")
+    if body.provider in URL_BASED_PROVIDERS and not body.source_url:
+        raise HTTPException(422, f"source_url is required for provider={body.provider}")
     data = body.model_dump(exclude_unset=True)
     if repos.wind.get_by_provider_external(body.provider, data["external_station_id"]):
         raise HTTPException(409, "Station already registered")

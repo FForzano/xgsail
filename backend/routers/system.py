@@ -310,7 +310,7 @@ def wind_fetch(payload: WindFetchModel, request: Request):
         for station in repos.wind.list(provider=provider):
             stations_hit += 1
             try:
-                rows = fetch(station.external_station_id)
+                rows = fetch(station)
                 inserted += repos.wind.upsert_observations(station.id, rows)
             except Exception as exc:  # one bad station must not stop the sweep
                 errors.append(f"{provider}/{station.external_station_id}: {exc}")
