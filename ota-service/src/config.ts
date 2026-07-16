@@ -25,6 +25,15 @@ export const config = {
   // below reuses backend/storage/object_store.py's exact var names.
   otaPrefix: process.env.SAILFRAMES_OTA_PREFIX ?? "app-updates",
   minio: endpointParts(process.env.SAILFRAMES_S3_ENDPOINT ?? "http://minio:9000"),
+  // Internal endpoint (minio:9000) is unreachable from a phone on the
+  // internet — presigned bundle download URLs must be signed against the
+  // publicly reachable MinIO host instead. Same var/pattern as
+  // backend/storage/object_store.py's `_s3_public`. Falls back to the
+  // internal endpoint if unset, which only works for local/self-hosted
+  // setups where MinIO itself is reachable from the client.
+  minioPublic: process.env.SAILFRAMES_S3_PUBLIC_ENDPOINT
+    ? endpointParts(process.env.SAILFRAMES_S3_PUBLIC_ENDPOINT)
+    : null,
   accessKey: required("MINIO_ROOT_USER"),
   secretKey: required("MINIO_ROOT_PASSWORD"),
   // Presigned bundle URLs expire quickly — clients fetch and re-download

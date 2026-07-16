@@ -137,6 +137,10 @@ services:
       SAILFRAMES_BUCKET: ${SAILFRAMES_BUCKET:-sailframes-fleet-data-prod}
       SAILFRAMES_OTA_PREFIX: ${SAILFRAMES_OTA_PREFIX:-app-updates}
       SAILFRAMES_S3_ENDPOINT: "http://minio:9000"
+      # Public MinIO host, used ONLY to sign the presigned bundle download
+      # URL (see backend's SAILFRAMES_S3_PUBLIC_ENDPOINT) — without this the
+      # signed URL says "minio:9000", unreachable outside the compose network.
+      SAILFRAMES_S3_PUBLIC_ENDPOINT: ${SAILFRAMES_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       MINIO_ROOT_USER: *minio-user
       MINIO_ROOT_PASSWORD: *minio-pass
       OTA_PORT: "8081"

@@ -9,6 +9,21 @@ export const minioClient = new Client({
   secretKey: config.secretKey,
 });
 
+// Separate client for presigning only — SDK signatures are bound to the
+// endpoint they were signed against, so a client built from the internal
+// endpoint can only ever mint internal (unreachable-from-a-phone) URLs.
+// Falls back to `minioClient` (internal) when no public endpoint is
+// configured, e.g. local/self-hosted setups where MinIO is reachable as-is.
+const minioPublicClient = config.minioPublic
+  ? new Client({
+      endPoint: config.minioPublic.host,
+      port: config.minioPublic.port,
+      useSSL: config.minioPublic.useSSL,
+      accessKey: config.accessKey,
+      secretKey: config.secretKey,
+    })
+  : minioClient;
+
 function key(...parts: string[]): string {
   return [config.otaPrefix, ...parts].join("/");
 }
@@ -31,7 +46,7 @@ export async function getManifestJson(): Promise<string | null> {
 }
 
 export async function presignBundleUrl(version: string): Promise<string> {
-  return minioClient.presignedGetObject(config.bucket, bundleKey(version), config.presignExpirySeconds);
+  return minioPublicClient.presignedGetObject(config.bucket, bundleKey(version), config.presignExpirySeconds);
 }
 
 export async function bundleExists(version: string): Promise<boolean> {
