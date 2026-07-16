@@ -200,15 +200,22 @@ export function SessionDetailPage() {
     };
   }, [gpsStream?.download_url]);
 
+  // The boat's actual name/photo (not the generic "Playback" track label) —
+  // shown in the map popup, so it needs the real boat even on this
+  // single-track map.
+  const trackBoat = boats.data?.find((b) => b.id === session.data?.boat_id);
+  const trackBoatName = trackBoat?.name ?? t("sessions.playback");
+  const trackBoatImageUrl = trackBoat?.photos[0]?.url;
   const tracks = useMemo(() => {
     if (!gps?.length) return [];
+    const extra = { boatImageUrl: trackBoatImageUrl, vmg: analysis.data?.vmg_series };
     // Outside trim mode, the map/chart show only the persisted trim window —
     // gps.json itself is never touched (see enterTrimMode), so this is the
     // only place that actually hides the trimmed-away points from view.
     // While trimming, show the full track so the handles can be dragged back
     // out to any point, including past the current trim.
     if (trimMode) {
-      return [buildTrack(sessionId!, t("sessions.playback"), gps, trackColor(0))];
+      return [buildTrack(sessionId!, trackBoatName, gps, trackColor(0), extra)];
     }
     const start = session.data?.trim_start_time;
     const end = session.data?.trim_end_time;
@@ -219,8 +226,17 @@ export function SessionDetailPage() {
             const ms = Date.parse(p.t);
             return (start == null || ms >= start * 1000) && (end == null || ms <= end * 1000);
           });
-    return [buildTrack(sessionId!, t("sessions.playback"), points, trackColor(0))];
-  }, [gps, sessionId, t, trimMode, session.data?.trim_start_time, session.data?.trim_end_time]);
+    return [buildTrack(sessionId!, trackBoatName, points, trackColor(0), extra)];
+  }, [
+    gps,
+    sessionId,
+    trackBoatName,
+    trackBoatImageUrl,
+    trimMode,
+    session.data?.trim_start_time,
+    session.data?.trim_end_time,
+    analysis.data?.vmg_series,
+  ]);
 
   useEffect(() => {
     if (tracks.length) timeController.setBounds(...timeBounds(tracks));
@@ -542,6 +558,12 @@ export function SessionDetailPage() {
               }
               placementMode={maneuverEditMode}
               onManeuverPlacement={handleManeuverPlacement}
+              // Even on this single-track map, the popup's "more info" button
+              // is a handy shortcut straight to the analysis section below,
+              // rather than scrolling past crew/photos/videos to find it.
+              onOpenSession={() =>
+                document.getElementById("session-analysis")?.scrollIntoView({ behavior: "smooth" })
+              }
             />
             {maneuverEditMode && (
               <p className="sf-muted sf-card__pad">
@@ -715,7 +737,9 @@ export function SessionDetailPage() {
         )}
       </Card>
 
-      <SessionAnalysis sessionId={sessionId} editMode={maneuverEditMode} />
+      <div id="session-analysis">
+        <SessionAnalysis sessionId={sessionId} editMode={maneuverEditMode} />
+      </div>
 
       {addingCrew && (
         <Modal

@@ -12,6 +12,14 @@ export interface Track {
   name: string;
   color: string;
   pts: TrackPoint[];
+  /** The boat's own photo (first of `Boat.photos`), shown in the track-click
+   * popup next to its name when present. */
+  boatImageUrl?: string | null;
+  /** This track's own VMG series — lets the click popup fill in VMG/course
+   * even on a multi-track map (e.g. the activity map), where each session
+   * has a different series and the map-wide `vmg` prop doesn't apply. Falls
+   * back to the `vmg` prop when absent (the single-track session map case). */
+  vmg?: VmgPoint[] | null;
 }
 
 // Distinct, colorblind-ish palette assigned by track order.
@@ -130,7 +138,13 @@ export function speedRange(track: Track): [number, number] {
 
 /** One track from a processed GPS stream (canonical point shape
  * `{t, lat, lon, speed_kn}` — worker output / GPX parse). */
-export function buildTrack(id: string, name: string, points: GpsPoint[], color: string): Track {
+export function buildTrack(
+  id: string,
+  name: string,
+  points: GpsPoint[],
+  color: string,
+  extra?: { boatImageUrl?: string | null; vmg?: VmgPoint[] | null },
+): Track {
   const pts: TrackPoint[] = points
     .filter((p) => p.lat != null && p.lon != null)
     .map((p) => ({
@@ -140,7 +154,7 @@ export function buildTrack(id: string, name: string, points: GpsPoint[], color: 
       sog: p.speed_kn ?? 0,
     }))
     .sort((a, b) => a.ms - b.ms);
-  return { id, name, color, pts };
+  return { id, name, color, pts, ...extra };
 }
 
 /** Tracks from `GET /races/{id}/data` or `GET /activities/{id}/data` —

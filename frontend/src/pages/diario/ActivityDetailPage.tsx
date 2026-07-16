@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { boatsService, boatKeys } from "@/services/boats";
+import { sessionsService, sessionKeys } from "@/services/sessions";
 import { useAuth } from "@/hooks/useAuth";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useToast } from "@/hooks/useToast";
@@ -65,11 +66,46 @@ export function ActivityDetailPage() {
     enabled: !!activityId,
   });
   const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
+  // Each session has its own VMG series — unlike SessionDetailPage (a single
+  // track), the map-wide `vmg` prop can't work here, so each session's
+  // analysis is fetched individually and threaded onto its own Track (see
+  // Track.vmg) for the popup to read.
+  const sessionAnalyses = useQueries({
+    queries: (sessions.data ?? []).map((s) => ({
+      queryKey: sessionKeys.analysis(s.id),
+      queryFn: () => sessionsService.analysis(s.id),
+      enabled: !!sessions.data,
+      retry: false,
+    })),
+  });
 
-  const tracks = useMemo(
-    () => (activityData.data ? buildTracks(activityData.data) : []),
-    [activityData.data],
-  );
+  // gps.json is never trimmed in place (see SessionDetailPage's trim
+  // feature) — each session's own trim_start_time/trim_end_time (from the
+  // `sessions` query, which returns full Session records) has to be applied
+  // here too, or the activity map would keep showing the untrimmed track.
+  const tracks = useMemo(() => {
+    if (!activityData.data) return [];
+    const built = buildTracks(activityData.data);
+    const bySessionId = new Map(sessions.data?.map((s) => [s.id, s]) ?? []);
+    const vmgBySessionId = new Map(
+      (sessions.data ?? []).map((s, i) => [s.id, sessionAnalyses[i]?.data?.vmg_series]),
+    );
+    return built
+      .map((tr) => {
+        const s = bySessionId.get(tr.id);
+        const start = s?.trim_start_time;
+        const end = s?.trim_end_time;
+        const pts =
+          start == null && end == null
+            ? tr.pts
+            : tr.pts.filter(
+                (p) => (start == null || p.ms >= start * 1000) && (end == null || p.ms <= end * 1000),
+              );
+        const boatImageUrl = boats.data?.find((b) => b.id === s?.boat_id)?.photos[0]?.url;
+        return { ...tr, pts, boatImageUrl, vmg: vmgBySessionId.get(tr.id) };
+      })
+      .filter((tr) => tr.pts.length > 0);
+  }, [activityData.data, sessions.data, sessionAnalyses, boats.data]);
   useEffect(() => {
     if (tracks.length) timeController.setBounds(...timeBounds(tracks));
     return () => timeController.pause();
@@ -225,9 +261,15 @@ export function ActivityDetailPage() {
             <MapView
               tracks={tracks}
               marks={mapMarks}
+              wind={
+                tracks[0]?.pts[0]
+                  ? { lat: tracks[0].pts[0].lat, lng: tracks[0].pts[0].lon, at: a.started_at }
+                  : undefined
+              }
               controls={
                 <Timeline className="sf-timeline--overlay" stepMs={medianIntervalMs(tracks[0]) * 5} />
               }
+              onOpenSession={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
             />
             <div className="sf-section__body sf-card__pad">
               <SpeedChart tracks={tracks} />

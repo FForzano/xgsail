@@ -1144,14 +1144,55 @@ h1, h2, h3 {
 }
 .sf-map-popup .leaflet-popup-content {
   margin: 0.5rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
   font-size: 0.85rem;
   white-space: nowrap;
 }
 .sf-map-popup .leaflet-popup-tip-container {
   display: none;
+}
+/* Outer layout: boat photo on the left, stretched (align-items: stretch) to
+   match the height of the 4 stacked text lines beside it. */
+.sf-map-popup__body {
+  display: flex;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+.sf-map-popup__col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+}
+/* First line of the column: boat name + "more info" link (see MapView.tsx's
+   popupContent) — speed/VMG/course each get their own line below it. */
+.sf-map-popup__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sf-map-popup__info {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.sf-map-popup__info:hover {
+  opacity: 0.75;
+}
+.sf-map-popup__name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.sf-map-popup__thumb {
+  width: 56px;
+  align-self: stretch;
+  border-radius: var(--sf-radius-sm, 4px);
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 /* Wind indicator overlay: direction + speed for the session's region. */

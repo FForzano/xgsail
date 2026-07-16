@@ -282,6 +282,7 @@
     "editTrimDone": "Done editing trim",
     "applyTrim": "Apply trim",
     "trimHint": "Drag the two handles on the speed chart to pick the start and end",
+    "openSession": "Open session",
     "bestTack": "Best tack",
     "bestLeg": "Best leg",
     "bestVmg": "Best VMG",
