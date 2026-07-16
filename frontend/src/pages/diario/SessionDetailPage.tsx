@@ -202,8 +202,25 @@ export function SessionDetailPage() {
 
   const tracks = useMemo(() => {
     if (!gps?.length) return [];
-    return [buildTrack(sessionId!, t("sessions.playback"), gps, trackColor(0))];
-  }, [gps, sessionId, t]);
+    // Outside trim mode, the map/chart show only the persisted trim window —
+    // gps.json itself is never touched (see enterTrimMode), so this is the
+    // only place that actually hides the trimmed-away points from view.
+    // While trimming, show the full track so the handles can be dragged back
+    // out to any point, including past the current trim.
+    if (trimMode) {
+      return [buildTrack(sessionId!, t("sessions.playback"), gps, trackColor(0))];
+    }
+    const start = session.data?.trim_start_time;
+    const end = session.data?.trim_end_time;
+    const points =
+      start == null && end == null
+        ? gps
+        : gps.filter((p) => {
+            const ms = Date.parse(p.t);
+            return (start == null || ms >= start * 1000) && (end == null || ms <= end * 1000);
+          });
+    return [buildTrack(sessionId!, t("sessions.playback"), points, trackColor(0))];
+  }, [gps, sessionId, t, trimMode, session.data?.trim_start_time, session.data?.trim_end_time]);
 
   useEffect(() => {
     if (tracks.length) timeController.setBounds(...timeBounds(tracks));
@@ -351,7 +368,6 @@ export function SessionDetailPage() {
     if (trimDraftStartMs == null || trimDraftEndMs == null) return;
     setTrim.mutate({ trim_start_time: trimDraftStartMs / 1000, trim_end_time: trimDraftEndMs / 1000 });
   };
-  const removeTrim = () => setTrim.mutate({ trim_start_time: null, trim_end_time: null });
   const addManeuver = useMutation({
     mutationFn: () =>
       sessionsService.addManeuver(sessionId!, {
@@ -386,7 +402,6 @@ export function SessionDetailPage() {
   const s = session.data;
   const boat = boats.data?.find((b) => b.id === s.boat_id);
   const manager = isBoatManager(s.boat_id);
-  const hasTrim = s.trim_start_time != null || s.trim_end_time != null;
 
   // Single consolidated ⋮ menu (title-level) — replaces the old separate
   // OptionsMenu (session actions) + MapLegsOptions (⚙ on the map). Sections
@@ -436,9 +451,6 @@ export function SessionDetailPage() {
               label: trimMode ? t("sessions.editTrimDone") : t("sessions.trimTrack"),
               onClick: () => (trimMode ? exitTrimMode() : enterTrimMode()),
             },
-            ...(hasTrim
-              ? [{ label: t("sessions.removeTrim"), onClick: removeTrim, disabled: setTrim.isPending }]
-              : []),
           ]
         : []),
     ],
