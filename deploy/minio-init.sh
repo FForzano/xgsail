@@ -13,6 +13,14 @@ set -eu
 BUCKET="${SAILFRAMES_BUCKET:-sailframes-fleet-data-prod}"
 PUBLIC_ORIGIN="${SAILFRAMES_PUBLIC_ORIGIN:-http://localhost:8080}"
 LOCAL_ORIGIN="http://localhost:5173,http://localhost:5174,http://localhost:5175"
+# Same allow-list the backend's own CORSMiddleware uses (backend/main.py) —
+# includes the native app's virtual WebView origins (capacitor://localhost,
+# https://app.xgsail.com). Without this, presigned MinIO URLs (gps stream
+# JSON, images, ...) load fine via <img> (not CORS-checked) but any fetch()
+# reading the response body from the native app fails silently: the browser
+# blocks it for a missing Access-Control-Allow-Origin, same as any other
+# cross-origin fetch to a server that never heard of this origin.
+EXTRA_ORIGIN="${SAILFRAMES_CORS_ORIGINS:-}"
 
 echo "[init] waiting for MinIO and setting alias..."
 mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
@@ -55,8 +63,9 @@ mc anonymous set-json /tmp/policy.json "local/$BUCKET"
 # MinIO edition (always errors "not implemented") — use the server-wide `api`
 # config subsystem instead, which IS honoured (and already defaults to `*`
 # out of the box; we just scope it to the real origin). Needs a restart.
-echo "[init] applying server-wide CORS for origins $PUBLIC_ORIGIN,$LOCAL_ORIGIN..."
-mc admin config set local api cors_allow_origin="$PUBLIC_ORIGIN,$LOCAL_ORIGIN"
+CORS_ORIGINS="$PUBLIC_ORIGIN,$LOCAL_ORIGIN${EXTRA_ORIGIN:+,$EXTRA_ORIGIN}"
+echo "[init] applying server-wide CORS for origins $CORS_ORIGINS..."
+mc admin config set local api cors_allow_origin="$CORS_ORIGINS"
 mc admin service restart local --wait >/dev/null 2>&1 || true
 
 # Register the bucket-notification event. The webhook target (arn SF) is

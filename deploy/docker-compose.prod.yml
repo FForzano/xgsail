@@ -69,6 +69,11 @@ services:
       SAILFRAMES_BUCKET: ${SAILFRAMES_BUCKET}
       SAILFRAMES_OTA_PREFIX: ${SAILFRAMES_OTA_PREFIX:-app-updates}
       SAILFRAMES_PUBLIC_ORIGIN: https://xgsail.com
+      # Same native-app origins as the backend's own CORS allow-list below —
+      # presigned MinIO URLs (SAILFRAMES_S3_PUBLIC_ENDPOINT) need them too,
+      # or fetch() from the native app fails CORS even though the identical
+      # URL renders fine in an <img> tag.
+      SAILFRAMES_CORS_ORIGINS: ${SAILFRAMES_CORS_ORIGINS:-capacitor://localhost,https://localhost,https://app.xgsail.com}
     entrypoint: ["/bin/sh", "/init/minio-init.sh"]
     volumes:
       - ./minio-init.sh:/init/minio-init.sh:ro

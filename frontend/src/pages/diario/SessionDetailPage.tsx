@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { resolveApiUrl } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useCapabilities } from "@/hooks/useCapabilities";
@@ -187,7 +188,7 @@ export function SessionDetailPage() {
   useEffect(() => {
     if (!gpsStream?.download_url) return;
     let cancelled = false;
-    void fetch(gpsStream.download_url)
+    void fetch(resolveApiUrl(gpsStream.download_url))
       .then((r) => (r.ok ? r.json() : []))
       .then((points: GpsPoint[]) => {
         if (!cancelled) setGps(points);

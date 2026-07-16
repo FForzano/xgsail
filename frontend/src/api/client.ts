@@ -14,6 +14,23 @@ import { CSRF_COOKIE, CSRF_HEADER, readCookie } from "./csrf";
 // directly (e.g. a GPX file download) instead of going through `request()`.
 export const BASE = import.meta.env.VITE_API_BASE ?? "/api";
 
+// BASE's own origin when it's absolute (native: a real cross-origin host —
+// there's no same-origin nginx proxy inside a WebView), empty when it's
+// relative (web: same-origin "/api", nginx proxies it).
+const API_ORIGIN = /^https?:\/\//.test(BASE) ? new URL(BASE).origin : "";
+
+/** Resolve a backend-issued file URL (e.g. `storage.download_ref`'s
+ * `/api/download/{key}` proxy fallback) for a direct `fetch`/`<a href>`/
+ * `window.open` outside `request()`. Those URLs are relative because
+ * they're built to work same-origin on web; a relative URL inside the
+ * native WebView resolves against its own virtual origin
+ * (`app.xgsail.com`, see `capacitor.config.ts`) instead of the real API,
+ * and silently fails (wrong host, nothing there). Already-absolute URLs
+ * (a real presigned S3/MinIO URL) are returned untouched. */
+export function resolveApiUrl(url: string): string {
+  return /^https?:\/\//.test(url) ? url : `${API_ORIGIN}${url}`;
+}
+
 // Dispatched when refresh fails — AuthContext listens and drops to anonymous.
 export const AUTH_EXPIRED_EVENT = "sf:auth-expired";
 

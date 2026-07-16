@@ -71,6 +71,9 @@ services:
       SAILFRAMES_OTA_PREFIX: ${SAILFRAMES_OTA_PREFIX:-app-updates}
       # Frontend origin allowed to CORS-fetch presigned URLs directly from MinIO.
       SAILFRAMES_PUBLIC_ORIGIN: ${SAILFRAMES_PUBLIC_ORIGIN:-http://localhost:8080}
+      # Same native-app origins as the backend's own CORS allow-list (see
+      # backend service below) — presigned MinIO URLs need them too.
+      SAILFRAMES_CORS_ORIGINS: ${SAILFRAMES_CORS_ORIGINS:-}
     entrypoint: ["/bin/sh", "/init/minio-init.sh"]
     volumes:
       - ./deploy/minio-init.sh:/init/minio-init.sh:ro
