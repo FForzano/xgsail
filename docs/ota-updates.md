@@ -70,6 +70,14 @@ SAILFRAMES_BUCKET=sailframes-fleet-data-prod \
 scripts/deploy-ota.sh [VERSION]
 ```
 
+**Retention**: after each publish, the script prunes MinIO down to the
+`OTA_KEEP_VERSIONS` (default 5) most recently uploaded bundles — old
+versions are never referenced by `manifest.json` (which only ever points
+at the latest) and aren't needed for `@capgo/capacitor-updater`'s
+crash-rollback (that keeps a copy of the previous bundle on-device, not on
+the server), so pruning aggressively is safe; the retained few are purely
+for manual debugging.
+
 `VERSION` defaults to `git describe --tags --always` in `frontend/`. The
 script builds the frontend with `VITE_API_BASE` set to the real backend
 origin (required — see `docs/native-apps.md`), zips `dist/`, computes a

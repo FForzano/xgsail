@@ -15,6 +15,13 @@
 #   scripts/deploy-ota.sh [VERSION]
 #
 # VERSION defaults to `git describe --tags --always` in frontend/.
+#
+# Retention: after publishing, prunes MinIO down to the OTA_KEEP_VERSIONS
+# (default 5) most recently uploaded bundles. Safe to prune aggressively —
+# manifest.json only ever points at the latest version (no incremental
+# diffs), and @capgo/capacitor-updater's crash-rollback keeps a copy of the
+# previous bundle on-device, not on the server — so old bundles here are
+# only useful for manual debugging, never for the update flow itself.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,6 +31,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}"
 BUCKET="${SAILFRAMES_BUCKET:-sailframes-fleet-data-prod}"
 OTA_PREFIX="${SAILFRAMES_OTA_PREFIX:-app-updates}"
+KEEP_VERSIONS="${OTA_KEEP_VERSIONS:-5}"
 VERSION="${1:-$(cd "$ROOT/frontend" && git describe --tags --always)}"
 
 WORKDIR="$(mktemp -d)"
@@ -44,5 +52,17 @@ echo "==> uploading bundle + manifest to MinIO (local/$BUCKET/$OTA_PREFIX)"
 mc alias set ota-deploy "$SAILFRAMES_S3_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
 mc cp "$WORKDIR/bundle.zip" "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/$VERSION.zip"
 mc cp "$WORKDIR/manifest.json" "ota-deploy/$BUCKET/$OTA_PREFIX/manifest.json"
+
+echo "==> pruning old bundles (keeping newest $KEEP_VERSIONS)"
+mc ls --json "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/" \
+  | jq -r '[.lastModified, .key] | @tsv' \
+  | sort -r \
+  | tail -n +"$((KEEP_VERSIONS + 1))" \
+  | cut -f2 \
+  | while IFS= read -r old; do
+      [ -z "$old" ] && continue
+      echo "  removing bundles/$old"
+      mc rm "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/$old"
+    done
 
 echo "==> done: version $VERSION published (checksum $CHECKSUM)"
