@@ -75,6 +75,9 @@ async function uploadRecording(
       subjectUserId: userId,
     });
     await nativeRecording.setStatus(recording.id, "uploaded", completed.session_id ?? undefined);
+    // Once the backend confirms the import, the local copy (raw log + GPX)
+    // has no further purpose — drop it instead of leaving it in the list.
+    await nativeRecording.remove(recording.id);
     return { error: null };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

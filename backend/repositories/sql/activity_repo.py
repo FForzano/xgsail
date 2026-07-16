@@ -28,7 +28,7 @@ class SqlActivityRepo:
              type: Optional[str] = None,
              created_by: Optional[uuid.UUID] = None) -> "list[ActivityORM]":
         with self.Session() as s:
-            q = select(ActivityORM)
+            q = select(ActivityORM).order_by(ActivityORM.started_at.desc())
             if club_id is not None:
                 q = q.where(ActivityORM.club_id == club_id)
             if group_id is not None:
