@@ -304,6 +304,8 @@
     "title": "Record a GPS track",
     "start": "Start recording",
     "stop": "Stop recording",
+    "pause": "Pause",
+    "resume": "Resume",
     "recording": "Recording in progress",
     "points": "points",
     "linkTo": "Link to",
@@ -313,6 +315,7 @@
     "empty": "No local recordings.",
     "status": {
       "recording": "Recording",
+      "paused": "Paused",
       "stopped": "Ready to upload",
       "uploading": "Uploading…",
       "uploaded": "Uploaded",

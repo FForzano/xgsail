@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import type { UUID } from "@/types";
 
 // Native-only: records a GPS track while the app is backgrounded/the phone
@@ -35,7 +36,7 @@ const BackgroundGeolocation = Capacitor.isNativePlatform()
   ? registerPlugin<BackgroundGeolocationPlugin>("BackgroundGeolocation")
   : null;
 
-export type RecordingStatus = "recording" | "stopped" | "uploading" | "uploaded" | "failed";
+export type RecordingStatus = "recording" | "paused" | "stopped" | "uploading" | "uploaded" | "failed";
 
 export interface RecordingMeta {
   id: UUID;
@@ -60,7 +61,7 @@ const gpxPath = (id: string) => `recordings/${id}.gpx`;
 
 let index: RecordingMeta[] = [];
 let indexLoaded = false;
-let active: { id: UUID; watcherId: string; lastSampleAt: number } | null = null;
+let active: { id: UUID; watcherId: string | null; lastSampleAt: number } | null = null;
 const listeners = new Set<() => void>();
 
 function notify() {
@@ -155,9 +156,44 @@ export async function readRecordingGpx(id: UUID): Promise<File> {
   return new File([blob], `registrazione-${id}.gpx`, { type: "application/gpx+xml" });
 }
 
+/** Starts (or restarts, on resume) the plugin's watcher for `id` — points
+ * keep appending to that same recording's raw log regardless of how many
+ * watcher start/stop cycles a pause/resume sequence goes through. */
+async function addWatcherFor(id: UUID): Promise<string> {
+  if (!BackgroundGeolocation) throw new Error("Not available on web");
+  return BackgroundGeolocation.addWatcher(
+    {
+      backgroundTitle: "XGSail",
+      backgroundMessage: "Registrazione GPS in corso",
+      requestPermissions: true,
+      stale: false,
+      distanceFilter: 0,
+    },
+    (location, error) => {
+      if (error || !location || !active || active.id !== id) return;
+      const now = Date.now();
+      if (now - active.lastSampleAt < SAMPLE_INTERVAL_MS) return;
+      active.lastSampleAt = now;
+      const isoTime = new Date(location.time).toISOString();
+      void appendPoint(id, location.latitude, location.longitude, isoTime).then(async () => {
+        const entry = index.find((r) => r.id === id);
+        if (entry) {
+          entry.pointCount += 1;
+          await saveIndex();
+        }
+      });
+    },
+  );
+}
+
 export async function start(boatId: UUID, activityId: UUID | null): Promise<UUID> {
   if (!BackgroundGeolocation) throw new Error("Not available on web");
   if (active) throw new Error("A recording is already in progress");
+
+  // Android 13+ won't show the plugin's foreground-service notification
+  // unless this is explicitly granted at runtime — the plugin only
+  // declares the permission in its manifest, it never requests it itself.
+  await LocalNotifications.requestPermissions();
 
   const id = crypto.randomUUID() as UUID;
   await loadIndex();
@@ -172,38 +208,37 @@ export async function start(boatId: UUID, activityId: UUID | null): Promise<UUID
   });
   await saveIndex();
 
-  const watcherId = await BackgroundGeolocation.addWatcher(
-    {
-      backgroundTitle: "XGSail",
-      backgroundMessage: "Registrazione GPS in corso",
-      requestPermissions: true,
-      stale: false,
-      distanceFilter: 0,
-    },
-    (location, error) => {
-      if (error || !location || !active) return;
-      const now = Date.now();
-      if (now - active.lastSampleAt < SAMPLE_INTERVAL_MS) return;
-      active.lastSampleAt = now;
-      const isoTime = new Date(location.time).toISOString();
-      void appendPoint(active.id, location.latitude, location.longitude, isoTime).then(async () => {
-        const entry = index.find((r) => r.id === id);
-        if (entry) {
-          entry.pointCount += 1;
-          await saveIndex();
-        }
-      });
-    },
-  );
+  const watcherId = await addWatcherFor(id);
   active = { id, watcherId, lastSampleAt: 0 };
   notify();
   return id;
 }
 
+/** Stops GPS updates (and the foreground notification) without finalizing
+ * the recording — the raw point log stays open so `resume()` can keep
+ * appending to the same track. */
+export async function pause(): Promise<void> {
+  if (!BackgroundGeolocation || !active || !active.watcherId) return;
+  await BackgroundGeolocation.removeWatcher({ id: active.watcherId });
+  active.watcherId = null;
+  const entry = index.find((r) => r.id === active!.id);
+  if (entry) entry.status = "paused";
+  await saveIndex();
+}
+
+export async function resume(): Promise<void> {
+  if (!active || active.watcherId) return;
+  const watcherId = await addWatcherFor(active.id);
+  active.watcherId = watcherId;
+  const entry = index.find((r) => r.id === active!.id);
+  if (entry) entry.status = "recording";
+  await saveIndex();
+}
+
 export async function stop(): Promise<void> {
   if (!BackgroundGeolocation || !active) return;
   const { id, watcherId } = active;
-  await BackgroundGeolocation.removeWatcher({ id: watcherId });
+  if (watcherId) await BackgroundGeolocation.removeWatcher({ id: watcherId });
   active = null;
   await finalize(id);
   const entry = index.find((r) => r.id === id);

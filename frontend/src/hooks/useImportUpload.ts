@@ -9,6 +9,8 @@ export type ImportUploadPhase = "idle" | "uploading" | "processing" | "done" | "
 interface StartOptions {
   boatId: UUID;
   activityId?: UUID;
+  subjectType?: "boat" | "crew_member";
+  subjectUserId?: UUID;
 }
 
 /** Shared create → PUT → complete → poll sequence for the manual-import
@@ -38,6 +40,8 @@ export function useImportUpload() {
       const completed = await importsService.complete(ticket.import_id, {
         boat_id: options.boatId,
         activity_id: options.activityId,
+        subject_type: options.subjectType,
+        subject_user_id: options.subjectUserId,
       });
       setRow(completed);
       if (completed.status === "processed") setPhase("done");

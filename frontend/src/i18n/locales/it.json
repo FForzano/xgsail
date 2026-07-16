@@ -304,6 +304,8 @@
     "title": "Registra traccia GPS",
     "start": "Avvia registrazione",
     "stop": "Ferma registrazione",
+    "pause": "Metti in pausa",
+    "resume": "Riprendi",
     "recording": "Registrazione in corso",
     "points": "punti",
     "linkTo": "Collega a",
@@ -313,6 +315,7 @@
     "empty": "Nessuna registrazione locale.",
     "status": {
       "recording": "In registrazione",
+      "paused": "In pausa",
       "stopped": "Da caricare",
       "uploading": "Caricamento…",
       "uploaded": "Caricata",

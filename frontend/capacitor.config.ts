@@ -11,7 +11,11 @@ const config: CapacitorConfig = {
   appId: "com.xgsail.app",
   appName: "XGSail",
   webDir: "dist",
-  android: { minWebViewVersion: 60 },
+  // useLegacyBridge: required by @capacitor-community/background-geolocation
+  // (see its README) — without it, Android silently stops delivering
+  // location updates ~5 minutes after the app is backgrounded/screen-locked,
+  // which would otherwise cut GPS recordings short with no error shown.
+  android: { minWebViewVersion: 60, useLegacyBridge: true },
   // Without this, Capacitor serves the app from https://localhost, which
   // password managers (Bitwarden, etc.) show as the site. app.xgsail.com is
   // a dedicated, purely virtual hostname — it doesn't need to exist in DNS,

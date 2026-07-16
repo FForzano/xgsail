@@ -5,9 +5,11 @@ import { boatsService, boatKeys } from "@/services/boats";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { sessionsService } from "@/services/sessions";
 import { useImportUpload } from "@/hooks/useImportUpload";
+import { useAuth } from "@/hooks/useAuth";
 import * as nativeRecording from "@/services/nativeRecording";
 import type { RecordingMeta } from "@/services/nativeRecording";
 import { activityDisplayName } from "@/utils/activityName";
+import { fmtDuration } from "@/utils/format";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -48,8 +50,40 @@ function elapsedLabel(startedAt: string): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function durationSeconds(recording: RecordingMeta): number {
+  const end = recording.endedAt ? new Date(recording.endedAt).getTime() : Date.now();
+  return Math.max(0, Math.round((end - new Date(recording.startedAt).getTime()) / 1000));
+}
+
+/** Every Registra recording is the current user's own on-phone GPS trace,
+ * so it always authorizes as a self-crew import (backend/routers/imports.py
+ * `is_self_crew`) rather than requiring boat owner/admin — works whether or
+ * not the recording user happens to also manage the boat. */
+async function uploadRecording(
+  recording: RecordingMeta,
+  upload: ReturnType<typeof useImportUpload>,
+  userId: UUID,
+): Promise<{ error: string | null }> {
+  try {
+    await nativeRecording.setStatus(recording.id, "uploading");
+    const file = await nativeRecording.readRecordingGpx(recording.id);
+    const completed = await upload.start(file, {
+      boatId: recording.boatId,
+      activityId: recording.activityId ?? undefined,
+      subjectType: "crew_member",
+      subjectUserId: userId,
+    });
+    await nativeRecording.setStatus(recording.id, "uploaded", completed.session_id ?? undefined);
+    return { error: null };
+  } catch (e) {
+    await nativeRecording.setStatus(recording.id, "failed");
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 function RecordingRow({ recording, onChanged }: { recording: RecordingMeta; onChanged: () => void }) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [activityId, setActivityId] = useState(recording.activityId ?? STANDALONE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,24 +93,13 @@ function RecordingRow({ recording, onChanged }: { recording: RecordingMeta; onCh
   const boatName = boats.data?.find((b) => b.id === recording.boatId)?.name ?? recording.boatId;
 
   const doUpload = async () => {
+    if (!user) return;
     setBusy(true);
     setError(null);
-    try {
-      await nativeRecording.setStatus(recording.id, "uploading");
-      onChanged();
-      const file = await nativeRecording.readRecordingGpx(recording.id);
-      const completed = await upload.start(file, {
-        boatId: recording.boatId,
-        activityId: recording.activityId ?? undefined,
-      });
-      await nativeRecording.setStatus(recording.id, "uploaded", completed.session_id ?? undefined);
-    } catch (e) {
-      await nativeRecording.setStatus(recording.id, "failed");
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-      onChanged();
-    }
+    const { error } = await uploadRecording(recording, upload, user.id);
+    setError(error);
+    setBusy(false);
+    onChanged();
   };
 
   const doReassign = async () => {
@@ -107,11 +130,11 @@ function RecordingRow({ recording, onChanged }: { recording: RecordingMeta; onCh
         {new Date(recording.startedAt).toLocaleString()} — {boatName}
       </p>
       <p className="sf-muted">
-        {t(`registra.status.${recording.status}`)} · {recording.pointCount} {t("registra.points")}
+        {t(`registra.status.${recording.status}`)} · {fmtDuration(durationSeconds(recording))}
       </p>
       <ActivityPicker id={`activity-${recording.id}`} value={activityId} onChange={setActivityId} />
       <div className="sf-form__actions">
-        {recording.status === "stopped" && (
+        {(recording.status === "stopped" || recording.status === "failed") && (
           <Button onClick={() => void doUpload()} disabled={busy}>
             {t("registra.upload")}
           </Button>
@@ -121,7 +144,7 @@ function RecordingRow({ recording, onChanged }: { recording: RecordingMeta; onCh
             {t("registra.reassign")}
           </Button>
         )}
-        {recording.status !== "recording" && recording.status !== "uploading" && (
+        {recording.status !== "recording" && recording.status !== "paused" && recording.status !== "uploading" && (
           <Button variant="danger" onClick={() => void doRemove()} disabled={busy}>
             {t("common.delete")}
           </Button>
@@ -134,12 +157,14 @@ function RecordingRow({ recording, onChanged }: { recording: RecordingMeta; onCh
 
 export function RegistraPage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { recordings, refresh } = nativeRecording.useRecordings();
   const [boatId, setBoatId] = useState("");
   const [activityId, setActivityId] = useState<string>(STANDALONE);
   const [activeId, setActiveId] = useState<UUID | null>(nativeRecording.activeRecordingId());
   const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  const upload = useImportUpload();
 
   const boats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
 
@@ -167,10 +192,26 @@ export function RegistraPage() {
     }
   };
 
+  const onPause = async () => {
+    await nativeRecording.pause();
+    refresh();
+  };
+
+  const onResume = async () => {
+    await nativeRecording.resume();
+    refresh();
+  };
+
   const onStop = async () => {
+    const stopped = active;
     await nativeRecording.stop();
     setActiveId(null);
     refresh();
+    // Upload happens automatically, no confirmation step — failures still
+    // land in the list below as "Caricamento fallito" with a retry button.
+    if (stopped && user) {
+      void uploadRecording(stopped, upload, user.id).then(() => refresh());
+    }
   };
 
   return (
@@ -178,12 +219,18 @@ export function RegistraPage() {
       <Card title={t("registra.title")}>
         {active ? (
           <>
-            <p className="sf-badge sf-badge--success">{t("registra.recording")}</p>
-            <p className="sf-field__label">{elapsedLabel(active.startedAt)}</p>
-            <p className="sf-muted">
-              {active.pointCount} {t("registra.points")}
+            <p className="sf-badge sf-badge--success">
+              {t(active.status === "paused" ? "registra.status.paused" : "registra.recording")}
             </p>
+            <p className="sf-field__label">{elapsedLabel(active.startedAt)}</p>
             <div className="sf-form__actions">
+              {active.status === "paused" ? (
+                <Button onClick={() => void onResume()}>{t("registra.resume")}</Button>
+              ) : (
+                <Button variant="ghost" onClick={() => void onPause()}>
+                  {t("registra.pause")}
+                </Button>
+              )}
               <Button variant="danger" onClick={() => void onStop()}>
                 {t("registra.stop")}
               </Button>
