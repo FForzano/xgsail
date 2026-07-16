@@ -43,3 +43,12 @@ createRoot(document.getElementById("root")!).render(
     </NativeVersionGate>
   </StrictMode>,
 );
+
+// Confirms to CapacitorUpdater that the freshly-applied OTA bundle (if any)
+// rendered successfully — without this, the plugin assumes it crashed and
+// silently reverts to the previous bundle once its readiness timeout
+// elapses, mid-session. Fired after the initial render call returns (so a
+// synchronous mount failure never sends a false "ready").
+if (Capacitor.isNativePlatform()) {
+  void import("@/services/nativeUpdater").then((m) => m.notifyNativeAppReady());
+}
