@@ -1,17 +1,23 @@
-# SailFrames One — Sailing Analytics Platform
+# XGSail — Sailing Analytics Platform
 
 ## Project Context for Claude Code
 
-This repository is **SailFrames One**: the software application layer
-only — backend API, frontend SPA, ingestion/processing workers, and
+This repository is **XGSail**: the software application layer only —
+backend API, frontend SPA, ingestion/processing workers, and
 self-hosted deployment. It is **not** the hardware/firmware repository.
-Firmware, PCB design (KiCad), and embedded-device internals live in a
-separate parent project (SailFrames Core) and are out of scope here.
+Firmware, PCB design (KiCad), and embedded-device internals live in the
+separate upstream project (SailFrames Core) and are out of scope here.
 
-SailFrames One is hardware-agnostic by design: devices integrate through
+XGSail is an open-source (Apache 2.0) fork of SailFrames: it keeps the
+original's license and general purpose — sailing session analytics —
+but the data model, API surface, and frontend have been substantially
+redesigned rather than incrementally patched. See "Structural
+differences from upstream" in `README.md` for specifics.
+
+XGSail is hardware-agnostic by design: devices integrate through
 a stable, documented ingestion contract (`docs/device-protocol.md`)
 rather than through code that assumes a specific board. See
-`README.md` for the full scope statement ("What SailFrames One Is" /
+`README.md` for the full scope statement ("What XGSail Is" /
 "Is Not").
 
 ---
@@ -65,7 +71,7 @@ project-specific:
 ```
 core/
 ├── CLAUDE.md              # This file
-├── README.md               # Project scope: what SailFrames One is / isn't
+├── README.md               # Project scope: what XGSail is / isn't
 ├── docs/
 │   ├── er-project.md        # New ER schema (users/roles/clubs/groups/devices/sessions)
 │   ├── api-project.md        # API roles/permissions matrix + ingestion endpoints
@@ -183,7 +189,7 @@ at startup (`seed_superadmin`, `seed_devices`, `seed_defaults` in
 
 ---
 
-*This file was realigned to reflect SailFrames One's actual scope
-(software application only) — hardware/firmware/PCB content that
-previously lived here has moved to the separate SailFrames Core
-(hardware) project and is no longer relevant to this repository.*
+*This file was realigned to reflect XGSail's actual scope (software
+application only) — hardware/firmware/PCB content that previously
+lived here belongs to the separate upstream SailFrames Core (hardware)
+project and is no longer relevant to this repository.*

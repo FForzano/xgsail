@@ -2,12 +2,12 @@
 
 A practical guide for firmware authors integrating a hardware device
 (SailFrames E1, a third-party tracker, or any future custom device)
-with SailFrames One. It documents the actual, implemented endpoints —
+with XGSail. It documents the actual, implemented endpoints —
 every request/response shape below matches the backend code exactly
 (`backend/routers/devices.py`, `backend/routers/device_api.py`,
 `backend/auth/device.py`, `backend/schemas/device.py`).
 
-SailFrames One is hardware-agnostic: any device that implements this
+XGSail is hardware-agnostic: any device that implements this
 protocol can integrate, regardless of what board or firmware stack it
 runs. Device/PCB/firmware design itself lives outside this repository.
 
