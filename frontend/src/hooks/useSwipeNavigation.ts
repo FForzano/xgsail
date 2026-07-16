@@ -42,8 +42,8 @@ export function useSwipeNavigation<T extends HTMLElement>(
     let origin: { x: number; y: number } | null = null;
     let locked: "h" | "v" | null = null;
 
-    const setTransform = (dx: number, animate: boolean) => {
-      el.style.transition = animate ? `transform ${SLIDE_MS}ms ease` : "none";
+    const setTransform = (dx: number, easing: "out" | "in" | false) => {
+      el.style.transition = easing ? `transform ${SLIDE_MS}ms ease-${easing}` : "none";
       el.style.transform = dx === 0 ? "" : `translateX(${dx}px)`;
     };
 
@@ -83,17 +83,25 @@ export function useSwipeNavigation<T extends HTMLElement>(
         nextIndex < paths.length;
 
       if (!commit) {
-        setTransform(0, true);
+        setTransform(0, "out");
         return;
       }
       const width = el.getBoundingClientRect().width;
-      setTransform(dx < 0 ? -width : width, true);
+      setTransform(dx < 0 ? -width : width, "in");
       window.setTimeout(() => {
         navigate(paths[nextIndex]);
         // New content mounts in the same wrapper — start it just off-screen
-        // on the entry side, then slide it in on the next frame.
+        // on the entry side, with no transition...
         setTransform(dx < 0 ? width : -width, false);
-        requestAnimationFrame(() => setTransform(0, true));
+        // ...then slide it in once that off-screen position has actually
+        // been painted. A single rAF isn't reliable enough on every WebView
+        // to guarantee a paint happened before the next style change — the
+        // two can get coalesced into one frame, which skips straight to the
+        // slide-in from wherever the transform happened to be a moment ago
+        // and reads as a stray bounce. The second rAF (running in the frame
+        // *after* the first was called, i.e. after that paint) removes the
+        // race.
+        requestAnimationFrame(() => requestAnimationFrame(() => setTransform(0, "out")));
       }, SLIDE_MS);
     };
 
@@ -106,7 +114,7 @@ export function useSwipeNavigation<T extends HTMLElement>(
 
     const onTouchCancel = () => {
       origin = null;
-      setTransform(0, true);
+      setTransform(0, "out");
     };
 
     el.addEventListener("touchstart", onTouchStart, { passive: true });

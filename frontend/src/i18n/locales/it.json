@@ -301,6 +301,7 @@
   },
   "activities": {
     "title": "Attività",
+    "backToActivities": "Torna a tutte le attività",
     "type": "Tipo",
     "types": { "race": "Regata", "training": "Allenamento", "solo": "Solo" },
     "visibility": {

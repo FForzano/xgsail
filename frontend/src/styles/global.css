@@ -161,6 +161,9 @@ h1, h2, h3 {
   .sf-navbar {
     display: none;
   }
+  .sf-desktop-only {
+    display: none;
+  }
   .sf-mobile-only {
     display: flex;
   }
@@ -727,6 +730,22 @@ h1, h2, h3 {
 .sf-row--muted td {
   opacity: 0.55;
 }
+.sf-table__row--clickable {
+  cursor: pointer;
+}
+.sf-table__row--clickable:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: -2px;
+}
+.sf-table__chevron {
+  color: var(--sf-text);
+  opacity: 0.45;
+  text-align: right;
+  width: 1.75rem;
+}
+.sf-table__row--clickable:hover .sf-table__chevron {
+  opacity: 0.8;
+}
 .sf-maneuver-type-select .sf-field__label {
   position: absolute;
   width: 1px;
@@ -882,6 +901,151 @@ h1, h2, h3 {
 .sf-strip__actions {
   display: flex;
   gap: 0.5rem;
+}
+
+/* ---------- Boat/session carousel (mobile "Barche" list) ---------- */
+.sf-boat-carousel {
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  /* Equal to the container's own side padding, so the first/last card can
+     still scroll-snap dead center instead of stopping flush against the
+     edge. */
+  scroll-padding-inline: 8%;
+  padding: 0.25rem 8% 0.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+.sf-boat-card {
+  /* flex-basis alone would keep reserving 84% of the track even once
+     max-width clamps the rendered box smaller, leaving lopsided empty
+     space after it instead of centering it — width folds the clamp into
+     the value flexbox actually lays out against. */
+  flex: 0 0 auto;
+  width: min(84%, 320px);
+  scroll-snap-align: center;
+  /* Without this, a fast flick can blow past the next card straight to the
+     one after it — always land on exactly one neighbor per drag. */
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: calc(var(--sf-radius) * 1.4);
+  overflow: hidden;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.sf-boat-card:active {
+  transform: scale(0.98);
+}
+.sf-boat-card__photo {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  /* Framed inset rather than bleeding to the card's edges — margin on all
+     sides plus its own border-radius (not just the top corners the card's
+     own clip would otherwise give it). */
+  margin: 0.75rem 0.75rem 0;
+  border-radius: calc(var(--sf-radius) * 0.9);
+  overflow: hidden;
+  background: var(--sf-surface-2);
+}
+.sf-boat-card__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sf-boat-card__photo--empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Softens the photo/body seam and keeps the corner badges legible over any
+   photo, light or dark. */
+.sf-boat-card__photo::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 45%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.35), transparent);
+  pointer-events: none;
+}
+/* The track thumbnail, shown as a small corner preview over the boat's own
+   photo (the main image) rather than competing with it for the same space. */
+.sf-boat-card__track-badge {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  width: 30%;
+  max-width: 90px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: calc(var(--sf-radius) * 0.6);
+  border: 2px solid var(--sf-bg);
+}
+.sf-boat-card__open-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 50%;
+}
+.sf-boat-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 1rem;
+}
+.sf-boat-card__name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.sf-boat-card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+.sf-boat-card__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.5rem 0.25rem;
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  border-radius: calc(var(--sf-radius) * 0.8);
+  text-align: center;
+}
+.sf-boat-card__stat-value {
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.sf-boat-card__stat-label {
+  color: var(--sf-muted);
+  font-size: 0.68rem;
+  opacity: 0.9;
+}
+.sf-boat-card__crew {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding-top: 0.6rem;
+  padding-inline: 0;
+  border-top: 1px solid var(--sf-border);
+  list-style: none;
+  font-size: 0.85rem;
 }
 
 /* ---------- Modal ---------- */

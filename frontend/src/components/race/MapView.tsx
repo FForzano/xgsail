@@ -256,17 +256,22 @@ export function MapView({
         const course = vp
           ? `${Math.round(Math.abs(vp.twa_deg))}° ${t(vp.twa_deg >= 0 ? "race.starboard" : "race.port")}`
           : "—";
+        // Photo + name only make sense when the map actually shows more than
+        // one boat (activity/race maps) — on a single-track session map
+        // there's only one boat on screen already, so identifying it in the
+        // popup too is redundant.
+        const multiTrack = tracks.length > 1;
         // The boat's own photo (first of Boat.photos), when there is one —
-        // large, on the left, spanning the full height of the 4 text lines
+        // large, on the left, spanning the full height of the text lines
         // beside it (see .sf-map-popup__thumb/-body).
-        const thumb = tr.boatImageUrl
+        const thumb = multiTrack && tr.boatImageUrl
           ? `<img class="sf-map-popup__thumb" src="${escapeHtml(tr.boatImageUrl)}" alt="" />`
           : "";
-        // Boat name always shown (a single-track session map still benefits
-        // from the "more info" shortcut below), not just on multi-track
-        // activity/race maps — bolder/larger than the stat rows below it so
-        // it reads as the popup's title, not just another line of data.
-        const boatName = `<span class="sf-map-popup__name">${escapeHtml(tr.name)}</span>`;
+        // Bolder/larger than the stat rows below it so it reads as the
+        // popup's title, not just another line of data.
+        const boatName = multiTrack
+          ? `<span class="sf-map-popup__name">${escapeHtml(tr.name)}</span>`
+          : "";
         // Only rendered when the caller actually handles it — otherwise (e.g.
         // RacePage/RaceManagePanel, which don't pass onOpenSession) it would
         // be a decorative icon that does nothing when clicked.
@@ -275,13 +280,15 @@ export function MapView({
               "sessions.openSession",
             )}">${moreInfoIcon}</button>`
           : "";
-        // Four text lines (name+link, speed, VMG, course) stacked to the
-        // right of the photo, which stretches to match their combined height.
+        // Name/link row only when there's something to show in it.
+        const header = boatName || moreInfo ? `<div class="sf-map-popup__row">${boatName}${moreInfo}</div>` : "";
+        // Text lines (name+link, speed, VMG, course) stacked to the right of
+        // the photo (when shown), which stretches to match their combined height.
         return (
           `<div class="sf-map-popup__body">` +
           thumb +
           `<div class="sf-map-popup__col">` +
-          `<div class="sf-map-popup__row">${boatName}${moreInfo}</div>` +
+          header +
           `<strong>${fmtKnots(p.sog)}</strong>` +
           `<span>${t("sessions.vmg")} ${vp ? fmtKnots(vp.vmg_kts) : "—"}</span>` +
           `<span>${t("race.course")} ${course}</span>` +

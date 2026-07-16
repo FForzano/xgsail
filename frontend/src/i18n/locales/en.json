@@ -301,6 +301,7 @@
   },
   "activities": {
     "title": "Activities",
+    "backToActivities": "Back to all activities",
     "type": "Type",
     "types": { "race": "Race", "training": "Training", "solo": "Solo" },
     "visibility": {
