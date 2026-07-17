@@ -24,6 +24,7 @@ from .wind_repo import SqlWindRepo
 from .polar_repo import SqlPolarRepo
 from .rbac_repo import SqlRbacRepo
 from .app_config_repo import SqlAppConfigRepo
+from .post_repo import SqlPostRepo
 
 
 def build_sql_repos(blob: BlobStore, data_prefix: str) -> Repositories:
@@ -47,6 +48,7 @@ def build_sql_repos(blob: BlobStore, data_prefix: str) -> Repositories:
         polars=SqlPolarRepo(sf),
         rbac=SqlRbacRepo(sf),
         app_config=SqlAppConfigRepo(sf),
+        posts=SqlPostRepo(sf),
     )
 
 
@@ -69,4 +71,5 @@ __all__ = [
     "SqlPolarRepo",
     "SqlRbacRepo",
     "SqlAppConfigRepo",
+    "SqlPostRepo",
 ]

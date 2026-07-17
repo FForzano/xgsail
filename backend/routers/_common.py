@@ -100,6 +100,28 @@ def with_user(row_dict: dict, user_id) -> dict:
     return row_dict | {"user_id": user_id, "user": user_summary(user_id)}
 
 
+def can_read_group(group, user) -> bool:
+    """Public groups are readable by anyone; private groups only by members
+    (or superadmin). Shared by ``groups.py`` and ``posts.py``."""
+    if group.visibility == "public":
+        return True
+    if user is None:
+        return False
+    return user.is_superadmin or repos.groups.is_member(group.id, user.id)
+
+
+def is_group_manager(user, group_id: uuid.UUID, *, owner_only: bool = False) -> bool:
+    """Group management check (``user_groups.role`` — per-resource ownership,
+    not RBAC): shared by ``groups.py`` and ``posts.py`` so the latter doesn't
+    need to import the former's router module."""
+    if user is None:
+        return False
+    if user.is_superadmin:
+        return True
+    roles = ["owner"] if owner_only else ["owner", "admin"]
+    return repos.groups.is_member(group_id, user.id, roles=roles)
+
+
 # --- Sensor data (activity/race replay) ------------------------------------
 
 def parse_point_t(t: str) -> Optional[datetime]:

@@ -180,7 +180,7 @@
     "myClubs": "My clubs",
     "discoverClubs": "Discover clubs",
     "createClub": "Create club",
-    "overview": "Overview",
+    "overview": "Information",
     "clubMembers": "Members",
     "stationedBoats": "Stationed boats",
     "regattas": "Regattas",
@@ -200,7 +200,14 @@
     "searchPlaceholder": "Search clubs and groups…",
     "noSearchResults": "No club or group found.",
     "backToClubs": "All clubs",
-    "backToGroups": "All groups"
+    "backToGroups": "All groups",
+    "news": "News",
+    "newsBody": "Write a news post…",
+    "publish": "Publish",
+    "emptyNews": "No news posted yet.",
+    "memberCount_one": "{{count}} member",
+    "memberCount_other": "{{count}} members",
+    "pendingOnly": "Pending only"
   },
   "sessions": {
     "title": "My sessions",

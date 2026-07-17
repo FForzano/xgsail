@@ -15,6 +15,7 @@ import { InputField, TextAreaField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { BackLink } from "@/components/ui/BackLink";
+import { EntityFeed } from "@/components/gruppi/EntityFeed";
 import { ClubDevices } from "./ClubDevices";
 import { ClubRegattas } from "./ClubRegattas";
 import type { Boat, Club, UUID } from "@/types";
@@ -27,6 +28,7 @@ export interface ClubContext {
   managesMembers: boolean;
   managesRegattas: boolean;
   managesRoles: boolean;
+  managesPosts: boolean;
   stationedBoats: Boat[];
 }
 
@@ -86,12 +88,15 @@ export function ClubDetailLayout() {
   if (club.isLoading || !clubId) return <Spinner />;
   if (!club.data) return null;
   const c = club.data;
+  const memberCount = c.members?.filter((m) => m.status === "active").length ?? 0;
+  const pendingRequests = c.members?.filter((m) => m.status === "requested").length ?? 0;
 
   // In-place management (no separate admin page): same URL, extra actions.
   const manages = can("club.manage", clubId);
   const managesMembers = can("user_club.manage", clubId);
   const managesRegattas = can("regatta.manage", clubId);
   const managesRoles = can("user_role.manage_scoped", clubId);
+  const managesPosts = can("club_post.manage", clubId);
   const stationedBoats = boats.data?.filter((b) => b.club_id === clubId) ?? [];
 
   const context: ClubContext = {
@@ -102,6 +107,7 @@ export function ClubDetailLayout() {
     managesMembers,
     managesRegattas,
     managesRoles,
+    managesPosts,
     stationedBoats,
   };
 
@@ -114,6 +120,9 @@ export function ClubDetailLayout() {
             {c.logo && <img className="sf-avatar sf-avatar--lg" src={c.logo.url} alt="" />}
             <div>
               <h1 className="sf-entity-header__name">{c.name}</h1>
+              <p className="sf-muted sf-entity-header__meta">
+                {t("gruppi.memberCount", { count: memberCount })}
+              </p>
               {manages && <span className="sf-badge sf-badge--success">{t("gruppi.manageMode")}</span>}
             </div>
           </div>
@@ -142,9 +151,16 @@ export function ClubDetailLayout() {
 
       <SectionLayout
         tabs={[
-          { to: `/gruppi/clubs/${clubId}`, label: t("gruppi.overview"), end: true },
-          ...(isMember ? [{ to: `/gruppi/clubs/${clubId}/membri`, label: t("gruppi.clubMembers") }] : []),
+          ...(isMember ? [{ to: `/gruppi/clubs/${clubId}`, label: t("gruppi.news"), end: true }] : []),
+          { to: `/gruppi/clubs/${clubId}/informazioni`, label: t("gruppi.overview") },
           { to: `/gruppi/clubs/${clubId}/regate`, label: t("gruppi.regattas") },
+          ...(isMember
+            ? [{
+                to: `/gruppi/clubs/${clubId}/membri`,
+                label: t("gruppi.clubMembers"),
+                badge: managesMembers ? pendingRequests : 0,
+              }]
+            : []),
           ...(manages ? [{ to: `/gruppi/clubs/${clubId}/flotta`, label: t("gruppi.fleetHealth") }] : []),
         ]}
         context={context}
@@ -209,4 +225,9 @@ export function ClubRegattasRoute() {
 export function ClubDevicesRoute() {
   const { clubId } = useClubContext();
   return <ClubDevices clubId={clubId} />;
+}
+
+export function ClubFeedRoute() {
+  const { clubId, managesPosts } = useClubContext();
+  return <EntityFeed ownerType="club" ownerId={clubId} canManage={managesPosts} />;
 }

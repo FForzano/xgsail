@@ -5,6 +5,9 @@ export interface SectionTab {
   to: string;
   label: string;
   end?: boolean;
+  /** Small count pill on the tab (e.g. pending join requests) — omitted
+   * when 0/undefined. */
+  badge?: number;
 }
 
 /** Macro-section layout: sub-page tabs (real routes, not UI tabs) + outlet.
@@ -40,6 +43,7 @@ export function SectionLayout({
         {tabs.map((tab) => (
           <NavLink key={tab.to} to={tab.to} end={tab.end} className="sf-tab">
             {tab.label}
+            {!!tab.badge && <span className="sf-tab__badge">{tab.badge}</span>}
           </NavLink>
         ))}
       </nav>

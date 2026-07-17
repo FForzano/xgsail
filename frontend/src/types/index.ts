@@ -139,6 +139,10 @@ export interface Club {
   founded_year: number | null;
   is_active: boolean;
   logo: ImageRef | null;
+  // Embedded unconditionally by the backend (`ClubORM.__wire_children__`) —
+  // raw membership rows (no joined `user`), enough to compute a member count
+  // without a separate request to the permission-gated `/members` endpoint.
+  members?: ClubMember[];
 }
 
 export interface ClubMember {
@@ -166,6 +170,19 @@ export interface Group {
   created_by: UUID | null;
   members?: GroupMember[];
   profile_image: ImageRef | null;
+}
+
+export type PostOwnerType = "club" | "group";
+
+export interface Post {
+  id: UUID;
+  owner_type: PostOwnerType;
+  owner_id: UUID;
+  author_id: UUID | null;
+  author: UserSummary | null;
+  body: string;
+  image: ImageRef | null;
+  created_at: string;
 }
 
 // --- devices -----------------------------------------------------------------------

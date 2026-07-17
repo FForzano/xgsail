@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, UserPlus } from "lucide-react";
+import { Check, LogOut, Search, UserMinus, UserPlus } from "lucide-react";
 import { clubsService, clubKeys } from "@/services/clubs";
 import { rbacService } from "@/services/rbac";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/useToast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Avatar } from "@/components/ui/Avatar";
 import { UserPicker } from "@/components/common/UserPicker";
 import { userLabel } from "@/utils/format";
 import { smartSearch } from "@/utils/smartSearch";
@@ -73,6 +74,7 @@ export function ClubMembers() {
   const { notify } = useToast();
   const [inviting, setInviting] = useState(false);
   const [query, setQuery] = useState("");
+  const [pendingOnly, setPendingOnly] = useState(false);
 
   const members = useQuery({
     queryKey: clubKeys.members(clubId),
@@ -102,22 +104,36 @@ export function ClubMembers() {
   if (!isMember) return null;
 
   const active = members.data?.filter((m) => m.status !== "deleted") ?? [];
+  const pendingCount = active.filter((m) => m.status === "requested").length;
+  const filtered = pendingOnly ? active.filter((m) => m.status === "requested") : active;
   const showSearch = active.length > 6;
-  const visible: ClubMember[] = showSearch ? smartSearch(query, active, (m) => [userLabel(m.user)]) : active;
+  const visible: ClubMember[] = showSearch ? smartSearch(query, filtered, (m) => [userLabel(m.user)]) : filtered;
 
   return (
     <Card
       title={t("gruppi.clubMembers")}
       actions={
         managesMembers && (
-          <Button
-            variant="ghost"
-            className="sf-btn--icon-sm"
-            aria-label={t("gruppi.invite")}
-            onClick={() => setInviting(true)}
-          >
-            <UserPlus size={16} />
-          </Button>
+          <span style={{ display: "flex", gap: "0.5rem" }}>
+            {pendingCount > 0 && (
+              <Button
+                variant={pendingOnly ? "primary" : "ghost"}
+                className="sf-btn--sm"
+                aria-pressed={pendingOnly}
+                onClick={() => setPendingOnly((v) => !v)}
+              >
+                {t("gruppi.pendingOnly")} ({pendingCount})
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              className="sf-btn--icon-sm"
+              aria-label={t("gruppi.invite")}
+              onClick={() => setInviting(true)}
+            >
+              <UserPlus size={16} />
+            </Button>
+          </span>
         )
       }
     >
@@ -144,14 +160,22 @@ export function ClubMembers() {
           </thead>
           <tbody>
             {visible.map((m) => (
-              <tr key={m.user_id}>
+              <tr key={m.user_id} className={m.status !== "active" ? "sf-row--pending" : undefined}>
                 <td>
-                  {userLabel(m.user)}
-                  {m.status !== "active" && (
-                    <span className="sf-badge sf-badge--warning" style={{ marginLeft: "0.5rem" }}>
-                      {m.status}
-                    </span>
-                  )}
+                  <div className="sf-crew-row">
+                    <Avatar
+                      size="sm"
+                      profileImage={m.user?.profile_image}
+                      firstName={m.user?.first_name}
+                      lastName={m.user?.last_name}
+                    />
+                    <div>
+                      <div>{userLabel(m.user)}</div>
+                      {m.status !== "active" && (
+                        <span className="sf-badge sf-badge--warning sf-badge--sm">{m.status}</span>
+                      )}
+                    </div>
+                  </div>
                 </td>
                 {managesRoles && (
                   <td>
@@ -159,18 +183,23 @@ export function ClubMembers() {
                   </td>
                 )}
                 {managesMembers && (
-                  <td style={{ display: "flex", gap: "0.4rem" }}>
+                  <td className="sf-row-actions">
                     {(m.status === "requested" || m.status === "invited") && (
-                      <Button className="sf-btn--sm" onClick={() => approve.mutate(m.user_id)}>
-                        {t("gruppi.approve")}
+                      <Button
+                        className="sf-btn--icon-sm"
+                        aria-label={t("gruppi.approve")}
+                        onClick={() => approve.mutate(m.user_id)}
+                      >
+                        <Check size={16} />
                       </Button>
                     )}
                     <Button
                       variant="ghost"
-                      className="sf-btn--sm"
+                      className="sf-btn--icon-sm"
+                      aria-label={m.user_id === user?.id ? t("gruppi.leave") : t("common.remove")}
                       onClick={() => removeMember.mutate(m.user_id)}
                     >
-                      {m.user_id === user?.id ? t("gruppi.leave") : t("common.remove")}
+                      {m.user_id === user?.id ? <LogOut size={16} /> : <UserMinus size={16} />}
                     </Button>
                   </td>
                 )}

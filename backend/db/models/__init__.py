@@ -10,6 +10,7 @@ from .user import UserORM, AuthRefreshTokenORM
 from .rbac import RoleORM, PermissionORM, RolePermissionORM, UserRoleORM
 from .club import ClubORM, UserClubORM
 from .group import GroupORM, UserGroupORM
+from .post import PostORM
 from .boat import BoatClassORM, BoatORM, UserBoatORM, BoatPhotoORM
 from .polar import PolarPointORM
 from .device import DeviceTypeORM, DeviceORM
@@ -42,6 +43,7 @@ __all__ = [
     "UserClubORM",
     "GroupORM",
     "UserGroupORM",
+    "PostORM",
     "BoatClassORM",
     "BoatORM",
     "UserBoatORM",

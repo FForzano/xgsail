@@ -305,6 +305,21 @@ h1, h2, h3 {
   color: var(--sf-text);
   border-bottom-color: var(--sf-primary);
 }
+.sf-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.3rem;
+  margin-left: 0.35rem;
+  border-radius: 999px;
+  background: var(--sf-warning, #e0a72c);
+  color: #1a1a1a;
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
 .sf-section__body {
   display: flex;
   flex-direction: column;
@@ -771,6 +786,15 @@ h1, h2, h3 {
 .sf-tablewrap {
   overflow-x: auto;
 }
+/* Roster action cell (approve/remove) — icon buttons only, so it stays
+   narrow enough to fit next to name/role on a phone instead of overflowing
+   the card the way text buttons ("Approva"/"Rimuovi" side by side) did. */
+.sf-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
 .sf-table {
   width: 100%;
   border-collapse: collapse;
@@ -794,6 +818,16 @@ h1, h2, h3 {
 }
 .sf-row--muted td {
   opacity: 0.55;
+}
+/* Membership row awaiting confirmation (invited/requested) — a light tint
+   makes it stand out in the roster without needing a dedicated status
+   column (see the small warning badge next to the name for the exact
+   state). */
+.sf-row--pending td {
+  background: color-mix(in srgb, var(--sf-warning) 10%, transparent);
+}
+.sf-row--pending:hover td {
+  background: color-mix(in srgb, var(--sf-warning) 16%, transparent);
 }
 .sf-table__row--clickable {
   cursor: pointer;
@@ -918,6 +952,12 @@ h1, h2, h3 {
 .sf-badge--danger {
   background: color-mix(in srgb, var(--sf-danger) 25%, transparent);
   color: var(--sf-danger);
+}
+/* Smaller variant for tight contexts (under a name in a roster row) —
+   avoids forcing the row to wrap/overflow the way a full-size badge does. */
+.sf-badge--sm {
+  padding: 0.05rem 0.4rem;
+  font-size: 0.68rem;
 }
 .sf-badge--pending {
   display: inline-flex;
@@ -1233,6 +1273,40 @@ h1, h2, h3 {
   color: #33270a;
 }
 
+/* ---------- Feed (club/group news) ---------- */
+.sf-feed-form {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--sf-border);
+}
+.sf-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.sf-feed__post {
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--sf-border);
+}
+.sf-feed__post:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.sf-feed__post-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+.sf-feed__post-head .sf-btn--icon-sm {
+  margin-left: auto;
+}
+.sf-feed__post-image {
+  max-width: 100%;
+  border-radius: var(--sf-radius);
+  margin-top: 0.5rem;
+}
+
 /* ---------- Back link (detail page → its list) ---------- */
 .sf-backlink {
   display: inline-flex;
@@ -1295,6 +1369,10 @@ h1, h2, h3 {
 }
 .sf-entity-header__name {
   font-size: 1.3rem;
+  margin: 0 0 0.2rem;
+}
+.sf-entity-header__meta {
+  font-size: 0.85rem;
   margin: 0 0 0.3rem;
 }
 .sf-entity-header__actions {

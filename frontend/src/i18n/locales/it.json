@@ -180,7 +180,7 @@
     "myClubs": "I miei circoli",
     "discoverClubs": "Scopri i circoli",
     "createClub": "Crea circolo",
-    "overview": "Panoramica",
+    "overview": "Informazioni",
     "clubMembers": "Membri",
     "stationedBoats": "Barche stazionate",
     "regattas": "Regate",
@@ -200,7 +200,14 @@
     "searchPlaceholder": "Cerca circoli e gruppi…",
     "noSearchResults": "Nessun circolo o gruppo trovato.",
     "backToClubs": "Tutti i circoli",
-    "backToGroups": "Tutti i gruppi"
+    "backToGroups": "Tutti i gruppi",
+    "news": "Notizie",
+    "newsBody": "Scrivi una notizia…",
+    "publish": "Pubblica",
+    "emptyNews": "Nessuna notizia pubblicata.",
+    "memberCount_one": "{{count}} membro",
+    "memberCount_other": "{{count}} membri",
+    "pendingOnly": "Solo in sospeso"
   },
   "sessions": {
     "title": "Le mie sessioni",

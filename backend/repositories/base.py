@@ -31,6 +31,7 @@ class Repositories:
         polars,
         rbac,
         app_config,
+        posts,
     ):
         self.users = users
         self.auth_tokens = auth_tokens
@@ -49,3 +50,4 @@ class Repositories:
         self.polars = polars
         self.rbac = rbac
         self.app_config = app_config
+        self.posts = posts

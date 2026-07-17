@@ -26,6 +26,7 @@ DEFAULT_PERMISSIONS = {
     "result.manage": "CRUD race results",
     "mark.manage": "CRUD marks for race activities",
     "activity.manage": "Manage club-linked activities and their marks",
+    "club_post.manage": "Create/delete club feed posts",
 }
 
 _RACE_OFFICER_KEYS = [

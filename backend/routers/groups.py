@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Request
 from ..auth import current_user, require_user, verify_csrf
 from ..schemas import GroupMemberModel, GroupMemberUpdateModel, GroupWriteModel
 from ..services import media
-from ._common import repos, with_user
+from ._common import can_read_group, is_group_manager, repos, with_user
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
@@ -25,23 +25,6 @@ def _require_group(group_id: uuid.UUID):
     if group is None or group.deleted_at is not None:
         raise HTTPException(404, "Group not found")
     return group
-
-
-def _can_read(group, user) -> bool:
-    if group.visibility == "public":
-        return True
-    if user is None:
-        return False
-    return user.is_superadmin or repos.groups.is_member(group.id, user.id)
-
-
-def _is_manager(user, group_id: uuid.UUID, *, owner_only: bool = False) -> bool:
-    if user is None:
-        return False
-    if user.is_superadmin:
-        return True
-    roles = ["owner"] if owner_only else ["owner", "admin"]
-    return repos.groups.is_member(group_id, user.id, roles=roles)
 
 
 def _group_payload(group, *, include_members: bool) -> dict:
@@ -64,7 +47,7 @@ def list_groups(request: Request, mine: bool = False):
             raise HTTPException(401, "Authentication required")
         groups = [g for g in groups if repos.groups.is_member(g.id, user.id)]
     else:
-        groups = [g for g in groups if _can_read(g, user)]
+        groups = [g for g in groups if can_read_group(g, user)]
     return [
         _group_payload(g, include_members=user is not None
                        and (user.is_superadmin or repos.groups.is_member(g.id, user.id)))
@@ -76,7 +59,7 @@ def list_groups(request: Request, mine: bool = False):
 def get_group(group_id: uuid.UUID, request: Request):
     user = current_user(request)
     group = _require_group(group_id)
-    if not _can_read(group, user):
+    if not can_read_group(group, user):
         raise HTTPException(404, "Group not found")  # don't reveal private groups
     include = user is not None and (user.is_superadmin or repos.groups.is_member(group_id, user.id))
     return _group_payload(group, include_members=include)
@@ -100,7 +83,7 @@ def update_group(group_id: uuid.UUID, body: GroupWriteModel, request: Request):
     verify_csrf(request)
     user = require_user(request)
     _require_group(group_id)
-    if not _is_manager(user, group_id):
+    if not is_group_manager(user, group_id):
         raise HTTPException(403, "Group owner/admin required")
     return _group_payload(repos.groups.update(group_id, body.model_dump(exclude_unset=True)),
                           include_members=True)
@@ -111,7 +94,7 @@ def delete_group(group_id: uuid.UUID, request: Request):
     verify_csrf(request)
     user = require_user(request)
     _require_group(group_id)
-    if not _is_manager(user, group_id, owner_only=True):
+    if not is_group_manager(user, group_id, owner_only=True):
         raise HTTPException(403, "Group owner required")
     repos.groups.soft_delete(group_id, deleted_by=user.id)
     return {"ok": True}
@@ -125,14 +108,14 @@ def add_member(group_id: uuid.UUID, body: GroupMemberModel, request: Request):
     user = require_user(request)
     group = _require_group(group_id)
     target = body.user_id or user.id
-    if target == user.id and not _is_manager(user, group_id):
+    if target == user.id and not is_group_manager(user, group_id):
         # Self-join: allowed only on public groups (private = invite-only);
         # lands as a request pending owner/admin approval.
         if group.visibility != "public":
             raise HTTPException(403, "Private group: invite only")
         role, status = "member", "requested"
     else:
-        if not _is_manager(user, group_id):
+        if not is_group_manager(user, group_id):
             raise HTTPException(403, "Group owner/admin required")
         role = body.role
         # Invites are pending until the invitee accepts (their own PATCH).
@@ -157,13 +140,13 @@ def update_member(group_id: uuid.UUID, user_id: uuid.UUID,
     if member is None:
         raise HTTPException(404, "Member not found")
     if body.role is not None:
-        if not _is_manager(user, group_id, owner_only=True):
+        if not is_group_manager(user, group_id, owner_only=True):
             raise HTTPException(403, "Group owner required")
         repos.groups.set_member_role(group_id, user_id, body.role)
     if body.status is not None:
         self_accept = (user.id == user_id and member.status == "invited"
                        and body.status == "active")
-        if not self_accept and not _is_manager(user, group_id):
+        if not self_accept and not is_group_manager(user, group_id):
             raise HTTPException(403, "Group owner/admin required")
         repos.groups.set_member_status(group_id, user_id, body.status)
     return {"ok": True}
@@ -174,7 +157,7 @@ def remove_member(group_id: uuid.UUID, user_id: uuid.UUID, request: Request):
     verify_csrf(request)
     user = require_user(request)
     _require_group(group_id)
-    if user.id != user_id and not _is_manager(user, group_id):
+    if user.id != user_id and not is_group_manager(user, group_id):
         raise HTTPException(403, "Group owner/admin required (or leave yourself)")
     if not repos.groups.remove_member(group_id, user_id):
         raise HTTPException(404, "Member not found")
@@ -188,7 +171,7 @@ def upload_profile_image(group_id: uuid.UUID, request: Request):
     verify_csrf(request)
     user = require_user(request)
     _require_group(group_id)
-    if not _is_manager(user, group_id):
+    if not is_group_manager(user, group_id):
         raise HTTPException(403, "Group owner/admin required")
     payload = media.create_image_upload(user.id)
     repos.groups.update(group_id, {"profile_image_id": payload["image_id"]})
@@ -200,7 +183,7 @@ def confirm_profile_image(group_id: uuid.UUID, image_id: uuid.UUID, request: Req
     verify_csrf(request)
     user = require_user(request)
     group = _require_group(group_id)
-    if not _is_manager(user, group_id):
+    if not is_group_manager(user, group_id):
         raise HTTPException(403, "Group owner/admin required")
     if group.profile_image_id != image_id:
         raise HTTPException(404, "Image not found")
