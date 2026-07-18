@@ -232,10 +232,14 @@ export interface DeviceHealth {
 export type ActivityType = "race" | "training" | "solo";
 export type Visibility = "public" | "club" | "group" | "private";
 
+export type ActivityStatus = "planned" | "completed";
+
 export interface Activity {
   id: UUID;
   name: string | null;
   type: ActivityType;
+  status: ActivityStatus;
+  description: string | null;
   visibility: Visibility;
   club_id: UUID | null;
   group_id: UUID | null;

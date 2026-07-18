@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { Activity, ActivityData, Mark, Session, UUID } from "@/types";
+import type { Activity, ActivityData, ActivityStatus, Mark, Session, UUID } from "@/types";
 
 export const activityKeys = {
   all: ["activities"] as const,
@@ -18,7 +18,15 @@ function qs(params: Record<string, string | undefined>): string {
 }
 
 export const activitiesService = {
-  list: (filters: { type?: string; club_id?: UUID; group_id?: UUID; mine?: boolean } = {}) =>
+  list: (
+    filters: {
+      type?: string;
+      club_id?: UUID;
+      group_id?: UUID;
+      status?: ActivityStatus;
+      mine?: boolean;
+    } = {},
+  ) =>
     api.get<Activity[]>(
       `/activities${qs({ ...filters, mine: filters.mine ? "true" : undefined })}`,
     ),

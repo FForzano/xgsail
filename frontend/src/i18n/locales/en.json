@@ -184,6 +184,17 @@
     "clubMembers": "Members",
     "stationedBoats": "Stationed boats",
     "regattas": "Regattas",
+    "events": "Events",
+    "newEvent": "Announce event",
+    "upcomingEvents": "Upcoming events",
+    "pastEvents": "Past events",
+    "emptyEvents": "No events scheduled.",
+    "eventWhen": "When",
+    "eventDescription": "Description",
+    "eventKind": {
+      "regatta": "Regatta",
+      "activity": "Outing"
+    },
     "manageMode": "You manage this club",
     "editClub": "Edit club",
     "clubDevices": "Club devices",
@@ -381,7 +392,11 @@
     "noGps": "No GPS data for this activity",
     "empty": "No activities.",
     "deleteConfirm": "Delete this activity?",
-    "mine": "Mine only"
+    "mine": "Mine only",
+    "planned": "Upcoming",
+    "upcoming": "Upcoming",
+    "past": "Past",
+    "when": "When it happens"
   },
   "regate": {
     "title": "Regattas",

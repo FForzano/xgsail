@@ -14,7 +14,8 @@ from sqlalchemy import select
 from ...db.models import ActivityORM, MarkORM
 
 _FIELDS = ("name", "type", "club_id", "race_id", "created_by", "group_id",
-           "visibility", "started_at", "ended_at", "thumbnail_image_id")
+           "visibility", "status", "description", "started_at", "ended_at",
+           "thumbnail_image_id")
 _MARK_FIELDS = ("mark_role", "lat", "lng", "set_at")
 
 
@@ -26,6 +27,7 @@ class SqlActivityRepo:
              group_id: Optional[uuid.UUID] = None,
              race_id: Optional[uuid.UUID] = None,
              type: Optional[str] = None,
+             status: Optional[str] = None,
              created_by: Optional[uuid.UUID] = None) -> "list[ActivityORM]":
         with self.Session() as s:
             q = select(ActivityORM).order_by(ActivityORM.started_at.desc())
@@ -37,6 +39,8 @@ class SqlActivityRepo:
                 q = q.where(ActivityORM.race_id == race_id)
             if type is not None:
                 q = q.where(ActivityORM.type == type)
+            if status is not None:
+                q = q.where(ActivityORM.status == status)
             if created_by is not None:
                 q = q.where(ActivityORM.created_by == created_by)
             return list(s.scalars(q).all())

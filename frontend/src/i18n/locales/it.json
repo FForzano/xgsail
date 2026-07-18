@@ -184,6 +184,17 @@
     "clubMembers": "Membri",
     "stationedBoats": "Barche stazionate",
     "regattas": "Regate",
+    "events": "Eventi",
+    "newEvent": "Annuncia evento",
+    "upcomingEvents": "Prossimi eventi",
+    "pastEvents": "Eventi passati",
+    "emptyEvents": "Nessun evento in programma.",
+    "eventWhen": "Quando",
+    "eventDescription": "Descrizione",
+    "eventKind": {
+      "regatta": "Regata",
+      "activity": "Uscita"
+    },
     "manageMode": "Gestisci questo circolo",
     "editClub": "Modifica circolo",
     "clubDevices": "Dispositivi del circolo",
@@ -381,7 +392,11 @@
     "noGps": "Nessun dato GPS per questa attività",
     "empty": "Nessuna attività.",
     "deleteConfirm": "Eliminare questa attività?",
-    "mine": "Solo mie"
+    "mine": "Solo mie",
+    "planned": "In programma",
+    "upcoming": "In programma",
+    "past": "Passate",
+    "when": "Quando si svolge"
   },
   "regate": {
     "title": "Regate",

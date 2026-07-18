@@ -20,7 +20,7 @@ import { GroupOverview } from "@/pages/gruppi/GroupOverview";
 import { GroupActivities } from "@/pages/gruppi/GroupActivities";
 import { GroupMembers } from "@/pages/gruppi/GroupMembers";
 import { ClubsPage } from "@/pages/gruppi/ClubsPage";
-import { ClubDetailLayout, ClubDevicesRoute, ClubFeedRoute, ClubRegattasRoute } from "@/pages/gruppi/ClubDetailLayout";
+import { ClubDetailLayout, ClubDevicesRoute, ClubEventsRoute, ClubFeedRoute } from "@/pages/gruppi/ClubDetailLayout";
 import { ClubOverview } from "@/pages/gruppi/ClubOverview";
 import { ClubMembers } from "@/pages/gruppi/ClubMembers";
 import { ProfiloLayout } from "@/pages/profilo/ProfiloLayout";
@@ -76,7 +76,7 @@ export default function App() {
               <Route index element={<ClubFeedRoute />} />
               <Route path="informazioni" element={<ClubOverview />} />
               <Route path="membri" element={<ClubMembers />} />
-              <Route path="regate" element={<ClubRegattasRoute />} />
+              <Route path="eventi" element={<ClubEventsRoute />} />
               <Route path="flotta" element={<ClubDevicesRoute />} />
             </Route>
           </Route>

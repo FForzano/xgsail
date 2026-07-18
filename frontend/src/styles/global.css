@@ -955,6 +955,15 @@ h1, h2, h3 {
   background: color-mix(in srgb, var(--sf-danger) 25%, transparent);
   color: var(--sf-danger);
 }
+/* Eventi tab: regate vs uscite sociali need to be told apart at a glance. */
+.sf-badge--regatta {
+  background: color-mix(in srgb, var(--sf-warning) 25%, transparent);
+  color: var(--sf-warning);
+}
+.sf-badge--activity {
+  background: color-mix(in srgb, var(--sf-leg-upwind) 25%, transparent);
+  color: var(--sf-leg-upwind);
+}
 /* Smaller variant for tight contexts (under a name in a roster row) —
    avoids forcing the row to wrap/overflow the way a full-size badge does. */
 .sf-badge--sm {

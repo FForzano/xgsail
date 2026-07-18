@@ -61,12 +61,13 @@ def _can_manage_marks(activity, user) -> bool:
 def list_activities(request: Request, type: Optional[str] = None,
                     club_id: Optional[uuid.UUID] = None,
                     group_id: Optional[uuid.UUID] = None,
+                    status: Optional[str] = None,
                     mine: bool = False):
     user = current_user(request)
     if mine and user is None:
         raise HTTPException(401, "Authentication required")
     activities = repos.activities.list(
-        club_id=club_id, group_id=group_id, type=type,
+        club_id=club_id, group_id=group_id, type=type, status=status,
         created_by=user.id if mine else None,
     )
     return [_with_thumbnail(a) for a in activities if activity_visible_to(a, user)]

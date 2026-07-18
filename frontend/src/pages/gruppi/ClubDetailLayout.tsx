@@ -17,7 +17,7 @@ import { ImageUploader } from "@/components/common/ImageUploader";
 import { BackLink } from "@/components/ui/BackLink";
 import { EntityFeed } from "@/components/gruppi/EntityFeed";
 import { ClubDevices } from "./ClubDevices";
-import { ClubRegattas } from "./ClubRegattas";
+import { ClubEvents } from "./ClubEvents";
 import type { Boat, Club, UUID } from "@/types";
 
 export interface ClubContext {
@@ -153,7 +153,7 @@ export function ClubDetailLayout() {
         tabs={[
           ...(isMember ? [{ to: `/gruppi/clubs/${clubId}`, label: t("gruppi.news"), end: true }] : []),
           { to: `/gruppi/clubs/${clubId}/informazioni`, label: t("gruppi.overview") },
-          { to: `/gruppi/clubs/${clubId}/regate`, label: t("gruppi.regattas") },
+          { to: `/gruppi/clubs/${clubId}/eventi`, label: t("gruppi.events") },
           ...(isMember
             ? [{
                 to: `/gruppi/clubs/${clubId}/membri`,
@@ -214,12 +214,12 @@ export function ClubDetailLayout() {
   );
 }
 
-/** Route wrappers: ClubRegattas/ClubDevices take `clubId`/`manage` as plain
+/** Route wrappers: ClubEvents/ClubDevices take `clubId`/`manage` as plain
  * props (used nowhere else), so they don't need to know about the outlet
  * context themselves — these just bridge the two. */
-export function ClubRegattasRoute() {
+export function ClubEventsRoute() {
   const { clubId, managesRegattas } = useClubContext();
-  return <ClubRegattas clubId={clubId} manage={managesRegattas} />;
+  return <ClubEvents clubId={clubId} manage={managesRegattas} />;
 }
 
 export function ClubDevicesRoute() {

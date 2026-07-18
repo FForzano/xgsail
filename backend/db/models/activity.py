@@ -13,13 +13,19 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, String
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..base import Base, UUIDPKMixin, enum_check
 
 ACTIVITY_TYPES = ("race", "training", "solo")
 ACTIVITY_VISIBILITIES = ("public", "club", "group", "private")
+# "planned" = announced ahead of time, no session attached yet (e.g. a club
+# outing); "completed" = has (or once had) recorded data — the default, so
+# every activity created alongside a session (the common case) needs no
+# explicit status. See routers/sessions.py::attach_to_activity for the
+# planned -> completed transition.
+ACTIVITY_STATUSES = ("planned", "completed")
 MARK_ROLES = ("pin", "rc", "windward", "leeward", "gate_port", "gate_stbd", "offset", "drill")
 
 
@@ -28,10 +34,13 @@ class ActivityORM(UUIDPKMixin, Base):
     __table_args__ = (
         enum_check("type", ACTIVITY_TYPES),
         enum_check("visibility", ACTIVITY_VISIBILITIES),
+        enum_check("status", ACTIVITY_STATUSES),
     )
 
     name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     type: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="completed")
     club_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("clubs.id", ondelete="SET NULL"), nullable=True
     )

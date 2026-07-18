@@ -122,7 +122,9 @@ def attach_to_activity(session_id: uuid.UUID, body: SessionAttachModel, request:
     exactly that reason — see ``update_session`` above): only allowed while
     the session's current activity is still a lone standalone wrapper, so a
     session that's already part of a real multi-session activity or race
-    can't be silently moved elsewhere."""
+    can't be silently moved elsewhere. If the target activity is a
+    ``planned`` announcement, this is also the point where it flips to
+    ``completed`` — the first recording proves the event actually happened."""
     verify_csrf(request)
     user = require_user(request)
     session = _require_session(session_id)
@@ -139,6 +141,10 @@ def attach_to_activity(session_id: uuid.UUID, body: SessionAttachModel, request:
         raise HTTPException(403, "Not allowed to attach to this activity")
     updated = repos.sessions.update(session_id, {"activity_id": body.activity_id})
     repos.activities.delete(current_activity.id)
+    if target_activity.status == "planned":
+        # First recording lands on an announced event — it has actually
+        # happened now, so it moves out of "upcoming" into "past".
+        repos.activities.update(target_activity.id, {"status": "completed"})
     return updated.to_dict()
 
 

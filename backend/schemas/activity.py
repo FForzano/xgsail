@@ -13,6 +13,8 @@ class ActivityWriteModel(BaseModel):
     race_id: Optional[uuid.UUID] = None
     group_id: Optional[uuid.UUID] = None
     visibility: Optional[str] = None  # public | club | group | private
+    status: Optional[str] = None  # planned | completed
+    description: Optional[str] = None
     started_at: Optional[AwareDatetime] = None
     ended_at: Optional[AwareDatetime] = None
 
