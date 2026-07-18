@@ -85,6 +85,7 @@ export function MapView({
   placementMode = false,
   onManeuverPlacement,
   onOpenSession,
+  showBoatInfo,
 }: {
   tracks: Track[];
   marks?: MapMark[];
@@ -119,6 +120,14 @@ export function MapView({
    * session id (`tr.id`, see buildTrack/buildTracks) so the caller can
    * navigate to `/diario/sessions/{id}`. */
   onOpenSession?: (sessionId: string) => void;
+  /** Whether the click/drag popup shows the boat's photo + name. Explicit
+   * per-caller instead of inferred from `tracks.length` — the activity map
+   * wants it even for a single boat (an activity can still gain more
+   * sessions later), while the session map never wants it (its one boat is
+   * already the whole page's subject). Falls back to the old
+   * more-than-one-track heuristic when the caller doesn't specify (race/
+   * race-manage maps). */
+  showBoatInfo?: boolean;
 }) {
   const { t } = useTranslation();
   const elRef = useRef<HTMLDivElement>(null);
@@ -256,20 +265,22 @@ export function MapView({
         const course = vp
           ? `${Math.round(Math.abs(vp.twa_deg))}° ${t(vp.twa_deg >= 0 ? "race.starboard" : "race.port")}`
           : "—";
-        // Photo + name only make sense when the map actually shows more than
-        // one boat (activity/race maps) — on a single-track session map
-        // there's only one boat on screen already, so identifying it in the
-        // popup too is redundant.
-        const multiTrack = tracks.length > 1;
+        // Photo + name only make sense when the caller wants boat identity
+        // shown at all (activity map: always, even with one boat so far) —
+        // on a single-boat-by-definition session map there's only one boat
+        // on screen already, so identifying it in the popup too is
+        // redundant. Falls back to the old more-than-one-track heuristic
+        // for callers that don't specify (race/race-manage maps).
+        const showInfo = showBoatInfo ?? tracks.length > 1;
         // The boat's own photo (first of Boat.photos), when there is one —
         // large, on the left, spanning the full height of the text lines
         // beside it (see .sf-map-popup__thumb/-body).
-        const thumb = multiTrack && tr.boatImageUrl
+        const thumb = showInfo && tr.boatImageUrl
           ? `<img class="sf-map-popup__thumb" src="${escapeHtml(tr.boatImageUrl)}" alt="" />`
           : "";
         // Bolder/larger than the stat rows below it so it reads as the
         // popup's title, not just another line of data.
-        const boatName = multiTrack
+        const boatName = showInfo
           ? `<span class="sf-map-popup__name">${escapeHtml(tr.name)}</span>`
           : "";
         // Only rendered when the caller actually handles it — otherwise (e.g.
@@ -324,9 +335,9 @@ export function MapView({
         iconAnchor: [8, 8],
       });
       const m = L.marker(latlngs[0], { icon, draggable: true });
-      // Boat-name tooltip only makes sense with more than one track (Activity/
-      // Race overlays) — a single-boat Session map would just repeat itself.
-      if (tracks.length > 1) m.bindTooltip(tr.name);
+      // Boat-name tooltip follows the same show/hide rule as the popup's
+      // boat name — a single-boat Session map would just repeat itself.
+      if (showBoatInfo ?? tracks.length > 1) m.bindTooltip(tr.name);
       // Dragging is constrained to the track: on every drag tick, snap the
       // marker to the nearest real fix, seek playback there, and follow with
       // a popup that updates live (same content as the click popup).

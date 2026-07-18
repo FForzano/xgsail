@@ -559,6 +559,7 @@ export function SessionDetailPage() {
               }
               placementMode={maneuverEditMode}
               onManeuverPlacement={handleManeuverPlacement}
+              showBoatInfo={false}
               // Even on this single-track map, the popup's "more info" button
               // is a handy shortcut straight to the analysis section below,
               // rather than scrolling past crew/photos/videos to find it.

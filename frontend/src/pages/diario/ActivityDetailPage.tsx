@@ -298,6 +298,7 @@ export function ActivityDetailPage() {
                 <Timeline className="sf-timeline--overlay" stepMs={medianIntervalMs(tracks[0]) * 5} />
               }
               onOpenSession={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
+              showBoatInfo
             />
             <div className="sf-section__body sf-card__pad">
               <SpeedChart tracks={tracks} />
