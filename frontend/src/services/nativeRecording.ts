@@ -185,6 +185,42 @@ export async function readRecordingGpx(id: UUID): Promise<File> {
   return new File([blob], `registrazione-${id}.gpx`, { type: "application/gpx+xml" });
 }
 
+function onWatcherLocation(id: UUID, location: { latitude: number; longitude: number; time: number }) {
+  if (!active || active.id !== id) return;
+  const now = Date.now();
+  if (now - active.lastSampleAt < SAMPLE_INTERVAL_MS) return;
+  active.lastSampleAt = now;
+  const isoTime = new Date(location.time).toISOString();
+  void appendPoint(id, location.latitude, location.longitude, isoTime).then(async () => {
+    const entry = index.find((r) => r.id === id);
+    if (entry) {
+      entry.pointCount += 1;
+      await saveIndex();
+    }
+  });
+}
+
+function onWatcherError(id: UUID, error: { message: string; code?: string }) {
+  // The plugin never grants a watcher a second chance after this — it
+  // stops delivering updates for it, so the recording can't continue.
+  // Surface it as a failure instead of leaving the UI stuck showing
+  // "recording" with no points ever arriving.
+  if (error.code !== "NOT_AUTHORIZED" || !active || active.id !== id) return;
+  const entry = index.find((r) => r.id === id);
+  if (entry) {
+    // Not "failed": that status is reused by the upload-retry loop in
+    // RegistraPage, which would silently overwrite this message with a
+    // "file not found" error the next time it runs (finalize() — which
+    // writes the .gpx — was never reached, since stop() was never called).
+    entry.status = "permission_error";
+    entry.error = error.message.toLowerCase().includes("disabled")
+      ? ERROR_LOCATION_SERVICES_DISABLED
+      : ERROR_PERMISSION_DENIED;
+  }
+  active = null;
+  void saveIndex();
+}
+
 /** Starts (or restarts, on resume) the plugin's watcher for `id` — points
  * keep appending to that same recording's raw log regardless of how many
  * watcher start/stop cycles a pause/resume sequence goes through. */
@@ -200,43 +236,20 @@ async function addWatcherFor(id: UUID): Promise<string> {
     },
     (location, error) => {
       if (error) {
-        // The plugin never grants a watcher a second chance after this —
-        // it stops delivering updates for it, so the recording can't
-        // continue. Surface it as a failure instead of leaving the UI
-        // stuck showing "recording" with no points ever arriving.
-        if (error.code === "NOT_AUTHORIZED" && active && active.id === id) {
-          const entry = index.find((r) => r.id === id);
-          if (entry) {
-            // Not "failed": that status is reused by the upload-retry loop
-            // in RegistraPage, which would silently overwrite this message
-            // with a "file not found" error the next time it runs (finalize()
-            // — which writes the .gpx — was never reached, since stop() was
-            // never called).
-            entry.status = "permission_error";
-            entry.error = error.message.toLowerCase().includes("disabled")
-              ? ERROR_LOCATION_SERVICES_DISABLED
-              : ERROR_PERMISSION_DENIED;
-          }
-          active = null;
-          void saveIndex();
-        }
+        onWatcherError(id, error);
         return;
       }
-      if (!location || !active || active.id !== id) return;
-      const now = Date.now();
-      if (now - active.lastSampleAt < SAMPLE_INTERVAL_MS) return;
-      active.lastSampleAt = now;
-      const isoTime = new Date(location.time).toISOString();
-      void appendPoint(id, location.latitude, location.longitude, isoTime).then(async () => {
-        const entry = index.find((r) => r.id === id);
-        if (entry) {
-          entry.pointCount += 1;
-          await saveIndex();
-        }
-      });
+      if (location) onWatcherLocation(id, location);
     },
   );
 }
+
+// Cap on how long `start()` waits to confirm GPS is actually usable before
+// writing anything to disk — the plugin reports a permission/location-
+// services failure quickly (it's a static OS check, not a fix), but a
+// granted permission with a slow-to-arrive fix (e.g. indoors) shouldn't
+// block starting the recording forever, so past this we proceed optimistically.
+const GPS_CHECK_TIMEOUT_MS = 8_000;
 
 export async function start(boatId: UUID, activityId: UUID | null): Promise<UUID> {
   if (!BackgroundGeolocation) throw new Error("Not available on web");
@@ -258,6 +271,62 @@ export async function start(boatId: UUID, activityId: UUID | null): Promise<UUID
   }
 
   const id = crypto.randomUUID() as UUID;
+
+  // Confirm GPS is actually usable *before* creating any local recording
+  // data (index entry + files) — the watcher's callback only reports
+  // NOT_AUTHORIZED asynchronously, well after addWatcher's own promise
+  // resolves, so `active` is deliberately left unset until that first
+  // callback result (or the timeout above) comes in; onWatcherLocation/
+  // onWatcherError both no-op while `active` is unset, so this first
+  // result is only used to decide whether to proceed, not recorded as data.
+  let earlyError: { message: string; code?: string } | null = null;
+  let resolveFirstResult: (() => void) | null = null;
+  const firstResult = new Promise<void>((resolve) => {
+    resolveFirstResult = resolve;
+  });
+
+  const watcherId = await BackgroundGeolocation.addWatcher(
+    {
+      backgroundTitle: "XGSail",
+      backgroundMessage: "Registrazione GPS in corso",
+      requestPermissions: true,
+      stale: false,
+      distanceFilter: 0,
+    },
+    (location, error) => {
+      if (resolveFirstResult) {
+        if (error) earlyError = error;
+        const resolve = resolveFirstResult;
+        resolveFirstResult = null;
+        resolve();
+      }
+      if (error) {
+        onWatcherError(id, error);
+        return;
+      }
+      if (location) onWatcherLocation(id, location);
+    },
+  );
+
+  await Promise.race([firstResult, new Promise<void>((resolve) => setTimeout(resolve, GPS_CHECK_TIMEOUT_MS))]);
+  resolveFirstResult = null;
+
+  // Copied to a local so TS narrows this read normally — `earlyError` itself
+  // is reassigned from inside the addWatcher callback above, so TS can't
+  // narrow it directly at this point.
+  const failure = earlyError as { message: string; code?: string } | null;
+  if (failure && failure.code === "NOT_AUTHORIZED") {
+    try {
+      await BackgroundGeolocation.removeWatcher({ id: watcherId });
+    } catch {
+      // plugin already stopped delivering updates for this watcher
+    }
+    const message = failure.message.toLowerCase().includes("disabled")
+      ? ERROR_LOCATION_SERVICES_DISABLED
+      : ERROR_PERMISSION_DENIED;
+    throw new Error(message);
+  }
+
   await loadIndex();
   index.push({
     id,
@@ -270,7 +339,6 @@ export async function start(boatId: UUID, activityId: UUID | null): Promise<UUID
   });
   await saveIndex();
 
-  const watcherId = await addWatcherFor(id);
   active = { id, watcherId, lastSampleAt: 0 };
   notify();
   return id;

@@ -17,6 +17,7 @@ import { fmtDuration } from "@/utils/format";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import { Modal } from "@/components/ui/Modal";
 import type { UUID } from "@/types";
 
 const STANDALONE = "" as const; // empty select value = "uscita singola"
@@ -62,6 +63,34 @@ function recordingErrorMessage(t: (key: string) => string, error: string | null 
   if (error === ERROR_PERMISSION_DENIED) return t("registra.error.permissionDenied");
   if (error === ERROR_LOCATION_SERVICES_DISABLED) return t("registra.error.locationServicesDisabled");
   return error;
+}
+
+/** Blocking popup for a GPS permission/location-services failure at start —
+ * replaces silently falling back to inline red text, since by the time
+ * that text renders nativeRecording.start() has already thrown and no
+ * local recording was created (see nativeRecording.ts's GPS check). */
+function GpsErrorModal({ error, onClose }: { error: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Modal title={t("registra.error.title")} onClose={onClose}>
+      <p>{recordingErrorMessage(t, error)}</p>
+      <div className="sf-form__actions">
+        <Button variant="ghost" onClick={onClose}>
+          {t("common.close")}
+        </Button>
+        {error === ERROR_PERMISSION_DENIED && (
+          <Button
+            onClick={() => {
+              void nativeRecording.openSettings();
+              onClose();
+            }}
+          >
+            {t("registra.openSettings")}
+          </Button>
+        )}
+      </div>
+    </Modal>
+  );
 }
 
 function durationSeconds(recording: RecordingMeta): number {
@@ -383,15 +412,15 @@ export function RegistraPage() {
               </Button>
             </div>
             <p className="sf-muted">{t("registra.batteryHint")}</p>
-            {error && <p className="sf-form__error">{recordingErrorMessage(t, error)}</p>}
-            {error === ERROR_PERMISSION_DENIED && (
-              <Button variant="ghost" onClick={() => void nativeRecording.openSettings()}>
-                {t("registra.openSettings")}
-              </Button>
+            {error && error !== ERROR_PERMISSION_DENIED && error !== ERROR_LOCATION_SERVICES_DISABLED && (
+              <p className="sf-form__error">{recordingErrorMessage(t, error)}</p>
             )}
           </>
         )}
       </Card>
+      {(error === ERROR_PERMISSION_DENIED || error === ERROR_LOCATION_SERVICES_DISABLED) && (
+        <GpsErrorModal error={error} onClose={() => setError(null)} />
+      )}
       {recordings
         .filter((r) => r.id !== activeId)
         .map((r) => (

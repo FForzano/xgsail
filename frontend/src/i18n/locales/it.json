@@ -340,6 +340,7 @@
     "batteryHint": "Su alcuni telefoni (Xiaomi, Huawei, Samsung, Oppo/Vivo/OnePlus...) il risparmio energetico del produttore può comunque interrompere la registrazione in background: se si interrompe, disattivalo manualmente per XGSail nelle impostazioni batteria del telefono.",
     "openSettings": "Apri impostazioni",
     "error": {
+      "title": "GPS non disponibile",
       "permissionDenied": "Permesso di localizzazione negato. Concedi il permesso a XGSail per poter registrare la traccia GPS.",
       "locationServicesDisabled": "Il GPS del telefono è disattivato. Attivalo dalle impostazioni di localizzazione del telefono, poi avvia di nuovo la registrazione."
     },
