@@ -70,8 +70,12 @@ def complete_import(import_row, *, boat_id: uuid.UUID,
         if not points:
             repos.ingest.update_import(import_row.id, {"status": "failed"})
             raise HTTPException(422, "GPX contains no timestamped points")
-        started_at = _parse_ts(points[0]["t"])
-        ended_at = _parse_ts(points[-1]["t"])
+        try:
+            started_at = _parse_ts(points[0]["t"])
+            ended_at = _parse_ts(points[-1]["t"])
+        except ValueError:
+            repos.ingest.update_import(import_row.id, {"status": "failed"})
+            raise HTTPException(422, "GPX contains unparseable point timestamps")
     else:
         if started_at is None:
             raise HTTPException(422, "started_at is required for CSV imports")
