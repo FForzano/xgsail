@@ -89,7 +89,14 @@
   },
   "diario": {
     "activities": "Attività",
-    "races": "Regate"
+    "races": "Regate",
+    "myDiary": "Le mie attività",
+    "clubsDiary": "Circoli e gruppi",
+    "ownership": {
+      "personal": "Privata",
+      "club": "Circolo",
+      "group": "Gruppo"
+    }
   },
   "profile": {
     "myProfile": "Il mio profilo",

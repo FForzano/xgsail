@@ -8,9 +8,9 @@ import { NotFoundPage } from "@/pages/NotFound";
 import { DiarioLayout } from "@/pages/diario/DiarioLayout";
 import { SessionDetailPage } from "@/pages/diario/SessionDetailPage";
 import { ImportPage } from "@/pages/diario/ImportPage";
-import { ActivitiesPage } from "@/pages/diario/ActivitiesPage";
+import { MyDiaryPage } from "@/pages/diario/MyDiaryPage";
+import { ClubsDiaryPage } from "@/pages/diario/ClubsDiaryPage";
 import { ActivityDetailPage } from "@/pages/diario/ActivityDetailPage";
-import { RegattasPage } from "@/pages/diario/RegattasPage";
 import { RacePage } from "@/pages/diario/RacePage";
 import { RegattaDetailPage } from "@/pages/diario/RegattaDetailPage";
 import { RegistraPage } from "@/pages/registra/RegistraPage";
@@ -49,12 +49,12 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/diario" element={<DiarioLayout />}>
-            <Route index element={<Navigate to="activities" replace />} />
-            <Route path="activities" element={<ActivitiesPage />} />
+            <Route index element={<Navigate to="personale" replace />} />
+            <Route path="personale" element={<MyDiaryPage />} />
+            <Route path="circoli" element={<ClubsDiaryPage />} />
             <Route path="activities/import" element={<ImportPage />} />
             <Route path="activities/:activityId" element={<ActivityDetailPage />} />
             <Route path="activities/:activityId/barche/:sessionId" element={<SessionDetailPage />} />
-            <Route path="regate" element={<RegattasPage />} />
           </Route>
           {/* The race dashboard and its regatta are full-width, outside the tabbed layout. */}
           <Route path="/diario/regate/race/:raceId" element={<RacePage />} />

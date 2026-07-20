@@ -210,7 +210,7 @@ export function ActivityDetailPage() {
   });
   const removeActivity = useMutation({
     mutationFn: () => activitiesService.remove(activityId!),
-    onSuccess: () => navigate("/diario/activities"),
+    onSuccess: () => navigate("/diario/personale"),
     onError: () => notify(t("errors.generic"), "error"),
   });
   const renameActivity = useMutation({
@@ -234,6 +234,11 @@ export function ActivityDetailPage() {
     isSuperadmin ||
     a.created_by === user?.id ||
     (a.club_id != null && can("activity.manage", a.club_id));
+  // Visibility on a club-linked activity is stricter than general edit
+  // rights — only a club-scoped activity.manage holder may change it, not
+  // just any creator (mirrors backend's can_change_activity_visibility).
+  const canChangeVisibility =
+    isSuperadmin || (a.club_id != null ? can("activity.manage", a.club_id) : a.created_by === user?.id);
   const boatName = (id: string) => boats.data?.find((b) => b.id === id)?.name ?? "—";
   const carouselItems: BoatSessionCarouselItem[] = (sessions.data ?? []).map((s, i) => ({
     sessionId: s.id,
@@ -246,7 +251,7 @@ export function ActivityDetailPage() {
 
   return (
     <div className="sf-section__body">
-      <Link to="/diario/activities" className={backLinkStyles.backlink}>
+      <Link to="/diario/personale" className={backLinkStyles.backlink}>
         ← {t("activities.backToActivities")}
       </Link>
       <Card
@@ -285,7 +290,7 @@ export function ActivityDetailPage() {
                 {activityDisplayName(a, t)}
               </span>{" "}
               <span className="sf-badge">{t(`activities.types.${a.type}`)}</span>{" "}
-              {canEdit ? (
+              {canChangeVisibility ? (
                 <select
                   className="sf-badge sf-badge--select"
                   value={a.visibility}

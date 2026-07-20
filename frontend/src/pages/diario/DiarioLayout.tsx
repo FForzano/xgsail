@@ -6,8 +6,8 @@ export function DiarioLayout() {
   return (
     <SectionLayout
       tabs={[
-        { to: "/diario/activities", label: t("diario.activities") },
-        { to: "/diario/regate", label: t("diario.races") },
+        { to: "/diario/personale", label: t("diario.myDiary") },
+        { to: "/diario/circoli", label: t("diario.clubsDiary") },
       ]}
     />
   );

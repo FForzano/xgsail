@@ -176,6 +176,19 @@ def can_edit_activity(activity, user) -> bool:
     return False
 
 
+def can_change_activity_visibility(activity, user) -> bool:
+    """Visibility on a club-linked activity may only be changed by a
+    club-scoped activity.manage holder (or superadmin) — not just any
+    creator, since club role grants can be revoked after creation."""
+    if user is None or activity is None:
+        return False
+    if user.is_superadmin:
+        return True
+    if activity.club_id is not None:
+        return user_has_permission(user, "activity.manage", club_id=activity.club_id)
+    return activity.created_by == user.id
+
+
 def verify_csrf(request: Request) -> None:
     """Double-submit CSRF check, enforced only for cookie-authenticated
     requests. Send ``X-SF-CSRF`` equal to the ``sf_csrf`` cookie on every

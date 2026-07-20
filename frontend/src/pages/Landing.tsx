@@ -34,7 +34,7 @@ export function LandingPage() {
   const { status } = useAuth();
 
   if (status === "loading") return <Spinner full />;
-  if (status === "authed") return <Navigate to="/diario/activities" replace />;
+  if (status === "authed") return <Navigate to="/diario/personale" replace />;
   if (isNativeApp) return <Navigate to="/login" replace />;
 
   return (

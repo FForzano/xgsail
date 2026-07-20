@@ -10,7 +10,14 @@ export const raceKeys = {
 };
 
 export const regattasService = {
-  list: (clubId?: UUID) => api.get<Regatta[]>(`/regattas${clubId ? `?club_id=${clubId}` : ""}`),
+  list: (opts: { clubId?: UUID; mine?: boolean; memberClubs?: boolean } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.clubId) params.set("club_id", opts.clubId);
+    if (opts.mine) params.set("mine", "true");
+    if (opts.memberClubs) params.set("member_clubs", "true");
+    const qs = params.toString();
+    return api.get<Regatta[]>(`/regattas${qs ? `?${qs}` : ""}`);
+  },
   get: (id: UUID) => api.get<Regatta>(`/regattas/${id}`), // embeds race_days
   create: (body: Partial<Regatta>) => api.post<Regatta>("/regattas", body),
   update: (id: UUID, body: Partial<Regatta>) => api.patch<Regatta>(`/regattas/${id}`, body),

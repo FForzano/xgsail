@@ -89,7 +89,14 @@
   },
   "diario": {
     "activities": "Activities",
-    "races": "Races"
+    "races": "Races",
+    "myDiary": "My activities",
+    "clubsDiary": "Clubs & groups",
+    "ownership": {
+      "personal": "Private",
+      "club": "Club",
+      "group": "Group"
+    }
   },
   "profile": {
     "myProfile": "My profile",

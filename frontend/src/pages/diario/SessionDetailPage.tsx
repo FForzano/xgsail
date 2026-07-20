@@ -356,7 +356,7 @@ export function SessionDetailPage() {
   });
   const removeSession = useMutation({
     mutationFn: () => sessionsService.remove(sessionId!),
-    onSuccess: () => navigate(session.data ? `/diario/activities/${session.data.activity_id}` : "/diario/activities"),
+    onSuccess: () => navigate(session.data ? `/diario/activities/${session.data.activity_id}` : "/diario/personale"),
     onError: () => notify(t("errors.generic"), "error"),
   });
   const moveToActivity = useMutation({

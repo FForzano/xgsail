@@ -21,6 +21,7 @@ from .permissions import (
     activity_visible_to,
     session_visible_to,
     can_edit_activity,
+    can_change_activity_visibility,
     effective_capabilities,
 )
 from .device import current_device, require_system
@@ -37,6 +38,7 @@ __all__ = [
     "activity_visible_to",
     "session_visible_to",
     "can_edit_activity",
+    "can_change_activity_visibility",
     "effective_capabilities",
     "current_device",
     "require_system",

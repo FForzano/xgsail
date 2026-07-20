@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { regattasService, raceKeys } from "@/services/races";
@@ -9,65 +8,9 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { InputField, TextAreaField } from "@/components/ui/InputField";
-import { RegattaRaceDays } from "@/components/gruppi/RegattaRaceDays";
-import { fmtDate, fmtDateTime } from "@/utils/format";
-import type { Activity, Regatta, UUID } from "@/types";
-
-type EventItem =
-  | { kind: "regatta"; id: UUID; title: string; date: string | null; endDate: string | null; regatta: Regatta }
-  | { kind: "activity"; id: UUID; title: string; date: string | null; endDate: null; activity: Activity };
-
-function EventRow({
-  item,
-  manage,
-  open,
-  onToggle,
-}: {
-  item: EventItem;
-  manage: boolean;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div>
-      <div className="sf-strip__item">
-        <span>
-          <span
-            className={`sf-badge ${item.kind === "regatta" ? "sf-badge--regatta" : "sf-badge--activity"}`}
-          >
-            {t(`gruppi.eventKind.${item.kind}`)}
-          </span>{" "}
-          {item.kind === "activity" ? (
-            <Link to={`/diario/activities/${item.id}`}>
-              <strong>{item.title}</strong>
-            </Link>
-          ) : (
-            <Link to={`/diario/regate/regatta/${item.id}`}>
-              <strong>{item.title}</strong>
-            </Link>
-          )}{" "}
-          <span className="sf-muted">
-            {item.kind === "regatta"
-              ? `${fmtDate(item.date)}${item.endDate && item.endDate !== item.date ? ` – ${fmtDate(item.endDate)}` : ""}`
-              : fmtDateTime(item.date)}
-          </span>
-        </span>
-        {item.kind === "regatta" && (
-          <Button variant="ghost" className="sf-btn--sm" onClick={onToggle}>
-            {open ? t("common.close") : t("regate.raceDays")}
-          </Button>
-        )}
-      </div>
-      {item.kind === "activity" && item.activity.description && (
-        <p className="sf-muted" style={{ margin: "0.25rem 0 0.5rem" }}>
-          {item.activity.description}
-        </p>
-      )}
-      {item.kind === "regatta" && open && <RegattaRaceDays regattaId={item.id} manage={manage} />}
-    </div>
-  );
-}
+import { EventRow, type EventItem } from "@/components/diario/EventRow";
+import feedStyles from "@/components/diario/EventRow.module.css";
+import type { UUID } from "@/types";
 
 export function ClubEvents({
   clubId,
@@ -89,7 +32,7 @@ export function ClubEvents({
 
   const regattas = useQuery({
     queryKey: [...raceKeys.regattas, clubId],
-    queryFn: () => regattasService.list(clubId),
+    queryFn: () => regattasService.list({ clubId }),
   });
   const activities = useQuery({
     queryKey: activityKeys.list({ club_id: clubId }),
@@ -188,7 +131,7 @@ export function ClubEvents({
     >
       <h3>{t("gruppi.upcomingEvents")}</h3>
       {upcoming.length ? (
-        <div className="sf-strip">
+        <div className={feedStyles.feed}>
           {upcoming.map((i) => (
             <EventRow
               key={`${i.kind}-${i.id}`}
@@ -205,7 +148,7 @@ export function ClubEvents({
 
       <h3>{t("gruppi.pastEvents")}</h3>
       {past.length ? (
-        <div className="sf-strip">
+        <div className={feedStyles.feed}>
           {past.map((i) => (
             <EventRow
               key={`${i.kind}-${i.id}`}

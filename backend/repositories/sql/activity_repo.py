@@ -102,6 +102,7 @@ class SqlActivityRepo:
              type: Optional[str] = None,
              status: Optional[str] = None,
              created_by: Optional[uuid.UUID] = None,
+             member_of_user: Optional[uuid.UUID] = None,
              viewer_id: Optional[uuid.UUID] = None,
              viewer_is_superadmin: bool = False,
              limit: Optional[int] = None,
@@ -120,6 +121,20 @@ class SqlActivityRepo:
                 q = q.where(ActivityORM.status == status)
             if created_by is not None:
                 q = q.where(ActivityORM.created_by == created_by)
+            if member_of_user is not None:
+                member_club_ids = select(UserClubORM.club_id).where(
+                    UserClubORM.user_id == member_of_user,
+                    UserClubORM.status == "active",
+                )
+                member_group_ids = select(UserGroupORM.group_id).where(
+                    UserGroupORM.user_id == member_of_user,
+                    UserGroupORM.status == "active",
+                    UserGroupORM.deleted_at.is_(None),
+                )
+                q = q.where(or_(
+                    ActivityORM.club_id.in_(member_club_ids),
+                    ActivityORM.group_id.in_(member_group_ids),
+                ))
             if not viewer_is_superadmin:
                 q = q.where(self._visibility_clause(viewer_id))
             q = q.offset(offset)

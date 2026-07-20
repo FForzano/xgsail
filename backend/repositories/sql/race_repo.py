@@ -12,7 +12,15 @@ from typing import Optional
 
 from sqlalchemy import select
 
-from ...db.models import RaceDayORM, RaceORM, RegattaORM, ResultORM
+from ...db.models import (
+    RaceDayORM,
+    RaceORM,
+    RegattaORM,
+    ResultORM,
+    SessionCrewORM,
+    UserBoatORM,
+    UserClubORM,
+)
 
 _REGATTA_FIELDS = ("name", "description", "image_id", "club_id", "class_id",
                    "scoring_system", "start_date", "end_date", "status")
@@ -32,6 +40,41 @@ class SqlRegattaRepo:
             q = select(RegattaORM)
             if club_id is not None:
                 q = q.where(RegattaORM.club_id == club_id)
+            if status is not None:
+                q = q.where(RegattaORM.status == status)
+            return list(s.scalars(q).all())
+
+    def list_raced_by_user(self, user_id: uuid.UUID, *,
+                           status: Optional[str] = None) -> "list[RegattaORM]":
+        """Regattas the user has actually raced in — a result tied to one of
+        their boats, or they crewed a session matched to one of its races."""
+        with self.Session() as s:
+            my_boat_ids = select(UserBoatORM.boat_id).where(UserBoatORM.user_id == user_id)
+            my_crew_sessions = select(SessionCrewORM.session_id).where(
+                SessionCrewORM.user_id == user_id
+            )
+            my_race_ids = select(ResultORM.race_id).where(
+                (ResultORM.boat_id.in_(my_boat_ids)) | (ResultORM.session_id.in_(my_crew_sessions))
+            )
+            my_regatta_ids = (
+                select(RaceDayORM.regatta_id)
+                .join(RaceORM, RaceORM.race_day_id == RaceDayORM.id)
+                .where(RaceORM.id.in_(my_race_ids), RaceDayORM.regatta_id.isnot(None))
+            )
+            q = select(RegattaORM).where(RegattaORM.id.in_(my_regatta_ids))
+            if status is not None:
+                q = q.where(RegattaORM.status == status)
+            return list(s.scalars(q).all())
+
+    def list_for_member_clubs(self, user_id: uuid.UUID, *,
+                              status: Optional[str] = None) -> "list[RegattaORM]":
+        """Regattas belonging to any club the user is an active member of."""
+        with self.Session() as s:
+            member_club_ids = select(UserClubORM.club_id).where(
+                UserClubORM.user_id == user_id,
+                UserClubORM.status == "active",
+            )
+            q = select(RegattaORM).where(RegattaORM.club_id.in_(member_club_ids))
             if status is not None:
                 q = q.where(RegattaORM.status == status)
             return list(s.scalars(q).all())

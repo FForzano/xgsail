@@ -814,6 +814,20 @@ h1, h2, h3 {
   background: color-mix(in srgb, var(--sf-leg-upwind) 25%, transparent);
   color: var(--sf-leg-upwind);
 }
+/* Diario: personal vs. club vs. group ownership needs to be told apart at a
+   glance too, distinct from the regatta/activity kind badge above. */
+.sf-badge--personal {
+  background: color-mix(in srgb, var(--sf-primary) 25%, transparent);
+  color: var(--sf-primary);
+}
+.sf-badge--club {
+  background: color-mix(in srgb, var(--sf-leg-reach) 25%, transparent);
+  color: var(--sf-leg-reach);
+}
+.sf-badge--group {
+  background: color-mix(in srgb, var(--sf-leg-downwind) 25%, transparent);
+  color: var(--sf-leg-downwind);
+}
 /* Smaller variant for tight contexts (under a name in a roster row) —
    avoids forcing the row to wrap/overflow the way a full-size badge does. */
 .sf-badge--sm {
@@ -967,4 +981,8 @@ h1, h2, h3 {
 }
 .sf-optionsmenu__item--danger {
   color: var(--sf-danger);
+}
+.sf-optionsmenu__item--active {
+  color: var(--sf-primary);
+  font-weight: 700;
 }

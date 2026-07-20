@@ -26,6 +26,7 @@ export const activitiesService = {
       group_id?: UUID;
       status?: ActivityStatus;
       mine?: boolean;
+      member_clubs?: boolean;
       limit?: number;
       offset?: number;
     } = {},
@@ -34,6 +35,7 @@ export const activitiesService = {
       `/activities${qs({
         ...filters,
         mine: filters.mine ? "true" : undefined,
+        member_clubs: filters.member_clubs ? "true" : undefined,
         limit: filters.limit ? String(filters.limit) : undefined,
         offset: filters.offset ? String(filters.offset) : undefined,
       })}`,

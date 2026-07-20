@@ -1,0 +1,98 @@
+/* Shared reading column for a diario tab: the toolbar above the feed and
+   the feed itself share this width so they line up as one block instead of
+   a full-width toolbar sitting over a narrower, separately-centered feed. */
+.page {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.card {
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.card:hover {
+  border-color: var(--sf-primary);
+}
+
+.mediaLink {
+  display: block;
+}
+.media {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  /* `contain`, not `cover` — these are low-res generated track overlays
+     (fine at the old ~220px grid-card size); cropping AND upscaling them to
+     fill a wide feed card makes the already-blocky line noticeably worse. */
+  object-fit: contain;
+  background: var(--sf-bg-2);
+}
+.mediaPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+.mediaPlaceholder[data-kind="regatta"] {
+  background: color-mix(in srgb, var(--sf-warning) 15%, var(--sf-bg-2));
+  color: var(--sf-warning);
+}
+.mediaPlaceholder[data-kind="activity"] {
+  background: color-mix(in srgb, var(--sf-leg-upwind) 15%, var(--sf-bg-2));
+  color: var(--sf-leg-upwind);
+}
+
+.body {
+  padding: 0.85rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.badges {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--sf-text);
+  text-decoration: none;
+}
+.title:hover {
+  text-decoration: underline;
+}
+.meta {
+  font-size: 0.82rem;
+  color: var(--sf-muted);
+  margin: -0.2rem 0 0;
+}
+.description {
+  margin: 0;
+  color: var(--sf-muted);
+  font-size: 0.9rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.footer {
+  margin-top: 0.15rem;
+}
+.expanded {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid var(--sf-border);
+  margin-top: 0.25rem;
+  padding-top: 0.6rem;
+}

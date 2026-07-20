@@ -2,10 +2,12 @@
 
 Visibility follows ``activities.visibility`` (public|club|group|private) via
 ``activity_visible_to``; edits by the creator, club-scoped ``activity.manage``
-holders, or superadmin. Marks: activity creator, or ``mark.manage`` scoped to
-the club for race activities. Creating a club-linked activity requires
-``activity.manage`` on that club; a group-linked one requires an
-owner/admin role in that group.
+holders, or superadmin — except changing ``visibility`` itself on a
+club-linked activity, which requires club-scoped ``activity.manage`` (see
+``can_change_activity_visibility``), not just being the creator. Marks:
+activity creator, or ``mark.manage`` scoped to the club for race activities.
+Creating a club-linked activity requires ``activity.manage`` on that club; a
+group-linked one requires an owner/admin role in that group.
 """
 
 import uuid
@@ -16,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..auth import (
     activity_visible_to,
+    can_change_activity_visibility,
     can_edit_activity,
     current_user,
     require_user,
@@ -65,14 +68,16 @@ def list_activities(request: Request, type: Optional[str] = None,
                     group_id: Optional[uuid.UUID] = None,
                     status: Optional[str] = None,
                     mine: bool = False,
+                    member_clubs: bool = False,
                     limit: Optional[int] = Query(None, le=100, gt=0),
                     offset: int = Query(0, ge=0)):
     user = current_user(request)
-    if mine and user is None:
+    if (mine or member_clubs) and user is None:
         raise HTTPException(401, "Authentication required")
     activities = repos.activities.list(
         club_id=club_id, group_id=group_id, type=type, status=status,
         created_by=user.id if mine else None,
+        member_of_user=user.id if member_clubs else None,
         viewer_id=user.id if user else None,
         viewer_is_superadmin=bool(user and user.is_superadmin),
         limit=limit, offset=offset,
@@ -123,7 +128,10 @@ def update_activity(activity_id: uuid.UUID, body: ActivityWriteModel, request: R
     activity = _require_activity(activity_id)
     if not can_edit_activity(activity, user):
         raise HTTPException(403, "Not allowed")
-    return repos.activities.update(activity_id, body.model_dump(exclude_unset=True)).to_dict()
+    data = body.model_dump(exclude_unset=True)
+    if "visibility" in data and not can_change_activity_visibility(activity, user):
+        raise HTTPException(403, "Not allowed to change visibility")
+    return repos.activities.update(activity_id, data).to_dict()
 
 
 @router.delete("/{activity_id}")

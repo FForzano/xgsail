@@ -9,7 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ..auth import require_permission, require_user, verify_csrf
+from ..auth import current_user, require_permission, require_user, verify_csrf
 from ..schemas import RegattaWriteModel
 from ..services import media
 from ._common import repos
@@ -31,8 +31,20 @@ def _regatta_payload(regatta) -> dict:
 
 
 @router.get("")
-def list_regattas(club_id: Optional[uuid.UUID] = None, status: Optional[str] = None):
-    return [_regatta_payload(r) for r in repos.regattas.list(club_id=club_id, status=status)]
+def list_regattas(request: Request, club_id: Optional[uuid.UUID] = None,
+                  status: Optional[str] = None,
+                  mine: bool = False, member_clubs: bool = False):
+    if mine or member_clubs:
+        user = current_user(request)
+        if user is None:
+            raise HTTPException(401, "Authentication required")
+        if mine:
+            regattas = repos.regattas.list_raced_by_user(user.id, status=status)
+        else:
+            regattas = repos.regattas.list_for_member_clubs(user.id, status=status)
+    else:
+        regattas = repos.regattas.list(club_id=club_id, status=status)
+    return [_regatta_payload(r) for r in regattas]
 
 
 @router.get("/{regatta_id}")

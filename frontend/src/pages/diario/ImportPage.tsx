@@ -110,7 +110,7 @@ export function ImportPage() {
                 navigate(
                   importedSession.data
                     ? `/diario/activities/${importedSession.data.activity_id}/barche/${importedSession.data.id}`
-                    : "/diario/activities",
+                    : "/diario/personale",
                 )
               }
             >
