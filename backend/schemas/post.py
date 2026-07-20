@@ -10,3 +10,7 @@ class PostCreateModel(BaseModel):
     owner_id: uuid.UUID
     body: str
     image_ids: list[uuid.UUID] = []
+
+
+class PostUpdateModel(BaseModel):
+    body: str

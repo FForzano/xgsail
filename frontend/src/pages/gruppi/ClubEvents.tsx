@@ -2,149 +2,16 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
-import { regattasService, racedaysService, racesService, raceKeys } from "@/services/races";
+import { regattasService, raceKeys } from "@/services/races";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { useToast } from "@/hooks/useToast";
-import { ApiError } from "@/api/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { RegattaRaceDays } from "@/components/gruppi/RegattaRaceDays";
 import { fmtDate, fmtDateTime } from "@/utils/format";
 import type { Activity, Regatta, UUID } from "@/types";
-
-/** Regatta management inside the unified Eventi tab (create regatta → race
- * days → races). Marks/results live on the race dashboard, linked per race. */
-function RegattaBlock({ regattaId, manage }: { regattaId: UUID; manage: boolean }) {
-  const { t } = useTranslation();
-  const { notify } = useToast();
-  const queryClient = useQueryClient();
-  const [newDay, setNewDay] = useState("");
-
-  const regatta = useQuery({
-    queryKey: raceKeys.regatta(regattaId),
-    queryFn: () => regattasService.get(regattaId),
-  });
-
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: raceKeys.regatta(regattaId) });
-
-  const addDay = useMutation({
-    mutationFn: (date: string) => racedaysService.create({ regatta_id: regattaId, date }),
-    onSuccess: async () => {
-      setNewDay("");
-      await invalidate();
-    },
-    onError: () => notify(t("errors.generic"), "error"),
-  });
-  const addRace = useMutation({
-    mutationFn: ({ dayId, num }: { dayId: UUID; num: number }) =>
-      racesService.create({ race_day_id: dayId, race_number: num }),
-    onSuccess: invalidate,
-    onError: (err: unknown) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
-  });
-  const removeDay = useMutation({
-    mutationFn: (dayId: UUID) => racedaysService.remove(dayId),
-    onSuccess: invalidate,
-    onError: (err: unknown) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
-  });
-
-  if (!regatta.data) return null;
-
-  return (
-    <div className="sf-strip">
-      {(regatta.data.race_days ?? []).map((day) => (
-        <RaceDayRow
-          key={day.id}
-          dayId={day.id}
-          date={day.date}
-          manage={manage}
-          addingRace={addRace.isPending}
-          onAddRace={(num) => addRace.mutate({ dayId: day.id, num })}
-          onRemoveDay={() => {
-            if (window.confirm(t("regate.confirmDeleteRaceDay"))) removeDay.mutate(day.id);
-          }}
-        />
-      ))}
-      {manage && (
-        <form
-          style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            if (newDay) addDay.mutate(newDay);
-          }}
-        >
-          <InputField
-            label={t("regate.newRaceDay")}
-            id={`day-${regattaId}`}
-            type="date"
-            value={newDay}
-            onChange={(e) => setNewDay(e.target.value)}
-          />
-          <Button type="submit" className="sf-btn--sm" disabled={addDay.isPending || !newDay}>
-            {t("common.add")}
-          </Button>
-        </form>
-      )}
-    </div>
-  );
-}
-
-function RaceDayRow({
-  dayId,
-  date,
-  manage,
-  addingRace,
-  onAddRace,
-  onRemoveDay,
-}: {
-  dayId: UUID;
-  date: string;
-  manage: boolean;
-  addingRace: boolean;
-  onAddRace: (num: number) => void;
-  onRemoveDay: () => void;
-}) {
-  const { t } = useTranslation();
-  const day = useQuery({ queryKey: raceKeys.raceday(dayId), queryFn: () => racedaysService.get(dayId) });
-  const races = day.data?.races ?? [];
-
-  return (
-    <div className="sf-strip__item sf-strip__item--muted" style={{ flexWrap: "wrap" }}>
-      <span>
-        <strong>{fmtDate(date)}</strong>
-      </span>
-      <span className="sf-strip__actions" style={{ flexWrap: "wrap" }}>
-        {races.map((r) => (
-          <Link key={r.id} to={`/diario/regate/race/${r.id}`}>
-            <Button variant="ghost" className="sf-btn--sm">
-              {t("regate.raceNumber")} {r.race_number}
-            </Button>
-          </Link>
-        ))}
-        {manage && (
-          <Button
-            className="sf-btn--sm"
-            disabled={addingRace}
-            onClick={() => onAddRace((races[races.length - 1]?.race_number ?? 0) + 1)}
-          >
-            + {t("regate.newRace")}
-          </Button>
-        )}
-        {manage && (
-          <Button
-            variant="ghost"
-            className="sf-btn--icon-sm"
-            aria-label={t("regate.deleteRaceDay")}
-            onClick={onRemoveDay}
-          >
-            <Trash2 size={14} />
-          </Button>
-        )}
-      </span>
-    </div>
-  );
-}
 
 type EventItem =
   | { kind: "regatta"; id: UUID; title: string; date: string | null; endDate: string | null; regatta: Regatta }
@@ -176,7 +43,9 @@ function EventRow({
               <strong>{item.title}</strong>
             </Link>
           ) : (
-            <strong>{item.title}</strong>
+            <Link to={`/diario/regate/regatta/${item.id}`}>
+              <strong>{item.title}</strong>
+            </Link>
           )}{" "}
           <span className="sf-muted">
             {item.kind === "regatta"
@@ -195,7 +64,7 @@ function EventRow({
           {item.activity.description}
         </p>
       )}
-      {item.kind === "regatta" && open && <RegattaBlock regattaId={item.id} manage={manage} />}
+      {item.kind === "regatta" && open && <RegattaRaceDays regattaId={item.id} manage={manage} />}
     </div>
   );
 }

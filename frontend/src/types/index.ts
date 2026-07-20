@@ -183,6 +183,7 @@ export interface Post {
   body: string;
   images: ImageRef[];
   created_at: string;
+  updated_at: string | null;
 }
 
 // --- devices -----------------------------------------------------------------------
@@ -473,6 +474,7 @@ export interface Regatta {
   id: UUID;
   name: string;
   description: string | null;
+  image: ImageRef | null;
   club_id: UUID;
   class_id: UUID | null;
   scoring_system: string;

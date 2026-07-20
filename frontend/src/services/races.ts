@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { Mark, Race, RaceData, RaceDay, RaceResult, Regatta, Session, UUID } from "@/types";
+import type { ImageUploadTicket, Mark, Race, RaceData, RaceDay, RaceResult, Regatta, Session, UUID } from "@/types";
 
 export const raceKeys = {
   regattas: ["regattas"] as const,
@@ -15,6 +15,9 @@ export const regattasService = {
   create: (body: Partial<Regatta>) => api.post<Regatta>("/regattas", body),
   update: (id: UUID, body: Partial<Regatta>) => api.patch<Regatta>(`/regattas/${id}`, body),
   remove: (id: UUID) => api.del(`/regattas/${id}`),
+
+  uploadImage: (id: UUID) => api.post<ImageUploadTicket>(`/regattas/${id}/image`),
+  confirmImage: (id: UUID, imageId: UUID) => api.post(`/regattas/${id}/image/${imageId}/confirm`),
 };
 
 export const racedaysService = {

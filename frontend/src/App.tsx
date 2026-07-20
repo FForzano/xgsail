@@ -12,6 +12,7 @@ import { ActivitiesPage } from "@/pages/diario/ActivitiesPage";
 import { ActivityDetailPage } from "@/pages/diario/ActivityDetailPage";
 import { RegattasPage } from "@/pages/diario/RegattasPage";
 import { RacePage } from "@/pages/diario/RacePage";
+import { RegattaDetailPage } from "@/pages/diario/RegattaDetailPage";
 import { RegistraPage } from "@/pages/registra/RegistraPage";
 import { GruppiLayout } from "@/pages/gruppi/GruppiLayout";
 import { GroupsPage } from "@/pages/gruppi/GroupsPage";
@@ -55,8 +56,9 @@ export default function App() {
             <Route path="activities/:activityId/barche/:sessionId" element={<SessionDetailPage />} />
             <Route path="regate" element={<RegattasPage />} />
           </Route>
-          {/* The race dashboard is full-width, outside the tabbed layout. */}
+          {/* The race dashboard and its regatta are full-width, outside the tabbed layout. */}
           <Route path="/diario/regate/race/:raceId" element={<RacePage />} />
+          <Route path="/diario/regate/regatta/:regattaId" element={<RegattaDetailPage />} />
 
           {/* Native-only — see AppShell's Capacitor.isNativePlatform() gate;
               the route itself is harmless on web (just unreachable). */}

@@ -9,6 +9,8 @@ from sqlalchemy import delete, select
 
 from ...db.models import PostImageORM, PostORM
 
+_POST_FIELDS = ("body", "updated_at")
+
 
 class SqlPostRepo:
     def __init__(self, session_factory):
@@ -33,6 +35,17 @@ class SqlPostRepo:
             s.commit()
             new_id = orm.id
         return self.get(new_id)
+
+    def update(self, post_id: uuid.UUID, changes: dict) -> Optional[PostORM]:
+        with self.Session() as s:
+            orm = s.get(PostORM, post_id)
+            if orm is None:
+                return None
+            for k, v in changes.items():
+                if k in _POST_FIELDS:
+                    setattr(orm, k, v)
+            s.commit()
+        return self.get(post_id)
 
     def delete(self, post_id: uuid.UUID) -> bool:
         with self.Session() as s:

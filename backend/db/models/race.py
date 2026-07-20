@@ -31,6 +31,9 @@ class RegattaORM(UUIDPKMixin, Base):
 
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    image_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("images.id", ondelete="SET NULL"), nullable=True
+    )
     # RESTRICT: clubs are deactivated (is_active), never hard-deleted.
     club_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("clubs.id", ondelete="RESTRICT"), nullable=False

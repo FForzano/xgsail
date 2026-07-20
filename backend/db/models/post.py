@@ -6,8 +6,10 @@ the same shape (members, join/invite, visibility — see ``club.py``/
 serves both feeds and leaves room for a future personal aggregated feed
 across a user's clubs/groups without another migration. ``owner_id`` has no
 FK (it points at either ``clubs`` or ``groups`` depending on ``owner_type``)
-— validated in the router, not the DB. Create/delete only: no edit, so no
-``updated_at``.
+— validated in the router, not the DB. Edits are restricted to the author
+(see ``routers/posts.py::update_post``) and only touch ``body``;
+``updated_at`` stays NULL until the first edit, so it doubles as the
+"was this edited" flag.
 
 ``post_images`` is a many-to-many join to ``images`` (a post may carry
 several photos, e.g. a flyer plus additional pages) mirroring
@@ -16,9 +18,10 @@ since a post's images have no other purpose once the post is gone.
 """
 
 import uuid
+from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..base import Base, CreatedAtMixin, UUIDPKMixin, enum_check
@@ -36,6 +39,7 @@ class PostORM(UUIDPKMixin, CreatedAtMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class PostImageORM(UUIDPKMixin, Base):

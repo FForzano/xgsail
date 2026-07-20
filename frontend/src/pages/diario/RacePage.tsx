@@ -16,6 +16,7 @@ import { RaceManagePanel } from "@/components/race/RaceManagePanel";
 import { WindCard } from "@/components/common/WindCard";
 import { Card } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
+import { BackLink } from "@/components/ui/BackLink";
 import type { UUID } from "@/types";
 
 /** The race dashboard (docs/frontend-project.md "Race/Regate"): replay core
@@ -86,6 +87,9 @@ export function RacePage() {
 
   return (
     <div className="sf-section__body">
+      {raceday.data?.regatta_id && (
+        <BackLink to={`/diario/regate/regatta/${raceday.data.regatta_id}`} label={t("regate.backToRegatta")} />
+      )}
       <h1>
         {regatta.data?.name ?? t("regate.title")} — {t("regate.raceNumber")}{" "}
         {race.data.race_number}

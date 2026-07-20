@@ -10,6 +10,7 @@ export const postsService = {
     api.get<Post[]>(`/posts?owner_type=${ownerType}&owner_id=${ownerId}`),
   create: (body: { owner_type: PostOwnerType; owner_id: UUID; body: string; image_ids?: UUID[] }) =>
     api.post<Post>("/posts", body),
+  update: (id: UUID, body: { body: string }) => api.patch<Post>(`/posts/${id}`, body),
   remove: (id: UUID) => api.del(`/posts/${id}`),
 
   uploadImage: () => api.post<ImageUploadTicket>("/posts/image"),

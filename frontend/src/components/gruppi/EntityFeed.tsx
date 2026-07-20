@@ -1,11 +1,9 @@
-import { useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bold, ImagePlus, Italic, Link2, Plus, Trash2, Underline } from "lucide-react";
+import { ImagePlus, Pencil, Plus, Trash2 } from "lucide-react";
 import { putToUploadUrl } from "@/api/media";
 import { postsService, postKeys } from "@/services/posts";
-import { clubsService, clubKeys } from "@/services/clubs";
-import { groupsService, groupKeys } from "@/services/groups";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { Card } from "@/components/ui/Card";
@@ -13,27 +11,15 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PostBodyField } from "@/components/gruppi/PostBodyField";
 import { userLabel, fmtDateTime } from "@/utils/format";
 import { renderPostBody } from "@/utils/postFormat";
-import { smartSearch } from "@/utils/smartSearch";
-import type { PostOwnerType, UUID } from "@/types";
+import type { Post, PostOwnerType, UUID } from "@/types";
 
 interface PendingImage {
   imageId: UUID;
   previewUrl: string;
 }
-
-type MentionType = "user" | "club" | "group";
-interface MentionCandidate {
-  type: MentionType;
-  id: UUID;
-  label: string;
-}
-
-/** Match a `@query` still being typed right before the caret — used both to
- * open/filter the mention dropdown and, on selection, to know how much of
- * the text to replace. */
-const MENTION_TRIGGER_RE = /@([^\s@]*)$/;
 
 /** The write form: textarea + image picker/preview + publish. Rendered
  * inline on desktop (`.sf-desktop-only`, see `EntityFeed`'s form wrapper) and
@@ -55,128 +41,8 @@ function PostComposer({
   const [body, setBody] = useState("");
   const [images, setImages] = useState<PendingImage[]>([]);
   const [uploading, setUploading] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: postKeys.list(ownerType, ownerId) });
-
-  // --- @mentions: candidates are the post's own club/group members (visible
-  // to whoever can already post here) plus every club/group name, mirroring
-  // the same "search over already-loaded lists" pattern as EntitySearch —
-  // there's no dedicated backend search endpoint for this. ---
-  const clubs = useQuery({ queryKey: clubKeys.all, queryFn: clubsService.list });
-  const groups = useQuery({ queryKey: groupKeys.all, queryFn: () => groupsService.list() });
-  const clubMembers = useQuery({
-    queryKey: clubKeys.members(ownerId),
-    queryFn: () => clubsService.members(ownerId),
-    enabled: ownerType === "club",
-  });
-  const groupDetail = useQuery({
-    queryKey: groupKeys.detail(ownerId),
-    queryFn: () => groupsService.get(ownerId),
-    enabled: ownerType === "group",
-  });
-
-  const mentionCandidates = useMemo((): MentionCandidate[] => {
-    const members = ownerType === "club" ? clubMembers.data : groupDetail.data?.members;
-    return [
-      ...(members ?? [])
-        .filter((m) => m.user)
-        .map((m): MentionCandidate => ({ type: "user", id: m.user_id, label: userLabel(m.user) })),
-      ...(clubs.data ?? []).map((c): MentionCandidate => ({ type: "club", id: c.id, label: c.name })),
-      ...(groups.data ?? []).map((g): MentionCandidate => ({ type: "group", id: g.id, label: g.name })),
-    ];
-  }, [ownerType, clubMembers.data, groupDetail.data, clubs.data, groups.data]);
-
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [mentionStart, setMentionStart] = useState<number | null>(null);
-  const [mentionActive, setMentionActive] = useState(0);
-  const mentionResults =
-    mentionQuery === null ? [] : smartSearch(mentionQuery, mentionCandidates, (c) => [c.label]).slice(0, 8);
-
-  const closeMentions = () => {
-    setMentionQuery(null);
-    setMentionStart(null);
-    setMentionActive(0);
-  };
-
-  const applyMention = (candidate: MentionCandidate) => {
-    const el = textareaRef.current;
-    if (!el || mentionStart === null) return;
-    const caret = el.selectionStart;
-    const token = `@[${candidate.label}](${candidate.type}:${candidate.id}) `;
-    const next = body.slice(0, mentionStart) + token + body.slice(caret);
-    setBody(next);
-    closeMentions();
-    requestAnimationFrame(() => {
-      el.focus();
-      const cursor = mentionStart + token.length;
-      el.setSelectionRange(cursor, cursor);
-    });
-  };
-
-  const handleBodyChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setBody(value);
-    const caret = e.target.selectionStart;
-    const match = MENTION_TRIGGER_RE.exec(value.slice(0, caret));
-    if (match) {
-      setMentionQuery(match[1]);
-      setMentionStart(caret - match[1].length - 1);
-      setMentionActive(0);
-    } else {
-      closeMentions();
-    }
-  };
-
-  const handleBodyKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (mentionQuery === null || mentionResults.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setMentionActive((i) => (i + 1) % mentionResults.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setMentionActive((i) => (i - 1 + mentionResults.length) % mentionResults.length);
-    } else if (e.key === "Enter" || e.key === "Tab") {
-      e.preventDefault();
-      applyMention(mentionResults[mentionActive]);
-    } else if (e.key === "Escape") {
-      closeMentions();
-    }
-  };
-
-  /** Wraps the current selection (or a placeholder, if nothing is selected)
-   * in the given markers — used by the Bold/Italic/Underline toolbar
-   * buttons. Re-selects the wrapped text afterwards so another click keeps
-   * toggling the same span rather than appending markers each time. */
-  const wrapSelection = (before: string, after: string = before) => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const { selectionStart, selectionEnd, value } = el;
-    const selected = value.slice(selectionStart, selectionEnd) || t("gruppi.formatPlaceholder");
-    const next = value.slice(0, selectionStart) + before + selected + after + value.slice(selectionEnd);
-    setBody(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(selectionStart + before.length, selectionStart + before.length + selected.length);
-    });
-  };
-
-  const insertLink = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const { selectionStart, selectionEnd, value } = el;
-    const selected = value.slice(selectionStart, selectionEnd) || t("gruppi.linkLabelPlaceholder");
-    const url = window.prompt(t("gruppi.linkUrlPrompt"));
-    if (!url) return;
-    const token = `[${selected}](${url})`;
-    const next = value.slice(0, selectionStart) + token + value.slice(selectionEnd);
-    setBody(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      const cursor = selectionStart + token.length;
-      el.setSelectionRange(cursor, cursor);
-    });
-  };
 
   const addImages = async (files: FileList) => {
     setUploading(true);
@@ -227,76 +93,14 @@ function PostComposer({
 
   return (
     <form onSubmit={submit} className="sf-feed-form">
-      <div className="sf-feed-form__toolbar">
-        <Button
-          type="button"
-          variant="ghost"
-          className="sf-btn--icon-sm"
-          aria-label={t("gruppi.formatBold")}
-          onClick={() => wrapSelection("**")}
-        >
-          <Bold size={15} />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="sf-btn--icon-sm"
-          aria-label={t("gruppi.formatItalic")}
-          onClick={() => wrapSelection("*")}
-        >
-          <Italic size={15} />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="sf-btn--icon-sm"
-          aria-label={t("gruppi.formatUnderline")}
-          onClick={() => wrapSelection("__")}
-        >
-          <Underline size={15} />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="sf-btn--icon-sm"
-          aria-label={t("gruppi.formatLink")}
-          onClick={insertLink}
-        >
-          <Link2 size={15} />
-        </Button>
-      </div>
-      <div className="sf-feed-form__field">
-        <textarea
-          ref={textareaRef}
-          className="sf-field__input"
-          id="feed-body"
-          placeholder={t("gruppi.newsBody")}
-          aria-label={t("gruppi.newsBody")}
-          rows={3}
-          value={body}
-          onChange={handleBodyChange}
-          onKeyDown={handleBodyKeyDown}
-          onBlur={() => setTimeout(closeMentions, 150)}
-          required
-        />
-        {mentionQuery !== null && mentionResults.length > 0 && (
-          <div className="sf-feed-form__mentions">
-            {mentionResults.map((c, i) => (
-              <div
-                key={`${c.type}-${c.id}`}
-                className={`sf-feed-form__mention-option ${i === mentionActive ? "sf-feed-form__mention-option--active" : ""}`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  applyMention(c);
-                }}
-              >
-                <span>{c.label}</span>
-                <span className="sf-feed-form__mention-type">{t(`gruppi.mentionType.${c.type}`)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <PostBodyField
+        ownerType={ownerType}
+        ownerId={ownerId}
+        value={body}
+        onChange={setBody}
+        id="feed-body"
+        placeholder={t("gruppi.newsBody")}
+      />
       {images.length > 0 && (
         <div className="sf-photo-grid">
           {images.map((img) => (
@@ -345,6 +149,63 @@ function PostComposer({
   );
 }
 
+/** Inline body edit for an existing post — same `PostBodyField` as the
+ * composer, but only touches `body` (images aren't editable after
+ * publishing). Author-only, enforced again server-side. */
+function PostEditForm({
+  post,
+  ownerType,
+  ownerId,
+  onDone,
+}: {
+  post: Post;
+  ownerType: PostOwnerType;
+  ownerId: UUID;
+  onDone: () => void;
+}) {
+  const { t } = useTranslation();
+  const { notify } = useToast();
+  const queryClient = useQueryClient();
+  const [body, setBody] = useState(post.body);
+
+  const update = useMutation({
+    mutationFn: () => postsService.update(post.id, { body }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: postKeys.list(ownerType, ownerId) });
+      onDone();
+    },
+    onError: () => notify(t("errors.generic"), "error"),
+  });
+
+  return (
+    <form
+      className="sf-feed-form"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        if (body.trim()) update.mutate();
+      }}
+    >
+      <PostBodyField
+        ownerType={ownerType}
+        ownerId={ownerId}
+        value={body}
+        onChange={setBody}
+        id={`feed-body-edit-${post.id}`}
+        placeholder={t("gruppi.newsBody")}
+        autoFocus
+      />
+      <div className="sf-form__actions">
+        <Button type="button" variant="ghost" onClick={onDone}>
+          {t("common.cancel")}
+        </Button>
+        <Button type="submit" disabled={update.isPending || !body.trim()}>
+          {t("common.save")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 /** Feed shared by clubs and groups (see `backend/db/models/post.py` — a
  * single polymorphic `posts` table instead of one per owner type). Renders
  * the same for both: only `canManage` (create form + moderate any post)
@@ -363,6 +224,7 @@ export function EntityFeed({
   const { notify } = useToast();
   const queryClient = useQueryClient();
   const [composerOpen, setComposerOpen] = useState(false);
+  const [editingId, setEditingId] = useState<UUID | null>(null);
 
   const posts = useQuery({
     queryKey: postKeys.list(ownerType, ownerId),
@@ -410,7 +272,20 @@ export function EntityFeed({
             <div key={p.id} className="sf-feed__post">
               <div className="sf-feed__post-head">
                 <strong>{userLabel(p.author)}</strong>
-                <span className="sf-muted">{fmtDateTime(p.created_at)}</span>
+                <span className="sf-muted">
+                  {fmtDateTime(p.created_at)}
+                  {p.updated_at && ` · ${t("gruppi.postEdited")}`}
+                </span>
+                {p.author_id === user?.id && (
+                  <Button
+                    variant="ghost"
+                    className="sf-btn--icon-sm"
+                    aria-label={t("common.edit")}
+                    onClick={() => setEditingId(p.id)}
+                  >
+                    <Pencil size={14} />
+                  </Button>
+                )}
                 {(canManage || p.author_id === user?.id) && (
                   <Button
                     variant="ghost"
@@ -422,7 +297,16 @@ export function EntityFeed({
                   </Button>
                 )}
               </div>
-              <p className="sf-feed__post-body">{renderPostBody(p.body)}</p>
+              {editingId === p.id ? (
+                <PostEditForm
+                  post={p}
+                  ownerType={ownerType}
+                  ownerId={ownerId}
+                  onDone={() => setEditingId(null)}
+                />
+              ) : (
+                <p className="sf-feed__post-body">{renderPostBody(p.body)}</p>
+              )}
               {p.images.length === 1 ? (
                 <img className="sf-feed__post-image" src={p.images[0].url} alt="" />
               ) : p.images.length > 1 ? (

@@ -2,16 +2,18 @@
 
 Matrix: read = same visibility as the owner (club: always public; group:
 ``can_read_group``); create/delete = ``club_post.manage`` (RBAC scoped) for
-club posts, group owner/admin (``is_group_manager``) for group posts. No
-edit — posts are create/delete only.
+club posts, group owner/admin (``is_group_manager``) for group posts. Edit
+(body only) is author-only, regardless of manage permission — a manager can
+delete someone else's post but not rewrite it.
 """
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 
 from ..auth import current_user, require_permission, require_user, verify_csrf
-from ..schemas import PostCreateModel
+from ..schemas import PostCreateModel, PostUpdateModel
 from ..services import media
 from ._common import can_read_group, is_group_manager, repos, user_summary
 
@@ -84,6 +86,21 @@ def create_post(body: PostCreateModel, request: Request):
     for image_id in body.image_ids:
         repos.posts.add_image(post.id, image_id)
     return _post_payload(post)
+
+
+@router.patch("/{post_id}")
+def update_post(post_id: uuid.UUID, body: PostUpdateModel, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    post = repos.posts.get(post_id)
+    if post is None:
+        raise HTTPException(404, "Post not found")
+    if post.author_id != user.id:
+        raise HTTPException(403, "Only the author can edit this post")
+    if not body.body.strip():
+        raise HTTPException(422, "body is required")
+    updated = repos.posts.update(post_id, {"body": body.body, "updated_at": datetime.now(timezone.utc)})
+    return _post_payload(updated)
 
 
 @router.delete("/{post_id}")

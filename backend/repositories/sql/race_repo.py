@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from ...db.models import RaceDayORM, RaceORM, RegattaORM, ResultORM
 
-_REGATTA_FIELDS = ("name", "description", "club_id", "class_id",
+_REGATTA_FIELDS = ("name", "description", "image_id", "club_id", "class_id",
                    "scoring_system", "start_date", "end_date", "status")
 _RACEDAY_FIELDS = ("regatta_id", "date", "notes")
 _RACE_FIELDS = ("race_day_id", "race_number", "status", "start_time")

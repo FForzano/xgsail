@@ -43,7 +43,7 @@ from .imports import ImportCreateModel, ImportCompleteModel
 from .rbac import UserRoleGrantModel
 from .wind import WindStationWriteModel, WindFetchModel
 from .polar import PolarPointModel, PolarUpsertModel
-from .post import PostCreateModel
+from .post import PostCreateModel, PostUpdateModel
 
 __all__ = [
     "AppConfigUpdateModel",
@@ -90,4 +90,5 @@ __all__ = [
     "PolarPointModel",
     "PolarUpsertModel",
     "PostCreateModel",
+    "PostUpdateModel",
 ]

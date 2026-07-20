@@ -9,8 +9,9 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ..auth import require_permission, verify_csrf
+from ..auth import require_permission, require_user, verify_csrf
 from ..schemas import RegattaWriteModel
+from ..services import media
 from ._common import repos
 
 router = APIRouter(prefix="/api/regattas", tags=["regattas"])
@@ -23,14 +24,21 @@ def _require_regatta(regatta_id: uuid.UUID):
     return regatta
 
 
+def _regatta_payload(regatta) -> dict:
+    d = regatta.to_dict()
+    d["image"] = media.image_payload(regatta.image_id)
+    return d
+
+
 @router.get("")
 def list_regattas(club_id: Optional[uuid.UUID] = None, status: Optional[str] = None):
-    return [r.to_dict() for r in repos.regattas.list(club_id=club_id, status=status)]
+    return [_regatta_payload(r) for r in repos.regattas.list(club_id=club_id, status=status)]
 
 
 @router.get("/{regatta_id}")
 def get_regatta(regatta_id: uuid.UUID):
-    d = _require_regatta(regatta_id).to_dict()
+    regatta = _require_regatta(regatta_id)
+    d = _regatta_payload(regatta)
     d["race_days"] = [rd.to_dict() for rd in repos.racedays.list(regatta_id=regatta_id)]
     return d
 
@@ -43,7 +51,7 @@ def create_regatta(body: RegattaWriteModel, request: Request):
     if repos.clubs.get(body.club_id) is None:
         raise HTTPException(404, "Club not found")
     require_permission(request, "regatta.manage", club_id=body.club_id)
-    return repos.regattas.create(body.model_dump(exclude_unset=True)).to_dict()
+    return _regatta_payload(repos.regattas.create(body.model_dump(exclude_unset=True)))
 
 
 @router.patch("/{regatta_id}")
@@ -53,7 +61,7 @@ def update_regatta(regatta_id: uuid.UUID, body: RegattaWriteModel, request: Requ
     require_permission(request, "regatta.manage", club_id=regatta.club_id)
     changes = body.model_dump(exclude_unset=True)
     changes.pop("club_id", None)  # a regatta doesn't change club
-    return repos.regattas.update(regatta_id, changes).to_dict()
+    return _regatta_payload(repos.regattas.update(regatta_id, changes))
 
 
 @router.delete("/{regatta_id}")
@@ -62,4 +70,29 @@ def delete_regatta(regatta_id: uuid.UUID, request: Request):
     regatta = _require_regatta(regatta_id)
     require_permission(request, "regatta.manage", club_id=regatta.club_id)
     repos.regattas.delete(regatta_id)
+    return {"ok": True}
+
+
+# --- image --------------------------------------------------------------------
+
+@router.post("/{regatta_id}/image")
+def upload_regatta_image(regatta_id: uuid.UUID, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    regatta = _require_regatta(regatta_id)
+    require_permission(request, "regatta.manage", club_id=regatta.club_id)
+    payload = media.create_image_upload(user.id)
+    repos.regattas.update(regatta_id, {"image_id": payload["image_id"]})
+    return payload
+
+
+@router.post("/{regatta_id}/image/{image_id}/confirm")
+def confirm_regatta_image(regatta_id: uuid.UUID, image_id: uuid.UUID, request: Request):
+    verify_csrf(request)
+    regatta = _require_regatta(regatta_id)
+    require_permission(request, "regatta.manage", club_id=regatta.club_id)
+    if regatta.image_id != image_id:
+        raise HTTPException(404, "Image not found")
+    if not media.confirm_image(image_id):
+        raise HTTPException(409, "Image not uploaded yet")
     return {"ok": True}
