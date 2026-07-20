@@ -85,6 +85,17 @@ h1, h2, h3 {
      useSwipeNavigation handles that case itself via preventDefault. */
   touch-action: pan-y;
 }
+.sf-pull-indicator {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+  left: 50%;
+  z-index: 60;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+}
+.sf-pull-indicator--active {
+  opacity: 1;
+}
 .sf-main--wide {
   max-width: none;
 }

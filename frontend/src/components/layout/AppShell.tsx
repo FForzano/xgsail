@@ -1,14 +1,16 @@
 import { useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
 import { Disc, NotebookText, Settings, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useShareTarget } from "@/hooks/useShareTarget";
 import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
+import { PULL_TRIGGER_PX, usePullToRefresh } from "@/hooks/usePullToRefresh";
 import * as nativeRecording from "@/services/nativeRecording";
 import { ToastViewport } from "@/components/ui/ToastViewport";
+import { Spinner } from "@/components/ui/Spinner";
 import { Avatar } from "@/components/ui/Avatar";
 import { ProfileMenu } from "@/components/layout/ProfileMenu";
 import { usersService, userKeys } from "@/services/users";
@@ -88,8 +90,20 @@ export function AppShell() {
     location.pathname,
   );
 
+  // Drag down from the top of the page to refetch whatever's currently on
+  // screen, Instagram/Twitter-style — native only, see usePullToRefresh.
+  const queryClient = useQueryClient();
+  const { pull, refreshing } = usePullToRefresh(() => queryClient.refetchQueries({ type: "active" }));
+
   return (
     <div className="sf-shell">
+      <div
+        className={`sf-pull-indicator ${refreshing ? "sf-pull-indicator--active" : ""}`}
+        style={{ opacity: Math.min(pull / PULL_TRIGGER_PX, 1), transform: `translate(-50%, ${pull}px)` }}
+        aria-hidden={!refreshing}
+      >
+        <Spinner inline />
+      </div>
       <header className="sf-navbar">
         <NavLink to="/" className="sf-navbar__brand">
           <img src="/logo.svg" alt="" className="sf-navbar__logo" />
