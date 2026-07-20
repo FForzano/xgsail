@@ -388,6 +388,17 @@ h1, h2, h3 {
   padding: 0;
   border-radius: 50%;
 }
+/* Toggled-on state for a formatting toolbar button (e.g. Bold when the
+   current selection is already bold) — same idea as the ghost hover but
+   persistent rather than only on :hover. */
+.sf-btn--active {
+  background: color-mix(in srgb, var(--sf-primary) 22%, transparent);
+  border-color: var(--sf-primary);
+  color: var(--sf-primary);
+}
+.sf-btn--active:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sf-primary) 30%, transparent);
+}
 
 /* ---------- Cards / forms / fields ---------- */
 .sf-card {
@@ -1381,7 +1392,9 @@ h1, h2, h3 {
   gap: 0.5rem;
   margin-bottom: 0.3rem;
 }
-.sf-feed__post-head .sf-btn--icon-sm {
+.sf-feed__post-actions {
+  display: flex;
+  gap: 0.25rem;
   margin-left: auto;
 }
 .sf-feed__post-body {

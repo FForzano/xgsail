@@ -276,26 +276,28 @@ export function EntityFeed({
                   {fmtDateTime(p.created_at)}
                   {p.updated_at && ` · ${t("gruppi.postEdited")}`}
                 </span>
-                {p.author_id === user?.id && (
-                  <Button
-                    variant="ghost"
-                    className="sf-btn--icon-sm"
-                    aria-label={t("common.edit")}
-                    onClick={() => setEditingId(p.id)}
-                  >
-                    <Pencil size={14} />
-                  </Button>
-                )}
-                {(canManage || p.author_id === user?.id) && (
-                  <Button
-                    variant="ghost"
-                    className="sf-btn--icon-sm"
-                    aria-label={t("common.delete")}
-                    onClick={() => remove.mutate(p.id)}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                )}
+                <span className="sf-feed__post-actions">
+                  {p.author_id === user?.id && (
+                    <Button
+                      variant="ghost"
+                      className="sf-btn--icon-sm"
+                      aria-label={t("common.edit")}
+                      onClick={() => setEditingId(p.id)}
+                    >
+                      <Pencil size={14} />
+                    </Button>
+                  )}
+                  {(canManage || p.author_id === user?.id) && (
+                    <Button
+                      variant="ghost"
+                      className="sf-btn--icon-sm"
+                      aria-label={t("common.delete")}
+                      onClick={() => remove.mutate(p.id)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  )}
+                </span>
               </div>
               {editingId === p.id ? (
                 <PostEditForm

@@ -1,4 +1,12 @@
-import { useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  type SyntheticEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Bold, Italic, Link2, Underline } from "lucide-react";
@@ -106,6 +114,7 @@ export function PostBodyField({
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const next = e.target.value;
     onChange(next);
+    setSelection({ start: e.target.selectionStart, end: e.target.selectionEnd });
     const caret = e.target.selectionStart;
     const match = MENTION_TRIGGER_RE.exec(next.slice(0, caret));
     if (match) {
@@ -133,20 +142,54 @@ export function PostBodyField({
     }
   };
 
+  // Tracks the textarea's current selection so the toolbar can show a marker
+  // as "active" when it already wraps the selection, and so wrapSelection
+  // below can toggle it off instead of nesting a second copy.
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const trackSelection = (e: SyntheticEvent<HTMLTextAreaElement>) => {
+    setSelection({ start: e.currentTarget.selectionStart, end: e.currentTarget.selectionEnd });
+  };
+
+  /** Whether `before`/`after` sit immediately outside the tracked selection
+   * in `value` right now — i.e. the selection is already wrapped. */
+  const isWrapped = (before: string, after: string = before) =>
+    selection.start >= before.length &&
+    value.slice(selection.start - before.length, selection.start) === before &&
+    value.slice(selection.end, selection.end + after.length) === after;
+
   /** Wraps the current selection (or a placeholder, if nothing is selected)
    * in the given markers — used by the Bold/Italic/Underline toolbar
-   * buttons. Re-selects the wrapped text afterwards so another click keeps
-   * toggling the same span rather than appending markers each time. */
+   * buttons. If the selection is already wrapped, strips the markers instead
+   * (so pressing the same button again toggles it off rather than nesting a
+   * second copy). Re-selects the (un)wrapped text afterwards so another
+   * click keeps toggling the same span. */
   const wrapSelection = (before: string, after: string = before) => {
     const el = textareaRef.current;
     if (!el) return;
     const { selectionStart, selectionEnd } = el;
+    if (isWrapped(before, after)) {
+      const next =
+        value.slice(0, selectionStart - before.length) +
+        value.slice(selectionStart, selectionEnd) +
+        value.slice(selectionEnd + after.length);
+      onChange(next);
+      requestAnimationFrame(() => {
+        el.focus();
+        const start = selectionStart - before.length;
+        el.setSelectionRange(start, start + (selectionEnd - selectionStart));
+        setSelection({ start, end: start + (selectionEnd - selectionStart) });
+      });
+      return;
+    }
     const selected = value.slice(selectionStart, selectionEnd) || t("gruppi.formatPlaceholder");
     const next = value.slice(0, selectionStart) + before + selected + after + value.slice(selectionEnd);
     onChange(next);
     requestAnimationFrame(() => {
       el.focus();
-      el.setSelectionRange(selectionStart + before.length, selectionStart + before.length + selected.length);
+      const start = selectionStart + before.length;
+      const end = start + selected.length;
+      el.setSelectionRange(start, end);
+      setSelection({ start, end });
     });
   };
 
@@ -187,8 +230,9 @@ export function PostBodyField({
         <Button
           type="button"
           variant="ghost"
-          className="sf-btn--icon-sm"
+          className={`sf-btn--icon-sm ${isWrapped("**") ? "sf-btn--active" : ""}`}
           aria-label={t("gruppi.formatBold")}
+          aria-pressed={isWrapped("**")}
           onClick={() => wrapSelection("**")}
         >
           <Bold size={15} />
@@ -196,8 +240,9 @@ export function PostBodyField({
         <Button
           type="button"
           variant="ghost"
-          className="sf-btn--icon-sm"
+          className={`sf-btn--icon-sm ${isWrapped("*") ? "sf-btn--active" : ""}`}
           aria-label={t("gruppi.formatItalic")}
+          aria-pressed={isWrapped("*")}
           onClick={() => wrapSelection("*")}
         >
           <Italic size={15} />
@@ -205,8 +250,9 @@ export function PostBodyField({
         <Button
           type="button"
           variant="ghost"
-          className="sf-btn--icon-sm"
+          className={`sf-btn--icon-sm ${isWrapped("__") ? "sf-btn--active" : ""}`}
           aria-label={t("gruppi.formatUnderline")}
+          aria-pressed={isWrapped("__")}
           onClick={() => wrapSelection("__")}
         >
           <Underline size={15} />
@@ -232,6 +278,9 @@ export function PostBodyField({
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onSelect={trackSelection}
+          onClick={trackSelection}
+          onKeyUp={trackSelection}
           onBlur={() => setTimeout(closeMentions, 150)}
           autoFocus={autoFocus}
           required
