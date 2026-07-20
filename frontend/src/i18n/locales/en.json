@@ -217,6 +217,18 @@
     "newPost": "New post",
     "publish": "Publish",
     "emptyNews": "No news posted yet.",
+    "formatBold": "Bold",
+    "formatItalic": "Italic",
+    "formatUnderline": "Underline",
+    "formatLink": "Insert link",
+    "formatPlaceholder": "text",
+    "linkLabelPlaceholder": "link",
+    "linkUrlPrompt": "Link URL:",
+    "mentionType": {
+      "user": "User",
+      "club": "Club",
+      "group": "Group"
+    },
     "memberCount_one": "{{count}} member",
     "memberCount_other": "{{count}} members",
     "pendingOnly": "Pending only"
@@ -415,6 +427,8 @@
     "races": "Races",
     "newRace": "New race",
     "raceNumber": "Race",
+    "deleteRaceDay": "Delete race day",
+    "confirmDeleteRaceDay": "Delete this race day? Its races and results will be deleted too.",
     "startTime": "Start time",
     "scoring": "Scoring",
     "open": "Open dashboard",

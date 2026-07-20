@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 import { regattasService, racedaysService, racesService, raceKeys } from "@/services/races";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { useToast } from "@/hooks/useToast";
@@ -42,6 +43,11 @@ function RegattaBlock({ regattaId, manage }: { regattaId: UUID; manage: boolean 
     onSuccess: invalidate,
     onError: (err: unknown) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
   });
+  const removeDay = useMutation({
+    mutationFn: (dayId: UUID) => racedaysService.remove(dayId),
+    onSuccess: invalidate,
+    onError: (err: unknown) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
+  });
 
   if (!regatta.data) return null;
 
@@ -55,6 +61,9 @@ function RegattaBlock({ regattaId, manage }: { regattaId: UUID; manage: boolean 
           manage={manage}
           addingRace={addRace.isPending}
           onAddRace={(num) => addRace.mutate({ dayId: day.id, num })}
+          onRemoveDay={() => {
+            if (window.confirm(t("regate.confirmDeleteRaceDay"))) removeDay.mutate(day.id);
+          }}
         />
       ))}
       {manage && (
@@ -87,12 +96,14 @@ function RaceDayRow({
   manage,
   addingRace,
   onAddRace,
+  onRemoveDay,
 }: {
   dayId: UUID;
   date: string;
   manage: boolean;
   addingRace: boolean;
   onAddRace: (num: number) => void;
+  onRemoveDay: () => void;
 }) {
   const { t } = useTranslation();
   const day = useQuery({ queryKey: raceKeys.raceday(dayId), queryFn: () => racedaysService.get(dayId) });
@@ -118,6 +129,16 @@ function RaceDayRow({
             onClick={() => onAddRace((races[races.length - 1]?.race_number ?? 0) + 1)}
           >
             + {t("regate.newRace")}
+          </Button>
+        )}
+        {manage && (
+          <Button
+            variant="ghost"
+            className="sf-btn--icon-sm"
+            aria-label={t("regate.deleteRaceDay")}
+            onClick={onRemoveDay}
+          >
+            <Trash2 size={14} />
           </Button>
         )}
       </span>
@@ -251,14 +272,22 @@ export function ClubEvents({
       endDate: r.end_date,
       regatta: r,
     })),
-    ...(activities.data ?? []).map((a): EventItem => ({
-      kind: "activity",
-      id: a.id,
-      title: a.name ?? t(`activities.types.${a.type}`),
-      date: a.started_at,
-      endDate: null,
-      activity: a,
-    })),
+    // Race-tracking activities (type "race", auto-created off `activities.race_id`
+    // the first time a race's sessions/marks are touched, see
+    // `backend/routers/races.py::_race_activity`) are internal bookkeeping for
+    // that race's GPS data — they're already represented by the race itself
+    // under its regatta above, so listing them again here would just duplicate
+    // the same race as its own unrelated "event".
+    ...(activities.data ?? [])
+      .filter((a) => a.type !== "race")
+      .map((a): EventItem => ({
+        kind: "activity",
+        id: a.id,
+        title: a.name ?? t(`activities.types.${a.type}`),
+        date: a.started_at,
+        endDate: null,
+        activity: a,
+      })),
   ];
 
   const upcoming = items

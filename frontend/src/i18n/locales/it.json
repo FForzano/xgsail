@@ -217,6 +217,18 @@
     "newPost": "Nuova notizia",
     "publish": "Pubblica",
     "emptyNews": "Nessuna notizia pubblicata.",
+    "formatBold": "Grassetto",
+    "formatItalic": "Corsivo",
+    "formatUnderline": "Sottolineato",
+    "formatLink": "Inserisci link",
+    "formatPlaceholder": "testo",
+    "linkLabelPlaceholder": "link",
+    "linkUrlPrompt": "URL del link:",
+    "mentionType": {
+      "user": "Utente",
+      "club": "Circolo",
+      "group": "Gruppo"
+    },
     "memberCount_one": "{{count}} membro",
     "memberCount_other": "{{count}} membri",
     "pendingOnly": "Solo in sospeso"
@@ -415,6 +427,8 @@
     "races": "Prove",
     "newRace": "Nuova prova",
     "raceNumber": "Prova",
+    "deleteRaceDay": "Elimina giornata",
+    "confirmDeleteRaceDay": "Eliminare questa giornata? Verranno eliminate anche le prove e i risultati associati.",
     "startTime": "Orario di partenza",
     "scoring": "Punteggio",
     "open": "Apri dashboard",

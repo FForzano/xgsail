@@ -1384,10 +1384,74 @@ h1, h2, h3 {
 .sf-feed__post-head .sf-btn--icon-sm {
   margin-left: auto;
 }
+.sf-feed__post-body {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.sf-mention {
+  font-weight: 600;
+  color: var(--sf-primary);
+}
+a.sf-mention--link {
+  text-decoration: none;
+}
+a.sf-mention--link:hover {
+  text-decoration: underline;
+}
 .sf-feed__post-image {
   max-width: 100%;
   border-radius: var(--sf-radius);
   margin-top: 0.5rem;
+}
+/* Only the single-image case (an <img> itself carries this class — the
+   multi-image case puts it on the .sf-photo-grid wrapper `<div>` instead,
+   which is already size-constrained per-tile) needs a height cap: a raw
+   source photo has no size limit of its own and was rendering at the full
+   card width on desktop. */
+img.sf-feed__post-image {
+  display: block;
+  width: auto;
+  max-height: 480px;
+  object-fit: contain;
+}
+
+.sf-feed-form__toolbar {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.4rem;
+}
+.sf-feed-form__field {
+  position: relative;
+}
+.sf-feed-form__mentions {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 80;
+}
+.sf-feed-form__mention-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.sf-feed-form__mention-option:hover,
+.sf-feed-form__mention-option--active {
+  background: color-mix(in srgb, var(--sf-primary) 15%, transparent);
+}
+.sf-feed-form__mention-type {
+  color: var(--sf-muted);
+  font-size: 0.75rem;
+  margin-left: auto;
 }
 
 /* ---------- Back link (detail page → its list) ---------- */
