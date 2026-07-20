@@ -50,22 +50,32 @@ export function useDiaryFeed(scope: "personal" | "clubs", t: TFunction) {
   const activityList = useMemo(() => activities.data?.pages.flat() ?? [], [activities.data]);
 
   const items = useMemo<EventItem[]>(() => {
-    const activityItems: EventItem[] = activityList.map((a) => {
-      const ownership: Ownership = a.club_id
-        ? { kind: "club", name: clubName(a.club_id) }
-        : a.group_id
-          ? { kind: "group", name: groupName(a.group_id) }
-          : { kind: "personal" };
-      return {
-        kind: "activity",
-        id: a.id,
-        title: activityDisplayName(a, t),
-        date: a.started_at,
-        endDate: null,
-        activity: a,
-        ownership,
-      };
-    });
+    const activityItems: EventItem[] = activityList
+      // Race-tracking activities (type "race", auto-created off
+      // `activities.race_id` the first time a race's sessions/marks are
+      // touched, see `backend/routers/races.py::_race_activity`) are
+      // internal bookkeeping for that race's GPS data — they're already
+      // represented by the race itself under its regatta below (see
+      // `RegattaRaceDays`), so listing them again here would just
+      // duplicate the same race as its own unrelated card (same filter
+      // `ClubEvents.tsx` already applies).
+      .filter((a) => a.type !== "race")
+      .map((a) => {
+        const ownership: Ownership = a.club_id
+          ? { kind: "club", name: clubName(a.club_id) }
+          : a.group_id
+            ? { kind: "group", name: groupName(a.group_id) }
+            : { kind: "personal" };
+        return {
+          kind: "activity",
+          id: a.id,
+          title: activityDisplayName(a, t),
+          date: a.started_at,
+          endDate: null,
+          activity: a,
+          ownership,
+        };
+      });
     const regattaItems: EventItem[] = (regattas.data ?? []).map((r) => ({
       kind: "regatta",
       id: r.id,
