@@ -87,7 +87,7 @@ export function AppShell() {
   // only — see useAppShellGestures for why both share a single listener.
   const location = useLocation();
   const queryClient = useQueryClient();
-  const { ref: mainRef, pull, refreshing, debug } = useAppShellGestures<HTMLElement>(
+  const { ref: mainRef, pull, refreshing } = useAppShellGestures<HTMLElement>(
     sections.map((s) => s.to),
     location.pathname,
     () => queryClient.refetchQueries({ type: "active" }),
@@ -129,31 +129,6 @@ export function AppShell() {
           <Outlet />
         </PullRefreshProvider>
       </main>
-      {/* TEMPORARY diagnostics overlay — remove once the pull/scroll
-          misclassification bug is confirmed and fixed. The "dbg3" stamp
-          verifies the device is actually running this build (the app has an
-          OTA update path, so a stale bundle is a live possibility): if the
-          overlay doesn't say dbg3, every conclusion drawn from it is void. */}
-      {Capacitor.isNativePlatform() && (
-        <div
-          style={{
-            position: "fixed",
-            top: "env(safe-area-inset-top, 0px)",
-            left: 0,
-            right: 0,
-            zIndex: 9999,
-            background: "rgba(0,0,0,0.75)",
-            color: "#0f0",
-            fontSize: 11,
-            padding: "2px 6px",
-            pointerEvents: "none",
-            fontFamily: "monospace",
-            whiteSpace: "pre-line",
-          }}
-        >
-          {`dbg3\n${debug}`}
-        </div>
-      )}
       <nav className="sf-actionbar" aria-label="Main">
         {sections.map((s) => (
           <NavLink key={s.to} to={s.to} className="sf-actionbar__item">
