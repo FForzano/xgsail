@@ -68,11 +68,15 @@ export function useAppShellGestures<T extends HTMLElement>(
   paths: string[],
   currentPath: string,
   onRefresh: () => Promise<unknown>,
-): { ref: MutableRefObject<T | null>; pull: number; refreshing: boolean } {
+): { ref: MutableRefObject<T | null>; pull: number; refreshing: boolean; debug: string } {
   const navigate = useNavigate();
   const ref = useRef<T | null>(null);
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // TEMPORARY diagnostics — remove once the pull/scroll misclassification
+  // bug is confirmed and fixed. Surfaces what onTouchStart/onTouchMove
+  // actually read, since it can't be inspected via devtools on a native build.
+  const [debug, setDebug] = useState("");
   // Re-read on every touchend via refs (not state) so the listeners set up
   // once in the effect below always see the latest route/path list/callback.
   const pathsRef = useRef(paths);
@@ -122,6 +126,7 @@ export function useAppShellGestures<T extends HTMLElement>(
       // comment for why the passive/non-passive choice can't be changed
       // once the gesture is under way.
       el.addEventListener("touchmove", onTouchMove, { passive: !pullCandidate });
+      setDebug(`start scrollTop=${scrollTop()} candidate=${pullCandidate}`);
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -149,6 +154,7 @@ export function useAppShellGestures<T extends HTMLElement>(
           // fast path.
           locked = "v";
         }
+        setDebug(`lock=${locked} scrollTop=${scrollTop()} dx=${dx.toFixed(0)} dy=${dy.toFixed(0)} candidate=${pullCandidate}`);
       }
       if (locked === "h") {
         // No preventDefault: there's no horizontal overflow for a native pan
@@ -248,5 +254,5 @@ export function useAppShellGestures<T extends HTMLElement>(
     };
   }, [navigate]);
 
-  return { ref, pull, refreshing };
+  return { ref, pull, refreshing, debug };
 }
