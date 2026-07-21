@@ -74,8 +74,12 @@ export function useAppShellGestures<T extends HTMLElement>(
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   // TEMPORARY diagnostics — remove once the pull/scroll misclassification
-  // bug is confirmed and fixed. Surfaces what onTouchStart/onTouchMove
-  // actually read, since it can't be inspected via devtools on a native build.
+  // bug is confirmed and fixed. A per-gesture event log (touchstart params,
+  // first moves, lock decision, every preventDefault, touchend + a delayed
+  // "settle" scrollTop to catch snap-backs), flushed to state ONLY when the
+  // finger lifts: a state update mid-gesture re-renders the whole shell right
+  // as the scroll starts, which both pollutes the measurement and is itself
+  // a paint-stall suspect. Can't be inspected via devtools on a native build.
   const [debug, setDebug] = useState("");
   // Re-read on every touchend via refs (not state) so the listeners set up
   // once in the effect below always see the latest route/path list/callback.
@@ -102,6 +106,19 @@ export function useAppShellGestures<T extends HTMLElement>(
     // scoped this tightly).
     let pullCandidate = false;
 
+    // TEMPORARY diagnostics (see the `debug` state comment above). One log
+    // per gesture, previous gesture kept so a quick corrective tap doesn't
+    // erase the interesting one.
+    let gestureLog: string[] = [];
+    let prevGestureLog: string[] = [];
+    let moveCount = 0;
+    let pdCount = 0;
+    let settleTimer = 0;
+    const logLine = (line: string) => {
+      if (gestureLog.length < 14) gestureLog.push(line);
+    };
+    const flushLog = () => setDebug([...prevGestureLog, ...gestureLog].join("\n"));
+
     const setTransform = (dx: number, easing: "out" | "in" | false) => {
       el.style.transition = easing ? `transform ${SLIDE_MS}ms ease-${easing}` : "none";
       el.style.transform = dx === 0 ? "" : `translateX(${dx}px)`;
@@ -126,13 +143,27 @@ export function useAppShellGestures<T extends HTMLElement>(
       // comment for why the passive/non-passive choice can't be changed
       // once the gesture is under way.
       el.addEventListener("touchmove", onTouchMove, { passive: !pullCandidate });
-      setDebug(`start scrollTop=${scrollTop()} candidate=${pullCandidate}`);
+      window.clearTimeout(settleTimer);
+      if (gestureLog.length) prevGestureLog = gestureLog;
+      gestureLog = [];
+      moveCount = 0;
+      pdCount = 0;
+      logLine(`▼start sT=${scrollTop().toFixed(1)} cand=${pullCandidate}`);
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (!origin) return;
       const dx = e.touches[0].clientX - origin.x;
       const dy = e.touches[0].clientY - origin.y;
+      // `cancelable` is the ground truth on whether this event COULD be
+      // preventDefault-ed (i.e. whether the browser is still consulting JS
+      // or native scrolling has already irrevocably taken over).
+      moveCount += 1;
+      if (moveCount <= 3) {
+        logLine(
+          `mv${moveCount} dx=${dx.toFixed(0)} dy=${dy.toFixed(0)} sT=${scrollTop().toFixed(1)} canc=${e.cancelable}`,
+        );
+      }
       if (!locked) {
         if (Math.abs(dx) < DIRECTION_LOCK_PX && Math.abs(dy) < DIRECTION_LOCK_PX) return;
         if (pullCandidate && scrollTop() <= 1 && dy > 0 && Math.abs(dy) >= Math.abs(dx)) {
@@ -154,7 +185,7 @@ export function useAppShellGestures<T extends HTMLElement>(
           // fast path.
           locked = "v";
         }
-        setDebug(`lock=${locked} scrollTop=${scrollTop()} dx=${dx.toFixed(0)} dy=${dy.toFixed(0)} candidate=${pullCandidate}`);
+        logLine(`LOCK=${locked} dx=${dx.toFixed(0)} dy=${dy.toFixed(0)} sT=${scrollTop().toFixed(1)}`);
       }
       if (locked === "h") {
         // No preventDefault: there's no horizontal overflow for a native pan
@@ -167,6 +198,8 @@ export function useAppShellGestures<T extends HTMLElement>(
         // reading doesn't abort a pull that's already legitimately underway.
         if (scrollTop() > 1) return;
         e.preventDefault();
+        pdCount += 1;
+        if (pdCount <= 2) logLine(`PD#${pdCount} dy=${dy.toFixed(0)} canc=${e.cancelable}`);
         pullDistance = Math.min(dy * RESISTANCE, MAX_PULL_PX);
         setPull(pullDistance);
       }
@@ -221,9 +254,22 @@ export function useAppShellGestures<T extends HTMLElement>(
       pullDistance = 0;
     };
 
+    // The delayed re-read shows whether scrollTop kept moving (momentum),
+    // stayed (a scroll that worked), or SNAPPED BACK after the finger lifted
+    // — the reported symptom — and to what value.
+    const logEnd = (kind: string) => {
+      logLine(`▲${kind} lock=${locked} mv=${moveCount} pd=${pdCount} sT=${scrollTop().toFixed(1)}`);
+      flushLog();
+      settleTimer = window.setTimeout(() => {
+        logLine(`settle sT=${scrollTop().toFixed(1)}`);
+        flushLog();
+      }, 400);
+    };
+
     const onTouchEnd = (e: TouchEvent) => {
       detachMove();
       if (!origin) return;
+      logEnd("end");
       const dx = e.changedTouches[0].clientX - origin.x;
       const wasLocked = locked;
       origin = null;
@@ -234,6 +280,7 @@ export function useAppShellGestures<T extends HTMLElement>(
 
     const onTouchCancel = () => {
       detachMove();
+      logEnd("CANCEL");
       const wasLocked = locked;
       origin = null;
       locked = null;
@@ -247,6 +294,7 @@ export function useAppShellGestures<T extends HTMLElement>(
     el.addEventListener("touchend", onTouchEnd, { passive: true });
     el.addEventListener("touchcancel", onTouchCancel, { passive: true });
     return () => {
+      window.clearTimeout(settleTimer);
       el.removeEventListener("touchstart", onTouchStart);
       detachMove();
       el.removeEventListener("touchend", onTouchEnd);

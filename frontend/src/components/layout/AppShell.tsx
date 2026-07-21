@@ -130,12 +130,15 @@ export function AppShell() {
         </PullRefreshProvider>
       </main>
       {/* TEMPORARY diagnostics overlay — remove once the pull/scroll
-          misclassification bug is confirmed and fixed. */}
+          misclassification bug is confirmed and fixed. The "dbg3" stamp
+          verifies the device is actually running this build (the app has an
+          OTA update path, so a stale bundle is a live possibility): if the
+          overlay doesn't say dbg3, every conclusion drawn from it is void. */}
       {Capacitor.isNativePlatform() && (
         <div
           style={{
             position: "fixed",
-            top: 0,
+            top: "env(safe-area-inset-top, 0px)",
             left: 0,
             right: 0,
             zIndex: 9999,
@@ -145,9 +148,10 @@ export function AppShell() {
             padding: "2px 6px",
             pointerEvents: "none",
             fontFamily: "monospace",
+            whiteSpace: "pre-line",
           }}
         >
-          {debug}
+          {`dbg3\n${debug}`}
         </div>
       )}
       <nav className="sf-actionbar" aria-label="Main">
