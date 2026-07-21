@@ -130,8 +130,16 @@ export function useAppShellGestures<T extends HTMLElement>(
       const dy = e.touches[0].clientY - origin.y;
       if (!locked) {
         if (Math.abs(dx) < DIRECTION_LOCK_PX && Math.abs(dy) < DIRECTION_LOCK_PX) return;
-        if (pullCandidate && dy > 0 && Math.abs(dy) >= Math.abs(dx)) {
+        if (pullCandidate && scrollTop() <= 1 && dy > 0 && Math.abs(dy) >= Math.abs(dx)) {
           // Vertical, dragging down, already at the very top → pull-to-refresh.
+          // `pullCandidate` alone isn't enough here: it's a touchstart-time
+          // snapshot, but by now the gesture has already moved past
+          // DIRECTION_LOCK_PX — plenty of time for native scroll to have
+          // legitimately started (there was more content above after all).
+          // Re-checking scrollTop live catches that case; without it, we'd
+          // lock "pull" and preventDefault a scroll that's already under
+          // way, which snaps it back to where it started instead of letting
+          // it continue.
           locked = "pull";
         } else if (Math.abs(dx) > Math.abs(dy) * H_LOCK_BIAS) {
           locked = "h";
