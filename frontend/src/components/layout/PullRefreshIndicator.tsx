@@ -1,5 +1,5 @@
 import { usePullRefreshState } from "@/contexts/PullRefreshContext";
-import { PULL_TRIGGER_PX } from "@/hooks/usePullToRefresh";
+import { PULL_TRIGGER_PX } from "@/hooks/useAppShellGestures";
 import { Spinner } from "@/components/ui/Spinner";
 
 /** Renders the pull-to-refresh reveal strip — see SectionLayout, which

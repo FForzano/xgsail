@@ -82,7 +82,7 @@ h1, h2, h3 {
   padding: 1.25rem 1.25rem 3rem;
   /* Tells the browser up front that vertical scroll is native and it
      shouldn't wait to see if a touch turns into a horizontal gesture —
-     useSwipeNavigation handles that case itself via preventDefault. */
+     useAppShellGestures handles that case itself via preventDefault. */
   touch-action: pan-y;
 }
 /* Pull-to-refresh gap: an empty, growing strip revealed below the section's
@@ -90,7 +90,7 @@ h1, h2, h3 {
    down from the top of the page — the page "keeps scrolling" into nothing,
    with the spinner sitting in that nothing, rather than an indicator
    overlaid on top of content, and the tab bar itself stays put instead of
-   being pushed down. Height is driven live by usePullToRefresh's `pull` px
+   being pushed down. Height is driven live by useAppShellGestures' `pull` px
    during the drag; the transition only matters for the snap-back/settle
    once the finger lifts. */
 .sf-pull-refresh {

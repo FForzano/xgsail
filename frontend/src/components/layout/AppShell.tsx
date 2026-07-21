@@ -6,8 +6,7 @@ import { Capacitor } from "@capacitor/core";
 import { Disc, NotebookText, Settings, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useShareTarget } from "@/hooks/useShareTarget";
-import { useSwipeNavigation } from "@/hooks/useSwipeNavigation";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { useAppShellGestures } from "@/hooks/useAppShellGestures";
 import { PullRefreshProvider } from "@/contexts/PullRefreshContext";
 import * as nativeRecording from "@/services/nativeRecording";
 import { ToastViewport } from "@/components/ui/ToastViewport";
@@ -82,18 +81,17 @@ export function AppShell() {
   ];
   const navLinkSections = sections.filter((s) => s.to !== "/profilo");
 
-  // Drag left/right within the page to switch between the action bar's
-  // sections, Instagram-tab-style — same order as the bar itself.
+  // One touch-gesture recognizer on <main> drives both: drag left/right to
+  // switch between the action bar's sections (same order as the bar), and
+  // drag down from the very top to refetch whatever's on screen. Native
+  // only — see useAppShellGestures for why both share a single listener.
   const location = useLocation();
-  const mainRef = useSwipeNavigation<HTMLElement>(
+  const queryClient = useQueryClient();
+  const { ref: mainRef, pull, refreshing } = useAppShellGestures<HTMLElement>(
     sections.map((s) => s.to),
     location.pathname,
+    () => queryClient.refetchQueries({ type: "active" }),
   );
-
-  // Drag down from the top of the page to refetch whatever's currently on
-  // screen, Instagram/Twitter-style — native only, see usePullToRefresh.
-  const queryClient = useQueryClient();
-  const { pull, refreshing } = usePullToRefresh(() => queryClient.refetchQueries({ type: "active" }));
 
   return (
     <div className="sf-shell">
