@@ -395,6 +395,7 @@
     },
     "newActivity": "Nuova attività",
     "boats": "Barche",
+    "boatsHint": "Tocca una barca per vedere l'analisi completa della sessione",
     "map": "Mappa",
     "rename": "Rinomina",
     "namePlaceholder": "Nome attività",

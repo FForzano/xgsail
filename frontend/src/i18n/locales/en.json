@@ -395,6 +395,7 @@
     },
     "newActivity": "New activity",
     "boats": "Boats",
+    "boatsHint": "Tap a boat to see its full session analysis",
     "map": "Map",
     "rename": "Rename",
     "namePlaceholder": "Activity name",

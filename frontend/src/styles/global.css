@@ -508,6 +508,12 @@ h1, h2, h3 {
   padding-left: 1.25rem;
   padding-right: 1.25rem;
 }
+/* For a Card with no title/actions (no .sf-card__head rendered at all) —
+   its own top padding, meant to sit above that row, otherwise reads as a
+   stray gap before the content when there's no row to space out. */
+.sf-card--flush-top {
+  padding-top: 0;
+}
 .sf-card__pad {
   padding: 0 1.25rem;
 }
