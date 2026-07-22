@@ -20,6 +20,17 @@ name: Android release
 # See frontend/android/keystore.properties.example for how to generate
 # the keystore itself (one-time, keep it safe — losing it means you can
 # never publish an update under the same app identity again).
+#
+# Tags must be plain `vMAJOR.MINOR.PATCH` (e.g. v1.4.2, no pre-release
+# suffix) — the "Derive version from tag" step below turns that into the
+# app's versionName ("1.4.2") directly. versionCode instead comes from a
+# Unix timestamp in *minutes* (not the tag): Play Store requires versionCode
+# to strictly increase on every upload, including repeat uploads for the
+# same tag (e.g. rebuilding after a signing fix without cutting a new tag),
+# which a value derived only from the tag can't guarantee. Minutes rather
+# than seconds because versionCode is a 32-bit int capped by Play Store at
+# 2,100,000,000 — an epoch in seconds would hit that ceiling in ~11 years,
+# in minutes it's effectively never (millennia).
 
 on:
   push:
@@ -32,6 +43,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # `secrets` isn't a valid context inside `if:` (GitHub Actions only
+      # allows it in `run:`/`with:`/`env:`) — route it through `env:` here
+      # so the "Write release signing config" step's `if:` can read it.
+      HAS_ANDROID_SIGNING: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -62,8 +78,23 @@ jobs:
         working-directory: frontend
         run: npx cap sync android
 
+      # No tag (workflow_dispatch test run) -> gradle_args stays empty and
+      # app/build.gradle's own defaults (versionCode 1, versionName
+      # "0.0.0-dev") apply. Those runs never publish anyway (see the
+      # "Publish GitHub Release" step's tag guard below).
+      - name: Derive version from tag
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            CODE=$(( $(date -u +%s) / 60 ))
+            echo "gradle_args=-PandroidVersionName=$VERSION -PandroidVersionCode=$CODE" >> "$GITHUB_OUTPUT"
+          else
+            echo "gradle_args=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Write release signing config
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.HAS_ANDROID_SIGNING == 'true'
         working-directory: frontend/android
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
@@ -76,7 +107,7 @@ jobs:
 
       - name: Build release APK
         working-directory: frontend/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon ${{ steps.version.outputs.gradle_args }}
 
       - name: Locate APK
         id: apk

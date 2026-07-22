@@ -79,12 +79,31 @@ absent, so local `./gradlew assembleRelease` keeps working either way. A
 `play-store-upload` job in the same workflow is scaffolded but disabled
 (`if: false`) pending a Play Console service account.
 
+**Versioning**: push `vMAJOR.MINOR.PATCH` (e.g. `v1.4.2`, no pre-release
+suffix) and the workflow's "Derive version from tag" step maps it to
+`versionName "1.4.2"` directly. `versionCode` instead comes from a Unix
+timestamp in *minutes* (`epoch / 60`), not the tag — Play Store requires
+`versionCode` to strictly increase on *every* upload, including repeat
+uploads for the same tag (e.g. rebuilding after a signing fix without
+cutting a new tag), which a tag-derived value can't guarantee. Minutes
+rather than seconds because `versionCode` is a 32-bit int Play Store caps
+at 2,100,000,000 — seconds would hit that ceiling in ~11 years, minutes
+effectively never. Both values are passed to Gradle as
+`-PandroidVersionName`/`-PandroidVersionCode` (`app/build.gradle` reads
+them, falling back to a fixed dev version when absent).
+
 `.github/workflows/ios-release.yml` is scaffolded the same way but
 entirely disabled — unlike Android, iOS has no self-signed path to an
 installable build at all (see "Testing without a paid Apple account"
 below), so it needs a paid Apple Developer Program account plus Fastlane
 `match`/App Store Connect API credentials before it can run. See the
-comment block at the top of that file for the exact setup steps.
+comment block at the top of that file for the exact setup steps. Its
+"Derive version from tag" step mirrors Android's exactly: tag ->
+`CFBundleShortVersionString` directly, and the same Unix-timestamp-in-
+minutes encoding as Android's `versionCode` for `CFBundleVersion` — one
+mental model for both platforms, even though iOS has no equivalent of
+Play Store's 2,100,000,000 `versionCode` ceiling that made minutes
+necessary for Android in the first place.
 
 ## GPX share-target flow
 

@@ -17,9 +17,24 @@ name: iOS release
 #   2. Create an App Store Connect API key for unattended `pilot`/`deliver`
 #      uploads — secrets: APP_STORE_CONNECT_API_KEY_ID,
 #      APP_STORE_CONNECT_API_ISSUER_ID, APP_STORE_CONNECT_API_KEY_CONTENT.
-#   3. Replace the placeholder step below with the real Fastlane lane
-#      (build + `pilot` upload to TestFlight), then flip `if: false` to
-#      `if: true`.
+#   3. Replace the placeholder step below with the real Fastlane lane (build
+#      + `pilot` upload to TestFlight), feeding it $MARKETING_VERSION /
+#      $BUILD_NUMBER from the "Derive version from tag" step — e.g. via
+#      xcodebuild's MARKETING_VERSION=/CURRENT_PROJECT_VERSION= build
+#      setting overrides, or fastlane's `increment_version_number(
+#      version_number: ENV["MARKETING_VERSION"])` / `increment_build_number(
+#      build_number: ENV["BUILD_NUMBER"])`. Then flip `if: false` to `if:
+#      true`.
+#
+# Versioning mirrors android-release.yml: tag -> CFBundleShortVersionString
+# directly, and CFBundleVersion (build number) from a Unix timestamp in
+# minutes (epoch / 60), same encoding as Android's versionCode — not tag
+# derived, since Apple requires CFBundleVersion to strictly increase on
+# every upload to App Store Connect, even repeat uploads for the same tag
+# (e.g. fixing a rejected TestFlight build without cutting a new tag).
+# iOS has no equivalent of Play Store's 2,100,000,000 versionCode ceiling,
+# so minutes aren't required here the way they are for Android — kept
+# anyway so both workflows use one mental model instead of two.
 
 on:
   push:
@@ -54,7 +69,24 @@ jobs:
         working-directory: frontend
         run: npx cap sync ios
 
+      # No tag (workflow_dispatch test run) -> MARKETING_VERSION stays empty;
+      # whatever real build step replaces the placeholder below should treat
+      # that the same way android-release.yml treats an empty gradle_args —
+      # skip publishing rather than uploading a fake version to TestFlight.
+      - name: Derive version from tag
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "marketing_version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "marketing_version=" >> "$GITHUB_OUTPUT"
+          fi
+          echo "build_number=$(( $(date -u +%s) / 60 ))" >> "$GITHUB_OUTPUT"
+
       - name: Build, sign and upload to TestFlight
+        env:
+          MARKETING_VERSION: ${{ steps.version.outputs.marketing_version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
         run: |
           echo "Not yet configured — needs Fastlane + an Apple Developer" \
                "Program account. See the comment block at the top of" \

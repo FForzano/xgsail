@@ -19,8 +19,15 @@ android {
         applicationId "com.xgsail.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Set from the release git tag by android-release.yml: -PandroidVersionName=1.4.2
+        // comes straight from the tag, -PandroidVersionCode is a Unix timestamp in minutes
+        // (not tag-derived — Play Store requires versionCode to strictly increase on every
+        // upload, even repeat uploads for the same tag) — see the workflow's "Derive
+        // version from tag" step. Falls back to a fixed dev version for local builds and
+        // workflow_dispatch test runs with no tag, which never get signingConfig either,
+        // so they can never reach the Play Store to collide with a real versionCode.
+        versionCode project.hasProperty('androidVersionCode') ? (project.property('androidVersionCode') as Integer) : 1
+        versionName project.hasProperty('androidVersionName') ? project.property('androidVersionName') : '0.0.0-dev'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
