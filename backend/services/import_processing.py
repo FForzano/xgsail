@@ -104,32 +104,22 @@ def complete_import(import_row, *, boat_id: uuid.UUID,
     repos.ingest.update_upload(upload.id, {"raw_ref": raw_key})
 
     if is_gpx:
-        prefix = ingestion.processed_prefix(upload.id)
-        data_ref = f"{prefix}gps.json"
-        blob.put_json(data_ref, points)
-        repos.ingest.upsert_streams(upload.id, [{
-            "sensor_type": "gps", "data_ref": data_ref,
-            "sample_rate_hz": None, "row_count": len(points),
-        }])
-        repos.ingest.set_upload_status(upload.id, "processed")
+        # register_gps_stream writes gps.json, upserts the stream row, marks
+        # the upload processed, rolls up the session, and pre-fetches the wind
+        # cache inline (fast, local) so it's ready by the time the
+        # background-dispatched worker run picks it up — the worker call
+        # itself is the slow part (up to WORKER_TIMEOUT_SEC), backgrounded so
+        # this request doesn't block on it; analysis is best-effort, the gps
+        # stream is already registered regardless of how it turns out.
+        ingestion.register_gps_stream(
+            upload.id, session.id, points, started_at, ended_at,
+            background_tasks=background_tasks,
+        )
         repos.ingest.update_import(import_row.id, {"status": "processed"})
-        repos.sessions.rollup_status(session.id)
-        # Pre-fetch inline (fast, local) so the cache is ready by the time the
-        # background-dispatched worker run picks it up; the worker call itself
-        # is the slow part (up to WORKER_TIMEOUT_SEC) so it's backgrounded to
-        # keep this request from blocking on it — analysis is best-effort, the
-        # gps stream is already registered regardless of how it turns out.
-        try:
-            waypoints = ingestion.sample_wind_waypoints(points)
-            ingestion.write_wind_cache(prefix, waypoints, started_at, ended_at)
-        except Exception:
-            pass
-        background_tasks.add_task(ingestion.dispatch_analysis, ingestion.bucket_name(), prefix)
     else:
         # Copy into the standard device-upload layout; the storage event on the
         # copied key drives the worker → callback pipeline from here.
-        target_key = ingestion.upload_raw_key(upload.id, import_row.original_filename)
-        blob.put_bytes(target_key, blob.get_bytes(raw_key))
+        ingestion.stage_raw_upload(upload.id, import_row.original_filename, blob.get_bytes(raw_key))
         repos.ingest.update_import(import_row.id, {"status": "processed"})
 
     return {

@@ -163,7 +163,27 @@
     "revokeConfirm": "Revocare questo dispositivo? Non potrà più caricare dati.",
     "status": { "unclaimed": "Non registrato", "claimed": "Registrato", "revoked": "Revocato" },
     "empty": "Nessun dispositivo — registra il tuo primo dispositivo.",
-    "externalId": "ID hardware"
+    "externalId": "ID hardware",
+    "add": {
+      "title": "Aggiungi dispositivo",
+      "xgsailE1": "XGSail E1",
+      "xgsailE1Hint": "Tracker GPS/vento, si accoppia via Bluetooth",
+      "appleWatch": "Apple Watch",
+      "garmin": "Garmin",
+      "polar": "Polar",
+      "soon": "In arrivo",
+      "nativeOnly": "Apri l'app XGSail per aggiungere questo dispositivo",
+      "personalOnly": "Solo dispositivi personali — collega il tuo smartwatch dal profilo"
+    },
+    "ble": {
+      "scan": "Cerca dispositivi",
+      "scanning": "Ricerca dispositivi nelle vicinanze…",
+      "noneFound": "Nessun dispositivo trovato. Assicurati che sia acceso e vicino.",
+      "rescan": "Cerca di nuovo",
+      "connect": "Connetti",
+      "connecting": "Connessione…",
+      "claiming": "Registrazione dispositivo…"
+    }
   },
   "gruppi": {
     "groups": "Gruppi",

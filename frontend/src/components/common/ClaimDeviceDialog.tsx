@@ -1,19 +1,31 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Capacitor } from "@capacitor/core";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { devicesService, deviceKeys } from "@/services/devices";
-import { useCountdown, fmtCountdown } from "@/hooks/useCountdown";
+import * as nativeBle from "@/services/nativeBle";
+import type { ScannedDevice } from "@/services/nativeBle";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
 import { InputField } from "@/components/ui/InputField";
+import { Spinner } from "@/components/ui/Spinner";
 import { ApiError } from "@/api/client";
-import type { ClaimTicket, UUID } from "@/types";
+import type { UUID } from "@/types";
 import styles from "./deviceClaim.module.css";
 
-/** Claim flow (docs/device-protocol.md §2), reused for personal, boat and
- * club devices via `owner`: mint a code, show it with an expiry countdown,
- * poll until the device confirms. */
+// The XGSail E1's device-type row is still seeded as "SailFrames E1" (see
+// backend/auth/seed.py) — matching on `parser_key` rather than `name` keeps
+// this working regardless of whether/when that display name gets renamed,
+// and (unlike `category`, which "Generic GPX" also shares) it uniquely
+// identifies the E1 hardware adapter.
+const XGSAIL_E1_PARSER_KEY = "sailframes_e1_csv";
+
+type Phase = "idle" | "scanning" | "select" | "claiming" | "done";
+
+/** XGSail E1 claim flow over BLE (docs/device-protocol.md §8.3) — reused for
+ * personal, boat and club devices via `owner`. Native-app-only (opened from
+ * AddDeviceDialog only when `Capacitor.isNativePlatform()`); the guard below
+ * is defensive in case this is ever reached another way. */
 export function ClaimDeviceDialog({
   owner,
   onClose,
@@ -23,41 +35,45 @@ export function ClaimDeviceDialog({
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [typeId, setTypeId] = useState("");
+  const [phase, setPhase] = useState<Phase>("idle");
   const [nickname, setNickname] = useState("");
-  const [ticket, setTicket] = useState<ClaimTicket | null>(null);
+  const [found, setFound] = useState<ScannedDevice[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [claimed, setClaimed] = useState<{ externalId: string } | null>(null);
 
-  const types = useQuery({ queryKey: deviceKeys.types, queryFn: devicesService.listTypes });
-  const remaining = useCountdown(ticket?.expires_at ?? null);
-
-  // Poll the claimed status while the code is displayed.
-  const claimed = useQuery({
-    queryKey: ticket ? deviceKeys.detail(ticket.device_id) : ["devices", "none"],
-    queryFn: () => devicesService.get(ticket!.device_id),
-    enabled: ticket !== null,
-    refetchInterval: (q) => (q.state.data?.status === "claimed" ? false : 5000),
-  });
-  const isClaimed = claimed.data?.status === "claimed";
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      setTicket(
-        await devicesService.createClaim({
-          device_type_id: typeId,
-          nickname: nickname || undefined,
-          ...owner,
-        }),
-      );
+  const claim = useMutation({
+    mutationFn: async (scanned: ScannedDevice) => {
+      const types = await devicesService.listTypes();
+      const deviceType = types.find((dt) => dt.parser_key === XGSAIL_E1_PARSER_KEY);
+      if (!deviceType) throw new Error("XGSail E1 device type not found");
+      const ticket = await devicesService.createClaim({
+        device_type_id: deviceType.id,
+        nickname: nickname || undefined,
+        ...owner,
+      });
+      return nativeBle.claimDevice(scanned, ticket.claim_code);
+    },
+    onSuccess: async (result) => {
+      setClaimed({ externalId: result.externalId });
+      setPhase("done");
       await queryClient.invalidateQueries({ queryKey: deviceKeys.all });
+    },
+    onError: (err) => {
+      setError(err instanceof ApiError ? err.detail : err instanceof Error ? err.message : t("errors.generic"));
+      setPhase("select");
+    },
+  });
+
+  const scan = async () => {
+    setError(null);
+    setPhase("scanning");
+    try {
+      const devices = await nativeBle.scanForDevices();
+      setFound(devices);
+      setPhase("select");
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : t("errors.generic"));
-    } finally {
-      setBusy(false);
+      setError(err instanceof Error ? err.message : t("errors.generic"));
+      setPhase("idle");
     }
   };
 
@@ -66,26 +82,67 @@ export function ClaimDeviceDialog({
     onClose();
   };
 
+  if (!Capacitor.isNativePlatform()) {
+    return (
+      <Modal title={t("devices.claim")} onClose={onClose}>
+        <p className="sf-muted">{t("devices.add.nativeOnly")}</p>
+      </Modal>
+    );
+  }
+
   return (
     <Modal title={t("devices.claim")} onClose={close}>
-      {!ticket ? (
-        <form onSubmit={submit}>
-          <Select
-            label={t("devices.type")}
-            id="claim-type"
-            value={typeId}
-            onChange={(e) => setTypeId(e.target.value)}
-            required
-          >
-            <option value="" disabled>
-              …
-            </option>
-            {types.data?.map((dt) => (
-              <option key={dt.id} value={dt.id}>
-                {dt.name} ({dt.category})
-              </option>
-            ))}
-          </Select>
+      {phase === "done" && claimed ? (
+        <>
+          <p className="sf-badge sf-badge--success">{t("devices.claimed")}</p>
+          <p>
+            {nickname || ""} <span className="sf-muted">{claimed.externalId}</span>
+          </p>
+          <div className="sf-form__actions">
+            <Button onClick={close}>{t("common.close")}</Button>
+          </div>
+        </>
+      ) : phase === "scanning" || phase === "claiming" ? (
+        <>
+          <Spinner />
+          <p className={styles.countdown}>
+            {phase === "scanning" ? t("devices.ble.scanning") : t("devices.ble.claiming")}
+          </p>
+        </>
+      ) : phase === "select" ? (
+        <>
+          {found.length === 0 ? (
+            <p className="sf-muted">{t("devices.ble.noneFound")}</p>
+          ) : (
+            <div className="sf-strip">
+              {found.map((d) => (
+                <div key={d.bleId} className="sf-strip__item">
+                  <span>{d.name ?? d.bleId}</span>
+                  <Button
+                    className="sf-btn--sm"
+                    onClick={() => {
+                      setPhase("claiming");
+                      claim.mutate(d);
+                    }}
+                  >
+                    {t("devices.ble.connect")}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          {error && <p className="sf-form__error">{error}</p>}
+          <div className="sf-form__actions">
+            <Button variant="ghost" onClick={() => void scan()}>
+              {t("devices.ble.rescan")}
+            </Button>
+            <Button variant="ghost" onClick={close}>
+              {t("common.close")}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
           <InputField
             label={t("devices.nickname")}
             id="claim-nickname"
@@ -94,44 +151,7 @@ export function ClaimDeviceDialog({
           />
           {error && <p className="sf-form__error">{error}</p>}
           <div className="sf-form__actions">
-            <Button type="submit" disabled={busy || !typeId}>
-              {t("common.create")}
-            </Button>
-          </div>
-        </form>
-      ) : isClaimed ? (
-        <>
-          <p className="sf-badge sf-badge--success">{t("devices.claimed")}</p>
-          <p>
-            {claimed.data?.nickname ?? ""}{" "}
-            <span className="sf-muted">{claimed.data?.external_id}</span>
-          </p>
-          <div className="sf-form__actions">
-            <Button onClick={close}>{t("common.close")}</Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className={styles.claimcode}>{ticket.claim_code}</div>
-          {remaining > 0 ? (
-            <p className={styles.countdown}>{fmtCountdown(remaining)}</p>
-          ) : (
-            <p className="sf-form__error">{t("devices.claimExpired")}</p>
-          )}
-          <p className="sf-muted">{t("devices.claimHint")}</p>
-          <p className="sf-muted">{t("devices.waiting")}</p>
-          <div className="sf-form__actions">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                void navigator.clipboard.writeText(ticket.claim_code);
-              }}
-            >
-              {t("common.copy")}
-            </Button>
-            <Button variant="ghost" onClick={close}>
-              {t("common.close")}
-            </Button>
+            <Button onClick={() => void scan()}>{t("devices.ble.scan")}</Button>
           </div>
         </>
       )}

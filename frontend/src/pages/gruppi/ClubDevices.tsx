@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { devicesService, deviceKeys } from "@/services/devices";
 import { Button } from "@/components/ui/Button";
-import { ClaimDeviceDialog } from "@/components/common/ClaimDeviceDialog";
+import { AddDeviceDialog } from "@/components/common/AddDeviceDialog";
 import { fmtDateTime, fmtDuration } from "@/utils/format";
 import { statusBadge } from "@/pages/profilo/DevicesPage";
 import type { Device, UUID } from "@/types";
@@ -75,7 +75,7 @@ export function ClubDevices({ clubId }: { clubId: UUID }) {
         </div>
       )}
       {claiming && (
-        <ClaimDeviceDialog owner={{ owner_club_id: clubId }} onClose={() => setClaiming(false)} />
+        <AddDeviceDialog owner={{ owner_club_id: clubId }} onClose={() => setClaiming(false)} />
       )}
     </>
   );

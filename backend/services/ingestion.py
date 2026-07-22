@@ -295,6 +295,70 @@ def write_wind_cache(prefix: str, waypoints: "list[tuple[float, float]]",
             logger.warning("wind cache write failed for prefix %s", prefix, exc_info=True)
 
 
+# --- server-side ingest seam -------------------------------------------------
+# Both helpers below let a caller that already has decoded track data or raw
+# bytes in hand (rather than a client PUT to a presigned URL) feed the same
+# processing pipeline that device uploads and manual imports use. Today the
+# only caller is ``import_processing.complete_import`` (manual GPX/CSV
+# import); the same seam is meant for a future server-side ingestion bridge
+# (an on-phone HealthKit export, a pulled Garmin/Polar cloud file) so that
+# work doesn't duplicate this registration logic — see docs/device-protocol.md
+# §8 for the BLE-relay transport, which instead reuses the *device* upload
+# endpoints directly rather than this seam.
+
+def register_gps_stream(upload_id: uuid.UUID, session_id: uuid.UUID,
+                        points: "list[dict]", started_at: datetime,
+                        ended_at: Optional[datetime] = None, *,
+                        background_tasks=None) -> str:
+    """Register an already-parsed GPS points stream for ``upload_id``: write
+    it to the processed prefix, upsert the ``session_stream`` row, mark the
+    upload ``processed``, roll up the session status, and pre-fetch the wind
+    cache. Mirrors the device/worker pipeline's end state without a worker
+    round-trip, for callers that parse their own file format up front (GPX
+    today; a wearable-cloud export tomorrow).
+
+    Pass ``background_tasks`` (a FastAPI ``BackgroundTasks``) to also dispatch
+    a best-effort ``analysis.json`` rebuild (see ``dispatch_analysis``);
+    omit it in a context with no request to return early from.
+
+    Returns the processed prefix (``processed/uploads/{upload_id}/``).
+    """
+    repos = get_repos()
+    blob = get_blob_store()
+    prefix = processed_prefix(upload_id)
+    data_ref = f"{prefix}gps.json"
+    blob.put_json(data_ref, points)
+    repos.ingest.upsert_streams(upload_id, [{
+        "sensor_type": "gps", "data_ref": data_ref,
+        "sample_rate_hz": None, "row_count": len(points),
+    }])
+    repos.ingest.set_upload_status(upload_id, "processed")
+    repos.sessions.rollup_status(session_id)
+    try:
+        waypoints = sample_wind_waypoints(points)
+        write_wind_cache(prefix, waypoints, started_at, ended_at)
+    except Exception:
+        pass
+    if background_tasks is not None:
+        background_tasks.add_task(dispatch_analysis, bucket_name(), prefix)
+    return prefix
+
+
+def stage_raw_upload(upload_id: uuid.UUID, filename: str, data: bytes) -> str:
+    """Copy already-obtained raw bytes into the standard device-upload object
+    layout (``raw/uploads/{upload_id}/{filename}``) so the normal
+    storage-event webhook → worker → callback pipeline picks it up, exactly
+    as if a device (or its BLE relay, docs/device-protocol.md §8) had PUT
+    them there directly. For bytes obtained server-side instead — a copied
+    manual CSV import, or (future) a file pulled from a wearable's cloud API.
+
+    Returns the target key.
+    """
+    target_key = upload_raw_key(upload_id, filename)
+    get_blob_store().put_bytes(target_key, data)
+    return target_key
+
+
 def refresh_wind_cache(session_id: uuid.UUID) -> str:
     """Recompute ``wind_cache.json`` for a session's most recently uploaded
     processed prefix, sampling waypoints from its already-stored

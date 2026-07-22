@@ -293,3 +293,107 @@ and create a brand-new claim (§2) for the new device's `external_id`.
 | `POST /api/devices/{id}/rotate-key` | user cookie (owner) | Invalidate the current key, issue a new one |
 | `DELETE /api/devices/{id}` | user cookie (owner) | Revoke a device |
 | `GET /api/devices/{id}/health` | user cookie (owner) | Read back the latest health snapshot |
+
+---
+
+## 8. Transport: direct WiFi vs. phone BLE relay
+
+Everything in §2–§4 is **transport-neutral**: authentication is a bearer-style
+header or a claim code, not something tied to a socket or the device's own
+network stack, and the upload URL from §4.1 carries its own authorization —
+nothing checks *who* performs the `PUT`. So a device with no WiFi/cellular
+radio at all can still fully participate: the owner's phone, over Bluetooth
+Low Energy, relays the exact same calls documented in §2 and §4 on the
+device's behalf. This section is that relay's contract — it adds no backend
+endpoint and no new device state.
+
+**For firmware, in short**: expose the five BLE characteristics in §8.2, in
+the wire format given there. Treat a key arriving via `provisioning` exactly
+like one received over WiFi at claim time (§2 step 4) — same persistence, same
+`401` handling. Buffer any session you can't upload directly and list it in
+`session_manifest` until `control` tells you it's been acknowledged. That's
+the whole surface; §8.3/§8.4 below just walk through the call sequence in
+order.
+
+### 8.1 When to use which transport
+
+Prefer sending data over the device's own WiFi (§4.1) whenever it has
+connectivity — simpler, no phone needs to be in range. BLE relay is the
+fallback: no network radio, or WiFi temporarily unavailable. This is a
+runtime choice made per upload, not a different device type or claim flow —
+the same physical device may upload one session directly and the next one via
+relay, depending on what connectivity it has at the time.
+
+### 8.2 GATT contract
+
+One custom BLE GATT service, five characteristics. UUIDs are freshly
+generated (v4, random) rather than reused from a known public service like
+Nordic UART, so a scan filtered on the service UUID can't false-positive-match
+an unrelated nearby BLE device. `frontend/src/services/nativeBle.ts` is the
+source of truth if these two ever drift.
+
+| Characteristic | UUID | Properties | Purpose |
+|---|---|---|---|
+| (service) | `24e6db2c-3c8a-4b5b-ba5a-23bc4c818046` | — | Groups the characteristics below; also the §8.1 scan filter |
+| `identity` | `985a1aae-858e-4727-9d5c-c8670bd6bd06` | read | `external_id` (same value used in §2) and firmware version |
+| `provisioning` | `db2c2e63-9e13-4fa9-867c-0b579ce2ae57` | write, notify | App writes the `device_api_key` from §2 step 3; device persists it and notifies claim status |
+| `session_manifest` | `ed9efdc8-70d4-4ce5-a0a3-9fa6d88b9b9e` | read, notify | Device announces buffered, not-yet-uploaded sessions: id, byte size, `started_at`/`ended_at` |
+| `session_data` | `728d2815-0409-49ce-ad73-ecca6fc6d981` | notify (chunked) | Device streams one session's raw bytes to the app, framed with a sequence index so the app can detect drops |
+| `control` | `ec88dd3e-2562-420c-aebe-30a4ae40bdf9` | write | App → device commands: `start-transfer <session>`, `ack-uploaded <session>` |
+
+`provisioning` (or any characteristic that could leak `device_api_key`) must
+not be readable/writable except over a **bonded, encrypted** connection —
+proximity alone isn't enough, the key is equivalent to full write access to
+that device's uploads.
+
+**Wire format** (UTF-8 JSON unless noted):
+- `identity` read: `{"external_id": "...", "firmware_version": "..."}`.
+- `provisioning` write: `{"device_api_key": "..."}`; notifies back
+  `{"status": "claimed"}` once persisted.
+- `session_manifest` read/notify: a JSON array of
+  `{"session_id": "...", "byte_size": N, "started_at": "...", "ended_at": "..."|null}`.
+- `session_data` notify: **not** JSON — raw binary, a 4-byte big-endian
+  sequence index followed by that chunk's bytes. The app reassembles by
+  index and considers the transfer complete once it has `byte_size` bytes
+  total (from the manifest entry) — no separate end-of-stream marker needed.
+- `control` write: `{"cmd": "start-transfer"|"ack-uploaded", "session_id": "..."}`.
+
+### 8.3 Claim over BLE (replaces manually typing the claim code)
+
+Instead of writing `claim_code` to an SD card or serial console (§2 step 2):
+
+1. User creates a claim in the app as in §2 step 1, receives `claim_code`.
+2. App connects to the device over BLE, reads `external_id` from `identity`.
+3. App calls `POST /api/devices/claim/confirm` with `{external_id, claim_code}`
+   itself — the same unauthenticated call the device would otherwise make
+   (§2 step 3). The app is a pure relay here, nothing else changes.
+4. App writes the returned `device_api_key` to `provisioning`; device
+   persists it exactly as if received over its own network, and notifies
+   confirmation.
+5. App also stores `device_api_key` locally — it's the natural first upload
+   relay for that device, since it already holds the key.
+
+Claim-code semantics are unchanged from §2: still 15-minute TTL, single-use,
+same `400`/`404`/`409`/`429` errors.
+
+### 8.4 Upload relay
+
+For each session the device has buffered but couldn't upload directly:
+
+1. App reads `session_manifest` to discover it.
+2. App calls `POST /api/devices/me/session-uploads` (§4.1) itself, using the
+   `device_api_key` it holds, exactly as the device would.
+3. App writes `start-transfer <session>` to `control`, then receives the
+   session's bytes as `session_data` notifications arrive.
+4. App `PUT`s those bytes to the `upload_url` from step 2 — no additional
+   authorization needed, identical to a device-initiated upload.
+5. App calls `PATCH .../session-uploads/{id} {"is_final": true}` (§4.3), then
+   writes `ack-uploaded <session>` to `control` so the device can free its
+   buffer.
+
+Device must not free a session's buffer before `ack-uploaded` arrives — if the
+app disconnects or crashes first, the same session is simply retried on the
+next connection. This is safe because §4.1 is idempotent on
+`(session, device, sequence_number)`: a dropped BLE connection mid-transfer
+just re-opens the same `session_upload_id` with a fresh `upload_url`, never a
+duplicate.

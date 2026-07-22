@@ -26,6 +26,18 @@ export const devicesService = {
     owner_club_id?: UUID;
   }) => api.post<ClaimTicket>("/devices/claims", body),
 
+  /** Redeems a claim code — normally called by the device itself
+   * (docs/device-protocol.md §2 step 3); called from here only by the native
+   * app's BLE relay (§8.3), which reads `external_id` off the device over
+   * BLE and performs this call on its behalf. Unauthenticated on the
+   * backend (the claim code is the credential), so this works even for a
+   * signed-out relay call. */
+  confirmClaim: (body: { external_id: string; claim_code: string }) =>
+    api.post<{ device_id: UUID; device_api_key: string; issued_at: string }>(
+      "/devices/claim/confirm",
+      body,
+    ),
+
   listTypes: () => api.get<DeviceType[]>("/device-types"),
   createType: (body: Partial<DeviceType>) => api.post<DeviceType>("/device-types", body),
   updateType: (id: UUID, body: Partial<DeviceType>) =>

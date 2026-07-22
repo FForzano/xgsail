@@ -1,0 +1,37 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Each option is an .sf-card used as a button — this module only adds the
+   grid-cell sizing, clickable affordance, and disabled treatment on top of
+   the shared card primitive (global.css). */
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  /* .sf-card is normally a <div> — reset button UA defaults since this one
+     is a <button> for native click/keyboard-activation semantics. */
+  font: inherit;
+  color: inherit;
+  width: 100%;
+}
+.card:hover:not(:disabled) {
+  border-color: var(--sf-primary);
+}
+.card:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.cardTitle {
+  font-weight: 700;
+}
+.cardHint {
+  font-size: 0.82rem;
+}

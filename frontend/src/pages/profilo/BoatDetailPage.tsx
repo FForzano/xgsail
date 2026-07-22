@@ -16,7 +16,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { ClassPicker, ClassInfo } from "@/components/common/ClassPicker";
 import { UserPicker } from "@/components/common/UserPicker";
-import { ClaimDeviceDialog } from "@/components/common/ClaimDeviceDialog";
+import { AddDeviceDialog } from "@/components/common/AddDeviceDialog";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { userLabel } from "@/utils/format";
 import type { BoatRole, UUID } from "@/types";
@@ -443,7 +443,7 @@ export function BoatDetailPage() {
         </Modal>
       )}
       {claiming && (
-        <ClaimDeviceDialog owner={{ owner_boat_id: boatId }} onClose={() => setClaiming(false)} />
+        <AddDeviceDialog owner={{ owner_boat_id: boatId }} onClose={() => setClaiming(false)} />
       )}
       {deleting && (
         <ConfirmDialog

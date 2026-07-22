@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ClaimDeviceDialog } from "@/components/common/ClaimDeviceDialog";
+import { AddDeviceDialog } from "@/components/common/AddDeviceDialog";
 import { fmtDateTime } from "@/utils/format";
 import type { Device, DeviceType } from "@/types";
 
@@ -83,10 +83,7 @@ export function DevicesPage() {
         <DeviceTable devices={personal} types={types.data} />
       )}
       {claiming && (
-        <ClaimDeviceDialog
-          owner={{ owner_user_id: user!.id }}
-          onClose={() => setClaiming(false)}
-        />
+        <AddDeviceDialog owner={{ owner_user_id: user!.id }} onClose={() => setClaiming(false)} />
       )}
     </>
   );

@@ -163,7 +163,27 @@
     "revokeConfirm": "Revoke this device? It will no longer be able to upload.",
     "status": { "unclaimed": "Unclaimed", "claimed": "Claimed", "revoked": "Revoked" },
     "empty": "No devices yet — claim your first device.",
-    "externalId": "Hardware ID"
+    "externalId": "Hardware ID",
+    "add": {
+      "title": "Add a device",
+      "xgsailE1": "XGSail E1",
+      "xgsailE1Hint": "GPS/wind tracker, pairs over Bluetooth",
+      "appleWatch": "Apple Watch",
+      "garmin": "Garmin",
+      "polar": "Polar",
+      "soon": "Coming soon",
+      "nativeOnly": "Open the XGSail app to add this device",
+      "personalOnly": "Personal devices only — connect your own watch from your profile"
+    },
+    "ble": {
+      "scan": "Scan for devices",
+      "scanning": "Looking for nearby devices…",
+      "noneFound": "No device found. Make sure it's powered on and nearby.",
+      "rescan": "Scan again",
+      "connect": "Connect",
+      "connecting": "Connecting…",
+      "claiming": "Claiming device…"
+    }
   },
   "gruppi": {
     "groups": "Groups",

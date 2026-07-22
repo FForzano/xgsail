@@ -894,6 +894,14 @@ h1, h2, h3 {
   align-items: center;
   gap: 0.35rem;
 }
+/* Neutral "not available yet" marker — a disabled device-picker card, a
+   feature not yet shipped. Deliberately muted/quiet, not a status color, so
+   it doesn't compete with success/warning/danger at a glance. */
+.sf-badge--soon {
+  background: transparent;
+  color: var(--sf-muted);
+  border: 1px dashed var(--sf-border);
+}
 
 .sf-empty {
   color: var(--sf-muted);
