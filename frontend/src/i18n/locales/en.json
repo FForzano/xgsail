@@ -73,6 +73,10 @@
     "fundScale": "Scaling up servers as usage grows",
     "summary": "Funds go toward app development, publishing on the app stores (once funding allows), and scaling up servers as usage grows.",
     "nativeNote": "On iOS/Android, support the project through your app store's donation options instead.",
+    "reminder": {
+      "text": "Enjoying XGSail? Consider supporting its development.",
+      "dismiss": "Not now"
+    },
     "aboutTitle": "About",
     "developer": "Developer",
     "contact": "Contact",

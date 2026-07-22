@@ -8,6 +8,7 @@ from typing import Optional
 from sqlalchemy import func, select
 
 from ...db.models import UserORM
+from ...support import DONATED_DELAY, SNOOZE_DELAY
 
 
 class SqlUserRepo:
@@ -76,6 +77,23 @@ class SqlUserRepo:
             if privacy_version is not None:
                 orm.privacy_version = privacy_version
                 orm.privacy_accepted_at = now
+            s.commit()
+        return self.get_by_id(user_id)
+
+    def record_support_prompt(self, user_id: uuid.UUID, *, donated: bool) -> Optional[UserORM]:
+        """Record that the support-reminder banner was shown and dismissed
+        (optionally with a donation confirmation), scheduling the next
+        eligible prompt accordingly."""
+        now = datetime.now(timezone.utc)
+        with self.Session() as s:
+            orm = s.get(UserORM, user_id)
+            if orm is None:
+                return None
+            if donated:
+                orm.support_donated_at = now
+                orm.support_prompt_next_at = now + DONATED_DELAY
+            else:
+                orm.support_prompt_next_at = now + SNOOZE_DELAY
             s.commit()
         return self.get_by_id(user_id)
 

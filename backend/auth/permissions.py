@@ -120,6 +120,7 @@ def effective_capabilities(user) -> dict:
             "boatsAdmin": boats_admin,
         },
         "legal": _legal_status(user),
+        "support": _support_status(user),
     }
 
 
@@ -144,6 +145,28 @@ def _legal_status(user) -> dict:
             "needsAcceptance": not privacy_ok,
         },
         "needsAcceptance": not (terms_ok and privacy_ok),
+    }
+
+
+def _support_status(user) -> dict:
+    """Whether the "Buy Me a Coffee" reminder banner should show for this
+    user right now. Server-tracked (not localStorage) so the cadence is
+    consistent across devices — see ``support.py`` for the delay constants
+    and ``record_support_prompt`` for how dismissals update the schedule."""
+    from datetime import datetime, timezone
+
+    from ..support import FIRST_PROMPT_DELAY
+
+    next_at = getattr(user, "support_prompt_next_at", None)
+    if next_at is None:
+        created_at = getattr(user, "created_at", None)
+        next_at = (created_at + FIRST_PROMPT_DELAY) if created_at is not None else None
+
+    now = datetime.now(timezone.utc)
+    should_show = next_at is not None and now >= next_at
+    return {
+        "shouldShow": should_show,
+        "donated": getattr(user, "support_donated_at", None) is not None,
     }
 
 

@@ -70,6 +70,13 @@ export interface LegalMetadata {
   privacy: { version: string; effective_date: string };
 }
 
+/** "Buy Me a Coffee" reminder-banner eligibility, tracked server-side so the
+ * cadence is consistent across devices — see backend/support.py. */
+export interface SupportCapabilities {
+  shouldShow: boolean;
+  donated: boolean;
+}
+
 export interface Capabilities {
   user: User;
   roles: Array<{ role: string; scope_club_id: UUID | null }>;
@@ -85,6 +92,7 @@ export interface Capabilities {
     boatsAdmin: UUID[];
   };
   legal: LegalCapabilities;
+  support: SupportCapabilities;
 }
 
 export type MembershipStatus = "invited" | "requested" | "active";

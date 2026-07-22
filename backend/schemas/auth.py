@@ -28,6 +28,14 @@ class AcceptLegalModel(BaseModel):
     privacy_policy: bool = False
 
 
+class SupportPromptModel(BaseModel):
+    """Dismissal of the "Buy Me a Coffee" reminder banner. ``donated=True``
+    when the user confirms they've supported the project (pushes the next
+    reminder out much further than a plain dismissal)."""
+
+    donated: bool = False
+
+
 class LoginModel(BaseModel):
     email: str
     password: str

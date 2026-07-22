@@ -40,5 +40,10 @@ export const authService = {
   changePassword: (current_password: string, new_password: string) =>
     api.post("/auth/change-password", { current_password, new_password }),
 
+  /** Dismiss the "Buy Me a Coffee" reminder banner, scheduling when it's
+   * next eligible to show (see capabilities `support.shouldShow`). */
+  dismissSupportPrompt: (donated: boolean) =>
+    api.post("/auth/support-prompt", { donated }),
+
   myMemberships: () => api.get<MyMemberships>("/users/me/memberships"),
 };

@@ -12,8 +12,10 @@ import * as nativeRecording from "@/services/nativeRecording";
 import { ToastViewport } from "@/components/ui/ToastViewport";
 import { Avatar } from "@/components/ui/Avatar";
 import { ProfileMenu } from "@/components/layout/ProfileMenu";
+import { SupportPromptBanner } from "@/components/common/SupportPromptBanner";
 import { usersService, userKeys } from "@/services/users";
 import { unitsStore } from "@/stores/unitsStore";
+import { canShowSupportLinks } from "@/config/platform";
 
 // The main navigation exposes ONLY the 3 macro-sections (plus Admin) as
 // inline links — sub-pages are reached from inside each section
@@ -95,6 +97,7 @@ export function AppShell() {
 
   return (
     <div className="sf-shell">
+      {canShowSupportLinks && <SupportPromptBanner />}
       <header className="sf-navbar">
         <NavLink to="/" className="sf-navbar__brand">
           <img src="/logo.svg" alt="" className="sf-navbar__logo" />

@@ -73,6 +73,10 @@
     "fundScale": "Scalare i server al crescere degli utenti",
     "summary": "I fondi vengono usati per lo sviluppo dell'app, la pubblicazione sugli store (quando i fondi lo permetteranno) e per scalare i server al crescere degli utenti.",
     "nativeNote": "Su iOS/Android, sostieni il progetto tramite i sistemi di donazione dello store.",
+    "reminder": {
+      "text": "Ti piace XGSail? Valuta di sostenerne lo sviluppo.",
+      "dismiss": "Non ora"
+    },
     "aboutTitle": "Informazioni",
     "developer": "Sviluppatore",
     "contact": "Contatti",

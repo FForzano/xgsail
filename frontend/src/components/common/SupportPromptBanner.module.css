@@ -1,0 +1,38 @@
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 2.25rem;
+  background: color-mix(in srgb, var(--sf-warning) 16%, var(--sf-surface-2));
+  border-bottom: 1px solid var(--sf-border);
+  font-size: 0.85rem;
+  text-align: center;
+  position: relative;
+}
+.text {
+  color: var(--sf-text);
+}
+.cta {
+  font-weight: 700;
+  color: var(--sf-primary);
+  white-space: nowrap;
+}
+.dismiss {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  background: none;
+  border: none;
+  color: var(--sf-muted);
+  cursor: pointer;
+}
+.dismiss:hover {
+  color: var(--sf-text);
+}

@@ -58,6 +58,7 @@ from ..schemas import (
     AcceptLegalModel,
     ChangePasswordModel,
     LoginModel,
+    SupportPromptModel,
     RefreshModel,
     RegisterModel,
 )
@@ -202,6 +203,18 @@ def accept_legal(body: AcceptLegalModel, request: Request):
         terms_version=CURRENT_TERMS_VERSION if body.terms_and_conditions else None,
         privacy_version=CURRENT_PRIVACY_VERSION if body.privacy_policy else None,
     )
+    return {"ok": True}
+
+
+@router.post("/support-prompt")
+def support_prompt(body: SupportPromptModel, request: Request):
+    """Record that the logged-in user dismissed the "Buy Me a Coffee"
+    reminder banner (see capabilities ``support.shouldShow``), scheduling
+    when it's next eligible to show again — sooner for a plain dismissal,
+    much later once ``donated`` is confirmed."""
+    verify_csrf(request)
+    user = require_user(request)
+    repos.users.record_support_prompt(user.id, donated=body.donated)
     return {"ok": True}
 
 

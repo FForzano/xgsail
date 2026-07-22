@@ -54,6 +54,12 @@ class UserORM(UUIDPKMixin, TimestampMixin, Base):
     unit_system: Mapped[str] = mapped_column(String, nullable=False, default="nautical")
     password_reset_token: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # "Buy Me a Coffee" in-app reminder (see auth/permissions.py::_support_status).
+    # NULL next_at means "never shown yet" — the default 30-day-from-registration
+    # threshold applies. Tracked server-side (not localStorage) so the cadence
+    # survives across devices/reinstalls.
+    support_prompt_next_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    support_donated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     roles: Mapped[list["UserRoleORM"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan", lazy="selectin"
