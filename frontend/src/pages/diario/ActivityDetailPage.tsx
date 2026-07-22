@@ -12,6 +12,7 @@ import { timeController } from "@/stores/timeController";
 import { buildTracks, medianIntervalMs, timeBounds } from "@/components/race/raceModel";
 import { MapView, type MapMark } from "@/components/race/MapView";
 import { BoatSessionCarousel, type BoatSessionCarouselItem } from "@/components/diario/BoatSessionCarousel";
+import { SessionDetail } from "@/components/session/SessionDetail";
 import { Timeline } from "@/components/race/Timeline";
 import { SpeedChart } from "@/components/race/SpeedChart";
 import { Card } from "@/components/ui/Card";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
 import { Select } from "@/components/ui/Select";
 import { OptionsMenu } from "@/components/ui/OptionsMenu";
+import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { activityDisplayName } from "@/utils/activityName";
@@ -46,6 +48,10 @@ export function ActivityDetailPage() {
     lng: "",
   });
   const [pickingMarkOnMap, setPickingMarkOnMap] = useState(false);
+  // Sections handed up by the embedded SessionDetail (solo activities) — see
+  // its `onMenuSections` — merged into this page's own single ⋮ menu instead
+  // of showing a second, redundant one on the map card.
+  const [soloMenuSections, setSoloMenuSections] = useState<MenuSection[]>([]);
   // Set while editing an already-placed mark — the same form is reused for
   // both add and edit, submitting to `updateMark` instead of `addMark`.
   const [editingMarkId, setEditingMarkId] = useState<UUID | null>(null);
@@ -56,6 +62,10 @@ export function ActivityDetailPage() {
     queryFn: () => activitiesService.get(activityId!),
     enabled: !!activityId,
   });
+  // A "solo" activity is rendered as its single session's own SessionDetail
+  // (see the render below) instead of this page's own multi-track map/list
+  // — the queries that back those are only needed for the multi-boat case.
+  const isSolo = activity.data?.type === "solo";
   const sessions = useQuery({
     queryKey: activityKeys.sessions(activityId!),
     queryFn: () => activitiesService.sessions(activityId!),
@@ -69,7 +79,7 @@ export function ActivityDetailPage() {
   const activityData = useQuery({
     queryKey: activityKeys.data(activityId!),
     queryFn: () => activitiesService.data(activityId!),
-    enabled: !!activityId,
+    enabled: !!activityId && !isSolo,
   });
   const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
   // Each session has its own VMG series — unlike SessionDetailPage (a single
@@ -80,24 +90,25 @@ export function ActivityDetailPage() {
     queries: (sessions.data ?? []).map((s) => ({
       queryKey: sessionKeys.analysis(s.id),
       queryFn: () => sessionsService.analysis(s.id),
-      enabled: !!sessions.data,
+      enabled: !!sessions.data && !isSolo,
       retry: false,
     })),
   });
   // Crew + stats per session, for the mobile boat carousel (BoatSessionCarousel)
-  // only — the desktop table doesn't need either.
+  // only — the desktop table doesn't need either. Not needed for solo, where
+  // SessionDetail shows its own session's crew/stats directly.
   const sessionCrews = useQueries({
     queries: (sessions.data ?? []).map((s) => ({
       queryKey: sessionKeys.crew(s.id),
       queryFn: () => sessionsService.crew(s.id),
-      enabled: !!sessions.data,
+      enabled: !!sessions.data && !isSolo,
     })),
   });
   const sessionStatsList = useQueries({
     queries: (sessions.data ?? []).map((s) => ({
       queryKey: sessionKeys.stats(s.id),
       queryFn: () => sessionsService.stats(s.id),
-      enabled: !!sessions.data,
+      enabled: !!sessions.data && !isSolo,
       retry: false,
     })),
   });
@@ -239,6 +250,11 @@ export function ActivityDetailPage() {
   // just any creator (mirrors backend's can_change_activity_visibility).
   const canChangeVisibility =
     isSuperadmin || (a.club_id != null ? can("activity.manage", a.club_id) : a.created_by === user?.id);
+  // The one session of a solo activity — rendered inline via SessionDetail
+  // (see below) instead of navigating to a separate barche/:sessionId page.
+  // Falls back to the regular multi-boat layout if a solo activity somehow
+  // doesn't have exactly one session yet (e.g. import still processing).
+  const soloSession = isSolo && sessions.data?.length === 1 ? sessions.data[0] : undefined;
   const boatName = (id: string) => boats.data?.find((b) => b.id === id)?.name ?? "—";
   const carouselItems: BoatSessionCarouselItem[] = (sessions.data ?? []).map((s, i) => ({
     sessionId: s.id,
@@ -308,23 +324,50 @@ export function ActivityDetailPage() {
           )
         }
         actions={
-          <OptionsMenu
-            items={[
-              {
-                label: t("sessions.import"),
-                onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`),
-              },
-              ...(canEdit
-                ? [
+          soloSession ? (
+            // Single merged menu for solo activities — combines this page's
+            // own actions (Import, Delete) with the ones handed up by the
+            // embedded SessionDetail (see soloMenuSections/onMenuSections),
+            // instead of showing a second ⋮ menu on the map card below.
+            <Menu
+              sections={[
+                {
+                  items: [
                     {
-                      label: t("common.delete"),
-                      danger: true,
-                      onClick: () => setDeleting(true),
+                      label: t("sessions.import"),
+                      onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`),
                     },
-                  ]
-                : []),
-            ]}
-          />
+                  ],
+                },
+                ...soloMenuSections,
+                ...(canEdit
+                  ? [
+                      {
+                        items: [{ label: t("common.delete"), danger: true, onClick: () => setDeleting(true) }],
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          ) : (
+            <OptionsMenu
+              items={[
+                {
+                  label: t("sessions.import"),
+                  onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`),
+                },
+                ...(canEdit
+                  ? [
+                      {
+                        label: t("common.delete"),
+                        danger: true,
+                        onClick: () => setDeleting(true),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          )
         }
       >
         <p className="sf-muted">
@@ -337,109 +380,128 @@ export function ActivityDetailPage() {
         )}
       </Card>
 
-      <div ref={mapCardRef}>
-      <Card className="sf-card--flush" title={t("activities.map")}>
-        {activityData.isLoading ? (
-          <div className="sf-card__pad">
-            <Spinner />
+      {soloSession ? (
+        <div ref={mapCardRef}>
+          {pickingMarkOnMap && <p className="sf-muted">{t("activities.pickOnMapHint")}</p>}
+          <SessionDetail
+            sessionId={soloSession.id}
+            variant="embedded"
+            extraMarks={mapMarksWithPreview}
+            pickMode={pickingMarkOnMap}
+            onMapClick={(lat, lng) => {
+              setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
+              setPickingMarkOnMap(false);
+            }}
+            onMenuSections={setSoloMenuSections}
+          />
+        </div>
+      ) : (
+        <>
+          <div ref={mapCardRef}>
+          <Card className="sf-card--flush" title={t("activities.map")}>
+            {activityData.isLoading ? (
+              <div className="sf-card__pad">
+                <Spinner />
+              </div>
+            ) : activityData.isError ? (
+              <p className="sf-muted sf-card__pad">{t("errors.generic")}</p>
+            ) : tracks.length === 0 ? (
+              <p className="sf-muted sf-card__pad">{t("activities.noGps")}</p>
+            ) : (
+              <div className="sf-section__body">
+                {pickingMarkOnMap && <p className="sf-muted sf-card__pad">{t("activities.pickOnMapHint")}</p>}
+                <MapView
+                  tracks={tracks}
+                  marks={mapMarksWithPreview}
+                  wind={
+                    tracks[0]?.pts[0]
+                      ? { lat: tracks[0].pts[0].lat, lng: tracks[0].pts[0].lon, at: a.started_at }
+                      : undefined
+                  }
+                  controls={
+                    <Timeline overlay stepMs={medianIntervalMs(tracks[0]) * 5} />
+                  }
+                  onOpenSession={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
+                  showBoatInfo
+                  pickMode={pickingMarkOnMap}
+                  onMapClick={(lat, lng) => {
+                    setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
+                    setPickingMarkOnMap(false);
+                  }}
+                />
+                <div className="sf-section__body sf-card__pad">
+                  <SpeedChart tracks={tracks} />
+                </div>
+              </div>
+            )}
+          </Card>
           </div>
-        ) : activityData.isError ? (
-          <p className="sf-muted sf-card__pad">{t("errors.generic")}</p>
-        ) : tracks.length === 0 ? (
-          <p className="sf-muted sf-card__pad">{t("activities.noGps")}</p>
-        ) : (
-          <div className="sf-section__body">
-            {pickingMarkOnMap && <p className="sf-muted sf-card__pad">{t("activities.pickOnMapHint")}</p>}
-            <MapView
-              tracks={tracks}
-              marks={mapMarksWithPreview}
-              wind={
-                tracks[0]?.pts[0]
-                  ? { lat: tracks[0].pts[0].lat, lng: tracks[0].pts[0].lon, at: a.started_at }
-                  : undefined
-              }
-              controls={
-                <Timeline overlay stepMs={medianIntervalMs(tracks[0]) * 5} />
-              }
-              onOpenSession={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
-              showBoatInfo
-              pickMode={pickingMarkOnMap}
-              onMapClick={(lat, lng) => {
-                setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
-                setPickingMarkOnMap(false);
-              }}
-            />
-            <div className="sf-section__body sf-card__pad">
-              <SpeedChart tracks={tracks} />
-            </div>
-          </div>
-        )}
-      </Card>
-      </div>
 
-      <Card title={t("activities.boats")}>
-        {sessions.data?.length ? (
-          <>
-            <BoatSessionCarousel
-              items={carouselItems}
-              onOpen={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
-            />
-            <div className="sf-tablewrap sf-desktop-only">
-              <table className="sf-table">
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th>{t("sessions.boat")}</th>
-                    <th>{t("sessions.start")}</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sessions.data.map((s) => (
-                    <tr
-                      key={s.id}
-                      className="sf-table__row--clickable"
-                      role="link"
-                      tabIndex={0}
-                      onClick={() => navigate(`/diario/activities/${activityId}/barche/${s.id}`)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          navigate(`/diario/activities/${activityId}/barche/${s.id}`);
-                        }
-                      }}
-                    >
-                      <td>
-                        {s.thumbnail ? (
-                          <img src={s.thumbnail.url} alt="" className="sf-session-thumb" />
-                        ) : (
-                          <span className="sf-session-thumb sf-session-thumb--empty" aria-hidden />
-                        )}
-                      </td>
-                      <td>{boatName(s.boat_id)}</td>
-                      <td>{fmtDateTime(s.started_at)}</td>
-                      <td className="sf-table__chevron" aria-hidden>
-                        <svg viewBox="0 0 16 16" width="16" height="16">
-                          <path
-                            d="M5 2.5 11.5 8 5 13.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <p className="sf-muted">{t("common.none")}</p>
-        )}
-      </Card>
+          <Card title={t("activities.boats")}>
+            {sessions.data?.length ? (
+              <>
+                <BoatSessionCarousel
+                  items={carouselItems}
+                  onOpen={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
+                />
+                <div className="sf-tablewrap sf-desktop-only">
+                  <table className="sf-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>{t("sessions.boat")}</th>
+                        <th>{t("sessions.start")}</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sessions.data.map((s) => (
+                        <tr
+                          key={s.id}
+                          className="sf-table__row--clickable"
+                          role="link"
+                          tabIndex={0}
+                          onClick={() => navigate(`/diario/activities/${activityId}/barche/${s.id}`)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              navigate(`/diario/activities/${activityId}/barche/${s.id}`);
+                            }
+                          }}
+                        >
+                          <td>
+                            {s.thumbnail ? (
+                              <img src={s.thumbnail.url} alt="" className="sf-session-thumb" />
+                            ) : (
+                              <span className="sf-session-thumb sf-session-thumb--empty" aria-hidden />
+                            )}
+                          </td>
+                          <td>{boatName(s.boat_id)}</td>
+                          <td>{fmtDateTime(s.started_at)}</td>
+                          <td className="sf-table__chevron" aria-hidden>
+                            <svg viewBox="0 0 16 16" width="16" height="16">
+                              <path
+                                d="M5 2.5 11.5 8 5 13.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <p className="sf-muted">{t("common.none")}</p>
+            )}
+          </Card>
+        </>
+      )}
 
       <Card title={t("activities.marks")}>
         {marks.data?.length ? (
@@ -532,7 +594,7 @@ export function ActivityDetailPage() {
               onChange={(e) => setMarkForm((f) => ({ ...f, lng: e.target.value }))}
               required
             />
-            {tracks.length > 0 && (
+            {(tracks.length > 0 || soloSession) && (
               <div className="sf-field">
                 <Button
                   type="button"

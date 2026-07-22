@@ -88,15 +88,25 @@ function VideoUploader({ sessionId, onDone }: { sessionId: UUID; onDone: () => P
  * parent activity page for solo activities (`variant="embedded"`, which
  * omits the title Card and boat name/date header since the caller already
  * shows those). `extraMarks` lets an embedding page (e.g. the activity's own
- * marks/boe) overlay additional pins on this session's map. */
+ * marks/boe) overlay additional pins on this session's map; `pickMode`/
+ * `onMapClick` let it drive the same map's "pick a point" mode (e.g. placing
+ * a race mark) instead of duplicating a second map just for that.
+ * `onMenuSections` is how "embedded" hands its ⋮ menu sections up to the
+ * caller instead of rendering its own — see the effect below. */
 export function SessionDetail({
   sessionId,
   variant = "page",
   extraMarks = [],
+  pickMode = false,
+  onMapClick,
+  onMenuSections,
 }: {
   sessionId: UUID;
   variant?: "page" | "embedded";
   extraMarks?: MapMark[];
+  pickMode?: boolean;
+  onMapClick?: (lat: number, lng: number) => void;
+  onMenuSections?: (sections: MenuSection[]) => void;
 }) {
   const { t } = useTranslation();
   const { isBoatManager } = useCapabilities();
@@ -465,11 +475,8 @@ export function SessionDetail({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.photos(sessionId) }),
   });
 
-  if (session.isLoading) return <Spinner />;
-  if (!session.data) return null;
-  const s = session.data;
-  const boat = boats.data?.find((b) => b.id === s.boat_id);
-  const manager = isBoatManager(s.boat_id);
+  const boat = boats.data?.find((b) => b.id === session.data?.boat_id);
+  const manager = session.data ? isBoatManager(session.data.boat_id) : false;
 
   // Single consolidated ⋮ menu (title-level) — replaces the old separate
   // OptionsMenu (session actions) + MapLegsOptions (⚙ on the map). Sections
@@ -559,9 +566,43 @@ export function SessionDetail({
       ],
     });
   }
-  if (manager) {
+  // Embedded (solo-activity) sessions are deleted via the activity's own
+  // Delete action, which cascades to the session — a separate session-level
+  // delete here would leave an orphaned, session-less activity behind.
+  if (manager && variant === "page") {
     menuSections.push({ items: [{ label: t("common.delete"), danger: true, onClick: () => setDeleting(true) }] });
   }
+  // Embedded mode has no menu of its own — the caller (ActivityDetailPage,
+  // for a solo activity) merges these sections into its own single ⋮ menu
+  // instead of showing a second, redundant one here. `menuSections` is a
+  // fresh array/closures every render (same reasoning as `tracks` above,
+  // see `sessionAnalysesKey`), so the effect is gated on a primitive
+  // signature of its actual inputs instead of `menuSections` itself —
+  // otherwise calling `onMenuSections` would hand the parent a "new" array
+  // every render, which (since it's stored in the parent's state) would
+  // re-render this component too, rebuilding the array again, forever.
+  const menuSignature = JSON.stringify([
+    manager,
+    maneuverEditMode,
+    trimMode,
+    reanalyze.isPending,
+    reanalysisPolling,
+    refreshWind.isPending,
+    currentActivity.data?.type,
+    analysis.data?.legs.length ?? 0,
+    analysis.data?.maneuvers.length ?? 0,
+    mapShow,
+    variant,
+  ]);
+  useEffect(() => {
+    if (variant === "embedded") onMenuSections?.(menuSections);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gated on
+    // `menuSignature`, not `menuSections`/`onMenuSections`, see comment above.
+  }, [menuSignature]);
+
+  if (session.isLoading) return <Spinner />;
+  if (!session.data) return null;
+  const s = session.data;
 
   return (
     <div className="sf-section__body">
@@ -585,11 +626,7 @@ export function SessionDetail({
         </Card>
       )}
 
-      <Card
-        className="sf-card--flush"
-        title={variant === "embedded" ? t("activities.map") : undefined}
-        actions={variant === "embedded" && menuSections.length > 0 ? <Menu sections={menuSections} /> : undefined}
-      >
+      <Card className="sf-card--flush">
         {streams.isLoading || (gpsStream && gps === null) ? (
           <div className="sf-card__pad">
             <Spinner />
@@ -614,6 +651,8 @@ export function SessionDetail({
               }
               placementMode={maneuverEditMode}
               onManeuverPlacement={handleManeuverPlacement}
+              pickMode={pickMode}
+              onMapClick={onMapClick}
               showBoatInfo={false}
               // Even on this single-track map, the popup's "more info" button
               // is a handy shortcut straight to the analysis section below,
