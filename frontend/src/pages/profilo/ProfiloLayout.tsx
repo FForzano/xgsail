@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { SectionLayout } from "@/components/layout/SectionLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
+import { canShowSupportLinks } from "@/config/platform";
 
 export function ProfiloLayout() {
   const { t } = useTranslation();
@@ -21,6 +22,8 @@ export function ProfiloLayout() {
         { to: "/profilo/password", label: t("profile.password") },
         { to: "/profilo/barche", label: t("profile.boats") },
         { to: "/profilo/devices", label: t("profile.devices") },
+        // Store builds use the app stores' own donation systems instead.
+        ...(canShowSupportLinks ? [{ to: "/profilo/info", label: t("profile.info") }] : []),
       ]}
       footer={
         // Desktop logs out from the navbar avatar dropdown; mobile has no

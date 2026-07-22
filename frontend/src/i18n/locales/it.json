@@ -50,6 +50,21 @@
     "ascending": "Crescente",
     "descending": "Decrescente"
   },
+  "support": {
+    "title": "Sostieni XGSail",
+    "intro": "XGSail è gratuito e open source. Se lo trovi utile, valuta di sostenerne lo sviluppo.",
+    "cta": "Offrimi un caffè",
+    "fundsIntro": "Il tuo supporto viene usato per:",
+    "fundApp": "Sviluppo dell'app",
+    "fundPublish": "Pubblicazione sugli store (quando i fondi lo permetteranno)",
+    "fundScale": "Scalare i server al crescere degli utenti",
+    "summary": "I fondi vengono usati per lo sviluppo dell'app, la pubblicazione sugli store (quando i fondi lo permetteranno) e per scalare i server al crescere degli utenti.",
+    "nativeNote": "Su iOS/Android, sostieni il progetto tramite i sistemi di donazione dello store.",
+    "aboutTitle": "Informazioni",
+    "developer": "Sviluppatore",
+    "contact": "Contatti",
+    "sourceCode": "Codice sorgente"
+  },
   "errors": {
     "generic": "Qualcosa è andato storto",
     "notFound": "Questa pagina non esiste"
@@ -104,6 +119,7 @@
     "password": "Password",
     "boats": "Barche",
     "devices": "Dispositivi",
+    "info": "Info",
     "firstName": "Nome",
     "lastName": "Cognome",
     "dob": "Data di nascita",

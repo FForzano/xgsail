@@ -4,8 +4,13 @@
 [![Android APK](https://img.shields.io/github/v/release/FForzano/xgsail?label=Android%20APK&logo=android&logoColor=white&color=3ddc84)](https://github.com/FForzano/xgsail/releases/latest/download/app-release.apk)
 [![Docker Hub](https://img.shields.io/badge/docker%20hub-fforzano99%2Fxgsail-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/fforzano99/xgsail)
 [![License](https://img.shields.io/github/license/FForzano/xgsail)](LICENSE)
+[![Buy Me A Coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-xgsail-ffdd00?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/xgsail)
 
 Open sailing analytics platform for race analysis, session replay, and fleet performance — self-hostable, hardware-agnostic, and built for extensibility.
+
+> ☕ **[Support XGSail on Buy Me a Coffee](https://buymeacoffee.com/xgsail)** — funds
+> go toward app development, publishing on the app stores (once funding allows), and
+> scaling up servers as usage grows.
 
 > **XGSail is a fork of SailFrames (originally released as "SailFrames One").**
 > It keeps the original's Apache 2.0 license and general purpose — sailing

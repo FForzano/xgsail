@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar } from "@/components/ui/Avatar";
 import { Popover } from "@/components/ui/Popover";
+import { canShowSupportLinks } from "@/config/platform";
 import type { ImageRef } from "@/types";
 
 /** Desktop navbar avatar — click opens a dropdown with the profile sub-pages
@@ -53,6 +54,12 @@ export function ProfileMenu({
           <NavLink to="/profilo/devices" className="sf-optionsmenu__item" role="menuitem" onClick={close}>
             {t("profile.devices")}
           </NavLink>
+          {/* Store builds use the app stores' own donation systems instead. */}
+          {canShowSupportLinks && (
+            <NavLink to="/profilo/info" className="sf-optionsmenu__item" role="menuitem" onClick={close}>
+              {t("profile.info")}
+            </NavLink>
+          )}
           <button
             type="button"
             role="menuitem"

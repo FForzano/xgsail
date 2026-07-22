@@ -5,12 +5,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { isNativeApp } from "@/config/platform";
 import { SelfHostedArt } from "@/components/landing/FeatureArt";
+import { SupportLink } from "@/components/common/SupportLink";
+import { GITHUB_URL, LICENSE_URL, UPSTREAM_URL, CONTACT_EMAIL } from "@/config/links";
 import styles from "@/components/landing/landing.module.css";
-
-const GITHUB_URL = "https://github.com/FForzano/xgsail";
-const LICENSE_URL = `${GITHUB_URL}/blob/main/LICENSE`;
-const UPSTREAM_URL = "https://github.com/sailframes/core";
-const CONTACT_EMAIL = "f.forzano@ieee.org";
 
 // Real product screenshots for features 1-5 — feature 6 (self-hosted) has no
 // single app screen to show, so it keeps a stylized illustration instead.
@@ -39,6 +36,11 @@ export function LandingPage() {
 
   return (
     <div className={styles.landing}>
+      <div className={styles.supportBanner}>
+        <span>☕ {t("support.summary")}</span>
+        <SupportLink className={styles.supportBannerLink} />
+      </div>
+
       <header className={styles.nav}>
         <Link to="/" className="sf-navbar__brand">
           <img src="/logo.svg" alt="" className="sf-navbar__logo" />
@@ -103,7 +105,9 @@ export function LandingPage() {
             {t("landing.license")}
           </a>
           <a href={`mailto:${CONTACT_EMAIL}`}>{t("landing.contact")}</a>
+          <SupportLink />
         </div>
+        <p className={`sf-muted ${styles.footerAbout}`}>{t("support.summary")}</p>
         <p className={`sf-muted ${styles.copyright}`}>
           {t("landing.footer", { year: new Date().getFullYear() })}
         </p>

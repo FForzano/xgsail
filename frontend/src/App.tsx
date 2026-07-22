@@ -31,6 +31,8 @@ import { BoatsPage } from "@/pages/profilo/BoatsPage";
 import { BoatDetailPage } from "@/pages/profilo/BoatDetailPage";
 import { DevicesPage } from "@/pages/profilo/DevicesPage";
 import { DeviceDetailPage } from "@/pages/profilo/DeviceDetailPage";
+import { InfoPage } from "@/pages/profilo/InfoPage";
+import { canShowSupportLinks } from "@/config/platform";
 import { AdminLayout } from "@/pages/admin/AdminLayout";
 import { AppSettingsPage } from "@/pages/admin/AppSettingsPage";
 import { WindStationsPage } from "@/pages/admin/WindStationsPage";
@@ -91,6 +93,8 @@ export default function App() {
             <Route path="barche/:boatId" element={<BoatDetailPage />} />
             <Route path="devices" element={<DevicesPage />} />
             <Route path="devices/:deviceId" element={<DeviceDetailPage />} />
+            {/* Store builds use the app stores' own donation systems instead. */}
+            {canShowSupportLinks && <Route path="info" element={<InfoPage />} />}
           </Route>
 
           <Route element={<RequireSuperadmin />}>

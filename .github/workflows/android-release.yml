@@ -134,13 +134,20 @@ jobs:
           files: ${{ steps.apk.outputs.path }}
           generate_release_notes: true
 
-  # Disabled scaffold: uploads the same signed build to the Play Store's
-  # internal testing track via Fastlane `supply` instead of/alongside the
-  # GitHub Release above. To enable: create a Play Console service account,
-  # add its JSON as the PLAY_SERVICE_ACCOUNT_JSON secret, flesh out the
-  # steps below (fastlane install + `supply` invocation, feeding it the APK
-  # from the `build` job via actions/download-artifact), then flip `if:
-  # false` to `if: true`.
+  # Disabled scaffold: uploads a signed build to the Play Store's internal
+  # testing track via Fastlane `supply` instead of/alongside the GitHub
+  # Release above. To enable: create a Play Console service account, add its
+  # JSON as the PLAY_SERVICE_ACCOUNT_JSON secret, flesh out the steps below
+  # (fastlane install + `supply` invocation), then flip `if: false` to `if:
+  # true`.
+  #
+  # IMPORTANT: don't reuse the `build` job's APK artifact as-is — it's built
+  # with VITE_APP_DISTRIBUTION=sideload (.env.native.example), which keeps
+  # the in-app Buy Me a Coffee links (config/platform.ts). The store build
+  # must rebuild the web assets with VITE_APP_DISTRIBUTION=store set instead,
+  # so those links are hidden in favor of the Play Store's own donation
+  # system — then run `npx cap sync android` + `gradlew assembleRelease`
+  # again on that build before uploading to `supply`.
   play-store-upload:
     needs: build
     if: false

@@ -3,6 +3,23 @@
   display: flex;
   flex-direction: column;
 }
+.supportBanner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 1.5rem;
+  background: color-mix(in srgb, var(--sf-warning) 16%, var(--sf-surface-2));
+  border-bottom: 1px solid var(--sf-border);
+  font-size: 0.85rem;
+  text-align: center;
+}
+.supportBannerLink {
+  font-weight: 700;
+  color: var(--sf-primary);
+  white-space: nowrap;
+}
 .nav {
   display: flex;
   align-items: center;

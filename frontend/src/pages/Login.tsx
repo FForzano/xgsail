@@ -6,6 +6,8 @@ import { ApiError } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
 import { AuthCardHeader } from "@/components/auth/AuthCardHeader";
+import { SupportLink } from "@/components/common/SupportLink";
+import { canShowSupportLinks } from "@/config/platform";
 import styles from "@/components/auth/auth.module.css";
 
 export function LoginPage() {
@@ -62,6 +64,11 @@ export function LoginPage() {
         <p className="sf-muted">
           {t("auth.noAccount")} <Link to="/register">{t("auth.register")}</Link>
         </p>
+        {canShowSupportLinks && (
+          <p className="sf-muted">
+            <SupportLink /> — {t("support.summary")}
+          </p>
+        )}
       </form>
     </div>
   );
