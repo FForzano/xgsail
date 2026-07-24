@@ -326,46 +326,36 @@ relay, depending on what connectivity it has at the time.
 
 ### 8.2 GATT contract
 
-One custom BLE GATT service, five characteristics. UUIDs are freshly
-generated (v4, random) rather than reused from a known public service like
-Nordic UART, so a scan filtered on the service UUID can't false-positive-match
-an unrelated nearby BLE device. `frontend/src/services/nativeBle.ts` is the
-source of truth if these two ever drift.
+One custom BLE GATT service, five characteristics: `identity` (read —
+`external_id` and firmware version), `provisioning` (write/notify — app
+writes the `device_api_key` from §2 step 3, device persists it and notifies
+claim status), `session_manifest` (read/notify — device announces buffered,
+not-yet-uploaded sessions: id, byte size, `started_at`/`ended_at`, optional
+`boat_id`/`activity_id`), `session_data` (notify, chunked — device streams one
+session's raw bytes, framed with a sequence index so the app can detect
+drops), and `control` (write — app → device commands: `start-transfer
+<session>`, `ack-uploaded <session>`).
 
-| Characteristic | UUID | Properties | Purpose |
-|---|---|---|---|
-| (service) | `24e6db2c-3c8a-4b5b-ba5a-23bc4c818046` | — | Groups the characteristics below; also the §8.1 scan filter |
-| `identity` | `985a1aae-858e-4727-9d5c-c8670bd6bd06` | read | `external_id` (same value used in §2) and firmware version |
-| `provisioning` | `db2c2e63-9e13-4fa9-867c-0b579ce2ae57` | write, notify | App writes the `device_api_key` from §2 step 3; device persists it and notifies claim status |
-| `session_manifest` | `ed9efdc8-70d4-4ce5-a0a3-9fa6d88b9b9e` | read, notify | Device announces buffered, not-yet-uploaded sessions: id, byte size, `started_at`/`ended_at`, optional `boat_id`/`activity_id` |
-| `session_data` | `728d2815-0409-49ce-ad73-ecca6fc6d981` | notify (chunked) | Device streams one session's raw bytes to the app, framed with a sequence index so the app can detect drops |
-| `control` | `ec88dd3e-2562-420c-aebe-30a4ae40bdf9` | write | App → device commands: `start-transfer <session>`, `ack-uploaded <session>` |
+`session_manifest`'s `session_id` is a device-local token (e.g. an SD-card
+path), **not** an XGSail session id — just what `control`'s
+`start-transfer`/`ack-uploaded` use to address the buffered file.
+`boat_id`/`activity_id`, when a device lets the operator pick them before
+recording, should be forwarded on `session-uploads` (§4.1) exactly as a
+direct-WiFi upload would; omitted entirely when the device has no opinion, so
+the backend's own defaults apply.
 
 `provisioning` (or any characteristic that could leak `device_api_key`) must
 not be readable/writable except over a **bonded, encrypted** connection —
 proximity alone isn't enough, the key is equivalent to full write access to
 that device's uploads.
 
-**Wire format** (UTF-8 JSON unless noted):
-- `identity` read: `{"external_id": "...", "firmware_version": "..."}`.
-- `provisioning` write: `{"device_api_key": "..."}`; notifies back
-  `{"status": "claimed"}` once persisted.
-- `session_manifest` read/notify: a JSON array of
-  `{"session_id": "...", "byte_size": N, "started_at": "...", "ended_at": "..."|null, "boat_id": "..."|omitted, "activity_id": "..."|omitted}`.
-  `session_id` is a device-local token (e.g. an SD-card path) identifying
-  the buffered file to `control`'s `start-transfer`/`ack-uploaded` below —
-  it is **not** an XGSail session id. `boat_id`/`activity_id` are optional:
-  when a device lets the operator pick them before recording (as a
-  device-specific extension might), they should be included here so the
-  app can forward them on `session-uploads` (§4.1) exactly as a
-  direct-WiFi upload would (§4.1's `boat_id`/`activity_id` fields);
-  omitted entirely when the device has no opinion, so the backend's own
-  defaults apply.
-- `session_data` notify: **not** JSON — raw binary, a 4-byte big-endian
-  sequence index followed by that chunk's bytes. The app reassembles by
-  index and considers the transfer complete once it has `byte_size` bytes
-  total (from the manifest entry) — no separate end-of-stream marker needed.
-- `control` write: `{"cmd": "start-transfer"|"ack-uploaded", "session_id": "..."}`.
+The exact UUIDs, wire format (JSON shapes, `session_data`'s binary chunk
+framing), and a client implementation are the concern of whichever device
+exposes this service — for the E1, that's the `xgsail-e1` repo: `docs/ble-config.md` and firmware
+source are the source of truth for its GATT contract, and
+`@xgsail-e1/capacitor` (`clients/capacitor` in that repo) is a ready-made
+TypeScript/Capacitor client implementing this section end to end, including
+the claim/upload-relay flow in §8.3/§8.4 below.
 
 ### 8.3 Claim over BLE (replaces manually typing the claim code)
 
