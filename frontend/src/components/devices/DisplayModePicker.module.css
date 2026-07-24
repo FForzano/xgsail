@@ -1,0 +1,35 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.75rem;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 2px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.optionSelected {
+  border-color: var(--sf-primary);
+}
+
+.preview {
+  width: 100%;
+  aspect-ratio: 696 / 1102;
+  object-fit: contain;
+  border-radius: 0.25rem;
+}
+
+.label {
+  font-size: 0.85rem;
+  text-align: center;
+}

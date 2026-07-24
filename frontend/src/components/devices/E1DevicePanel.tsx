@@ -13,6 +13,7 @@ import type { CalibrateResult, E1ConfigPatch, E1WifiNetwork } from "@/services/n
 import { fmtDuration } from "@/utils/format";
 import type { Device } from "@/types";
 import { E1InfoDialog } from "./E1InfoDialog";
+import { DisplayModePicker } from "./DisplayModePicker";
 import styles from "./E1DevicePanel.module.css";
 
 const UNIT_ROLES = ["racing_boat", "rc_signal", "rc_pin", "mark", "committee_chase", "spare"] as const;
@@ -34,6 +35,7 @@ export function E1DevicePanel({ device }: { device: Device }) {
   const [windOffset, setWindOffset] = useState(0);
   const [rtkEnabled, setRtkEnabled] = useState(false);
   const [autoCleanupUploads, setAutoCleanupUploads] = useState(true);
+  const [displayMode, setDisplayMode] = useState<1 | 2 | 3>(2);
   const [calibResult, setCalibResult] = useState<CalibrateResult | null>(null);
   const [confirmingCalibrate, setConfirmingCalibrate] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export function E1DevicePanel({ device }: { device: Device }) {
     setWindOffset(e1.config.wind_offset);
     setRtkEnabled(e1.config.rtk_enabled);
     setAutoCleanupUploads(e1.config.auto_cleanup_uploads);
+    setDisplayMode(e1.config.display_mode);
   }, [e1.config]);
 
   if (e1.state === "unsupported") return null;
@@ -104,6 +107,7 @@ export function E1DevicePanel({ device }: { device: Device }) {
       wind_offset: windOffset,
       rtk_enabled: rtkEnabled,
       auto_cleanup_uploads: autoCleanupUploads,
+      display_mode: displayMode,
     };
     e1.writeConfig.mutate(patch, {
       onSuccess: () => setConfigSaved(true),
@@ -276,6 +280,8 @@ export function E1DevicePanel({ device }: { device: Device }) {
             {t("devices.e1.config.autoCleanupUploads")}
           </label>
           <p className="sf-muted">{t("devices.e1.config.autoCleanupUploadsHint")}</p>
+
+          <DisplayModePicker value={displayMode} onChange={setDisplayMode} />
 
           {configError && <p className="sf-form__error">{configError}</p>}
           {configSaved && <p className="sf-badge sf-badge--success">{t("common.saved")}</p>}

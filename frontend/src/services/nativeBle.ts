@@ -396,6 +396,10 @@ export interface E1Config {
   start_speed_knots: number;
   rtk_enabled: boolean;
   auto_cleanup_uploads: boolean;
+  // 1 = D1 (simple SOG/COG), 2 = D2 (nav + wind, default), 3 = D3 (wind
+  // focus) — see xgsail-e1's docs/hardware.md "Display" section for what
+  // each layout shows; out-of-range values are ignored by the firmware.
+  display_mode: 1 | 2 | 3;
   wifi: E1WifiNetwork[];
 }
 
