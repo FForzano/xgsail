@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/system", tags=["system"])
 
 
 class StreamPayload(BaseModel):
-    sensor_type: str  # gps | imu | wind | pressure | heart_rate | estimated_position | estimated_motion | other
+    sensor_type: str  # gps | imu | wind | pressure | heart_rate | energy | hrv | respiration | estimated_position | estimated_motion | other
     data_ref: str
     sample_rate_hz: Optional[float] = None
     row_count: Optional[int] = None

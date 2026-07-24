@@ -10,6 +10,7 @@ import { useAppShellGestures } from "@/hooks/useAppShellGestures";
 import { PullRefreshProvider } from "@/contexts/PullRefreshContext";
 import * as nativeRecording from "@/services/nativeRecording";
 import { useE1AutoSync } from "@/services/e1Sync";
+import { useWatchRelay } from "@/hooks/useWatchRelay";
 import { ToastViewport } from "@/components/ui/ToastViewport";
 import { Avatar } from "@/components/ui/Avatar";
 import { ProfileMenu } from "@/components/layout/ProfileMenu";
@@ -36,6 +37,11 @@ export function AppShell() {
   // sessions — see services/e1Sync.ts. No UI of its own; this is the
   // automatic counterpart to the E1's own WiFi upload.
   useE1AutoSync(queryClient);
+
+  // Relay finished sessions arriving from a paired Apple Watch (§9) — also
+  // silent, event-driven; uploads land under the signed-in user as the
+  // crew_member subject for the physiological streams.
+  useWatchRelay(queryClient, user?.id);
 
   // Local GPS recordings still waiting to upload (or retrying) — surfaced
   // as a badge on the Registra nav item so it's visible from anywhere in

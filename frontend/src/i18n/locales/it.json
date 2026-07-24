@@ -227,12 +227,23 @@
       "xgsailE1": "XGSail E1",
       "xgsailE1Hint": "Tracker GPS/vento, si accoppia via Bluetooth",
       "appleWatch": "Apple Watch",
+      "appleWatchHint": "GPS + battito, calorie, HRV e respiro durante l'uscita",
+      "iosOnly": "Apri l'app XGSail su iPhone per abbinare l'Apple Watch",
+      "iosOnlyBadge": "Solo iPhone",
       "garmin": "Garmin",
       "polar": "Polar",
       "soon": "In arrivo",
       "nativeOnlyBadge": "Solo app",
       "nativeOnly": "Apri l'app XGSail per aggiungere questo dispositivo",
       "personalOnly": "Solo dispositivi personali: collega il tuo smartwatch dal profilo"
+    },
+    "watch": {
+      "title": "Abbina Apple Watch",
+      "pairHint": "L'iPhone abbina l'orologio e ne conserva la chiave: l'orologio registra da solo e invia i dati all'iPhone, che li carica.",
+      "pair": "Abbina",
+      "claiming": "Abbinamento in corso…",
+      "claimedHint": "Fatto. Avvia una registrazione dall'app XGSail sull'Apple Watch.",
+      "iosOnly": "L'Apple Watch è disponibile solo dall'app iPhone."
     },
     "ble": {
       "scan": "Cerca dispositivi",

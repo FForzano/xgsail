@@ -4,6 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { Info } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { ClaimDeviceDialog } from "@/components/common/ClaimDeviceDialog";
+import { WatchClaimDialog } from "@/components/common/WatchClaimDialog";
 import { E1InfoDialog } from "@/components/devices/E1InfoDialog";
 import type { UUID } from "@/types";
 import styles from "./AddDeviceDialog.module.css";
@@ -68,12 +69,18 @@ function DeviceOptionCard({
 export function AddDeviceDialog({ owner, onClose }: { owner: Owner; onClose: () => void }) {
   const { t } = useTranslation();
   const [claimingXgsailE1, setClaimingXgsailE1] = useState(false);
+  const [claimingWatch, setClaimingWatch] = useState(false);
   const [infoE1Open, setInfoE1Open] = useState(false);
   const isNative = Capacitor.isNativePlatform();
+  // The Apple Watch companion is iOS-only (watchOS + WatchConnectivity).
+  const isIOS = Capacitor.getPlatform() === "ios";
   const showWearables = owner.owner_user_id !== undefined;
 
   if (claimingXgsailE1) {
     return <ClaimDeviceDialog owner={owner} onClose={onClose} />;
+  }
+  if (claimingWatch && owner.owner_user_id) {
+    return <WatchClaimDialog userId={owner.owner_user_id} onClose={onClose} />;
   }
 
   return (
@@ -89,7 +96,13 @@ export function AddDeviceDialog({ owner, onClose }: { owner: Owner; onClose: () 
         />
         {showWearables && (
           <>
-            <DeviceOptionCard title={t("devices.add.appleWatch")} hint="" disabled onClick={() => {}} />
+            <DeviceOptionCard
+              title={t("devices.add.appleWatch")}
+              hint={isIOS ? t("devices.add.appleWatchHint") : t("devices.add.iosOnly")}
+              disabled={!isIOS}
+              badge={t("devices.add.iosOnlyBadge")}
+              onClick={() => setClaimingWatch(true)}
+            />
             <DeviceOptionCard title={t("devices.add.garmin")} hint="" disabled onClick={() => {}} />
             <DeviceOptionCard title={t("devices.add.polar")} hint="" disabled onClick={() => {}} />
           </>

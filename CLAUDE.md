@@ -129,7 +129,9 @@ core/
 │   ├── schemas/        # Pydantic request/response models
 │   └── alembic/        # DB migrations
 ├── frontend/           # Vite + TS SPA: TanStack Query, react-router, leaflet,
-│   └── src/            # recharts, i18next (pages/ layout below)
+│   ├── src/            # recharts, i18next (pages/ layout below)
+│   └── ios/XGSailWatch/ # Native watchOS companion (hand-added Xcode target,
+│                       # see docs/native-apps.md "Apple Watch companion")
 ├── workers/            # Heavy-processing workers — same handler runs on AWS
 │   ├── process_upload/  # Lambda (container image): GPS/CSV/GPX → analysis
 │   ├── train_maneuver/  # Maneuver-detector training/export tooling

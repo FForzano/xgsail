@@ -8,6 +8,10 @@ import type { ClaimTicket, Device, DeviceHealth, DeviceType, UUID } from "@/type
 // identifies the E1 hardware adapter.
 export const XGSAIL_E1_PARSER_KEY = "sailframes_e1_csv";
 
+// The Apple Watch companion's device-type row (backend/auth/seed.py). Like
+// the E1, matched on parser_key rather than the display name.
+export const XGSAIL_WATCH_PARSER_KEY = "xgsail_watch_csv";
+
 /** Whether `device` is a claimed XGSail E1, given the full `DeviceType` list
  * (from `listTypes`) — the parser_key match is the only reliable
  * disambiguator, see the note on XGSAIL_E1_PARSER_KEY above. */
