@@ -227,12 +227,23 @@
       "xgsailE1": "XGSail E1",
       "xgsailE1Hint": "GPS/wind tracker, pairs over Bluetooth",
       "appleWatch": "Apple Watch",
+      "appleWatchHint": "GPS + heart rate, energy, HRV and respiration during the outing",
+      "iosOnly": "Open the XGSail app on iPhone to pair your Apple Watch",
+      "iosOnlyBadge": "iPhone only",
       "garmin": "Garmin",
       "polar": "Polar",
       "soon": "Coming soon",
       "nativeOnlyBadge": "App only",
       "nativeOnly": "Open the XGSail app to add this device",
       "personalOnly": "Personal devices only: connect your own watch from your profile"
+    },
+    "watch": {
+      "title": "Pair Apple Watch",
+      "pairHint": "The iPhone pairs the watch and holds its key: the watch records on its own and sends the data to the iPhone, which uploads it.",
+      "pair": "Pair",
+      "claiming": "Pairing…",
+      "claimedHint": "Done. Start a recording from the XGSail app on your Apple Watch.",
+      "iosOnly": "Apple Watch is only available from the iPhone app."
     },
     "ble": {
       "scan": "Scan for devices",

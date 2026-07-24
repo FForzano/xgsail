@@ -2,8 +2,9 @@
 
 A session can have N ``session_uploads`` (one per contributing device or
 manual import), each with its own raw bundle (``raw_ref``). Each upload yields
-one or more ``session_streams`` (the E1 produces 4: gps/imu/wind/pressure; a
-smartwatch typically 1: heart_rate). ``sequence_number``/``is_final`` enable
+one or more ``session_streams`` (the E1 produces 4: gps/imu/wind/pressure; an
+Apple Watch produces up to 5: gps + heart_rate/energy/hrv/respiration).
+``sequence_number``/``is_final`` enable
 chunked/live uploads while keeping today's single-upload case simple (0/true
 defaults); streams are consolidated only when the ``is_final`` row lands.
 ``imports`` keeps its own ``raw_ref`` so the file is traceable even if parsing
@@ -39,6 +40,7 @@ REANALYSIS_STATUSES = ("running", "failed")
 UPLOAD_SOURCE_TYPES = ("device", "manual_import")
 UPLOAD_SUBJECT_TYPES = ("boat", "crew_member")
 STREAM_SENSOR_TYPES = ("gps", "imu", "wind", "pressure", "heart_rate",
+                       "energy", "hrv", "respiration",
                        "estimated_position", "estimated_motion", "other")
 
 

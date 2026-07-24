@@ -404,3 +404,63 @@ next connection. This is safe because §4.1 is idempotent on
 `(session, device, sequence_number)`: a dropped BLE connection mid-transfer
 just re-opens the same `session_upload_id` with a fresh `upload_url`, never a
 duplicate.
+
+---
+
+## 9. Wearables (Apple Watch) — GPS + physiological streams
+
+A wearable (device type category `wearable`, e.g. the seeded **"Apple Watch"**
+type) is a **personal** device: it's claimed under `owner_user_id`, not a
+boat. It records the wearer's GPS and HealthKit signals during a session and
+**relays through the paired phone** — exactly the §8.4 pattern, with
+WatchConnectivity in place of BLE as the watch→phone transport. No new backend
+endpoint: the phone makes the ordinary §2 claim and §4 upload calls, holding
+the `device_api_key` on the watch's behalf (§8.3 step 5).
+
+### 9.1 Two subjects, one session
+
+A wearable contributes **two** `session_uploads`, same `boat_id` +
+`started_at` (so both merge into the boat's session via the find-or-create
+window in `backend/services/ingestion.py`), distinguished by
+`sequence_number`:
+
+| seq | `subject_type` | `subject_user_id` | files |
+|---|---|---|---|
+| 0 | `boat` | — | `watch_nav.csv` |
+| 1 | `crew_member` | the wearer | `watch_hr.csv`, `watch_energy.csv`, `watch_hrv.csv`, `watch_resp.csv` |
+
+The GPS upload is `subject_type=boat` so it can serve as the boat track when
+there's no onboard tracker (a single-hander with only a watch). The
+physiological upload is `subject_type=crew_member` on the wearer — personal
+data, but **still tied to the boat session** through the shared boat + time
+window, never a free-floating record. If the operator picks a "personal-only"
+mode (the boat already has its own tracker), the GPS upload uses
+`subject_type=crew_member` too.
+
+The physiological upload is a **multi-file bundle** — several filenames under
+one `session_upload_id`, each processed into its own `session_streams` row,
+exactly as the E1 bundles gps/imu/wind/pressure (§8.4 note on distinct
+filenames applies: each file needs its real basename, they must not collide).
+
+### 9.2 File formats
+
+All files are CSV with a header row. **`t` is ISO 8601 UTC with millisecond
+precision and a trailing `Z`** (e.g. `2026-07-24T14:05:03.000Z`) — always
+include the milliseconds so timestamps sort consistently. GPS speed is in
+knots, course in degrees. The worker
+(`workers/process_upload/handler.py`) keys the sensor off the filename suffix
+(`_nav`/`_hr`/`_energy`/`_hrv`/`_resp`) and applies **no** clock correction
+(unlike the legacy S1 format) — the watch's `t` is already correct GPS/UTC.
+
+```
+watch_nav.csv     t,lat,lon,speed_kn,course        -> gps
+watch_hr.csv      t,bpm                             -> heart_rate
+watch_energy.csv  t,kcal                            -> energy    (cumulative active energy)
+watch_hrv.csv     t,ms                              -> hrv        (SDNN, sparse)
+watch_resp.csv    t,brpm                            -> respiration (breaths/min, sparse)
+```
+
+HRV, energy and respiration arrive far more sparsely than heart rate — send
+each at whatever cadence HealthKit delivers; the backend does not resample
+them. `sensor_type` values `energy`/`hrv`/`respiration` were added to
+`session_streams` in migration `0035`.

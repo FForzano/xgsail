@@ -48,6 +48,10 @@ DEFAULT_ROLES = {
 DEFAULT_DEVICE_TYPES = {
     "SailFrames E1": ("boat_tracker", "sailframes_e1_csv"),
     "Generic GPX": ("boat_tracker", "generic_gpx"),
+    # A paired Apple Watch, claimed personally (owner_user_id) — its GPS +
+    # HealthKit streams relay through the phone via the device protocol,
+    # see docs/device-protocol.md §8 (WatchConnectivity in place of BLE).
+    "Apple Watch": ("wearable", "xgsail_watch_csv"),
 }
 
 

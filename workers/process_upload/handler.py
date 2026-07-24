@@ -321,7 +321,27 @@ def _sensor_from_filename(filename: str) -> str:
         return 'pressure'
     if '_wind.csv' in filename:
         return 'wind'
+    # Apple Watch companion streams (docs/device-protocol.md) — one
+    # single-value file per physiological signal, all parsed by process_scalar.
+    if '_hr.csv' in filename:
+        return 'heart_rate'
+    if '_energy.csv' in filename:
+        return 'energy'
+    if '_hrv.csv' in filename:
+        return 'hrv'
+    if '_resp.csv' in filename:
+        return 'respiration'
     return None
+
+
+# Wearable single-value streams -> the CSV/JSON column carrying the value.
+# process_scalar is shared across all four (they differ only by this column).
+SCALAR_SENSOR_COLUMNS = {
+    'heart_rate': 'bpm',
+    'energy': 'kcal',
+    'hrv': 'ms',
+    'respiration': 'brpm',
+}
 
 
 def _post_system(path: str, payload: dict, label: str):
@@ -400,8 +420,11 @@ def process_file(bucket: str, key: str):
             data = process_imu(csv_content, date, start_time)
         elif sensor_type == 'pressure':
             data = process_pressure(csv_content, date, start_time)
-        else:
+        elif sensor_type == 'wind':
             data = process_wind(csv_content, date, start_time)
+        else:
+            # heart_rate / energy / hrv / respiration — wearable scalar streams.
+            data = process_scalar(csv_content, SCALAR_SENSOR_COLUMNS[sensor_type])
     except Exception as e:
         _post_callback({
             'session_upload_id': upload_id,
@@ -536,6 +559,19 @@ def _s1_row_fields(row: dict) -> dict:
     }
 
 
+def _watch_row_fields(row: dict) -> dict:
+    """Extract one Apple Watch-format ``watch_nav.csv`` row's GPS fields —
+    ``t,lat,lon,speed_kn,course`` with an ISO 8601 UTC ``t``. Trusted as-is
+    (no validity gate), like S1; CoreLocation already filters bad fixes on
+    the watch."""
+    return {
+        'lat': float(row.get('lat', 0) or 0),
+        'lon': float(row.get('lon', 0) or 0),
+        'speed_kn': round(float(row.get('speed_kn', 0) or 0), 2),
+        'course': round(float(row.get('course', 0) or 0), 1),
+    }
+
+
 def process_gps(csv_content: str, date: str = None, start_time: str = None) -> tuple:
     """Downsample GPS from 10Hz to 1Hz, keeping max speed per second.
     Also generates full 10Hz data for high-resolution track display.
@@ -563,6 +599,10 @@ def process_gps(csv_content: str, date: str = None, start_time: str = None) -> t
     # Detect format based on column names
     first_row = rows[0]
     is_e1_format = 'utc' in first_row and 'lat' in first_row
+    # Apple Watch: an ISO-timestamp `t` column with lat/lon. Distinct from E1
+    # (which uses `utc`+`gps_date`) and S1 (`utc_time`), so it gets neither
+    # E1's date-anchor gymnastics nor S1's -2460s clock correction.
+    is_watch_format = 't' in first_row and 'lat' in first_row and not is_e1_format
 
     # Extract actual GPS date from E1 data if available
     actual_date = date
@@ -692,6 +732,27 @@ def process_gps(csv_content: str, date: str = None, start_time: str = None) -> t
                 continue
             all_valid_records.append({'t': full_ts, **fields})
             by_second[second].append(row)
+        elif is_watch_format:
+            # Apple Watch: `t` is already correct ISO 8601 UTC — no clock
+            # correction, no date reconstruction.
+            ts = (row.get('t') or '').strip()
+            if not ts:
+                continue
+            try:
+                dt = datetime.fromisoformat(ts.replace('Z', ''))
+            except ValueError:
+                continue
+            second = dt.strftime('%Y-%m-%dT%H:%M:%S')
+            full_ts = second
+            if dt.microsecond:
+                full_ts += f".{dt.microsecond // 1000:03d}"
+            full_ts += 'Z'
+            try:
+                fields = _watch_row_fields(row)
+            except (ValueError, TypeError):
+                continue
+            all_valid_records.append({'t': full_ts, **fields})
+            by_second[second].append(row)
         else:
             # S1 format: utc_time is ISO timestamp
             ts = row.get('utc_time', '')
@@ -773,6 +834,8 @@ def process_gps(csv_content: str, date: str = None, start_time: str = None) -> t
             if not valid_fields:
                 continue
             best = max(valid_fields, key=lambda f: f['speed_kn'])
+        elif is_watch_format:
+            best = max((_watch_row_fields(s) for s in samples), key=lambda f: f['speed_kn'])
         else:
             best = max((_s1_row_fields(s) for s in samples), key=lambda f: f['speed_kn'])
         result_1hz.append({'t': second + 'Z', **best})
@@ -1128,5 +1191,32 @@ def process_wind(csv_content: str, date: str = None, start_time: str = None) -> 
             })
 
         return result
+
+
+def process_scalar(csv_content: str, value_col: str) -> list:
+    """Parse an Apple Watch single-value physiological stream — the
+    ``watch_hr.csv`` / ``watch_energy.csv`` / ``watch_hrv.csv`` /
+    ``watch_resp.csv`` files (docs/device-protocol.md). Each is
+    ``t,<value_col>`` with an ISO 8601 UTC ``t``, differing only in the value
+    column (``bpm``/``kcal``/``ms``/``brpm``), so one parser covers all four.
+
+    Returns ``[{'t': <iso>, <value_col>: <float>}]``, keeping the watch's own
+    sampling cadence (HRV/energy arrive far more sparsely than heart rate —
+    no resampling here). Rows with a missing/unparseable timestamp or value
+    are skipped, same tolerance as the other parsers.
+    """
+    reader = _csv_reader(csv_content)
+    result = []
+    for row in reader:
+        ts = (row.get('t') or '').strip()
+        raw = row.get(value_col)
+        if not ts or raw in (None, ''):
+            continue
+        try:
+            value = round(float(raw), 2)
+        except (ValueError, TypeError):
+            continue
+        result.append({'t': ts, value_col: value})
+    return result
 
 
