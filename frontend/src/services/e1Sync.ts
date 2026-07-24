@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import type { QueryClient } from "@tanstack/react-query";
-import { devicesService, deviceKeys, XGSAIL_E1_PARSER_KEY } from "@/services/devices";
+import { devicesService, deviceKeys, isE1Device } from "@/services/devices";
 import { activityKeys } from "@/services/activities";
 import { sessionKeys } from "@/services/sessions";
 import * as nativeBle from "@/services/nativeBle";
@@ -30,11 +30,7 @@ export async function syncE1Devices(queryClient: QueryClient): Promise<void> {
   syncing = true;
   try {
     const [types, devices] = await Promise.all([devicesService.listTypes(), devicesService.list()]);
-    const e1Devices = devices.filter(
-      (d) =>
-        d.status === "claimed" &&
-        types.find((dt) => dt.id === d.device_type_id)?.parser_key === XGSAIL_E1_PARSER_KEY,
-    );
+    const e1Devices = devices.filter((d) => isE1Device(d, types));
 
     let anyUploaded = false;
     for (const device of e1Devices) {

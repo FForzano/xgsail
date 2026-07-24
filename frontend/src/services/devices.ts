@@ -8,6 +8,20 @@ import type { ClaimTicket, Device, DeviceHealth, DeviceType, UUID } from "@/type
 // identifies the E1 hardware adapter.
 export const XGSAIL_E1_PARSER_KEY = "sailframes_e1_csv";
 
+/** Whether `device` is a claimed XGSail E1, given the full `DeviceType` list
+ * (from `listTypes`) — the parser_key match is the only reliable
+ * disambiguator, see the note on XGSAIL_E1_PARSER_KEY above. */
+export function isE1Device(
+  device: Pick<Device, "device_type_id" | "status"> | undefined,
+  types: DeviceType[] | undefined,
+): boolean {
+  return (
+    !!device &&
+    device.status === "claimed" &&
+    types?.find((dt) => dt.id === device.device_type_id)?.parser_key === XGSAIL_E1_PARSER_KEY
+  );
+}
+
 export const deviceKeys = {
   all: ["devices"] as const,
   detail: (id: UUID) => ["devices", id] as const,

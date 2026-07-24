@@ -3,6 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { E1_REPO_URL } from "@/config/links";
 import { E1_INFO_BULLET_KEYS } from "./e1Info";
+import { E1_DEFAULT_DISPLAY_MODE, e1DisplayModeSrc } from "./e1DisplayModes";
 import styles from "./E1InfoDialog.module.css";
 
 export function E1InfoDialog({ onClose }: { onClose: () => void }) {
@@ -10,7 +11,7 @@ export function E1InfoDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title={t("devices.e1.info.title")} onClose={onClose}>
       <img
-        src="/devices/e1-display-modes/d2.png"
+        src={e1DisplayModeSrc(E1_DEFAULT_DISPLAY_MODE)}
         alt={t("devices.e1.info.shotAlt")}
         className={styles.shot}
       />

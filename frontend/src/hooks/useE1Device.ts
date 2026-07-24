@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { devicesService, deviceKeys, XGSAIL_E1_PARSER_KEY } from "@/services/devices";
+import { devicesService, deviceKeys, isE1Device } from "@/services/devices";
 import * as nativeBle from "@/services/nativeBle";
 import type {
   CalibrateResult,
@@ -31,10 +31,7 @@ export function useE1Device(device: Device | undefined) {
   const queryClient = useQueryClient();
   const types = useQuery({ queryKey: deviceKeys.types, queryFn: devicesService.listTypes });
 
-  const isE1 =
-    !!device &&
-    types.data?.find((dt) => dt.id === device.device_type_id)?.parser_key === XGSAIL_E1_PARSER_KEY;
-  const eligible = Capacitor.isNativePlatform() && device?.status === "claimed" && isE1;
+  const eligible = Capacitor.isNativePlatform() && isE1Device(device, types.data);
   const externalId = device?.external_id ?? null;
 
   const [state, setState] = useState<E1ConnectionState>("unsupported");

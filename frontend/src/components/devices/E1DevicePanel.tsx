@@ -14,6 +14,7 @@ import { fmtDuration } from "@/utils/format";
 import type { Device } from "@/types";
 import { E1InfoDialog } from "./E1InfoDialog";
 import { DisplayModePicker } from "./DisplayModePicker";
+import { E1_DEFAULT_DISPLAY_MODE, type E1DisplayMode } from "./e1DisplayModes";
 import styles from "./E1DevicePanel.module.css";
 
 const UNIT_ROLES = ["racing_boat", "rc_signal", "rc_pin", "mark", "committee_chase", "spare"] as const;
@@ -35,7 +36,7 @@ export function E1DevicePanel({ device }: { device: Device }) {
   const [windOffset, setWindOffset] = useState(0);
   const [rtkEnabled, setRtkEnabled] = useState(false);
   const [autoCleanupUploads, setAutoCleanupUploads] = useState(true);
-  const [displayMode, setDisplayMode] = useState<1 | 2 | 3>(2);
+  const [displayMode, setDisplayMode] = useState<E1DisplayMode>(E1_DEFAULT_DISPLAY_MODE);
   const [calibResult, setCalibResult] = useState<CalibrateResult | null>(null);
   const [confirmingCalibrate, setConfirmingCalibrate] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);

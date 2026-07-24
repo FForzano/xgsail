@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { isNativeApp } from "@/config/platform";
 import { SelfHostedArt } from "@/components/landing/FeatureArt";
 import { SupportLink } from "@/components/common/SupportLink";
+import { E1_DEFAULT_DISPLAY_MODE, e1DisplayModeSrc } from "@/components/devices/e1DisplayModes";
 import {
   ANDROID_APK_URL,
   GITHUB_URL,
@@ -160,7 +161,7 @@ export function LandingPage() {
               <p className="sf-muted">{t("landing.e1Body")}</p>
             </div>
             <img
-              src="/devices/e1-display-modes/d2.png"
+              src={e1DisplayModeSrc(E1_DEFAULT_DISPLAY_MODE)}
               alt={t("landing.e1ShotAlt")}
               className={styles.e1Shot}
             />
