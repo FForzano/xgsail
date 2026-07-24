@@ -19,7 +19,7 @@ export function Modal({
   }, [onClose]);
 
   return (
-    <div className={styles.backdrop} onClick={onClose}>
+    <div className={`sf-modal__backdrop ${styles.backdrop}`} onClick={onClose}>
       <div
         className={styles.modal}
         role="dialog"
