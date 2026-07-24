@@ -390,10 +390,10 @@ export interface E1Config {
   api_base_url: string;
   wind_mac: string;
   wind_offset: number;
+  // stop_speed_knots/start_delay_sec/stop_delay_sec are round-tripped by the
+  // firmware for older cards' config.txt compatibility but unused by it
+  // (xgsail-e1's docs/ble-config.md) — deliberately not modeled here.
   start_speed_knots: number;
-  stop_speed_knots: number;
-  start_delay_sec: number;
-  stop_delay_sec: number;
   rtk_enabled: boolean;
   auto_cleanup_uploads: boolean;
   wifi: E1WifiNetwork[];
