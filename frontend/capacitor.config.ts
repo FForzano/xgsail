@@ -24,8 +24,12 @@ const config: CapacitorConfig = {
   // xgsail.com still autofill here. This only changes the WebView's own
   // virtual origin (cookies/autofill/CORS identity); it does NOT redirect
   // network requests — VITE_API_BASE still points at api.xgsail.com
-  // regardless. Requires SAILFRAMES_CORS_ORIGINS on the backend to include
-  // https://app.xgsail.com (see deploy/docker-compose.prod.yml).
+  // regardless. With androidScheme "https" below, this origin is
+  // https://app.xgsail.com on Android and capacitor://app.xgsail.com on iOS
+  // (Capacitor 8 applies `hostname` to both platforms, not just Android —
+  // confirmed via Safari Web Inspector's Network tab on a real iOS build).
+  // Requires SAILFRAMES_CORS_ORIGINS on the backend to include both (see
+  // deploy/docker-compose.prod.yml / docs/native-apps.md).
   server: {
     hostname: "app.xgsail.com",
     androidScheme: "https",

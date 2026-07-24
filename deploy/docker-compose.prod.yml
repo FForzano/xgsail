@@ -73,7 +73,7 @@ services:
       # presigned MinIO URLs (SAILFRAMES_S3_PUBLIC_ENDPOINT) need them too,
       # or fetch() from the native app fails CORS even though the identical
       # URL renders fine in an <img> tag.
-      SAILFRAMES_CORS_ORIGINS: ${SAILFRAMES_CORS_ORIGINS:-capacitor://localhost,https://localhost,https://app.xgsail.com}
+      SAILFRAMES_CORS_ORIGINS: ${SAILFRAMES_CORS_ORIGINS:-capacitor://localhost,https://localhost,capacitor://app.xgsail.com,https://app.xgsail.com}
     entrypoint: ["/bin/sh", "/init/minio-init.sh"]
     volumes:
       - ./minio-init.sh:/init/minio-init.sh:ro
@@ -95,13 +95,15 @@ services:
       SAILFRAMES_COOKIE_SECURE: "1"
       # Native app WebView origins (fetch() is still subject to CORS there,
       # unlike a fully native HTTP client) — see the comment on this var in
-      # .env.example. https://app.xgsail.com is the Android WebView's
-      # virtual origin (capacitor.config.ts server.hostname — a dedicated,
-      # purely virtual hostname, doesn't need to exist in DNS, set so
-      # password managers recognize the native app via base-domain
-      # matching) — iOS still defaults to capacitor://localhost unless
-      # given the same hostname.
-      SAILFRAMES_CORS_ORIGINS: ${SAILFRAMES_CORS_ORIGINS:-capacitor://localhost,https://localhost,https://app.xgsail.com}
+      # .env.example. capacitor.config.ts's server.hostname (app.xgsail.com
+      # — a dedicated, purely virtual hostname, doesn't need to exist in
+      # DNS, set so password managers recognize the native app via
+      # base-domain matching) sets the WebView's virtual origin on BOTH
+      # platforms with Capacitor 8: capacitor://app.xgsail.com on iOS,
+      # https://app.xgsail.com on Android (androidScheme: "https"). Confirmed
+      # via Safari Web Inspector on a real iOS build — the Origin header on
+      # login was capacitor://app.xgsail.com, not capacitor://localhost.
+      SAILFRAMES_CORS_ORIGINS: ${SAILFRAMES_CORS_ORIGINS:-capacitor://localhost,https://localhost,capacitor://app.xgsail.com,https://app.xgsail.com}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: ${POSTGRES_USER}

@@ -48,13 +48,20 @@ npm run cap:open:ios      # or: npm run cap:open:android
 dedicated Cloudflare Tunnel route straight to `backend:8000` (see
 `deploy/README.md`), not `https://xgsail.com/api` (that goes through the
 frontend's nginx and its 10 MB upload cap). The backend also needs the
-WebView's origin in `SAILFRAMES_CORS_ORIGINS` (`capacitor://localhost` on
-iOS, `https://app.xgsail.com` on Android — see `server.hostname` in
-`capacitor.config.ts`, a dedicated purely-virtual hostname that doesn't need
-to exist in DNS, set so password managers recognize the native app via
-base-domain matching instead of "localhost") — already the default in
-`deploy/docker-compose.prod.yml`'s `backend` service, but required if
-you're pointing at a different backend (e.g. local dev over a LAN IP).
+WebView's origin in `SAILFRAMES_CORS_ORIGINS` — with Capacitor 8's
+`server.hostname` (`capacitor.config.ts`, a dedicated purely-virtual
+hostname that doesn't need to exist in DNS, set so password managers
+recognize the native app via base-domain matching instead of "localhost")
+this is `capacitor://app.xgsail.com` on iOS and `https://app.xgsail.com` on
+Android (`androidScheme: "https"`); confirmed via Safari Web Inspector
+(Develop → \[Simulator\] → App → Network tab) — a build without the
+`server.hostname` override falls back to `capacitor://localhost`/
+`https://localhost` instead, which is why both pairs are in the default
+list. Already the default in `deploy/docker-compose.prod.yml`'s `backend`
+service, but required if you're pointing at a different backend (e.g. local
+dev over a LAN IP) — if login/API calls fail from the native app with a
+generic network error, check the `Origin` header on the failed request in
+Safari Web Inspector against this list first.
 
 Minimum OS targets: Android 8 (`minSdkVersion 26` in
 `android/variables.gradle`, set after `cap add android`) and iOS 14 (Xcode
