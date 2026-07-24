@@ -58,6 +58,9 @@ and currently a build-it-yourself project rather than a sold product.
 See that repository's `README.md` and `docs/hardware.md` for firmware,
 schematics, and the BOM.
 
+<img src="frontend/public/devices/e1-display-modes/d2.png" alt="E1's default TFT display layout: COG/SOG, fix/battery status, heel/pitch/wind" width="220">
+
+
 ## Project Scope
 
 This repository contains:

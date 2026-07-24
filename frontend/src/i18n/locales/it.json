@@ -118,6 +118,7 @@
       "openHardware": "Firmware e PCB open (Apache 2.0)"
     },
     "e1RepoLink": "Vai al repository hardware e firmware",
+    "e1ShotAlt": "Schermata di navigazione predefinita del display E1",
     "nativeAppsTitle": "Anche su mobile",
     "nativeAppsIntro": "La stessa app in una versione per iOS e Android, con registrazione GPS in background e accoppiamento Bluetooth dei dispositivi.",
     "androidTitle": "Android",
@@ -249,6 +250,7 @@
       "info": {
         "button": "Info su E1",
         "title": "Informazioni su XGSail E1",
+        "shotAlt": "Schermata di navigazione predefinita del display E1",
         "intro": "E1 è un fleet tracker basato su ESP32 costruito per XGSail: registrazione GNSS, IMU (sbandamento/beccheggio), vento e pressione su un'unica scheda.",
         "bullets": {
           "sensors": "GPS, IMU, vento e pressione registrano ogni sessione sulla scheda SD a bordo.",

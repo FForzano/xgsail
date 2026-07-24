@@ -1,0 +1,10 @@
+.shot {
+  display: block;
+  width: 120px;
+  height: auto;
+  aspect-ratio: 696 / 1102;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid var(--sf-border);
+  margin: 0 auto 0.85rem;
+}

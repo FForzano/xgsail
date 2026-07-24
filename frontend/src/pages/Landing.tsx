@@ -159,6 +159,11 @@ export function LandingPage() {
               <h3 className="sf-card__title">{t("landing.e1CardTitle")}</h3>
               <p className="sf-muted">{t("landing.e1Body")}</p>
             </div>
+            <img
+              src="/devices/e1-display-modes/d2.png"
+              alt={t("landing.e1ShotAlt")}
+              className={styles.e1Shot}
+            />
           </div>
           <div className={styles.e1Highlights}>
             {E1_HIGHLIGHTS.map(({ key, Icon }) => (

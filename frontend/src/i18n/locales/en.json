@@ -118,6 +118,7 @@
       "openHardware": "Open firmware & PCB (Apache 2.0)"
     },
     "e1RepoLink": "View the hardware & firmware repo",
+    "e1ShotAlt": "E1's default navigation display screen",
     "nativeAppsTitle": "On mobile, too",
     "nativeAppsIntro": "The same app as an iOS and Android version, with background GPS recording and Bluetooth device pairing.",
     "androidTitle": "Android",
@@ -249,6 +250,7 @@
       "info": {
         "button": "About E1",
         "title": "About the XGSail E1",
+        "shotAlt": "E1's default navigation display screen",
         "intro": "E1 is an ESP32-based fleet tracker built for XGSail: GNSS, IMU (heel/pitch), wind, and pressure logging on a single board.",
         "bullets": {
           "sensors": "GPS, IMU, wind and pressure sensors log every session to the onboard SD card.",

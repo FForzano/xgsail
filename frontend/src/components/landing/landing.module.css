@@ -187,6 +187,22 @@
   align-items: flex-start;
   gap: 1rem;
 }
+.e1Shot {
+  display: block;
+  width: 96px;
+  height: auto;
+  aspect-ratio: 696 / 1102;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid var(--sf-border);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+@media (max-width: 560px) {
+  .e1Shot {
+    display: none;
+  }
+}
 .e1IconWrap {
   display: flex;
   align-items: center;
