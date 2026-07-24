@@ -275,7 +275,9 @@ function E1RecordingControl({
   return (
     <>
       <p className={logging ? "sf-badge sf-badge--success" : "sf-muted"}>
-        {t(logging ? "registra.recording" : "registra.source.e1Idle")}
+        {logging
+          ? `${t("registra.recording")} (${fmtDuration(e1.status?.recording.elapsed_s)})`
+          : t("registra.source.e1Idle")}
       </p>
       {pending > 0 && <p className="sf-muted">{t("registra.source.pendingUploads", { count: pending })}</p>}
       <div className="sf-form__actions">

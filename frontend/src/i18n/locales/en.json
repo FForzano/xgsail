@@ -299,6 +299,8 @@
         "windMac": "Wind sensor MAC (Calypso)",
         "windOffset": "Wind offset (degrees)",
         "rtkEnabled": "RTK enabled",
+        "autoCleanupUploads": "Auto-delete after upload",
+        "autoCleanupUploadsHint": "When enabled, the device deletes session files from the SD card once they've been successfully uploaded (WiFi or BLE).",
         "error": {
           "pairing_window_closed": "Pairing window closed: hold the device's physical button for 2 seconds and try again within 60 seconds.",
           "bad_json": "Communication error with the device. Try again.",

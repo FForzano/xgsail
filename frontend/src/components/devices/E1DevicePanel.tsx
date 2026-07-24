@@ -33,6 +33,7 @@ export function E1DevicePanel({ device }: { device: Device }) {
   const [windMac, setWindMac] = useState("");
   const [windOffset, setWindOffset] = useState(0);
   const [rtkEnabled, setRtkEnabled] = useState(false);
+  const [autoCleanupUploads, setAutoCleanupUploads] = useState(true);
   const [calibResult, setCalibResult] = useState<CalibrateResult | null>(null);
   const [confirmingCalibrate, setConfirmingCalibrate] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -48,6 +49,7 @@ export function E1DevicePanel({ device }: { device: Device }) {
     setWindMac(e1.config.wind_mac);
     setWindOffset(e1.config.wind_offset);
     setRtkEnabled(e1.config.rtk_enabled);
+    setAutoCleanupUploads(e1.config.auto_cleanup_uploads);
   }, [e1.config]);
 
   if (e1.state === "unsupported") return null;
@@ -101,6 +103,7 @@ export function E1DevicePanel({ device }: { device: Device }) {
       wind_mac: windMac,
       wind_offset: windOffset,
       rtk_enabled: rtkEnabled,
+      auto_cleanup_uploads: autoCleanupUploads,
     };
     e1.writeConfig.mutate(patch, {
       onSuccess: () => setConfigSaved(true),
@@ -158,8 +161,10 @@ export function E1DevicePanel({ device }: { device: Device }) {
             <div className={styles.statusItem}>
               <span className="sf-field__label">{t("devices.e1.status.recording")}</span>
               <span>
-                {s.recording.logging ? t("devices.e1.status.logging") : t("devices.e1.status.idle")} ·{" "}
-                {t("devices.e1.status.pendingUploads", { count: s.recording.pending_uploads })}
+                {s.recording.logging
+                  ? `${t("devices.e1.status.logging")} (${fmtDuration(s.recording.elapsed_s)})`
+                  : t("devices.e1.status.idle")}{" "}
+                · {t("devices.e1.status.pendingUploads", { count: s.recording.pending_uploads })}
               </span>
             </div>
             <div className={styles.statusItem}>
@@ -262,6 +267,15 @@ export function E1DevicePanel({ device }: { device: Device }) {
             <input type="checkbox" checked={rtkEnabled} onChange={(e) => setRtkEnabled(e.target.checked)} />{" "}
             {t("devices.e1.config.rtkEnabled")}
           </label>
+          <label className="sf-field">
+            <input
+              type="checkbox"
+              checked={autoCleanupUploads}
+              onChange={(e) => setAutoCleanupUploads(e.target.checked)}
+            />{" "}
+            {t("devices.e1.config.autoCleanupUploads")}
+          </label>
+          <p className="sf-muted">{t("devices.e1.config.autoCleanupUploadsHint")}</p>
 
           {configError && <p className="sf-form__error">{configError}</p>}
           {configSaved && <p className="sf-badge sf-badge--success">{t("common.saved")}</p>}

@@ -395,6 +395,7 @@ export interface E1Config {
   start_delay_sec: number;
   stop_delay_sec: number;
   rtk_enabled: boolean;
+  auto_cleanup_uploads: boolean;
   wifi: E1WifiNetwork[];
 }
 
@@ -454,7 +455,8 @@ export interface E1Status {
     course: number;
   };
   wind: { connected: boolean; speed_kts?: number; angle_deg?: number; battery?: number };
-  recording: { logging: boolean; session_count: number; pending_uploads: number };
+  // elapsed_s is only present while logging is true (xgsail-e1's docs/ble-config.md).
+  recording: { logging: boolean; session_count: number; pending_uploads: number; elapsed_s?: number };
 }
 
 export async function readStatus(bleId: string): Promise<E1Status> {

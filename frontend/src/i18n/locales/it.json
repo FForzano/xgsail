@@ -299,6 +299,8 @@
         "windMac": "MAC sensore vento (Calypso)",
         "windOffset": "Offset vento (gradi)",
         "rtkEnabled": "RTK attivo",
+        "autoCleanupUploads": "Elimina automaticamente dopo il caricamento",
+        "autoCleanupUploadsHint": "Se attivo, il dispositivo elimina i file di sessione dalla scheda SD dopo che sono stati caricati con successo (WiFi o BLE).",
         "error": {
           "pairing_window_closed": "Finestra di associazione chiusa: tieni premuto il pulsante fisico sul dispositivo per 2 secondi e riprova entro 60 secondi.",
           "bad_json": "Errore di comunicazione con il dispositivo. Riprova.",
