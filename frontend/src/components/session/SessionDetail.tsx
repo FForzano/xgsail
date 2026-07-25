@@ -1022,12 +1022,12 @@ export function SessionDetail({
             value={notesForm.notes}
             onChange={(e) => setNotesForm((f) => ({ ...f, notes: e.target.value }))}
           />
-          <label className="sf-field">
+          <label className="sf-check">
             <input
               type="checkbox"
               checked={notesForm.notes_shared}
               onChange={(e) => setNotesForm((f) => ({ ...f, notes_shared: e.target.checked }))}
-            />{" "}
+            />
             {t("sessions.notesShared")}
           </label>
           <p className="sf-muted">{t("sessions.notesSharedHint")}</p>
