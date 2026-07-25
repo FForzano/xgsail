@@ -32,6 +32,7 @@ class Repositories:
         rbac,
         app_config,
         posts,
+        note_templates,
     ):
         self.users = users
         self.auth_tokens = auth_tokens
@@ -51,3 +52,4 @@ class Repositories:
         self.rbac = rbac
         self.app_config = app_config
         self.posts = posts
+        self.note_templates = note_templates

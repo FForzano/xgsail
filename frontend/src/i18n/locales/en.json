@@ -176,7 +176,16 @@
     "passwordChanged": "Password changed",
     "units": "Units",
     "unitsNautical": "Nautical (kn, nm)",
-    "unitsMetric": "Metric (km/h, km)"
+    "unitsMetric": "Metric (km/h, km)",
+    "noteTemplates": "Note templates"
+  },
+  "noteTemplates": {
+    "new": "New template",
+    "edit": "Edit template",
+    "name": "Template name",
+    "body": "Template text",
+    "pickPlaceholder": "Apply a template…",
+    "manage": "Manage templates"
   },
   "boats": {
     "title": "My boats",

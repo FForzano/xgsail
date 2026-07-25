@@ -2,15 +2,18 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersService, userKeys } from "@/services/users";
+import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { InputField } from "@/components/ui/InputField";
+import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { Avatar } from "@/components/ui/Avatar";
 import { unitsStore, useUnits } from "@/stores/unitsStore";
+import type { NoteTemplate, UUID } from "@/types";
 
 export function AnagraficaPage() {
   const { t } = useTranslation();
@@ -21,6 +24,42 @@ export function AnagraficaPage() {
   const me = useQuery({ queryKey: userKeys.me, queryFn: usersService.me });
   const units = useUnits();
   const [form, setForm] = useState({ first_name: "", last_name: "", dob: "" });
+
+  // Note templates: personal reusable snippets to prefill the session-notes
+  // textarea (see SessionDetail.tsx's notes-editing modal) — managed here
+  // rather than a dedicated profile tab, next to the other personal
+  // preference below (units), not identity data.
+  const templates = useQuery({ queryKey: noteTemplateKeys.mine, queryFn: noteTemplatesService.listMine });
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<UUID | null>(null);
+  const [templateForm, setTemplateForm] = useState({ name: "", body: "" });
+
+  const openNewTemplate = () => {
+    setEditingTemplateId(null);
+    setTemplateForm({ name: "", body: "" });
+    setTemplateModalOpen(true);
+  };
+  const openEditTemplate = (tpl: NoteTemplate) => {
+    setEditingTemplateId(tpl.id);
+    setTemplateForm({ name: tpl.name, body: tpl.body });
+    setTemplateModalOpen(true);
+  };
+
+  const saveTemplate = useMutation({
+    mutationFn: () =>
+      editingTemplateId
+        ? noteTemplatesService.update(editingTemplateId, templateForm)
+        : noteTemplatesService.create(templateForm),
+    onSuccess: async () => {
+      setTemplateModalOpen(false);
+      await queryClient.invalidateQueries({ queryKey: noteTemplateKeys.mine });
+    },
+    onError: () => notify(t("errors.generic"), "error"),
+  });
+  const removeTemplate = useMutation({
+    mutationFn: (id: UUID) => noteTemplatesService.remove(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: noteTemplateKeys.mine }),
+  });
 
   const saveUnits = useMutation({
     mutationFn: (unit_system: "nautical" | "metric") =>
@@ -129,6 +168,71 @@ export function AnagraficaPage() {
           </button>
         </div>
       </Card>
+      <Card
+        title={t("profile.noteTemplates")}
+        actions={
+          <Button className="sf-btn--sm" onClick={openNewTemplate}>
+            {t("noteTemplates.new")}
+          </Button>
+        }
+      >
+        {templates.data?.length ? (
+          <div className="sf-strip">
+            {templates.data.map((tpl) => (
+              <div key={tpl.id} className="sf-strip__item sf-strip__item--muted">
+                <span>
+                  <strong>{tpl.name}</strong>{" "}
+                  <span className="sf-muted">
+                    {tpl.body.length > 60 ? `${tpl.body.slice(0, 60)}…` : tpl.body}
+                  </span>
+                </span>
+                <span className="sf-strip__actions">
+                  <Button variant="ghost" className="sf-btn--sm" onClick={() => openEditTemplate(tpl)}>
+                    {t("common.edit")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="sf-btn--sm"
+                    onClick={() => removeTemplate.mutate(tpl.id)}
+                  >
+                    {t("common.remove")}
+                  </Button>
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="sf-muted">{t("common.none")}</p>
+        )}
+      </Card>
+      {templateModalOpen && (
+        <Modal
+          title={editingTemplateId ? t("noteTemplates.edit") : t("noteTemplates.new")}
+          onClose={() => setTemplateModalOpen(false)}
+        >
+          <InputField
+            label={t("noteTemplates.name")}
+            id="template-name"
+            value={templateForm.name}
+            onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+          />
+          <TextAreaField
+            label={t("noteTemplates.body")}
+            id="template-body"
+            rows={5}
+            value={templateForm.body}
+            onChange={(e) => setTemplateForm((f) => ({ ...f, body: e.target.value }))}
+          />
+          <div className="sf-form__actions">
+            <Button
+              onClick={() => saveTemplate.mutate()}
+              disabled={saveTemplate.isPending || !templateForm.name.trim() || !templateForm.body.trim()}
+            >
+              {t("common.save")}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
