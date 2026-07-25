@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Pencil, StickyNotePlus, Video } from "lucide-react";
+import { ImagePlus, NotebookPen, Pencil, Video } from "lucide-react";
 import { resolveApiUrl } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { activitiesService, activityKeys } from "@/services/activities";
@@ -554,7 +554,7 @@ export function SessionDetail({
     }
     if (!session.data?.notes) {
       quickActions.push({
-        key: "notes", icon: <StickyNotePlus size={16} />, label: t("sessions.addNotes"),
+        key: "notes", icon: <NotebookPen size={16} />, label: t("sessions.addNotes"),
         onClick: () => setNotesEditing(true),
       });
     }
