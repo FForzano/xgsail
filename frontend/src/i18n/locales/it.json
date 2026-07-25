@@ -439,6 +439,10 @@
       "crew": "Prodiere",
       "guest": "Ospite"
     },
+    "notes": "Annotazioni equipaggio",
+    "notesPlaceholder": "Configurazione barca, onda, vento, com'è andata con le regolazioni, cosa provare la prossima volta…",
+    "notesShared": "Condividi con chiunque possa vedere questa sessione",
+    "notesSharedHint": "Disattivato: visibile solo all'equipaggio e ai gestori della barca. Attivato: visibile a chiunque possa già vedere questa sessione.",
     "photos": "Foto",
     "videos": "Video",
     "processing": "Elaborazione…",

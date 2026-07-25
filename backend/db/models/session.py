@@ -20,6 +20,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     func,
 )
@@ -60,6 +61,13 @@ class SessionORM(UUIDPKMixin, Base):
     # workers/process_upload/analyzer.py::_slice_by_time). Adjustable any time.
     trim_start_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     trim_end_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Free-text crew log: boat setup, waves, wind perception, how the trim
+    # felt, what to try next time — shared by and editable by any crew
+    # member (see auth.is_session_crew_or_manager), not per-author. Private
+    # to the crew/boat managers unless notes_shared is set (see
+    # auth.session_notes_visible_to).
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class SessionCrewORM(UUIDPKMixin, CreatedAtMixin, Base):

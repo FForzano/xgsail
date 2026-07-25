@@ -44,3 +44,8 @@ class SessionTrimModel(BaseModel):
 
 class SessionAttachModel(BaseModel):
     activity_id: uuid.UUID
+
+
+class SessionNotesModel(BaseModel):
+    notes: Optional[str] = None
+    notes_shared: bool = False

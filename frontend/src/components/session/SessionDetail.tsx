@@ -6,6 +6,7 @@ import { resolveApiUrl } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { boatsService, boatKeys } from "@/services/boats";
+import { useAuth } from "@/hooks/useAuth";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useToast } from "@/hooks/useToast";
 import { timeController } from "@/stores/timeController";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/Button";
 import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
+import { TextAreaField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Avatar } from "@/components/ui/Avatar";
@@ -110,11 +112,13 @@ export function SessionDetail({
 }) {
   const { t } = useTranslation();
   const { isBoatManager } = useCapabilities();
+  const { user } = useAuth();
   const { notify, update } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [addingCrew, setAddingCrew] = useState(false);
   const [crewRole, setCrewRole] = useState<SailingRole>("crew");
+  const [notesForm, setNotesForm] = useState({ notes: "", notes_shared: false });
   const [deleting, setDeleting] = useState(false);
   const [gps, setGps] = useState<GpsPoint[] | null>(null);
   // Per-type map display toggles — replaces the old flat showLegs/
@@ -155,6 +159,17 @@ export function SessionDetail({
     queryFn: () => sessionsService.get(sessionId),
     enabled: !!sessionId,
   });
+  // `notes` is only present on the payload when the caller may see it (crew/
+  // boat manager, or shared — see backend `_session_payload`), so this stays
+  // empty for a viewer with read-only access to someone else's shared note.
+  useEffect(() => {
+    if (session.data?.notes !== undefined) {
+      setNotesForm({
+        notes: session.data.notes ?? "",
+        notes_shared: session.data.notes_shared ?? false,
+      });
+    }
+  }, [session.data?.notes, session.data?.notes_shared]);
   // Only a standalone ("solo") recording can be moved into a real activity
   // (backend/routers/sessions.py::attach_to_activity) — fetched to gate the
   // "move to activity" menu item, not shown anywhere in the page itself.
@@ -376,6 +391,18 @@ export function SessionDetail({
     mutationFn: (userId: UUID) => sessionsService.removeCrew(sessionId, userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.crew(sessionId) }),
   });
+  const saveNotes = useMutation({
+    mutationFn: () =>
+      sessionsService.updateNotes(sessionId, {
+        notes: notesForm.notes || null,
+        notes_shared: notesForm.notes_shared,
+      }),
+    onSuccess: async () => {
+      notify(t("common.saved"), "success");
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
+    },
+    onError: () => notify(t("errors.generic"), "error"),
+  });
   const removeSession = useMutation({
     mutationFn: () => sessionsService.remove(sessionId),
     onSuccess: () => navigate(session.data ? `/diario/activities/${session.data.activity_id}` : "/diario/personale"),
@@ -477,6 +504,11 @@ export function SessionDetail({
 
   const boat = boats.data?.find((b) => b.id === session.data?.boat_id);
   const manager = session.data ? isBoatManager(session.data.boat_id) : false;
+  // Mirrors the backend's is_session_crew_or_manager: who can write the
+  // shared crew notes (a superset of who can edit the session's core
+  // fields, since any crew member — not just a boat owner/admin — should be
+  // able to log the outing).
+  const canEditNotes = manager || (crew.data?.some((c) => c.user_id === user?.id) ?? false);
 
   // Single consolidated ⋮ menu (title-level) — replaces the old separate
   // OptionsMenu (session actions) + MapLegsOptions (⚙ on the map). Sections
@@ -778,6 +810,39 @@ export function SessionDetail({
           <p className="sf-muted">{t("common.none")}</p>
         )}
       </Card>
+
+      {(canEditNotes || s.notes) && (
+        <Card title={t("sessions.notes")}>
+          {canEditNotes ? (
+            <>
+              <TextAreaField
+                label={t("sessions.notes")}
+                id="session-notes"
+                rows={5}
+                placeholder={t("sessions.notesPlaceholder")}
+                value={notesForm.notes}
+                onChange={(e) => setNotesForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+              <label className="sf-field">
+                <input
+                  type="checkbox"
+                  checked={notesForm.notes_shared}
+                  onChange={(e) => setNotesForm((f) => ({ ...f, notes_shared: e.target.checked }))}
+                />{" "}
+                {t("sessions.notesShared")}
+              </label>
+              <p className="sf-muted">{t("sessions.notesSharedHint")}</p>
+              <div className="sf-form__actions">
+                <Button onClick={() => saveNotes.mutate()} disabled={saveNotes.isPending}>
+                  {t("common.save")}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className={styles.notes}>{s.notes}</p>
+          )}
+        </Card>
+      )}
 
       <Card
         title={t("sessions.photos")}

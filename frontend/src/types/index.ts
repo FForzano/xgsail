@@ -332,6 +332,12 @@ export interface Session {
   // the full track is analyzed. See sessionsService.setTrim.
   trim_start_time: number | null;
   trim_end_time: number | null;
+  // Crew's free-text log (boat setup, waves, wind, trim, what to try next
+  // time) — omitted entirely by the API when the current user isn't allowed
+  // to see it (crew/boat manager, or notes_shared and otherwise session-
+  // visible). See sessionsService.updateNotes.
+  notes?: string | null;
+  notes_shared?: boolean;
 }
 
 export interface SessionStream {
