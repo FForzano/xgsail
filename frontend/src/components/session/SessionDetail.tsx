@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Pencil, Video } from "lucide-react";
+import { ImagePlus, Pencil, StickyNotePlus, Video } from "lucide-react";
 import { resolveApiUrl } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { activitiesService, activityKeys } from "@/services/activities";
@@ -18,7 +18,7 @@ import { SpeedChart } from "@/components/race/SpeedChart";
 import { PlaybackIndicators } from "@/components/session/PlaybackIndicators";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Menu, type MenuItem, type MenuSection } from "@/components/ui/Menu";
+import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { TextAreaField } from "@/components/ui/InputField";
@@ -51,6 +51,17 @@ const MAP_LEGEND_DOT_CLASS: Record<string, string> = {
 // map toggle each (see the marks useMemo and the "Mostra su mappa" submenu).
 type MapShowState = Record<"upwind" | "downwind" | "reach" | "tack" | "gybe" | "course_change", boolean>;
 
+/** A "this is missing, add it" affordance for content that belongs to the
+ * session (photo/video/notes) — rendered as a visible icon button rather
+ * than tucked inside the ⋮ menu, since it's the one thing actually worth
+ * doing on an otherwise-empty session. See `onQuickActions` below. */
+export interface QuickAction {
+  key: string;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}
+
 /** Full session analysis view (rich map, trim, maneuver-edit, stats, wind,
  * crew, photos, videos, SessionAnalysis) — shared between the standalone
  * `/barche/:sessionId` route (`variant="page"`) and inline embedding on the
@@ -60,8 +71,9 @@ type MapShowState = Record<"upwind" | "downwind" | "reach" | "tack" | "gybe" | "
  * marks/boe) overlay additional pins on this session's map; `pickMode`/
  * `onMapClick` let it drive the same map's "pick a point" mode (e.g. placing
  * a race mark) instead of duplicating a second map just for that.
- * `onMenuSections` is how "embedded" hands its ⋮ menu sections up to the
- * caller instead of rendering its own — see the effect below. */
+ * `onMenuSections`/`onQuickActions` are how "embedded" hands its ⋮ menu
+ * sections and "Aggiungi" icon row up to the caller instead of rendering its
+ * own — see the effect below. */
 export function SessionDetail({
   sessionId,
   variant = "page",
@@ -69,6 +81,7 @@ export function SessionDetail({
   pickMode = false,
   onMapClick,
   onMenuSections,
+  onQuickActions,
 }: {
   sessionId: UUID;
   variant?: "page" | "embedded";
@@ -76,6 +89,7 @@ export function SessionDetail({
   pickMode?: boolean;
   onMapClick?: (lat: number, lng: number) => void;
   onMenuSections?: (sections: MenuSection[]) => void;
+  onQuickActions?: (actions: QuickAction[]) => void;
 }) {
   const { t } = useTranslation();
   const { isBoatManager } = useCapabilities();
@@ -519,23 +533,31 @@ export function SessionDetail({
   // viewer — matches the backend's _require_visible permission, not the
   // edit-only _can_edit the other actions use).
   const menuSections: MenuSection[] = [];
-  // Whatever hasn't been added yet (and the viewer may add) gets a single
-  // menu entry instead of its own empty Card — see the Foto/Video/
-  // Annotazioni Cards below, each hidden while empty.
-  const addItems: MenuItem[] = [];
+  // Whatever hasn't been added yet (and the viewer may add) gets a visible
+  // icon button instead of its own empty Card or a buried menu entry — see
+  // the Foto/Video/Annotazioni Cards below (each hidden while empty) and
+  // the quickActions row rendered in the title Card / handed up via
+  // `onQuickActions` further down.
+  const quickActions: QuickAction[] = [];
   if (crewOrManager) {
     if (!photos.data?.length) {
-      addItems.push({ label: t("sessions.addPhoto"), onClick: () => photoInputRef.current?.click() });
+      quickActions.push({
+        key: "photo", icon: <ImagePlus size={16} />, label: t("sessions.addPhoto"),
+        onClick: () => photoInputRef.current?.click(),
+      });
     }
     if (!videos.data?.length) {
-      addItems.push({ label: t("sessions.addVideo"), onClick: () => videoInputRef.current?.click() });
+      quickActions.push({
+        key: "video", icon: <Video size={16} />, label: t("sessions.addVideo"),
+        onClick: () => videoInputRef.current?.click(),
+      });
     }
     if (!session.data?.notes) {
-      addItems.push({ label: t("sessions.addNotes"), onClick: () => setNotesEditing(true) });
+      quickActions.push({
+        key: "notes", icon: <StickyNotePlus size={16} />, label: t("sessions.addNotes"),
+        onClick: () => setNotesEditing(true),
+      });
     }
-  }
-  if (addItems.length > 0) {
-    menuSections.push({ heading: t("sessions.menuSectionAdd"), items: addItems });
   }
   if (manager) {
     menuSections.push({
@@ -651,9 +673,13 @@ export function SessionDetail({
     variant,
   ]);
   useEffect(() => {
-    if (variant === "embedded") onMenuSections?.(menuSections);
+    if (variant === "embedded") {
+      onMenuSections?.(menuSections);
+      onQuickActions?.(quickActions);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- gated on
-    // `menuSignature`, not `menuSections`/`onMenuSections`, see comment above.
+    // `menuSignature`, not `menuSections`/`onMenuSections`/`quickActions`/
+    // `onQuickActions`, see comment above.
   }, [menuSignature]);
 
   if (session.isLoading) return <Spinner />;
@@ -700,7 +726,22 @@ export function SessionDetail({
           }
           actions={menuSections.length > 0 && <Menu sections={menuSections} />}
         >
-          {null}
+          {quickActions.length > 0 && (
+            <div className={styles.quickActions}>
+              {quickActions.map((a) => (
+                <Button
+                  key={a.key}
+                  type="button"
+                  variant="ghost"
+                  className="sf-btn--icon-sm"
+                  aria-label={a.label}
+                  onClick={a.onClick}
+                >
+                  {a.icon}
+                </Button>
+              ))}
+            </div>
+          )}
         </Card>
       )}
 

@@ -12,7 +12,7 @@ import { timeController } from "@/stores/timeController";
 import { buildTracks, medianIntervalMs, timeBounds } from "@/components/race/raceModel";
 import { MapView, type MapMark } from "@/components/race/MapView";
 import { BoatSessionCarousel, type BoatSessionCarouselItem } from "@/components/diario/BoatSessionCarousel";
-import { SessionDetail } from "@/components/session/SessionDetail";
+import { SessionDetail, type QuickAction } from "@/components/session/SessionDetail";
 import { Timeline } from "@/components/race/Timeline";
 import { SpeedChart } from "@/components/race/SpeedChart";
 import { Card } from "@/components/ui/Card";
@@ -28,6 +28,7 @@ import { fmtDateTime, fmtDistance, fmtKnots } from "@/utils/format";
 import { MARK_ROLES } from "@/utils/markRoles";
 import type { MarkRole, UUID, Visibility } from "@/types";
 import { BackLink } from "@/components/ui/BackLink";
+import sessionStyles from "@/components/session/SessionDetail.module.css";
 
 const VISIBILITIES: Visibility[] = ["public", "club", "group", "private"];
 
@@ -52,6 +53,10 @@ export function ActivityDetailPage() {
   // its `onMenuSections` — merged into this page's own single ⋮ menu instead
   // of showing a second, redundant one on the map card.
   const [soloMenuSections, setSoloMenuSections] = useState<MenuSection[]>([]);
+  // Same idea, for the "add photo/video/notes" icon row — see
+  // SessionDetail's `onQuickActions` and the QuickAction row rendered below,
+  // next to the solo session's boat name.
+  const [soloQuickActions, setSoloQuickActions] = useState<QuickAction[]>([]);
   // Set while editing an already-placed mark — the same form is reused for
   // both add and edit, submitting to `updateMark` instead of `addMark`.
   const [editingMarkId, setEditingMarkId] = useState<UUID | null>(null);
@@ -392,6 +397,22 @@ export function ActivityDetailPage() {
               </p>
             );
           })()}
+        {soloQuickActions.length > 0 && (
+          <div className={sessionStyles.quickActions}>
+            {soloQuickActions.map((qa) => (
+              <Button
+                key={qa.key}
+                type="button"
+                variant="ghost"
+                className="sf-btn--icon-sm"
+                aria-label={qa.label}
+                onClick={qa.onClick}
+              >
+                {qa.icon}
+              </Button>
+            ))}
+          </div>
+        )}
         {a.race_id && (
           <p>
             <Link to={`/diario/regate/race/${a.race_id}`}>{t("regate.open")}</Link>
@@ -412,6 +433,7 @@ export function ActivityDetailPage() {
               setPickingMarkOnMap(false);
             }}
             onMenuSections={setSoloMenuSections}
+            onQuickActions={setSoloQuickActions}
           />
         </div>
       ) : (
