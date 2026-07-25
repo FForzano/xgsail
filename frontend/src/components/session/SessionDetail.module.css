@@ -16,3 +16,12 @@
 .notes {
   white-space: pre-wrap;
 }
+/* "Add photo/video/notes" icon row for whatever a session doesn't have yet
+   — shown right under the title instead of buried in the ⋮ menu. Shared
+   with ActivityDetailPage's own title Card for the embedded (solo-activity)
+   case, see SessionDetail's `onQuickActions`. */
+.quickActions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
