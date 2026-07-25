@@ -213,6 +213,29 @@ def session_visible_to(session, user) -> bool:
     return activity_visible_to(repos.activities.get(session.activity_id), user)
 
 
+def is_session_crew_or_manager(session, user) -> bool:
+    """Session crew or boat owner/admin (or superadmin) — the permission
+    level shared by crew-management, media, and notes actions on a
+    session."""
+    from ..repositories import get_repos
+
+    if user is None:
+        return False
+    repos = get_repos()
+    return (user.is_superadmin
+            or repos.sessions.is_crew(session.id, user.id)
+            or repos.boats.is_member(session.boat_id, user.id, roles=["owner", "admin"]))
+
+
+def session_notes_visible_to(session, user) -> bool:
+    """The free-text crew notes are private to the session's crew/boat
+    managers by default; ``notes_shared`` opts them into the same audience
+    as the session itself (``session_visible_to``)."""
+    if is_session_crew_or_manager(session, user):
+        return True
+    return bool(session.notes_shared) and session_visible_to(session, user)
+
+
 def can_edit_activity(activity, user) -> bool:
     """Creator, superadmin, or club-scoped activity.manage when club-linked."""
     if user is None or activity is None:

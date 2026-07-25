@@ -439,6 +439,10 @@
       "crew": "Crew",
       "guest": "Guest"
     },
+    "notes": "Crew notes",
+    "notesPlaceholder": "Boat setup, waves, wind, how the trim felt, what to try next time…",
+    "notesShared": "Share with anyone who can see this session",
+    "notesSharedHint": "Off: visible only to the crew and boat managers. On: visible to anyone who can already see this session.",
     "photos": "Photos",
     "videos": "Videos",
     "processing": "Processing…",

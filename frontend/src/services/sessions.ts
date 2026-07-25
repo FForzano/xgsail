@@ -45,6 +45,8 @@ export const sessionsService = {
     api.get<{ status: "running" | "failed" | null; error: string | null }>(`/sessions/${id}/reanalysis-status`),
   setTrim: (id: UUID, body: { trim_start_time: number | null; trim_end_time: number | null }) =>
     api.patch<{ ok: boolean; session_upload_id: UUID; status: "running" }>(`/sessions/${id}/trim`, body),
+  updateNotes: (id: UUID, body: { notes: string | null; notes_shared: boolean }) =>
+    api.patch<Session>(`/sessions/${id}/notes`, body),
   // Plain browser navigation (not `request()`) so the download prompt fires —
   // same-origin httpOnly auth cookies are sent automatically either way.
   gpxDownloadUrl: (id: UUID) => `${BASE}/sessions/${id}/gpx`,

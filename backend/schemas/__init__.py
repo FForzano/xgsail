@@ -33,6 +33,7 @@ from .session import (
     ManeuverRejectionModel,
     SessionAttachModel,
     SessionCrewModel,
+    SessionNotesModel,
     SessionTrimModel,
     SessionWriteModel,
 )
@@ -75,6 +76,7 @@ __all__ = [
     "MarkWriteModel",
     "SessionWriteModel",
     "SessionCrewModel",
+    "SessionNotesModel",
     "SessionTrimModel",
     "SessionAttachModel",
     "ManeuverCorrectionModel",

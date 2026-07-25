@@ -12,13 +12,22 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 
-from ..auth import can_edit_activity, current_user, require_user, session_visible_to, verify_csrf
+from ..auth import (
+    can_edit_activity,
+    current_user,
+    is_session_crew_or_manager,
+    require_user,
+    session_notes_visible_to,
+    session_visible_to,
+    verify_csrf,
+)
 from ..schemas import (
     ManeuverCorrectionModel,
     ManeuverCreateModel,
     ManeuverRejectionModel,
     SessionAttachModel,
     SessionCrewModel,
+    SessionNotesModel,
     SessionTrimModel,
     SessionWriteModel,
 )
@@ -55,12 +64,21 @@ def _can_edit(session, user) -> bool:
     return activity is not None and activity.created_by == user.id
 
 
-def _is_crew_or_manager(session, user) -> bool:
-    if user is None:
-        return False
-    return (user.is_superadmin
-            or repos.sessions.is_crew(session.id, user.id)
-            or repos.boats.is_member(session.boat_id, user.id, roles=["owner", "admin"]))
+def _strip_private_notes(data: dict, session, user) -> dict:
+    """Remove the crew-notes fields from an already-built payload when the
+    caller isn't allowed to see them (see ``session_notes_visible_to``)."""
+    if not session_notes_visible_to(session, user):
+        data.pop("notes", None)
+        data.pop("notes_shared", None)
+    return data
+
+
+def _session_payload(session, user) -> dict:
+    return _strip_private_notes(session.to_dict(), session, user)
+
+
+def _thumbnail_payload(session, user) -> dict:
+    return _strip_private_notes(media.session_thumbnail_payload(session), session, user)
 
 
 @router.get("")
@@ -71,14 +89,15 @@ def list_sessions(request: Request, activity_id: Optional[uuid.UUID] = None,
         if user is None:
             raise HTTPException(401, "Authentication required")
         # Boat membership / crew implies visibility — no extra filter needed.
-        return [media.session_thumbnail_payload(s) for s in repos.sessions.list_for_user(user.id)]
+        return [_thumbnail_payload(s, user) for s in repos.sessions.list_for_user(user.id)]
     sessions = repos.sessions.list(activity_id=activity_id, boat_id=boat_id)
-    return [media.session_thumbnail_payload(s) for s in sessions if session_visible_to(s, user)]
+    return [_thumbnail_payload(s, user) for s in sessions if session_visible_to(s, user)]
 
 
 @router.get("/{session_id}")
 def get_session(session_id: uuid.UUID, request: Request):
-    return _require_visible(session_id, current_user(request)).to_dict()
+    user = current_user(request)
+    return _session_payload(_require_visible(session_id, user), user)
 
 
 @router.post("")
@@ -96,7 +115,8 @@ def create_session(body: SessionWriteModel, request: Request):
         raise HTTPException(403, "Only the activity creator adds sessions")
     if repos.boats.get(body.boat_id) is None:
         raise HTTPException(404, "Boat not found")
-    return repos.sessions.create(body.model_dump(exclude_unset=True)).to_dict()
+    session = repos.sessions.create(body.model_dump(exclude_unset=True))
+    return _session_payload(session, user)
 
 
 @router.patch("/{session_id}")
@@ -109,7 +129,26 @@ def update_session(session_id: uuid.UUID, body: SessionWriteModel, request: Requ
     changes = body.model_dump(exclude_unset=True)
     changes.pop("activity_id", None)  # re-parenting is a race/compute concern
     changes.pop("boat_id", None)
-    return repos.sessions.update(session_id, changes).to_dict()
+    updated = repos.sessions.update(session_id, changes)
+    return _session_payload(updated, user)
+
+
+@router.patch("/{session_id}/notes")
+def set_session_notes(session_id: uuid.UUID, body: SessionNotesModel, request: Request):
+    """The crew's free-text log for this session (boat setup, waves, wind
+    perception, how the trim felt, what to try next time) — shared by and
+    editable by any crew member or boat manager, not just those who can edit
+    the session's core fields (``PATCH /sessions/{id}``, gated by
+    ``_can_edit``). Private to the crew/boat managers unless
+    ``notes_shared`` is set, in which case it follows the session's normal
+    visibility (see ``session_notes_visible_to``)."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = _require_session(session_id)
+    if not is_session_crew_or_manager(session, user):
+        raise HTTPException(403, "Session crew or boat owner/admin required")
+    updated = repos.sessions.update(session_id, body.model_dump())
+    return _session_payload(updated, user)
 
 
 @router.post("/{session_id}/attach-to-activity")
@@ -143,7 +182,7 @@ def attach_to_activity(session_id: uuid.UUID, body: SessionAttachModel, request:
         raise HTTPException(403, "Not allowed to attach to this activity")
     updated = repos.sessions.update(session_id, {"activity_id": body.activity_id})
     repos.activities.delete(current_activity.id)
-    return updated.to_dict()
+    return _session_payload(updated, user)
 
 
 @router.delete("/{session_id}")
@@ -513,7 +552,7 @@ def create_photo(session_id: uuid.UUID, request: Request):
     verify_csrf(request)
     user = require_user(request)
     session = _require_session(session_id)
-    if not _is_crew_or_manager(session, user):
+    if not is_session_crew_or_manager(session, user):
         raise HTTPException(403, "Session crew or boat owner/admin required")
     payload = media.create_image_upload(user.id)
     repos.sessions.add_photo(session_id, image_id=payload["image_id"], created_by=user.id)
@@ -525,7 +564,7 @@ def confirm_photo(session_id: uuid.UUID, image_id: uuid.UUID, request: Request):
     verify_csrf(request)
     user = require_user(request)
     session = _require_session(session_id)
-    if not _is_crew_or_manager(session, user):
+    if not is_session_crew_or_manager(session, user):
         raise HTTPException(403, "Session crew or boat owner/admin required")
     if repos.sessions.get_photo(session_id, image_id) is None:
         raise HTTPException(404, "Photo not found")
@@ -566,7 +605,7 @@ def create_video(session_id: uuid.UUID, request: Request):
     verify_csrf(request)
     user = require_user(request)
     session = _require_session(session_id)
-    if not _is_crew_or_manager(session, user):
+    if not is_session_crew_or_manager(session, user):
         raise HTTPException(403, "Session crew or boat owner/admin required")
     payload = media.create_file_upload(user.id, content_type="video/mp4")
     repos.sessions.add_video(session_id, file_id=payload["file_id"], created_by=user.id)
@@ -578,7 +617,7 @@ def confirm_video(session_id: uuid.UUID, file_id: uuid.UUID, request: Request):
     verify_csrf(request)
     user = require_user(request)
     session = _require_session(session_id)
-    if not _is_crew_or_manager(session, user):
+    if not is_session_crew_or_manager(session, user):
         raise HTTPException(403, "Session crew or boat owner/admin required")
     if repos.sessions.get_video(session_id, file_id) is None:
         raise HTTPException(404, "Video not found")
