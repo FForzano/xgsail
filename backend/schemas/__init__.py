@@ -45,6 +45,7 @@ from .rbac import UserRoleGrantModel
 from .wind import WindStationWriteModel, WindFetchModel
 from .polar import PolarPointModel, PolarUpsertModel
 from .post import PostCreateModel, PostUpdateModel
+from .note_template import NoteTemplateCreateModel, NoteTemplateUpdateModel
 
 __all__ = [
     "AppConfigUpdateModel",
@@ -95,4 +96,6 @@ __all__ = [
     "PolarUpsertModel",
     "PostCreateModel",
     "PostUpdateModel",
+    "NoteTemplateCreateModel",
+    "NoteTemplateUpdateModel",
 ]

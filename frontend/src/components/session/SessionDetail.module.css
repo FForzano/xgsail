@@ -25,3 +25,15 @@
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
+/* One-shot template picker (applies a note-template's body, then resets to
+   its placeholder) + a small "manage" link — kept to a single compact row
+   above the notes textarea so it doesn't compete with the checkbox/hint/
+   Save already in that modal. See profilo/AnagraficaPage.tsx for the
+   templates themselves. */
+.templatePicker {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}

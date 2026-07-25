@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, NotebookPen, Pencil, Video } from "lucide-react";
 import { resolveApiUrl } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
+import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useAuth } from "@/hooks/useAuth";
@@ -223,6 +224,13 @@ export function SessionDetail({
     enabled: !!sessionId,
   });
   const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
+  // Only fetched while the notes modal is open — see the template picker
+  // there (frontend/src/pages/profilo/AnagraficaPage.tsx manages the list).
+  const noteTemplates = useQuery({
+    queryKey: noteTemplateKeys.mine,
+    queryFn: noteTemplatesService.listMine,
+    enabled: notesEditing,
+  });
   // Same query key/fn as SessionAnalysis — TanStack Query dedupes, no extra
   // network round-trip — just so the map can plot leg/maneuver markers.
   const analysis = useQuery({
@@ -1014,6 +1022,37 @@ export function SessionDetail({
       )}
       {notesEditing && (
         <Modal title={t("sessions.notes")} onClose={() => setNotesEditing(false)}>
+          {noteTemplates.data && noteTemplates.data.length > 0 && (
+            <div className={styles.templatePicker}>
+              <select
+                className="sf-field__input sf-select"
+                value=""
+                onChange={(e) => {
+                  const tpl = noteTemplates.data?.find((x) => x.id === e.target.value);
+                  if (tpl) setNotesForm((f) => ({ ...f, notes: tpl.body }));
+                }}
+              >
+                <option value="" disabled>
+                  {t("noteTemplates.pickPlaceholder")}
+                </option>
+                {noteTemplates.data.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name}
+                  </option>
+                ))}
+              </select>
+              <Link to="/profilo/anagrafica" className="sf-muted" onClick={() => setNotesEditing(false)}>
+                {t("noteTemplates.manage")}
+              </Link>
+            </div>
+          )}
+          {noteTemplates.data && noteTemplates.data.length === 0 && (
+            <p className="sf-muted">
+              <Link to="/profilo/anagrafica" onClick={() => setNotesEditing(false)}>
+                {t("noteTemplates.manage")}
+              </Link>
+            </p>
+          )}
           <TextAreaField
             label={t("sessions.notes")}
             id="session-notes"

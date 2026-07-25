@@ -176,7 +176,16 @@
     "passwordChanged": "Password cambiata",
     "units": "Unità di misura",
     "unitsNautical": "Nautico (kn, nm)",
-    "unitsMetric": "Metrico (km/h, km)"
+    "unitsMetric": "Metrico (km/h, km)",
+    "noteTemplates": "Modelli di annotazione"
+  },
+  "noteTemplates": {
+    "new": "Nuovo modello",
+    "edit": "Modifica modello",
+    "name": "Nome modello",
+    "body": "Testo del modello",
+    "pickPlaceholder": "Applica un modello…",
+    "manage": "Gestisci modelli"
   },
   "boats": {
     "title": "Le mie barche",

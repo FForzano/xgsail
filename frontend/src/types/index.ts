@@ -357,6 +357,16 @@ export interface SessionStats {
   computed_at: string | null;
 }
 
+// A user's own reusable snippet to prefill the session-notes textarea (see
+// noteTemplatesService) — private to the owner, no sharing.
+export interface NoteTemplate {
+  id: UUID;
+  name: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type SailingRole = "skipper" | "crew" | "guest";
 
 export interface SessionCrew {
