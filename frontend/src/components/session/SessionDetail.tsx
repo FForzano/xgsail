@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ImagePlus, Pencil, Video } from "lucide-react";
 import { resolveApiUrl } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { activitiesService, activityKeys } from "@/services/activities";
@@ -17,14 +18,13 @@ import { SpeedChart } from "@/components/race/SpeedChart";
 import { PlaybackIndicators } from "@/components/session/PlaybackIndicators";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Menu, type MenuSection } from "@/components/ui/Menu";
+import { Menu, type MenuItem, type MenuSection } from "@/components/ui/Menu";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { TextAreaField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Avatar } from "@/components/ui/Avatar";
-import { ImageUploader } from "@/components/common/ImageUploader";
 import { UserPicker } from "@/components/common/UserPicker";
 import { WindCard } from "@/components/common/WindCard";
 import { SessionAnalysis } from "@/components/session/SessionAnalysis";
@@ -50,39 +50,6 @@ const MAP_LEGEND_DOT_CLASS: Record<string, string> = {
 // Keys of SessionLeg["leg_type"] and SessionManeuver["maneuver_type"] — one
 // map toggle each (see the marks useMemo and the "Mostra su mappa" submenu).
 type MapShowState = Record<"upwind" | "downwind" | "reach" | "tack" | "gybe" | "course_change", boolean>;
-
-function VideoUploader({ sessionId, onDone }: { sessionId: UUID; onDone: () => Promise<void> }) {
-  const { t } = useTranslation();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { upload, busy } = useMediaUpload({
-    create: () => sessionsService.createVideo(sessionId),
-    confirm: (fileId) => sessionsService.confirmVideo(sessionId, fileId),
-    onDone,
-  });
-  return (
-    <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="video/mp4"
-        hidden
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void upload(f);
-          e.target.value = "";
-        }}
-      />
-      <Button
-        variant="ghost"
-        className="sf-btn--sm"
-        disabled={busy}
-        onClick={() => inputRef.current?.click()}
-      >
-        {busy ? "…" : t("common.upload")}
-      </Button>
-    </>
-  );
-}
 
 /** Full session analysis view (rich map, trim, maneuver-edit, stats, wind,
  * crew, photos, videos, SessionAnalysis) — shared between the standalone
@@ -119,6 +86,7 @@ export function SessionDetail({
   const [addingCrew, setAddingCrew] = useState(false);
   const [crewRole, setCrewRole] = useState<SailingRole>("crew");
   const [notesForm, setNotesForm] = useState({ notes: "", notes_shared: false });
+  const [notesEditing, setNotesEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [gps, setGps] = useState<GpsPoint[] | null>(null);
   // Per-type map display toggles — replaces the old flat showLegs/
@@ -153,6 +121,12 @@ export function SessionDetail({
   const [movingActivity, setMovingActivity] = useState(false);
   const [moveTargetId, setMoveTargetId] = useState("");
   const reanalysisPolling = reanalysisToastId !== null;
+  // Owned here (not inside the photo/video Cards) so the same file picker
+  // can be triggered either from the Card's own icon button (once there's
+  // content) or from the "Aggiungi" menu item (while the section is empty
+  // and hidden) — see the ⋮ menu section built below.
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const session = useQuery({
     queryKey: sessionKeys.detail(sessionId),
@@ -399,6 +373,7 @@ export function SessionDetail({
       }),
     onSuccess: async () => {
       notify(t("common.saved"), "success");
+      setNotesEditing(false);
       await queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
     },
     onError: () => notify(t("errors.generic"), "error"),
@@ -501,14 +476,41 @@ export function SessionDetail({
     mutationFn: (imageId: UUID) => sessionsService.removePhoto(sessionId, imageId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.photos(sessionId) }),
   });
+  // Presign/PUT/confirm flow for the hidden file inputs above — same hook
+  // `ImageUploader`/the old inline `VideoUploader` used, called directly so
+  // the trigger isn't tied to any one visible button (see photoInputRef/
+  // videoInputRef).
+  const photoUpload = useMediaUpload({
+    create: () => sessionsService.createPhoto(sessionId),
+    confirm: (imageId) => sessionsService.confirmPhoto(sessionId, imageId),
+    onDone: async () => {
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.photos(sessionId) });
+    },
+  });
+  const videoUpload = useMediaUpload({
+    create: () => sessionsService.createVideo(sessionId),
+    confirm: (fileId) => sessionsService.confirmVideo(sessionId, fileId),
+    onDone: async () => {
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.videos(sessionId) });
+    },
+  });
+  // No inline error UI once the trigger can live in the ⋮ menu (nothing to
+  // anchor it to) — reuse the toast pattern the rest of this file already
+  // uses for mutation errors.
+  useEffect(() => {
+    if (photoUpload.error) notify(t("errors.generic"), "error");
+  }, [photoUpload.error, notify, t]);
+  useEffect(() => {
+    if (videoUpload.error) notify(t("errors.generic"), "error");
+  }, [videoUpload.error, notify, t]);
 
   const boat = boats.data?.find((b) => b.id === session.data?.boat_id);
   const manager = session.data ? isBoatManager(session.data.boat_id) : false;
   // Mirrors the backend's is_session_crew_or_manager: who can write the
-  // shared crew notes (a superset of who can edit the session's core
-  // fields, since any crew member — not just a boat owner/admin — should be
-  // able to log the outing).
-  const canEditNotes = manager || (crew.data?.some((c) => c.user_id === user?.id) ?? false);
+  // shared crew notes and add photos/videos (a superset of who can edit the
+  // session's core fields, since any crew member — not just a boat owner/
+  // admin — should be able to log the outing).
+  const crewOrManager = manager || (crew.data?.some((c) => c.user_id === user?.id) ?? false);
 
   // Single consolidated ⋮ menu (title-level) — replaces the old separate
   // OptionsMenu (session actions) + MapLegsOptions (⚙ on the map). Sections
@@ -517,6 +519,24 @@ export function SessionDetail({
   // viewer — matches the backend's _require_visible permission, not the
   // edit-only _can_edit the other actions use).
   const menuSections: MenuSection[] = [];
+  // Whatever hasn't been added yet (and the viewer may add) gets a single
+  // menu entry instead of its own empty Card — see the Foto/Video/
+  // Annotazioni Cards below, each hidden while empty.
+  const addItems: MenuItem[] = [];
+  if (crewOrManager) {
+    if (!photos.data?.length) {
+      addItems.push({ label: t("sessions.addPhoto"), onClick: () => photoInputRef.current?.click() });
+    }
+    if (!videos.data?.length) {
+      addItems.push({ label: t("sessions.addVideo"), onClick: () => videoInputRef.current?.click() });
+    }
+    if (!session.data?.notes) {
+      addItems.push({ label: t("sessions.addNotes"), onClick: () => setNotesEditing(true) });
+    }
+  }
+  if (addItems.length > 0) {
+    menuSections.push({ heading: t("sessions.menuSectionAdd"), items: addItems });
+  }
   if (manager) {
     menuSections.push({
       heading: t("sessions.menuSectionSession"),
@@ -615,6 +635,7 @@ export function SessionDetail({
   // re-render this component too, rebuilding the array again, forever.
   const menuSignature = JSON.stringify([
     manager,
+    crewOrManager,
     maneuverEditMode,
     trimMode,
     reanalyze.isPending,
@@ -623,6 +644,9 @@ export function SessionDetail({
     currentActivity.data?.type,
     analysis.data?.legs.length ?? 0,
     analysis.data?.maneuvers.length ?? 0,
+    photos.data?.length ?? 0,
+    videos.data?.length ?? 0,
+    !!session.data?.notes,
     mapShow,
     variant,
   ]);
@@ -638,6 +662,28 @@ export function SessionDetail({
 
   return (
     <div className="sf-section__body">
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void photoUpload.upload(f);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/mp4"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void videoUpload.upload(f);
+          e.target.value = "";
+        }}
+      />
       {variant === "page" && (
         <Card
           title={
@@ -811,52 +857,50 @@ export function SessionDetail({
         )}
       </Card>
 
-      {(canEditNotes || s.notes) && (
-        <Card title={t("sessions.notes")}>
-          {canEditNotes ? (
+      {s.notes && (
+        <Card
+          title={
             <>
-              <TextAreaField
-                label={t("sessions.notes")}
-                id="session-notes"
-                rows={5}
-                placeholder={t("sessions.notesPlaceholder")}
-                value={notesForm.notes}
-                onChange={(e) => setNotesForm((f) => ({ ...f, notes: e.target.value }))}
-              />
-              <label className="sf-field">
-                <input
-                  type="checkbox"
-                  checked={notesForm.notes_shared}
-                  onChange={(e) => setNotesForm((f) => ({ ...f, notes_shared: e.target.checked }))}
-                />{" "}
-                {t("sessions.notesShared")}
-              </label>
-              <p className="sf-muted">{t("sessions.notesSharedHint")}</p>
-              <div className="sf-form__actions">
-                <Button onClick={() => saveNotes.mutate()} disabled={saveNotes.isPending}>
-                  {t("common.save")}
-                </Button>
-              </div>
+              {t("sessions.notes")}{" "}
+              {s.notes_shared && <span className="sf-badge">{t("sessions.notesSharedBadge")}</span>}
             </>
-          ) : (
-            <p className={styles.notes}>{s.notes}</p>
-          )}
+          }
+          actions={
+            crewOrManager && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="sf-btn--icon-sm"
+                aria-label={t("common.edit")}
+                onClick={() => setNotesEditing(true)}
+              >
+                <Pencil size={16} />
+              </Button>
+            )
+          }
+        >
+          <p className={styles.notes}>{s.notes}</p>
         </Card>
       )}
 
-      <Card
-        title={t("sessions.photos")}
-        actions={
-          <ImageUploader
-            create={() => sessionsService.createPhoto(sessionId)}
-            confirm={(imageId) => sessionsService.confirmPhoto(sessionId, imageId)}
-            onDone={async () => {
-              await queryClient.invalidateQueries({ queryKey: sessionKeys.photos(sessionId) });
-            }}
-          />
-        }
-      >
-        {photos.data?.length ? (
+      {photos.data?.length ? (
+        <Card
+          title={t("sessions.photos")}
+          actions={
+            crewOrManager && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="sf-btn--icon-sm"
+                disabled={photoUpload.busy}
+                aria-label={t("sessions.addPhoto")}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                <ImagePlus size={16} />
+              </Button>
+            )
+          }
+        >
           <div className={photoGridStyles.grid}>
             {photos.data.map((p) => (
               <figure key={p.image_id}>
@@ -871,32 +915,34 @@ export function SessionDetail({
               </figure>
             ))}
           </div>
-        ) : (
-          <p className="sf-muted">{t("common.none")}</p>
-        )}
-      </Card>
+        </Card>
+      ) : null}
 
-      <Card
-        title={t("sessions.videos")}
-        actions={
-          <VideoUploader
-            sessionId={sessionId}
-            onDone={async () => {
-              await queryClient.invalidateQueries({ queryKey: sessionKeys.videos(sessionId) });
-            }}
-          />
-        }
-      >
-        {videos.data?.length ? (
+      {videos.data?.length ? (
+        <Card
+          title={t("sessions.videos")}
+          actions={
+            crewOrManager && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="sf-btn--icon-sm"
+                disabled={videoUpload.busy}
+                aria-label={t("sessions.addVideo")}
+                onClick={() => videoInputRef.current?.click()}
+              >
+                <Video size={16} />
+              </Button>
+            )
+          }
+        >
           <div className={photoGridStyles.grid}>
             {videos.data.map((v) => (
               <video key={v.file_id} src={v.url} controls style={{ width: "100%" }} />
             ))}
           </div>
-        ) : (
-          <p className="sf-muted">{t("common.none")}</p>
-        )}
-      </Card>
+        </Card>
+      ) : null}
 
       <div id="session-analysis">
         <SessionAnalysis sessionId={sessionId} editMode={maneuverEditMode} />
@@ -923,6 +969,32 @@ export function SessionDetail({
             ))}
           </Select>
           <UserPicker busy={addCrew.isPending} onPick={(u) => addCrew.mutate(u.id)} />
+        </Modal>
+      )}
+      {notesEditing && (
+        <Modal title={t("sessions.notes")} onClose={() => setNotesEditing(false)}>
+          <TextAreaField
+            label={t("sessions.notes")}
+            id="session-notes"
+            rows={5}
+            placeholder={t("sessions.notesPlaceholder")}
+            value={notesForm.notes}
+            onChange={(e) => setNotesForm((f) => ({ ...f, notes: e.target.value }))}
+          />
+          <label className="sf-field">
+            <input
+              type="checkbox"
+              checked={notesForm.notes_shared}
+              onChange={(e) => setNotesForm((f) => ({ ...f, notes_shared: e.target.checked }))}
+            />{" "}
+            {t("sessions.notesShared")}
+          </label>
+          <p className="sf-muted">{t("sessions.notesSharedHint")}</p>
+          <div className="sf-form__actions">
+            <Button onClick={() => saveNotes.mutate()} disabled={saveNotes.isPending}>
+              {t("common.save")}
+            </Button>
+          </div>
         </Modal>
       )}
       {maneuverDraftStart && maneuverDraftEnd && (
