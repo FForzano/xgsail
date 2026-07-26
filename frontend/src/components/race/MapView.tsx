@@ -188,6 +188,18 @@ export function MapView({
   onMapClickRef.current = onMapClick;
   const onOpenSessionRef = useRef(onOpenSession);
   onOpenSessionRef.current = onOpenSession;
+
+  // Collapses any race-mark pin currently expanded to its full-name label
+  // (see the "else" branch of the marks effect below) — called on map click
+  // (tapping elsewhere) and before expanding a different pin, so at most one
+  // is ever expanded at a time.
+  const collapseRaceLabels = () => {
+    mapRef.current
+      ?.getContainer()
+      .querySelectorAll<HTMLElement>(`.${styles.markiconRaceLabelInner}.${styles.expanded}`)
+      .forEach((el) => el.classList.remove(styles.expanded));
+  };
+
   const { data: windAt } = useWindAt(wind?.lat, wind?.lng, wind?.at);
   // Prefer this session's own determined wind (closest-in-time point) over
   // the live snapshot — it's what the session's own VMG/polar/legs were
@@ -265,6 +277,7 @@ export function MapView({
     // from also reaching the map, so a click on the track lands here too
     // with its own (unsnapped) latlng, which is what we want for a mark.
     map.on("click", (e: L.LeafletMouseEvent) => {
+      collapseRaceLabels();
       if (pickModeRef.current) onMapClickRef.current?.(e.latlng.lat, e.latlng.lng);
     });
 
@@ -499,14 +512,12 @@ export function MapView({
           iconSize: [0, 0],
           iconAnchor: [0, 0],
         });
-        const marker = L.marker([mk.lat, mk.lng], { icon, draggable: mk.draggable ?? false })
-          .bindTooltip(raceLabel)
-          .addTo(layer);
+        const marker = L.marker([mk.lat, mk.lng], { icon, draggable: mk.draggable ?? false }).addTo(layer);
         marker.on("click", () => {
-          marker
-            .getElement()
-            ?.querySelector(`.${styles.markiconRaceLabelInner}`)
-            ?.classList.toggle(styles.expanded);
+          const inner = marker.getElement()?.querySelector<HTMLElement>(`.${styles.markiconRaceLabelInner}`);
+          const wasExpanded = inner?.classList.contains(styles.expanded);
+          collapseRaceLabels();
+          if (inner && !wasExpanded) inner.classList.add(styles.expanded);
         });
         if (mk.draggable && mk.onDragEnd) {
           marker.on("dragend", () => {
