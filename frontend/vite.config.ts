@@ -21,9 +21,13 @@ export default defineConfig({
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   server: {
+    host: true,
     port: 5173,
     proxy: {
-      "/api": { target: "http://localhost:8000", changeOrigin: true },
+      // Overridable so the same config works running on the host (backend
+      // on localhost:8000) and running inside the docker-compose dev
+      // override (backend reached via the compose service name).
+      "/api": { target: process.env.VITE_BACKEND_PROXY_TARGET ?? "http://localhost:8000", changeOrigin: true },
     },
   },
   build: { outDir: "dist", sourcemap: true },

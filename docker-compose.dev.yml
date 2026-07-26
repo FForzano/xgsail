@@ -1,0 +1,31 @@
+# Dev-loop overlay — NOT auto-loaded, and NOT what self-hosters or
+# deploy/docker-compose.prod.yml use. docker-compose.yml on its own stays
+# the documented self-hosted stack (nginx serving the built SPA); this file
+# only swaps the frontend service for the Vite dev server with the source
+# mounted from the host, so edits hot-reload instead of requiring a rebuild.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# (rebuild once to create the dev image; after that just `up`, no --build
+# needed even after editing frontend/src — only package.json changes do).
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      # Anonymous volume so the container's own node_modules (built for
+      # linux/musl) isn't shadowed by the host's, which may hold
+      # host-platform native binaries (e.g. esbuild).
+      - /app/node_modules
+    environment:
+      # Vite dev server proxy target for /api — inside the compose network
+      # the backend is reached by service name, not localhost.
+      VITE_BACKEND_PROXY_TARGET: "http://backend:8000"
+    # docker-compose.yml already publishes 8080 for the prod nginx service;
+    # `ports:` merges by appending rather than replacing across -f files, so
+    # reusing 8080 here would try to double-bind it. Vite gets its own port.
+    ports:
+      - "5173:5173"

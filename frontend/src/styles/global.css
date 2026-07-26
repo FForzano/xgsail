@@ -1024,17 +1024,6 @@ h1, h2, h3 {
   left: 0;
   right: auto;
 }
-/* For a trigger anchored to the bottom of the viewport (TourHelpButton) —
-   opens the panel upward instead of the default (downward, anchored right),
-   which would otherwise render off-screen below the viewport. */
-.sf-options__panel--up {
-  top: auto;
-  right: auto;
-  bottom: 100%;
-  left: 0;
-  margin-top: 0;
-  margin-bottom: 0.3rem;
-}
 .sf-optionsmenu__panel {
   padding: 0.3rem;
   display: flex;

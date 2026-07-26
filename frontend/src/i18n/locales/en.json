@@ -806,9 +806,7 @@
       }
     },
     "help": {
-      "button": "Help",
-      "pageTour": "Replay this page's tour",
-      "appTour": "Replay the general overview"
+      "button": "Help"
     }
   }
 }

@@ -806,9 +806,7 @@
       }
     },
     "help": {
-      "button": "Guida",
-      "pageTour": "Rivedi la guida di questa pagina",
-      "appTour": "Rivedi la panoramica generale"
+      "button": "Guida"
     }
   }
 }
