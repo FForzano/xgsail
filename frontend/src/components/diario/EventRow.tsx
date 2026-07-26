@@ -48,6 +48,7 @@ export function EventRow({
   onToggle,
   clubId,
   canAnnounce,
+  dataTour,
 }: {
   item: EventItem;
   manage: boolean;
@@ -58,6 +59,10 @@ export function EventRow({
    * here, see `ClubEvents.tsx`/`GroupActivities.tsx`). */
   clubId?: UUID;
   canAnnounce?: boolean;
+  /** `data-tour` anchor — set only on one row (the first) by callers that
+   * use this in a guided-tour step, so the step highlights a single card
+   * rather than the whole feed. */
+  dataTour?: string;
 }) {
   const { t } = useTranslation();
   const [announcing, setAnnouncing] = useState(false);
@@ -66,7 +71,7 @@ export function EventRow({
   const imageUrl = item.kind === "activity" ? item.activity.thumbnail?.url : item.regatta.image?.url;
 
   return (
-    <article className={styles.card}>
+    <article className={styles.card} data-tour={dataTour}>
       <Link to={href} className={styles.mediaLink}>
         <div className={styles.mediaBox}>
           {imageUrl ? (
