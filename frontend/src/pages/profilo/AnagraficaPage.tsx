@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { Avatar } from "@/components/ui/Avatar";
 import { unitsStore, useUnits } from "@/stores/unitsStore";
+import { useOnboarding } from "@/onboarding/OnboardingContext";
 import type { NoteTemplate, UUID } from "@/types";
 
 export function AnagraficaPage() {
@@ -20,6 +21,12 @@ export function AnagraficaPage() {
   const { user } = useAuth();
   const { notify } = useToast();
   const queryClient = useQueryClient();
+  const { requestTour } = useOnboarding();
+
+  // AnagraficaPage is the default landing tab of /profilo.
+  useEffect(() => {
+    requestTour("profilo-overview");
+  }, [requestTour]);
 
   const me = useQuery({ queryKey: userKeys.me, queryFn: usersService.me });
   const units = useUnits();

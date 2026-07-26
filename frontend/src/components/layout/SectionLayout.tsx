@@ -9,6 +9,10 @@ export interface SectionTab {
   /** Small count pill on the tab (e.g. pending join requests) — omitted
    * when 0/undefined. */
   badge?: number;
+  /** `data-tour` anchor for the guided-tour "here are the section's tabs"
+   * step (see onboarding/tours.ts) — set on one tab per section, enough to
+   * anchor the step. */
+  dataTour?: string;
 }
 
 /** Macro-section layout: sub-page tabs (real routes, not UI tabs) + outlet.
@@ -42,7 +46,7 @@ export function SectionLayout({
     <div className="sf-section">
       <nav className={`sf-tabs${sticky ? "" : " sf-tabs--static"}`} aria-label="Section">
         {tabs.map((tab) => (
-          <NavLink key={tab.to} to={tab.to} end={tab.end} className="sf-tab">
+          <NavLink key={tab.to} to={tab.to} end={tab.end} data-tour={tab.dataTour} className="sf-tab">
             {tab.label}
             {!!tab.badge && <span className="sf-tab__badge">{tab.badge}</span>}
           </NavLink>

@@ -58,6 +58,7 @@ from ..schemas import (
     AcceptLegalModel,
     ChangePasswordModel,
     LoginModel,
+    OnboardingSeenModel,
     SupportPromptModel,
     RefreshModel,
     RegisterModel,
@@ -215,6 +216,17 @@ def support_prompt(body: SupportPromptModel, request: Request):
     verify_csrf(request)
     user = require_user(request)
     repos.users.record_support_prompt(user.id, donated=body.donated)
+    return {"ok": True}
+
+
+@router.post("/onboarding-seen")
+def onboarding_seen(body: OnboardingSeenModel, request: Request):
+    """Record that the logged-in user finished or skipped a guided-tour
+    step sequence (see capabilities ``onboarding.seenTours``) — idempotent,
+    server-tracked so it doesn't repeat on another device."""
+    verify_csrf(request)
+    user = require_user(request)
+    repos.users.mark_onboarding_tour_seen(user.id, body.tour_id)
     return {"ok": True}
 
 

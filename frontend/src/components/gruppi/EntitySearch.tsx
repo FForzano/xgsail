@@ -23,7 +23,7 @@ export function EntitySearch() {
   const trimmed = query.trim();
   if (!trimmed) {
     return (
-      <div className={styles.search}>
+      <div className={styles.search} data-tour="gruppi-search">
         <Search size={16} className={styles.icon} />
         <input
           className={styles.input}
@@ -41,7 +41,7 @@ export function EntitySearch() {
   const noResults = clubMatches.length === 0 && groupMatches.length === 0;
 
   return (
-    <div className={styles.search}>
+    <div className={styles.search} data-tour="gruppi-search">
       <div className={styles.bar}>
         <Search size={16} className={styles.icon} />
         <input

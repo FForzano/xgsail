@@ -1,6 +1,7 @@
 """SQL user repository. Reads return ``UserORM`` (``to_dict()`` drops the
 password hash); the hash is read only for login via a dedicated method."""
 
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -94,6 +95,20 @@ class SqlUserRepo:
                 orm.support_prompt_next_at = now + DONATED_DELAY
             else:
                 orm.support_prompt_next_at = now + SNOOZE_DELAY
+            s.commit()
+        return self.get_by_id(user_id)
+
+    def mark_onboarding_tour_seen(self, user_id: uuid.UUID, tour_id: str) -> Optional[UserORM]:
+        """Record that the logged-in user finished or skipped a guided-tour
+        (see capabilities ``onboarding.seenTours``) — idempotent, and tracked
+        as an open-ended set so new tours never need a migration."""
+        with self.Session() as s:
+            orm = s.get(UserORM, user_id)
+            if orm is None:
+                return None
+            seen = set(json.loads(orm.onboarding_seen_tours or "[]"))
+            seen.add(tour_id)
+            orm.onboarding_seen_tours = json.dumps(sorted(seen))
             s.commit()
         return self.get_by_id(user_id)
 

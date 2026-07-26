@@ -9,7 +9,7 @@ import uuid
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..base import Base, TimestampMixin, UUIDPKMixin, enum_check
@@ -60,6 +60,10 @@ class UserORM(UUIDPKMixin, TimestampMixin, Base):
     # survives across devices/reinstalls.
     support_prompt_next_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     support_donated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Guided-tour progress: JSON array of tour IDs the user has finished or
+    # skipped (see onboarding.py). One growing, open-ended set rather than a
+    # fixed column per tour, so new tours can be added later with no migration.
+    onboarding_seen_tours: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     roles: Mapped[list["UserRoleORM"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan", lazy="selectin"

@@ -1,0 +1,67 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.mask {
+  position: fixed;
+  background: rgba(4, 15, 26, 0.72);
+  transition:
+    top 0.2s ease,
+    left 0.2s ease,
+    width 0.2s ease,
+    height 0.2s ease;
+}
+
+.highlight {
+  position: fixed;
+  border: 2px solid var(--sf-primary);
+  border-radius: var(--sf-radius);
+  box-shadow: 0 0 0 3px rgba(47, 155, 224, 0.3);
+  pointer-events: none;
+  transition:
+    top 0.2s ease,
+    left 0.2s ease,
+    width 0.2s ease,
+    height 0.2s ease;
+}
+
+.bubble {
+  position: fixed;
+  width: min(300px, calc(100vw - 1.5rem));
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  box-shadow: 0 8px 24px rgba(4, 15, 26, 0.5);
+  padding: 1rem;
+}
+
+.stepCount {
+  font-size: 0.75rem;
+  color: var(--sf-muted);
+  margin-bottom: 0.25rem;
+}
+
+.title {
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}
+
+.body {
+  margin: 0 0 0.9rem;
+  color: var(--sf-muted);
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.navActions {
+  display: flex;
+  gap: 0.4rem;
+}

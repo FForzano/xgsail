@@ -77,6 +77,14 @@ export interface SupportCapabilities {
   donated: boolean;
 }
 
+/** Guided-tour progress, tracked server-side so a tour already seen on one
+ * device doesn't repeat on another — see backend/onboarding.py. An
+ * open-ended set of tour IDs (frontend/src/onboarding/tours.ts), not a
+ * fixed list, so new tours don't need a backend change. */
+export interface OnboardingCapabilities {
+  seenTours: string[];
+}
+
 export interface Capabilities {
   user: User;
   roles: Array<{ role: string; scope_club_id: UUID | null }>;
@@ -93,6 +101,7 @@ export interface Capabilities {
   };
   legal: LegalCapabilities;
   support: SupportCapabilities;
+  onboarding: OnboardingCapabilities;
 }
 
 export type MembershipStatus = "invited" | "requested" | "active";

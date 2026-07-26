@@ -41,7 +41,7 @@ export function UpcomingEventsBanner() {
     null;
 
   return (
-    <div className="sf-highlight-strip">
+    <div className="sf-highlight-strip" data-tour="diario-upcoming-banner">
       {events.map((a) => {
         const org = organizerName(a);
         return (

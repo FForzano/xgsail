@@ -738,5 +738,77 @@
   },
   "nativeUpdate": {
     "body": "Scaricamento degli ultimi aggiornamenti in corso, attendere…"
+  },
+  "onboarding": {
+    "next": "Avanti",
+    "back": "Indietro",
+    "skip": "Salta",
+    "done": "Fine",
+    "stepOf": "{{current}} di {{total}}",
+    "overview": {
+      "diario": {
+        "title": "Diario",
+        "body": "Qui trovi le tue attività, sessioni e regate: il tuo diario di bordo personale."
+      },
+      "gruppi": {
+        "title": "Gruppi",
+        "body": "Circoli e gruppi a cui appartieni: eventi, membri e flotta condivisi."
+      },
+      "profilo": {
+        "title": "Profilo",
+        "body": "I tuoi dati, le tue barche e i dispositivi collegati si gestiscono da qui."
+      }
+    },
+    "diario": {
+      "tabs": {
+        "title": "Personale e Circoli",
+        "body": "\"Personale\" mostra le tue attività; \"Circoli\" quelle organizzate dai gruppi/circoli a cui appartieni."
+      },
+      "banner": {
+        "title": "Prossimi eventi",
+        "body": "Gli eventi in programma organizzati dal tuo circolo o gruppo compaiono qui in evidenza."
+      },
+      "filter": {
+        "title": "Filtro",
+        "body": "Filtra il diario per tipo di attività: regata, allenamento o uscita libera."
+      },
+      "import": {
+        "title": "Importa",
+        "body": "Importa una traccia GPX o CSV da un dispositivo o da un'altra app."
+      },
+      "feed": {
+        "title": "Le tue attività",
+        "body": "L'elenco delle tue attività, in ordine cronologico. Tocca una voce per vederne i dettagli."
+      }
+    },
+    "gruppi": {
+      "tabs": {
+        "title": "Gruppi e Circoli",
+        "body": "\"Gruppi\" raccoglie i gruppi a cui appartieni; \"Circoli\" i circoli velici."
+      },
+      "search": {
+        "title": "Cerca",
+        "body": "Cerca un gruppo o un circolo esistente per nome."
+      },
+      "create": {
+        "title": "Crea un gruppo",
+        "body": "Crea un nuovo gruppo per organizzare uscite ed eventi con i tuoi compagni di barca."
+      }
+    },
+    "profilo": {
+      "tabs": {
+        "title": "Sezioni del profilo",
+        "body": "Da qui gestisci i tuoi dati, la password, le tue barche e i dispositivi collegati."
+      },
+      "boats": {
+        "title": "Le tue barche",
+        "body": "Aggiungi una barca per associarci sessioni, dispositivi ed equipaggio."
+      }
+    },
+    "help": {
+      "button": "Guida",
+      "pageTour": "Rivedi la guida di questa pagina",
+      "appTour": "Rivedi la panoramica generale"
+    }
   }
 }

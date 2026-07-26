@@ -54,7 +54,7 @@ export function BoatsPage() {
   return (
     <>
       <div className="sf-toolbar" style={{ justifyContent: "flex-end" }}>
-        <Button onClick={() => setCreating(true)}>{t("boats.addBoat")}</Button>
+        <Button data-tour="profilo-add-boat" onClick={() => setCreating(true)}>{t("boats.addBoat")}</Button>
       </div>
       {boats.data?.length === 0 ? (
         <EmptyState>{t("boats.empty")}</EmptyState>

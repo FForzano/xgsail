@@ -9,12 +9,21 @@ export interface OptionsMenuItem {
 
 /** Generic "⋮" options menu — a small anchored dropdown of action items.
  * Reused wherever a card/row needs more actions than fit as inline buttons. */
-export function OptionsMenu({ items }: { items: OptionsMenuItem[] }) {
+export function OptionsMenu({
+  items,
+  triggerDataTour,
+}: {
+  items: OptionsMenuItem[];
+  /** `data-tour` anchor for the trigger button, for callers whose menu is a
+   * guided-tour step target (e.g. the diario "importa" action). */
+  triggerDataTour?: string;
+}) {
   return (
     <Popover
       panelClassName="sf-optionsmenu__panel"
       trigger={({ open, toggle }) => (
         <button
+          data-tour={triggerDataTour}
           className="sf-btn sf-btn--ghost sf-btn--sm"
           aria-label="Options"
           aria-haspopup="menu"

@@ -6,7 +6,7 @@ export function DiarioLayout() {
   return (
     <SectionLayout
       tabs={[
-        { to: "/diario/personale", label: t("diario.myDiary") },
+        { to: "/diario/personale", label: t("diario.myDiary"), dataTour: "diario-tabs" },
         { to: "/diario/circoli", label: t("diario.clubsDiary") },
       ]}
     />

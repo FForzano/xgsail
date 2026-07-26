@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import { membershipKeys } from "@/components/membership/MembershipStrip";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
+import { useOnboarding } from "@/onboarding/OnboardingContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -22,8 +23,15 @@ export function GroupsPage() {
   const { refreshCaps } = useAuth();
   const { notify } = useToast();
   const queryClient = useQueryClient();
+  const { requestTour } = useOnboarding();
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", visibility: "private" });
+
+  // GroupsPage is the default landing tab of /gruppi — fires once regardless
+  // of whether the user opens "Gruppi" or "Circoli" first.
+  useEffect(() => {
+    requestTour("gruppi-overview");
+  }, [requestTour]);
 
   // One call: public groups + mine; split via capabilities memberships.
   const groups = useQuery({ queryKey: groupKeys.all, queryFn: () => groupsService.list() });
@@ -67,7 +75,7 @@ export function GroupsPage() {
     <>
       <div className="sf-toolbar">
         <h3>{t("gruppi.myGroups")}</h3>
-        <Button onClick={() => setCreating(true)}>{t("gruppi.createGroup")}</Button>
+        <Button data-tour="gruppi-create" onClick={() => setCreating(true)}>{t("gruppi.createGroup")}</Button>
       </div>
       {mine.length === 0 ? (
         <EmptyState>{t("gruppi.emptyGroups")}</EmptyState>

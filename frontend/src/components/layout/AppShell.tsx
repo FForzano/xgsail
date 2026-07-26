@@ -18,6 +18,8 @@ import { SupportPromptBanner } from "@/components/common/SupportPromptBanner";
 import { usersService, userKeys } from "@/services/users";
 import { unitsStore } from "@/stores/unitsStore";
 import { canShowSupportLinks } from "@/config/platform";
+import { OnboardingProvider, useOnboarding } from "@/onboarding/OnboardingContext";
+import { TourHelpButton } from "@/onboarding/TourHelpButton";
 
 // The main navigation exposes ONLY the 3 macro-sections (plus Admin) as
 // inline links — sub-pages are reached from inside each section
@@ -27,11 +29,28 @@ import { canShowSupportLinks } from "@/config/platform";
 // ProfileMenu dropdown on desktop and at the bottom of the Profilo page on
 // mobile (see ProfiloLayout.tsx).
 export function AppShell() {
+  return (
+    <OnboardingProvider>
+      <AppShellInner />
+    </OnboardingProvider>
+  );
+}
+
+function AppShellInner() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { pendingFile } = useShareTarget();
   const queryClient = useQueryClient();
+  const { requestTour } = useOnboarding();
+
+  // First thing a freshly-authenticated user sees, once — a walkthrough of
+  // the three macro-sections below. Runs at most once per account (server-
+  // tracked, see capabilities `onboarding.seenTours`); replayable anytime via
+  // TourHelpButton.
+  useEffect(() => {
+    if (user) requestTour("app-overview");
+  }, [user, requestTour]);
 
   // Opportunistic, silent BLE relay of any claimed XGSail E1's buffered
   // sessions — see services/e1Sync.ts. No UI of its own; this is the
@@ -78,20 +97,20 @@ export function AppShell() {
   }, [me.data?.unit_system]);
 
   const sections = [
-    { to: "/diario", label: t("nav.diario"), Icon: NotebookText },
+    { to: "/diario", label: t("nav.diario"), Icon: NotebookText, dataTour: "nav-diario" },
     // Native-only: recording a GPS track directly from the phone (with the
     // screen locked) has no equivalent on the web, which has no background
     // GPS/foreground-service access — see services/nativeRecording.ts.
     ...(Capacitor.isNativePlatform()
-      ? [{ to: "/registra", label: t("nav.registra"), Icon: Disc }]
+      ? [{ to: "/registra", label: t("nav.registra"), Icon: Disc, dataTour: undefined }]
       : []),
-    { to: "/gruppi", label: t("nav.gruppi"), Icon: Users },
+    { to: "/gruppi", label: t("nav.gruppi"), Icon: Users, dataTour: "nav-gruppi" },
     // Icon unused for /profilo (the action bar always shows the Avatar for
     // it instead, see below) — kept only so every section has the same
     // shape.
-    { to: "/profilo", label: t("nav.profilo"), Icon: Users },
+    { to: "/profilo", label: t("nav.profilo"), Icon: Users, dataTour: "nav-profilo" },
     ...(user?.is_superadmin
-      ? [{ to: "/admin", label: t("nav.admin"), Icon: Settings }]
+      ? [{ to: "/admin", label: t("nav.admin"), Icon: Settings, dataTour: undefined }]
       : []),
   ];
   const navLinkSections = sections.filter((s) => s.to !== "/profilo");
@@ -120,6 +139,7 @@ export function AppShell() {
             <NavLink
               key={s.to}
               to={s.to}
+              data-tour={s.dataTour}
               className={`sf-navlink ${s.to === "/admin" ? "sf-navlink--admin" : ""}`}
             >
               {s.label}
@@ -146,7 +166,7 @@ export function AppShell() {
       </main>
       <nav className="sf-actionbar" aria-label="Main">
         {sections.map((s) => (
-          <NavLink key={s.to} to={s.to} className="sf-actionbar__item">
+          <NavLink key={s.to} to={s.to} data-tour={s.dataTour} className="sf-actionbar__item">
             {s.to === "/profilo" ? (
               <Avatar
                 size="sm"
@@ -168,6 +188,7 @@ export function AppShell() {
         ))}
       </nav>
       <ToastViewport />
+      <TourHelpButton />
     </div>
   );
 }
