@@ -2,10 +2,17 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
+  /* Spans the whole viewport, including the "hole" over the highlighted
+   * target — without this, it would swallow clicks there itself instead of
+   * letting them reach the real element underneath. `.mask`/`.bubble` opt
+   * back into being clickable (pointer-events is inherited). */
+  pointer-events: none;
 }
 
 .mask {
   position: fixed;
+  pointer-events: auto;
+  cursor: pointer;
   background: rgba(4, 15, 26, 0.72);
   transition:
     top 0.2s ease,
@@ -29,7 +36,10 @@
 
 .bubble {
   position: fixed;
+  pointer-events: auto;
   width: min(300px, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 1.5rem);
+  overflow-y: auto;
   background: var(--sf-surface);
   border: 1px solid var(--sf-border);
   border-radius: var(--sf-radius);

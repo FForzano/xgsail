@@ -5,9 +5,12 @@ import type { Tour } from "@/onboarding/tours";
 import { useTourTarget } from "@/onboarding/useTourTarget";
 import styles from "./TourSpotlight.module.css";
 
-// Rough bubble width used only to keep it from overflowing the right edge —
-// the module's own max-width still governs actual layout.
+// Rough bubble dimensions used only for placement math (keeping it from
+// overflowing the viewport) — the module's own max-width/max-height still
+// govern actual layout, with overflow-y: auto as a hard fallback if a step's
+// target is unusually large and the estimate below is wrong.
 const BUBBLE_WIDTH = 300;
+const BUBBLE_HEIGHT_ESTIMATE = 220;
 const GAP = 12;
 const PAD = 6;
 
@@ -58,10 +61,32 @@ export function TourSpotlight({
   const spaceBelow = viewportH - (hole.top + hole.height);
   const placeAbove = spaceBelow < 180 && hole.top > 180;
   const bubbleLeft = Math.min(Math.max(hole.left, GAP), viewportW - BUBBLE_WIDTH - GAP);
+  // Always positioned via `top` (never `bottom`) so it can be clamped
+  // uniformly against the viewport regardless of the target's own size —
+  // a target much taller than the screen (or right at an edge) must never
+  // be able to push the bubble's buttons out of reach. `max-height` +
+  // `overflow-y: auto` in the CSS module is the hard backstop if the
+  // estimate here is off.
+  const desiredTop = placeAbove
+    ? hole.top - GAP - BUBBLE_HEIGHT_ESTIMATE
+    : hole.top + hole.height + GAP;
+  const bubbleTop = Math.min(Math.max(desiredTop, GAP), Math.max(GAP, viewportH - GAP - 80));
   const isLast = stepIndex === tour.steps.length - 1;
 
   return createPortal(
-    <div className={styles.root} role="dialog" aria-modal="true" aria-label={t(step.titleKey)}>
+    <div
+      className={styles.root}
+      role="dialog"
+      aria-modal="true"
+      aria-label={t(step.titleKey)}
+      // Safety valve: this step's target may end up positioned so the
+      // bubble is hard to reach (an unexpectedly large/edge-of-screen
+      // target) — tapping anywhere on the dimmed backdrop always advances,
+      // so the tour can never trap the user on a step they can't get past.
+      // Clicks on the target itself (the "hole", not covered by any mask)
+      // reach the real page underneath instead, unaffected by this.
+      onClick={onNext}
+    >
       <div
         className={styles.mask}
         style={{ top: 0, left: 0, right: 0, height: Math.max(hole.top, 0) }}
@@ -84,11 +109,8 @@ export function TourSpotlight({
       />
       <div
         className={styles.bubble}
-        style={
-          placeAbove
-            ? { bottom: viewportH - hole.top + GAP, left: bubbleLeft }
-            : { top: hole.top + hole.height + GAP, left: bubbleLeft }
-        }
+        style={{ top: bubbleTop, left: bubbleLeft }}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.stepCount}>
           {t("onboarding.stepOf", { current: stepIndex + 1, total: tour.steps.length })}

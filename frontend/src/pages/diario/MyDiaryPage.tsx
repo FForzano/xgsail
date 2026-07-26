@@ -38,14 +38,18 @@ export function MyDiaryPage() {
           <EmptyState>{t("activities.empty")}</EmptyState>
         ) : (
           <>
-            <div className={feedStyles.feed} data-tour="diario-feed">
-              {items.map((i) => (
+            <div className={feedStyles.feed}>
+              {items.map((i, index) => (
                 <EventRow
                   key={`${i.kind}-${i.id}`}
                   item={i}
                   manage={false}
                   open={openRegattaId === i.id}
                   onToggle={() => setOpenRegattaId(openRegattaId === i.id ? null : i.id)}
+                  // Anchors the guided-tour "your activities" step to a
+                  // single card instead of the whole (potentially very
+                  // tall) feed — see onboarding/tours.ts.
+                  dataTour={index === 0 ? "diario-feed" : undefined}
                 />
               ))}
             </div>
