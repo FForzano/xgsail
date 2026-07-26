@@ -22,15 +22,3 @@
     bottom: calc(var(--sf-actionbar-h) + 1rem);
   }
 }
-
-/* Trigger sits at the bottom of the viewport — open the menu upward instead
- * of the shared sf-options__panel default (downward, anchored right). */
-.panel {
-  top: auto;
-  right: auto;
-  bottom: 100%;
-  left: 0;
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-  min-width: 200px;
-}

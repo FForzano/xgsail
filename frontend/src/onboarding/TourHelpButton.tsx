@@ -21,7 +21,7 @@ export function TourHelpButton() {
 
   return (
     <Popover
-      panelClassName={styles.panel}
+      panelClassName="sf-optionsmenu__panel sf-options__panel--up"
       title={t("onboarding.help.button")}
       trigger={({ open, toggle }) => (
         <button
