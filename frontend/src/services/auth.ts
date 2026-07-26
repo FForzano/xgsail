@@ -45,5 +45,10 @@ export const authService = {
   dismissSupportPrompt: (donated: boolean) =>
     api.post("/auth/support-prompt", { donated }),
 
+  /** Record that a guided tour (see onboarding/tours.ts) was finished or
+   * skipped, so it doesn't repeat (see capabilities `onboarding.seenTours`). */
+  markOnboardingSeen: (tourId: string) =>
+    api.post("/auth/onboarding-seen", { tour_id: tourId }),
+
   myMemberships: () => api.get<MyMemberships>("/users/me/memberships"),
 };

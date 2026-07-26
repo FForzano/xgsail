@@ -36,6 +36,15 @@ class SupportPromptModel(BaseModel):
     donated: bool = False
 
 
+class OnboardingSeenModel(BaseModel):
+    """Guided tour finished or skipped by the logged-in user (see
+    capabilities `onboarding.seenTours`) — ``tour_id`` is an open-ended
+    string, not validated against a fixed enum, so new tours never need a
+    backend change."""
+
+    tour_id: str
+
+
 class LoginModel(BaseModel):
     email: str
     password: str

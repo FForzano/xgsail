@@ -738,5 +738,77 @@
   },
   "nativeUpdate": {
     "body": "Downloading the latest updates, please wait…"
+  },
+  "onboarding": {
+    "next": "Next",
+    "back": "Back",
+    "skip": "Skip",
+    "done": "Done",
+    "stepOf": "{{current}} of {{total}}",
+    "overview": {
+      "diario": {
+        "title": "Diario",
+        "body": "Your activities, sessions and regattas live here: your personal logbook."
+      },
+      "gruppi": {
+        "title": "Gruppi",
+        "body": "The clubs and groups you belong to: shared events, members and fleet."
+      },
+      "profilo": {
+        "title": "Profilo",
+        "body": "Manage your details, your boats and your connected devices from here."
+      }
+    },
+    "diario": {
+      "tabs": {
+        "title": "Personale and Circoli",
+        "body": "\"Personale\" shows your own activities; \"Circoli\" shows the ones organized by clubs/groups you belong to."
+      },
+      "banner": {
+        "title": "Upcoming events",
+        "body": "Planned events organized by your club or group are highlighted here."
+      },
+      "filter": {
+        "title": "Filter",
+        "body": "Filter the diary by activity type: race, training or solo outing."
+      },
+      "import": {
+        "title": "Import",
+        "body": "Import a GPX or CSV track from a device or another app."
+      },
+      "feed": {
+        "title": "Your activities",
+        "body": "Your activities, in chronological order. Tap one to see its details."
+      }
+    },
+    "gruppi": {
+      "tabs": {
+        "title": "Gruppi and Circoli",
+        "body": "\"Gruppi\" lists the groups you belong to; \"Circoli\" lists sailing clubs."
+      },
+      "search": {
+        "title": "Search",
+        "body": "Search an existing group or club by name."
+      },
+      "create": {
+        "title": "Create a group",
+        "body": "Create a new group to organize outings and events with your crew."
+      }
+    },
+    "profilo": {
+      "tabs": {
+        "title": "Profile sections",
+        "body": "Manage your details, password, boats and connected devices from here."
+      },
+      "boats": {
+        "title": "Your boats",
+        "body": "Add a boat to attach sessions, devices and crew to it."
+      }
+    },
+    "help": {
+      "button": "Help",
+      "pageTour": "Replay this page's tour",
+      "appTour": "Replay the general overview"
+    }
   }
 }

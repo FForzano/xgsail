@@ -13,6 +13,7 @@ short-circuits every check — a dev-only escape hatch.
 """
 
 import hmac
+import json
 import os
 import uuid
 from typing import Optional
@@ -121,6 +122,7 @@ def effective_capabilities(user) -> dict:
         },
         "legal": _legal_status(user),
         "support": _support_status(user),
+        "onboarding": _onboarding_status(user),
     }
 
 
@@ -168,6 +170,14 @@ def _support_status(user) -> dict:
         "shouldShow": should_show,
         "donated": getattr(user, "support_donated_at", None) is not None,
     }
+
+
+def _onboarding_status(user) -> dict:
+    """Which guided tours (see ``onboarding.py``) this user has already
+    finished or skipped, so the frontend doesn't re-run them — server-tracked
+    so it's consistent across devices, same as ``_support_status`` above."""
+    raw = getattr(user, "onboarding_seen_tours", None)
+    return {"seenTours": json.loads(raw) if raw else []}
 
 
 def activity_visible_to(activity, user) -> bool:

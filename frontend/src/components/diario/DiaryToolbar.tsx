@@ -31,6 +31,7 @@ export function DiaryToolbar({
         panelClassName="sf-optionsmenu__panel sf-options__panel--left"
         trigger={({ open, toggle }) => (
           <button
+            data-tour="diario-filter"
             className={`sf-btn sf-btn--ghost sf-btn--sm ${styles.filterTrigger}`}
             aria-haspopup="menu"
             aria-expanded={open}
@@ -60,7 +61,10 @@ export function DiaryToolbar({
         }
       </Popover>
       {importHref && (
-        <OptionsMenu items={[{ label: t("sessions.import"), onClick: () => navigate(importHref) }]} />
+        <OptionsMenu
+          triggerDataTour="diario-import"
+          items={[{ label: t("sessions.import"), onClick: () => navigate(importHref) }]}
+        />
       )}
     </div>
   );

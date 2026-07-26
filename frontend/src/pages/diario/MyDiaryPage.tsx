@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { UUID } from "@/types";
 import { useDiaryFeed } from "@/hooks/useDiaryFeed";
 import { UpcomingEventsBanner } from "@/components/diario/UpcomingEventsBanner";
@@ -8,6 +8,7 @@ import { DiaryToolbar } from "@/components/diario/DiaryToolbar";
 import feedStyles from "@/components/diario/EventRow.module.css";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useOnboarding } from "@/onboarding/OnboardingContext";
 
 /** "Personale" diario tab: my own activities plus regattas I've actually
  * raced in (a personal `created_by` doesn't exist for regattas, so "mine"
@@ -19,6 +20,11 @@ export function MyDiaryPage() {
   const { t } = useTranslation();
   const { type, setType, items, isLoading, hasNextPage, sentinelRef } = useDiaryFeed("personal", t);
   const [openRegattaId, setOpenRegattaId] = useState<UUID | null>(null);
+  const { requestTour } = useOnboarding();
+
+  useEffect(() => {
+    requestTour("diario-personale");
+  }, [requestTour]);
 
   return (
     <>
@@ -32,7 +38,7 @@ export function MyDiaryPage() {
           <EmptyState>{t("activities.empty")}</EmptyState>
         ) : (
           <>
-            <div className={feedStyles.feed}>
+            <div className={feedStyles.feed} data-tour="diario-feed">
               {items.map((i) => (
                 <EventRow
                   key={`${i.kind}-${i.id}`}

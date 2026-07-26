@@ -1,0 +1,36 @@
+.button {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 90;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface);
+  color: var(--sf-text);
+  box-shadow: 0 4px 12px rgba(4, 15, 26, 0.4);
+  cursor: pointer;
+}
+
+/* Above the fixed mobile action bar, same offset pattern as .sf-toasts. */
+@media (max-width: 700px) {
+  .button {
+    bottom: calc(var(--sf-actionbar-h) + 1rem);
+  }
+}
+
+/* Trigger sits at the bottom of the viewport — open the menu upward instead
+ * of the shared sf-options__panel default (downward, anchored right). */
+.panel {
+  top: auto;
+  right: auto;
+  bottom: 100%;
+  left: 0;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  min-width: 200px;
+}

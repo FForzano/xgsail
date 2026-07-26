@@ -14,7 +14,7 @@ export function GruppiLayout() {
         </>
       }
       tabs={[
-        { to: "/gruppi/gruppi", label: t("gruppi.groups") },
+        { to: "/gruppi/gruppi", label: t("gruppi.groups"), dataTour: "gruppi-tabs" },
         { to: "/gruppi/clubs", label: t("gruppi.clubs") },
       ]}
     />

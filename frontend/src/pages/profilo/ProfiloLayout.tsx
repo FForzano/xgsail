@@ -18,7 +18,7 @@ export function ProfiloLayout() {
   return (
     <SectionLayout
       tabs={[
-        { to: "/profilo/anagrafica", label: t("profile.details") },
+        { to: "/profilo/anagrafica", label: t("profile.details"), dataTour: "profilo-tabs" },
         { to: "/profilo/password", label: t("profile.password") },
         { to: "/profilo/barche", label: t("profile.boats") },
         { to: "/profilo/devices", label: t("profile.devices") },
