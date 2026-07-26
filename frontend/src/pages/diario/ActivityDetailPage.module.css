@@ -1,0 +1,19 @@
+/* Small round badge showing a mark's map-pin letter code (see
+   utils/markRoles.ts MARK_ROLE_LETTERS) next to its row in the marks list,
+   so the row visually matches the pin shown on the map above it. Same
+   --sf-danger color as MapView's .markiconRace pin. */
+.markBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.25rem;
+  margin-right: 0.5rem;
+  border-radius: 999px;
+  background: var(--sf-danger);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}

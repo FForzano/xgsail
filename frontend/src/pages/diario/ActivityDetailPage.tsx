@@ -25,9 +25,10 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { activityDisplayName } from "@/utils/activityName";
 import { fmtDateTime, fmtDistance, fmtKnots } from "@/utils/format";
-import { MARK_ROLES } from "@/utils/markRoles";
+import { MARK_ROLES, MARK_ROLE_LETTERS } from "@/utils/markRoles";
 import type { MarkRole, UUID, Visibility } from "@/types";
 import { BackLink } from "@/components/ui/BackLink";
+import pageStyles from "./ActivityDetailPage.module.css";
 import sessionStyles from "@/components/session/SessionDetail.module.css";
 
 const VISIBILITIES: Visibility[] = ["public", "club", "group", "private"];
@@ -464,6 +465,7 @@ export function ActivityDetailPage() {
                   }
                   onOpenSession={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
                   showBoatInfo
+                  showMarkLegend
                   pickMode={pickingMarkOnMap}
                   onMapClick={(lat, lng) => {
                     setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
@@ -565,13 +567,16 @@ export function ActivityDetailPage() {
                 }`}
               >
                 <span>
+                  <span className={pageStyles.markBadge} aria-hidden>
+                    {MARK_ROLE_LETTERS[m.mark_role]}
+                  </span>
                   <strong>{t(`activities.markRoles.${m.mark_role}`)}</strong>{" "}
                   <span className="sf-muted">
                     {m.lat.toFixed(5)}, {m.lng.toFixed(5)}
                   </span>
                 </span>
                 {canEdit && (
-                  <>
+                  <span className="sf-strip__actions">
                     <Button
                       variant="ghost"
                       className="sf-btn--sm"
@@ -595,7 +600,7 @@ export function ActivityDetailPage() {
                     >
                       {t("common.remove")}
                     </Button>
-                  </>
+                  </span>
                 )}
               </div>
             ))}

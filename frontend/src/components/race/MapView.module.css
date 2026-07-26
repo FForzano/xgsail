@@ -95,6 +95,46 @@
   transform: translateX(-50%);
   z-index: 1000;
 }
+/* Race-mark legend (see MapView's showMarkLegend prop) — bottom-left, clear
+   of the zoom/recenter controls (bottom-right) and playback transport
+   (bottom-center). Same pill treatment as .wind above. */
+.markLegend {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  max-width: calc(100% - 20px);
+  padding: 0.3rem 0.6rem;
+  background: rgba(10, 24, 38, 0.75);
+  border: 1px solid var(--sf-border);
+  border-radius: 10px;
+  backdrop-filter: blur(2px);
+}
+.markLegend * {
+  color: #fff;
+}
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+}
+.legendBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--sf-danger);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+}
 
 /* Draggable position marker — a colored dot matching the track's color,
    dragged along the track to scrub playback (see MapView.tsx). */
@@ -280,6 +320,13 @@
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
+}
+/* Two-letter race-mark codes (e.g. "GP"/"GS", "FP"/"FR") — smaller/tighter
+ * so both characters fit inside the same 26px circle as the single-letter
+ * maneuver labels. */
+.markiconManeuverCircleWide span {
+  font-size: 9px;
+  letter-spacing: -0.3px;
 }
 /* Per-maneuver-type color (tack/gybe/course_change — see MapMark.
  * maneuverType). Validated the same way as the leg colors above. */
