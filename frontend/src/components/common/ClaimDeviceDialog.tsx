@@ -7,7 +7,6 @@ import * as nativeBle from "@/services/nativeBle";
 import type { ScannedDevice } from "@/services/nativeBle";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { InputField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ApiError } from "@/api/client";
 import type { UUID } from "@/types";
@@ -29,7 +28,6 @@ export function ClaimDeviceDialog({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<Phase>("idle");
-  const [nickname, setNickname] = useState("");
   const [found, setFound] = useState<ScannedDevice[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [claimed, setClaimed] = useState<{ externalId: string } | null>(null);
@@ -41,7 +39,6 @@ export function ClaimDeviceDialog({
       if (!deviceType) throw new Error("XGSail E1 device type not found");
       const ticket = await devicesService.createClaim({
         device_type_id: deviceType.id,
-        nickname: nickname || undefined,
         ...owner,
       });
       return nativeBle.claimDevice(scanned, ticket.claim_code);
@@ -88,9 +85,7 @@ export function ClaimDeviceDialog({
       {phase === "done" && claimed ? (
         <>
           <p className="sf-badge sf-badge--success">{t("devices.claimed")}</p>
-          <p>
-            {nickname || ""} <span className="sf-muted">{claimed.externalId}</span>
-          </p>
+          <p className="sf-muted">{claimed.externalId}</p>
           <div className="sf-form__actions">
             <Button onClick={close}>{t("common.close")}</Button>
           </div>
@@ -136,12 +131,6 @@ export function ClaimDeviceDialog({
         </>
       ) : (
         <>
-          <InputField
-            label={t("devices.nickname")}
-            id="claim-nickname"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-          />
           {error && <p className="sf-form__error">{error}</p>}
           <div className="sf-form__actions">
             <Button onClick={() => void scan()}>{t("devices.ble.scan")}</Button>

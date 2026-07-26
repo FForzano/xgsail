@@ -6,7 +6,6 @@ import { deviceKeys } from "@/services/devices";
 import * as nativeWatch from "@/services/nativeWatch";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { InputField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ApiError } from "@/api/client";
 import type { UUID } from "@/types";
@@ -21,11 +20,10 @@ export function WatchClaimDialog({ userId, onClose }: { userId: UUID; onClose: (
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<Phase>("idle");
-  const [nickname, setNickname] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const claim = useMutation({
-    mutationFn: () => nativeWatch.claimWatch(userId, nickname || undefined),
+    mutationFn: () => nativeWatch.claimWatch(userId),
     onSuccess: async () => {
       setPhase("done");
       await queryClient.invalidateQueries({ queryKey: deviceKeys.all });
@@ -67,12 +65,6 @@ export function WatchClaimDialog({ userId, onClose }: { userId: UUID; onClose: (
       ) : (
         <>
           <p className="sf-muted">{t("devices.watch.pairHint")}</p>
-          <InputField
-            label={t("devices.nickname")}
-            id="watch-nickname"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-          />
           {error && <p className="sf-form__error">{error}</p>}
           <div className="sf-form__actions">
             <Button

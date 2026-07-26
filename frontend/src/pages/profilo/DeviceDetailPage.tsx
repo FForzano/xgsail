@@ -26,6 +26,7 @@ export function DeviceDetailPage() {
   const [newKey, setNewKey] = useState<string | null>(null);
   const [rotating, setRotating] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  const [forgetting, setForgetting] = useState(false);
   const [nickname, setNickname] = useState<string | null>(null);
 
   const device = useQuery({
@@ -63,6 +64,15 @@ export function DeviceDetailPage() {
       navigate(-1);
     },
   });
+  const forget = useMutation({
+    mutationFn: () => devicesService.forget(deviceId!),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: deviceKeys.all });
+      navigate(-1);
+    },
+    onError: (err) =>
+      notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
+  });
 
   if (device.isLoading || !deviceId) return <Spinner />;
   if (!device.data) return null;
@@ -79,7 +89,7 @@ export function DeviceDetailPage() {
           </>
         }
         actions={
-          d.status === "claimed" && (
+          d.status === "claimed" ? (
             <span style={{ display: "flex", gap: "0.5rem" }}>
               <Button variant="ghost" className="sf-btn--sm" onClick={() => setRotating(true)}>
                 {t("devices.rotateKey")}
@@ -88,7 +98,11 @@ export function DeviceDetailPage() {
                 {t("devices.revoke")}
               </Button>
             </span>
-          )
+          ) : d.status === "revoked" ? (
+            <Button variant="danger" className="sf-btn--sm" onClick={() => setForgetting(true)}>
+              {t("devices.forget")}
+            </Button>
+          ) : undefined
         }
       >
         <div className="sf-tablewrap">
@@ -205,6 +219,16 @@ export function DeviceDetailPage() {
           busy={revoke.isPending}
           onConfirm={() => revoke.mutate()}
           onClose={() => setRevoking(false)}
+        />
+      )}
+      {forgetting && (
+        <ConfirmDialog
+          title={t("devices.forget")}
+          message={t("devices.forgetConfirm")}
+          confirmLabel={t("devices.forget")}
+          busy={forget.isPending}
+          onConfirm={() => forget.mutate()}
+          onClose={() => setForgetting(false)}
         />
       )}
       {newKey && (

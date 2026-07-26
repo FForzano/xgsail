@@ -74,3 +74,7 @@ class DeviceORM(UUIDPKMixin, Base):
     )
     # Hash of the device_api_key issued at claim; rotatable via rotate-key.
     api_key_hash: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
+    # Set when the owner "forgets" an already-revoked device: hides it from
+    # list views without deleting the row (ingest history RESTRICT-references
+    # devices.id, so a hard delete isn't generally possible once used).
+    hidden_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -64,9 +64,10 @@ class SqlDeviceRepo:
              owner_boat_ids: Optional[list] = None,
              owner_club_ids: Optional[list] = None) -> "list[DeviceORM]":
         """List devices by ownership. With no filters returns everything
-        (superadmin view); otherwise the union of the given owners."""
+        (superadmin view); otherwise the union of the given owners. Forgotten
+        (hidden) devices are always excluded."""
         with self.Session() as s:
-            q = select(DeviceORM)
+            q = select(DeviceORM).where(DeviceORM.hidden_at.is_(None))
             clauses = []
             if owner_user_id is not None:
                 clauses.append(DeviceORM.owner_user_id == owner_user_id)
@@ -203,5 +204,16 @@ class SqlDeviceRepo:
             orm.status = "revoked"
             orm.api_key_hash = None
             orm.claim_code = None
+            s.commit()
+            return True
+
+    def forget(self, device_id: uuid.UUID) -> bool:
+        """Hide an already-revoked device from list views. Not a delete: the
+        row (and its ingest history) stays, only ``hidden_at`` is set."""
+        with self.Session() as s:
+            orm = s.get(DeviceORM, device_id)
+            if orm is None or orm.status != "revoked":
+                return False
+            orm.hidden_at = datetime.now(timezone.utc)
             s.commit()
             return True

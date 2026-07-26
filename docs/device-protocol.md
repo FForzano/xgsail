@@ -43,7 +43,7 @@ auto-registration on first upload.
 
    {
      "device_type_id": "3f2a1c...-uuid",
-     "nickname": "Optimist 12 tracker",   // optional
+     "nickname": "Optimist 12 tracker",   // optional — defaults to the device type's name
      "owner_user_id": null,               // exactly one of these three
      "owner_boat_id": "42a1...-uuid",     // must be non-null
      "owner_club_id": null
@@ -263,6 +263,14 @@ over the same role on the same boat), don't rotate the key: the old
 user should `DELETE /api/devices/{device_id}` (revokes the old device)
 and create a brand-new claim (§2) for the new device's `external_id`.
 
+A revoked device's row is kept (ingest records reference `devices.id`
+with `ON DELETE RESTRICT`, so a hard delete isn't generally possible
+once the device has uploaded anything) and stays visible in device
+lists indefinitely. If the owner wants it gone from the list — not
+just revoked — `POST /api/devices/{device_id}/forget` hides it
+(`409` unless the device is already `revoked`). This only affects
+list visibility; recorded sessions are untouched.
+
 ---
 
 ## 6. Retry and backoff
@@ -292,6 +300,7 @@ and create a brand-new claim (§2) for the new device's `external_id`.
 | `POST /api/devices/me/health` | `DeviceKey` | Push a health snapshot |
 | `POST /api/devices/{id}/rotate-key` | user cookie (owner) | Invalidate the current key, issue a new one |
 | `DELETE /api/devices/{id}` | user cookie (owner) | Revoke a device |
+| `POST /api/devices/{id}/forget` | user cookie (owner) | Hide an already-revoked device from device lists |
 | `GET /api/devices/{id}/health` | user cookie (owner) | Read back the latest health snapshot |
 
 ---

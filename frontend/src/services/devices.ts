@@ -38,6 +38,9 @@ export const devicesService = {
   get: (id: UUID) => api.get<Device>(`/devices/${id}`),
   update: (id: UUID, body: { nickname?: string }) => api.patch<Device>(`/devices/${id}`, body),
   revoke: (id: UUID) => api.del(`/devices/${id}`),
+  /** Hide an already-revoked device from device lists. Not a hard delete —
+   * the row (and its ingest history) stays server-side. */
+  forget: (id: UUID) => api.post<{ ok: boolean }>(`/devices/${id}/forget`),
   health: (id: UUID) => api.get<DeviceHealth>(`/devices/${id}/health`),
   rotateKey: (id: UUID) =>
     api.post<{ device_id: UUID; device_api_key: string }>(`/devices/${id}/rotate-key`),

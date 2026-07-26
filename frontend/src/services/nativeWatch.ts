@@ -67,6 +67,9 @@ async function getOrCreateExternalId(): Promise<string> {
  * it itself, and stores the returned device key — the watch never needs it.
  * Returns the XGSail device id. */
 export async function claimWatch(userId: UUID, nickname?: string): Promise<UUID> {
+  if (!(await isSupported())) {
+    throw new Error("No paired Apple Watch with the XGSail app found");
+  }
   const types = await devicesService.listTypes();
   const watchType = types.find((dt) => dt.parser_key === XGSAIL_WATCH_PARSER_KEY);
   if (!watchType) throw new Error("Apple Watch device type not found on the server");

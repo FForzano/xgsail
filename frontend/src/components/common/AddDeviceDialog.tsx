@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Capacitor } from "@capacitor/core";
 import { Info } from "lucide-react";
@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ClaimDeviceDialog } from "@/components/common/ClaimDeviceDialog";
 import { WatchClaimDialog } from "@/components/common/WatchClaimDialog";
 import { E1InfoDialog } from "@/components/devices/E1InfoDialog";
+import * as nativeWatch from "@/services/nativeWatch";
 import type { UUID } from "@/types";
 import styles from "./AddDeviceDialog.module.css";
 
@@ -75,6 +76,14 @@ export function AddDeviceDialog({ owner, onClose }: { owner: Owner; onClose: () 
   // The Apple Watch companion is iOS-only (watchOS + WatchConnectivity).
   const isIOS = Capacitor.getPlatform() === "ios";
   const showWearables = owner.owner_user_id !== undefined;
+  // Beyond "is this iOS": is there actually a paired watch with the
+  // companion app installed? Without this, "Apple Watch" could be claimed
+  // with no real device behind it (a stray phantom device record).
+  const [watchPaired, setWatchPaired] = useState(false);
+  useEffect(() => {
+    if (!isIOS) return;
+    void nativeWatch.isSupported().then(setWatchPaired);
+  }, [isIOS]);
 
   if (claimingXgsailE1) {
     return <ClaimDeviceDialog owner={owner} onClose={onClose} />;
@@ -98,9 +107,15 @@ export function AddDeviceDialog({ owner, onClose }: { owner: Owner; onClose: () 
           <>
             <DeviceOptionCard
               title={t("devices.add.appleWatch")}
-              hint={isIOS ? t("devices.add.appleWatchHint") : t("devices.add.iosOnly")}
-              disabled={!isIOS}
-              badge={t("devices.add.iosOnlyBadge")}
+              hint={
+                !isIOS
+                  ? t("devices.add.iosOnly")
+                  : !watchPaired
+                    ? t("devices.add.notPaired")
+                    : t("devices.add.appleWatchHint")
+              }
+              disabled={!isIOS || !watchPaired}
+              badge={isIOS ? t("devices.add.notPairedBadge") : t("devices.add.iosOnlyBadge")}
               onClick={() => setClaimingWatch(true)}
             />
             <DeviceOptionCard title={t("devices.add.garmin")} hint="" disabled onClick={() => {}} />

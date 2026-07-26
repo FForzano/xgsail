@@ -118,13 +118,17 @@ def delete_device_type(type_id: uuid.UUID, request: Request):
 def create_claim(body: ClaimRequestModel, request: Request):
     verify_csrf(request)
     user = require_user(request)
-    if repos.devices.get_type(body.device_type_id) is None:
+    device_type = repos.devices.get_type(body.device_type_id)
+    if device_type is None:
         raise HTTPException(404, "Device type not found")
     _validate_claim_target(user, body)
     code = new_claim_code()
+    # A meaningful default so the device is usable right away; the owner can
+    # rename it afterwards instead of being asked for a name upfront.
+    nickname = body.nickname.strip() if body.nickname and body.nickname.strip() else device_type.name
     device = repos.devices.create_claim(
         device_type_id=body.device_type_id,
-        nickname=body.nickname,
+        nickname=nickname,
         owner_user_id=body.owner_user_id,
         owner_boat_id=body.owner_boat_id,
         owner_club_id=body.owner_club_id,
@@ -246,4 +250,19 @@ def revoke_device(device_id: uuid.UUID, request: Request):
     if not _user_manages_device(user, device):
         raise HTTPException(403, "Not your device")
     repos.devices.revoke(device_id)
+    return {"ok": True}
+
+
+@router.post("/devices/{device_id}/forget")
+def forget_device(device_id: uuid.UUID, request: Request):
+    """Hide an already-revoked device so it stops showing up in device
+    lists. Not a hard delete (ingest history references the row)."""
+    verify_csrf(request)
+    user = require_user(request)
+    device = _require_device(device_id)
+    if not _user_manages_device(user, device):
+        raise HTTPException(403, "Not your device")
+    if device.status != "revoked":
+        raise HTTPException(409, "Only a revoked device can be forgotten")
+    repos.devices.forget(device_id)
     return {"ok": True}
