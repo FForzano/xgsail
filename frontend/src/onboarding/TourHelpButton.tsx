@@ -24,7 +24,7 @@ export function TourHelpButton() {
       type="button"
       className={styles.button}
       aria-label={t("onboarding.help.button")}
-      onClick={() => requestTour(pageTour?.id ?? "app-overview", { force: true })}
+      onClick={() => requestTour(pageTour?.id ?? "getting-started", { force: true })}
     >
       <HelpCircle size={20} />
     </button>

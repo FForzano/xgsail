@@ -749,18 +749,38 @@
     "skip": "Salta",
     "done": "Fine",
     "stepOf": "{{current}} di {{total}}",
-    "overview": {
-      "diario": {
-        "title": "Diario",
-        "body": "Qui trovi le tue attività, sessioni e regate: il tuo diario di bordo personale."
+    "gettingStarted": {
+      "welcome": {
+        "title": "Benvenuto in XGSail",
+        "body": "Trasforma le tue uscite in analisi: VMG, virate, andature e polare. Ti mostriamo in pochi passi come tirarne fuori il massimo."
       },
-      "gruppi": {
-        "title": "Gruppi",
-        "body": "Circoli e gruppi a cui appartieni: eventi, membri e flotta condivisi."
+      "import": {
+        "title": "Importa la tua prima uscita",
+        "body": "Da qui carichi una traccia GPX o CSV da un dispositivo o da un'altra app. In pochi secondi diventa una sessione analizzata."
       },
-      "profilo": {
-        "title": "Profilo",
-        "body": "I tuoi dati, le tue barche e i dispositivi collegati si gestiscono da qui."
+      "session": {
+        "title": "Ecco cosa otterrai",
+        "body": "Ogni uscita compare come questa scheda: aprila per vedere rotta, velocità, virate e VMG. Questo è solo un esempio."
+      },
+      "groups": {
+        "title": "Entra nel tuo circolo",
+        "body": "Cerca il tuo circolo o gruppo per vedere eventi, regate e la flotta condivisa — e confrontarti con gli altri."
+      },
+      "boat": {
+        "title": "Aggiungi la tua barca",
+        "body": "Registra la tua barca e collega un dispositivo: le prossime sessioni si agganceranno da sole, senza import manuali."
+      }
+    },
+    "demo": {
+      "badge": "Esempio",
+      "session": {
+        "title": "Allenamento — Golfo",
+        "meta": "Oggi · 12,4 NM · 1h 45m",
+        "description": "Esempio di sessione: qui vedrai rotta, velocità, virate e VMG una volta importata la tua prima traccia."
+      },
+      "event": {
+        "title": "Regata sociale — esempio",
+        "organizer": "Organizzata dal tuo circolo"
       }
     },
     "diario": {
@@ -770,19 +790,19 @@
       },
       "banner": {
         "title": "Prossimi eventi",
-        "body": "Gli eventi in programma organizzati dal tuo circolo o gruppo compaiono qui in evidenza."
+        "body": "Gli eventi in programma organizzati dal tuo circolo o gruppo compaiono qui in evidenza, prima ancora di caricare una traccia."
       },
       "filter": {
         "title": "Filtro",
         "body": "Filtra il diario per tipo di attività: regata, allenamento o uscita libera."
       },
       "import": {
-        "title": "Importa",
-        "body": "Importa una traccia GPX o CSV da un dispositivo o da un'altra app."
+        "title": "Importa una traccia",
+        "body": "Carica una traccia GPX o CSV: diventa una sessione con rotta, velocità, virate e VMG."
       },
       "feed": {
-        "title": "Le tue attività",
-        "body": "Ogni attività e regata compare come una scheda come questa. Toccala per vederne i dettagli."
+        "title": "Le tue uscite",
+        "body": "Ogni attività e regata compare come una scheda come questa. Toccala per aprirne l'analisi completa."
       }
     },
     "gruppi": {

@@ -749,18 +749,38 @@
     "skip": "Skip",
     "done": "Done",
     "stepOf": "{{current}} of {{total}}",
-    "overview": {
-      "diario": {
-        "title": "Diario",
-        "body": "Your activities, sessions and regattas live here: your personal logbook."
+    "gettingStarted": {
+      "welcome": {
+        "title": "Welcome to XGSail",
+        "body": "Turn your outings into analysis: VMG, tacks, points of sail and polar. Here's how to get the most out of it in a few steps."
       },
-      "gruppi": {
-        "title": "Gruppi",
-        "body": "The clubs and groups you belong to: shared events, members and fleet."
+      "import": {
+        "title": "Import your first outing",
+        "body": "From here you upload a GPX or CSV track from a device or another app. In seconds it becomes an analyzed session."
       },
-      "profilo": {
-        "title": "Profilo",
-        "body": "Manage your details, your boats and your connected devices from here."
+      "session": {
+        "title": "Here's what you'll get",
+        "body": "Every outing shows up as this card: open it for route, speed, tacks and VMG. This is just an example."
+      },
+      "groups": {
+        "title": "Join your club",
+        "body": "Search for your club or group to see events, regattas and the shared fleet — and compare yourself with others."
+      },
+      "boat": {
+        "title": "Add your boat",
+        "body": "Register your boat and connect a device: future sessions attach on their own, no manual imports."
+      }
+    },
+    "demo": {
+      "badge": "Example",
+      "session": {
+        "title": "Training — Bay",
+        "meta": "Today · 12.4 NM · 1h 45m",
+        "description": "Example session: once you import your first track you'll see route, speed, tacks and VMG here."
+      },
+      "event": {
+        "title": "Club race — example",
+        "organizer": "Organized by your club"
       }
     },
     "diario": {
@@ -770,19 +790,19 @@
       },
       "banner": {
         "title": "Upcoming events",
-        "body": "Planned events organized by your club or group are highlighted here."
+        "body": "Planned events organized by your club or group are highlighted here, even before you upload a track."
       },
       "filter": {
         "title": "Filter",
         "body": "Filter the diary by activity type: race, training or solo outing."
       },
       "import": {
-        "title": "Import",
-        "body": "Import a GPX or CSV track from a device or another app."
+        "title": "Import a track",
+        "body": "Upload a GPX or CSV track: it becomes a session with route, speed, tacks and VMG."
       },
       "feed": {
-        "title": "Your activities",
-        "body": "Every activity and regatta appears as a card like this one. Tap it to see its details."
+        "title": "Your outings",
+        "body": "Every activity and regatta appears as a card like this one. Tap it to open the full analysis."
       }
     },
     "gruppi": {

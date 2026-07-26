@@ -18,6 +18,13 @@ export interface TourStep {
   titleKey: string;
   /** i18n key for the step's body copy. */
   bodyKey: string;
+  /** Route the step lives on. When set and the app isn't already there, the
+   * runner navigates to it before looking for `target` (see
+   * OnboardingContext) — lets a single tour walk across pages/tabs. Only the
+   * first-run `getting-started` tour crosses sections; the per-page tours
+   * offered by the "?" button stay on (or within) their own page so the help
+   * button never wanders off the page it was pressed on. */
+  route?: string;
 }
 
 export interface Tour {
@@ -32,13 +39,46 @@ export interface Tour {
 }
 
 export const TOURS: Tour[] = [
+  // First-run guided tour: walks the user across the three sections and stops
+  // on the one action that unlocks the app's value in each (import a track,
+  // join your club, add your boat). It NAVIGATES between sections via each
+  // step's `route`; on an empty account the diario step shows a demo card
+  // (see TourDemoCard / MyDiaryPage) so the payoff is visible before any real
+  // data exists. Runs once per account; replayable from the "?" button.
   {
-    id: "app-overview",
+    id: "getting-started",
     priority: 0,
     steps: [
-      { target: "nav-diario", titleKey: "onboarding.overview.diario.title", bodyKey: "onboarding.overview.diario.body" },
-      { target: "nav-gruppi", titleKey: "onboarding.overview.gruppi.title", bodyKey: "onboarding.overview.gruppi.body" },
-      { target: "nav-profilo", titleKey: "onboarding.overview.profilo.title", bodyKey: "onboarding.overview.profilo.body" },
+      {
+        target: "nav-diario",
+        route: "/diario/personale",
+        titleKey: "onboarding.gettingStarted.welcome.title",
+        bodyKey: "onboarding.gettingStarted.welcome.body",
+      },
+      {
+        target: "diario-import",
+        route: "/diario/personale",
+        titleKey: "onboarding.gettingStarted.import.title",
+        bodyKey: "onboarding.gettingStarted.import.body",
+      },
+      {
+        target: "diario-feed",
+        route: "/diario/personale",
+        titleKey: "onboarding.gettingStarted.session.title",
+        bodyKey: "onboarding.gettingStarted.session.body",
+      },
+      {
+        target: "gruppi-search",
+        route: "/gruppi",
+        titleKey: "onboarding.gettingStarted.groups.title",
+        bodyKey: "onboarding.gettingStarted.groups.body",
+      },
+      {
+        target: "profilo-add-boat",
+        route: "/profilo",
+        titleKey: "onboarding.gettingStarted.boat.title",
+        bodyKey: "onboarding.gettingStarted.boat.body",
+      },
     ],
   },
   {
@@ -47,10 +87,10 @@ export const TOURS: Tour[] = [
     routes: ["/diario"],
     steps: [
       { target: "diario-tabs", titleKey: "onboarding.diario.tabs.title", bodyKey: "onboarding.diario.tabs.body" },
-      { target: "diario-upcoming-banner", titleKey: "onboarding.diario.banner.title", bodyKey: "onboarding.diario.banner.body" },
-      { target: "diario-filter", titleKey: "onboarding.diario.filter.title", bodyKey: "onboarding.diario.filter.body" },
       { target: "diario-import", titleKey: "onboarding.diario.import.title", bodyKey: "onboarding.diario.import.body" },
+      { target: "diario-filter", titleKey: "onboarding.diario.filter.title", bodyKey: "onboarding.diario.filter.body" },
       { target: "diario-feed", titleKey: "onboarding.diario.feed.title", bodyKey: "onboarding.diario.feed.body" },
+      { target: "diario-upcoming-banner", titleKey: "onboarding.diario.banner.title", bodyKey: "onboarding.diario.banner.body" },
     ],
   },
   {

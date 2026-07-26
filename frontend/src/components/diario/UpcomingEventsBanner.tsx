@@ -5,6 +5,7 @@ import { activitiesService, activityKeys } from "@/services/activities";
 import { clubsService, clubKeys } from "@/services/clubs";
 import { groupsService, groupKeys } from "@/services/groups";
 import { fmtDateTime } from "@/utils/format";
+import { useOnboarding } from "@/onboarding/OnboardingContext";
 import type { Activity } from "@/types";
 
 function relativeDayLabel(date: string, t: (key: string) => string): string {
@@ -21,6 +22,7 @@ function relativeDayLabel(date: string, t: (key: string) => string): string {
  * of who created them or whether a session has been attached yet. */
 export function UpcomingEventsBanner() {
   const { t } = useTranslation();
+  const { isDemoTarget } = useOnboarding();
 
   const upcoming = useQuery({
     queryKey: activityKeys.upcoming(),
@@ -33,7 +35,23 @@ export function UpcomingEventsBanner() {
   });
 
   const events = upcoming.data ?? [];
-  if (events.length === 0) return null;
+  if (events.length === 0) {
+    // No real upcoming events: normally the strip is hidden entirely, but
+    // while its guided-tour step is on screen show one demo card so the step
+    // has something to point at (it vanishes as soon as the tour advances).
+    if (isDemoTarget("diario-upcoming-banner")) {
+      return (
+        <div className="sf-highlight-strip" data-tour="diario-upcoming-banner">
+          <div className="sf-highlight-card">
+            <span className="sf-badge sf-badge--success">{t("activities.tomorrow")}</span>
+            <strong>{t("onboarding.demo.event.title")}</strong>
+            <p className="sf-muted">{t("onboarding.demo.event.organizer")}</p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   const organizerName = (a: Activity) =>
     (a.club_id && clubs.data?.find((c) => c.id === a.club_id)?.name) ||

@@ -307,7 +307,7 @@ h1, h2, h3 {
     padding-bottom: calc(var(--sf-actionbar-h) + 2rem);
   }
   .sf-toasts {
-    bottom: calc(var(--sf-actionbar-h) + 1rem);
+    bottom: calc(var(--sf-actionbar-h) + env(safe-area-inset-bottom, 0px) + 1rem);
   }
 }
 

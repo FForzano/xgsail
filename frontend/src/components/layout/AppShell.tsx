@@ -44,12 +44,13 @@ function AppShellInner() {
   const queryClient = useQueryClient();
   const { requestTour } = useOnboarding();
 
-  // First thing a freshly-authenticated user sees, once — a walkthrough of
-  // the three macro-sections below. Runs at most once per account (server-
-  // tracked, see capabilities `onboarding.seenTours`); replayable anytime via
-  // TourHelpButton.
+  // First thing a freshly-authenticated user sees, once — a guided walkthrough
+  // that navigates across the three macro-sections and stops on the first
+  // useful action in each (see the `getting-started` tour in tours.ts). Runs at
+  // most once per account (server-tracked, see capabilities
+  // `onboarding.seenTours`); replayable anytime via TourHelpButton.
   useEffect(() => {
-    if (user) requestTour("app-overview");
+    if (user) requestTour("getting-started");
   }, [user, requestTour]);
 
   // Opportunistic, silent BLE relay of any claimed XGSail E1's buffered

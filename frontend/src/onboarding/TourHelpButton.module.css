@@ -16,9 +16,12 @@
   cursor: pointer;
 }
 
-/* Above the fixed mobile action bar, same offset pattern as .sf-toasts. */
+/* Above the fixed mobile action bar, same offset pattern as .sf-toasts. The
+   action bar is `--sf-actionbar-h + safe-area-inset-bottom` tall (home
+   indicator), so include that inset or the button overlaps the bar on
+   notched iPhones. */
 @media (max-width: 700px) {
   .button {
-    bottom: calc(var(--sf-actionbar-h) + 1rem);
+    bottom: calc(var(--sf-actionbar-h) + env(safe-area-inset-bottom, 0px) + 1rem);
   }
 }

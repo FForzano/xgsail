@@ -2,11 +2,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
   useState,
   type ReactNode,
 } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { authService } from "@/services/auth";
 import { getTour, type Tour } from "@/onboarding/tours";
@@ -67,6 +69,14 @@ function reducer(state: RunnerState, action: Action): RunnerState {
 export interface OnboardingContextValue {
   activeTour: Tour | null;
   activeStepIndex: number;
+  /** `data-tour` target of the step currently being shown, or null when no
+   * tour is active. Lets a page decide to render a demo stand-in for an empty
+   * state only while that specific step is on screen (see `isDemoTarget`). */
+  activeStepTarget: string | null;
+  /** True when a tour step is currently pointing at `target` — the cue a page
+   * uses to swap its empty state for a highlighted demo element carrying the
+   * same `data-tour`, so the step has something real to frame. */
+  isDemoTarget: (target: string) => boolean;
   /** Queues a tour to run automatically (no-op if already seen/queued/
    * active). Pass `force: true` to replay it on demand regardless of
    * "seen" state — interrupts whatever's active immediately, since that
@@ -87,6 +97,8 @@ export function useOnboarding() {
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const { caps, user } = useAuth();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   // Optimistic overlay on top of `caps.onboarding.seenTours` — avoids
   // waiting on a full capabilities refetch just to stop a just-finished
@@ -99,6 +111,17 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   );
 
   const activeTour = state.activeTourId ? getTour(state.activeTourId) ?? null : null;
+  const activeStep = activeTour?.steps[state.activeStepIndex] ?? null;
+  const activeStepTarget = activeStep?.target ?? null;
+
+  // A step can declare the route it lives on; when the tour reaches it and the
+  // app is elsewhere, navigate there first. TourSpotlight/useTourTarget then
+  // resolve the target on the newly-mounted page (their own retries absorb the
+  // mount delay). Only `getting-started` uses this, to walk across sections.
+  useEffect(() => {
+    const target = activeStep?.route;
+    if (target && target !== pathname) navigate(target);
+  }, [activeStep?.route, pathname, navigate]);
 
   const markSeen = useCallback((id: string) => {
     setSeenOverride((prev) => new Set(prev).add(id));
@@ -136,16 +159,23 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   const skip = useCallback(() => finishActive(), [finishActive]);
 
+  const isDemoTarget = useCallback(
+    (target: string) => activeStepTarget === target,
+    [activeStepTarget],
+  );
+
   const value = useMemo<OnboardingContextValue>(
     () => ({
       activeTour,
       activeStepIndex: state.activeStepIndex,
+      activeStepTarget,
+      isDemoTarget,
       requestTour,
       next,
       back,
       skip,
     }),
-    [activeTour, state.activeStepIndex, requestTour, next, back, skip],
+    [activeTour, state.activeStepIndex, activeStepTarget, isDemoTarget, requestTour, next, back, skip],
   );
 
   return (

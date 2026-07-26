@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { UUID } from "@/types";
 import { useDiaryFeed } from "@/hooks/useDiaryFeed";
 import { UpcomingEventsBanner } from "@/components/diario/UpcomingEventsBanner";
@@ -8,6 +8,7 @@ import { DiaryToolbar } from "@/components/diario/DiaryToolbar";
 import feedStyles from "@/components/diario/EventRow.module.css";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { TourDemoCard } from "@/onboarding/TourDemoCard";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
 
 /** "Personale" diario tab: my own activities plus regattas I've actually
@@ -20,11 +21,7 @@ export function MyDiaryPage() {
   const { t } = useTranslation();
   const { type, setType, items, isLoading, hasNextPage, sentinelRef } = useDiaryFeed("personal", t);
   const [openRegattaId, setOpenRegattaId] = useState<UUID | null>(null);
-  const { requestTour } = useOnboarding();
-
-  useEffect(() => {
-    requestTour("diario-personale");
-  }, [requestTour]);
+  const { isDemoTarget } = useOnboarding();
 
   return (
     <>
@@ -35,7 +32,16 @@ export function MyDiaryPage() {
         {isLoading ? (
           <Spinner />
         ) : items.length === 0 ? (
-          <EmptyState>{t("activities.empty")}</EmptyState>
+          // While the "your sessions land here" tour step is active on an
+          // otherwise-empty feed, show a demo card so the step has something
+          // to frame; it disappears the moment the tour moves on.
+          isDemoTarget("diario-feed") ? (
+            <div className={feedStyles.feed}>
+              <TourDemoCard dataTour="diario-feed" />
+            </div>
+          ) : (
+            <EmptyState>{t("activities.empty")}</EmptyState>
+          )
         ) : (
           <>
             <div className={feedStyles.feed}>
