@@ -1,19 +1,40 @@
+/* Boe (race marks) list row — allowed to wrap on narrow screens so the icon
+   actions never squeeze the (often two-line) mark name; see .markInfo/
+   .markText below for the info side, .sf-strip__actions (global.css) for the
+   icon-button side. */
+.markRow {
+  flex-wrap: wrap;
+}
+.markInfo {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.markText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
 /* Small round badge showing a mark's map-pin letter code (see
    utils/markRoles.ts MARK_ROLE_LETTERS) next to its row in the marks list,
    so the row visually matches the pin shown on the map above it. Same
-   --sf-danger color as MapView's .markiconRace pin. */
+   --sf-danger color as MapView's race-mark label pin. */
 .markBadge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 1.4rem;
   height: 1.4rem;
+  margin-top: 0.1rem;
   padding: 0 0.25rem;
-  margin-right: 0.5rem;
   border-radius: 999px;
   background: var(--sf-danger);
   color: #fff;
   font-size: 0.7rem;
   font-weight: 700;
   line-height: 1;
+  flex-shrink: 0;
 }

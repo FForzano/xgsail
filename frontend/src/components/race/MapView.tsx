@@ -473,27 +473,48 @@ export function MapView({
         icon = L.divIcon({ className: `${styles.markicon} ${styles.markiconPreview}`, html: "◆", iconSize: [12, 12] });
       } else {
         // Race marks (start pin/windward/gate/finish — the "boe" placed via
-        // the activity map/form): same pin shape as the maneuver markers
-        // above (so it reads at a glance, from as far as the maneuver pins
-        // do) but in its own standout color (--sf-danger, unused by any
-        // other mark kind). The label is a fixed, language-independent code
-        // (MARK_ROLE_LETTERS) rather than the role's first letter — several
-        // roles collide there (gate_port/gate_stbd, finish_pin/finish_rc) —
-        // decoded by the hover tooltip and click popup (both use tooltipText below).
-        const previewClass = mk.preview ? ` ${styles.markiconRacePreview}` : ` ${styles.markiconRace}`;
-        const label = isMarkRole(mk.mark_role)
-          ? MARK_ROLE_LETTERS[mk.mark_role]
-          : mk.mark_role.charAt(0).toUpperCase();
-        const wideClass = label.length > 1 ? ` ${styles.markiconManeuverCircleWide}` : "";
+        // the activity map/form): a small lettered circle (like the maneuver
+        // pins) by default — but tapping it expands the SAME pin in place
+        // into a rounded-rectangle label spelling out its full role (e.g.
+        // "Bolina") rather than opening a separate Leaflet popup. Both the
+        // collapsed circle and expanded label live in the same markup;
+        // toggling `styles.expanded` on the wrapper (see the marker's click
+        // handler below) shows one and hides the other via CSS. Positioned
+        // via a zero-size Leaflet anchor point at [0, 0] plus a CSS
+        // `translate(-50%, -100%)` on the inner wrapper — the standard trick
+        // for auto-sized divIcons — so the tail's tip stays exactly on the
+        // mark's lat/lng in both the fixed-size collapsed state and the
+        // variable-width expanded one.
+        const raceLabel = isMarkRole(mk.mark_role) ? t(`activities.markRoles.${mk.mark_role}`) : mk.mark_role;
+        const raceCode = isMarkRole(mk.mark_role) ? MARK_ROLE_LETTERS[mk.mark_role] : mk.mark_role.charAt(0).toUpperCase();
+        const previewClass = mk.preview ? ` ${styles.markiconRaceLabelPreview}` : "";
         icon = L.divIcon({
-          className: `${styles.markicon} ${styles.markiconManeuver}${previewClass}`,
+          className: styles.markiconRaceLabel,
           html:
-            `<span class="${styles.markiconManeuverCircle}${wideClass}">` +
-            `<span>${label}</span></span>` +
-            `<span class="${styles.markiconManeuverTail}"></span>`,
-          iconSize: [26, 33],
-          iconAnchor: [13, 33],
+            `<span class="${styles.markiconRaceLabelInner}${previewClass}">` +
+            `<span class="${styles.markiconRaceBadge}">${raceCode}</span>` +
+            `<span class="${styles.markiconRaceLabelBox}">${raceLabel}</span>` +
+            `<span class="${styles.markiconRaceLabelTail}"></span>` +
+            `</span>`,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
         });
+        const marker = L.marker([mk.lat, mk.lng], { icon, draggable: mk.draggable ?? false })
+          .bindTooltip(raceLabel)
+          .addTo(layer);
+        marker.on("click", () => {
+          marker
+            .getElement()
+            ?.querySelector(`.${styles.markiconRaceLabelInner}`)
+            ?.classList.toggle(styles.expanded);
+        });
+        if (mk.draggable && mk.onDragEnd) {
+          marker.on("dragend", () => {
+            const { lat, lng } = marker.getLatLng();
+            mk.onDragEnd?.(lat, lng);
+          });
+        }
+        continue;
       }
       const tooltipText = isMarkRole(mk.mark_role) ? t(`activities.markRoles.${mk.mark_role}`) : mk.mark_role;
       const marker = L.marker([mk.lat, mk.lng], {
@@ -501,7 +522,6 @@ export function MapView({
         draggable: mk.draggable ?? false,
       })
         .bindTooltip(tooltipText)
-        .bindPopup(tooltipText, { closeButton: false, className: styles.markPopup })
         .addTo(layer);
       if (mk.draggable && mk.onDragEnd) {
         marker.on("dragend", () => {

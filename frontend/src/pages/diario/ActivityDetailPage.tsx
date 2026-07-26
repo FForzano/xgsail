@@ -561,34 +561,48 @@ export function ActivityDetailPage() {
             {marks.data.map((m) => (
               <div
                 key={m.id}
-                className={`sf-strip__item sf-strip__item--muted${
+                className={`sf-strip__item sf-strip__item--muted ${pageStyles.markRow}${
                   m.id === editingMarkId ? " sf-strip__item--active" : ""
                 }`}
               >
-                <span>
+                <span className={pageStyles.markInfo}>
                   <span className={pageStyles.markBadge} aria-hidden>
                     {MARK_ROLE_LETTERS[m.mark_role]}
                   </span>
-                  <strong>{t(`activities.markRoles.${m.mark_role}`)}</strong>{" "}
-                  <span className="sf-muted">
-                    {m.lat.toFixed(5)}, {m.lng.toFixed(5)}
+                  <span className={pageStyles.markText}>
+                    <strong>{t(`activities.markRoles.${m.mark_role}`)}</strong>
+                    <span className="sf-muted">
+                      {m.lat.toFixed(5)}, {m.lng.toFixed(5)}
+                    </span>
                   </span>
                 </span>
                 {canEdit && (
                   <span className="sf-strip__actions">
                     <Button
                       variant="ghost"
-                      className="sf-btn--sm"
+                      className="sf-btn--icon-sm"
+                      title={t("activities.editMark")}
+                      aria-label={t("activities.editMark")}
                       onClick={() => {
                         setEditingMarkId(m.id);
                         setMarkForm({ mark_role: m.mark_role, lat: String(m.lat), lng: String(m.lng) });
                       }}
                     >
-                      {t("activities.editMark")}
+                      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                        <path
+                          d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4L6 12.4l-2.8.7.7-2.8 7.4-7.4Z"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.3"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
                     </Button>
                     <Button
-                      variant="ghost"
-                      className="sf-btn--sm"
+                      variant="danger"
+                      className="sf-btn--icon-sm"
+                      title={t("common.remove")}
+                      aria-label={t("common.remove")}
                       onClick={() => {
                         if (m.id === editingMarkId) {
                           setEditingMarkId(null);
@@ -597,7 +611,16 @@ export function ActivityDetailPage() {
                         removeMark.mutate(m.id);
                       }}
                     >
-                      {t("common.remove")}
+                      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                        <path
+                          d="M3 4h10M6.5 4V2.5h3V4M4.5 4l.6 9.5a1 1 0 0 0 1 .95h3.8a1 1 0 0 0 1-.95L11.5 4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
                     </Button>
                   </span>
                 )}
