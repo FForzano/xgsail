@@ -95,47 +95,6 @@
   transform: translateX(-50%);
   z-index: 1000;
 }
-/* Race-mark legend (see MapView's showMarkLegend prop) — bottom-left, clear
-   of the zoom/recenter controls (bottom-right) and playback transport
-   (bottom-center). Same pill treatment as .wind above. */
-.markLegend {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  z-index: 1000;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  max-width: calc(100% - 20px);
-  padding: 0.3rem 0.6rem;
-  background: rgba(10, 24, 38, 0.75);
-  border: 1px solid var(--sf-border);
-  border-radius: 10px;
-  backdrop-filter: blur(2px);
-}
-.markLegend * {
-  color: #fff;
-}
-.legendItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
-}
-.legendBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.1rem;
-  height: 1.1rem;
-  padding: 0 0.2rem;
-  border-radius: 999px;
-  background: var(--sf-danger);
-  font-size: 0.65rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
 /* Draggable position marker — a colored dot matching the track's color,
    dragged along the track to scrub playback (see MapView.tsx). */
 .posmarker span {
@@ -207,6 +166,30 @@
   border-radius: var(--sf-radius-sm, 4px);
   object-fit: cover;
   flex-shrink: 0;
+}
+
+/* Race-mark pin popup (see MapView.tsx's marker .bindPopup call) — a small
+   dark bubble with a tail pointing at the pin, showing the mark's full
+   translated role name (e.g. "Bolina") on click/tap. Same dark pill look as
+   the click-track .popup above, but keeps the tip (rather than hiding it)
+   since it reads as the pin itself "expanding" to reveal its label, and
+   drops the default white close button — tapping elsewhere on the map
+   dismisses it same as any other popup. */
+.markPopup :global(.leaflet-popup-content-wrapper) {
+  background: rgba(10, 24, 38, 0.92);
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.markPopup :global(.leaflet-popup-content) {
+  margin: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.markPopup :global(.leaflet-popup-tip) {
+  background: rgba(10, 24, 38, 0.92);
+  box-shadow: none;
 }
 
 /* Wind indicator overlay: direction + speed for the session's region. */

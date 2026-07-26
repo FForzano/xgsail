@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -110,7 +110,6 @@ export function MapView({
   onMapClick,
   onOpenSession,
   showBoatInfo,
-  showMarkLegend = false,
 }: {
   tracks: Track[];
   marks?: MapMark[];
@@ -164,11 +163,6 @@ export function MapView({
    * more-than-one-track heuristic when the caller doesn't specify (race/
    * race-manage maps). */
   showBoatInfo?: boolean;
-  /** Show an always-visible legend (bottom-left) decoding the race-mark
-   * pins' letter codes (see MARK_ROLE_LETTERS) into their translated role
-   * name — same reasoning as the leg/maneuver color legend elsewhere:
-   * hovering every pin to find out what "GP" means doesn't scale. */
-  showMarkLegend?: boolean;
 }) {
   const { t } = useTranslation();
   const elRef = useRef<HTMLDivElement>(null);
@@ -219,25 +213,6 @@ export function MapView({
     : windAt
     ? { twd_deg: windAt.twd_deg, tws_kts: windAt.tws_kts }
     : null;
-
-  // Legend entries for the race marks ("boe") currently on the map — one per
-  // distinct role present, decoding its letter code (see MARK_ROLE_LETTERS)
-  // into the translated role name. Legs/maneuvers aren't race marks (`kind`
-  // is set for those) so they're excluded here; they have their own
-  // color-based legend elsewhere (see legend.module.css).
-  const markLegend = useMemo(() => {
-    if (!showMarkLegend) return [];
-    const seen = new Map<string, string>();
-    for (const mk of marks) {
-      if (mk.kind || !isMarkRole(mk.mark_role) || seen.has(mk.mark_role)) continue;
-      seen.set(mk.mark_role, t(`activities.markRoles.${mk.mark_role}`));
-    }
-    return [...seen.entries()].map(([role, label]) => ({
-      role,
-      label,
-      code: MARK_ROLE_LETTERS[role as MarkRole],
-    }));
-  }, [marks, showMarkLegend, t]);
 
   // One-time map + static layer setup (rebuilt when the data identity changes).
   useEffect(() => {
@@ -504,7 +479,7 @@ export function MapView({
         // other mark kind). The label is a fixed, language-independent code
         // (MARK_ROLE_LETTERS) rather than the role's first letter — several
         // roles collide there (gate_port/gate_stbd, finish_pin/finish_rc) —
-        // decoded by the legend (see showMarkLegend) and by the click popup.
+        // decoded by the hover tooltip and click popup (both use tooltipText below).
         const previewClass = mk.preview ? ` ${styles.markiconRacePreview}` : ` ${styles.markiconRace}`;
         const label = isMarkRole(mk.mark_role)
           ? MARK_ROLE_LETTERS[mk.mark_role]
@@ -526,7 +501,7 @@ export function MapView({
         draggable: mk.draggable ?? false,
       })
         .bindTooltip(tooltipText)
-        .bindPopup(tooltipText)
+        .bindPopup(tooltipText, { closeButton: false, className: styles.markPopup })
         .addTo(layer);
       if (mk.draggable && mk.onDragEnd) {
         marker.on("dragend", () => {
@@ -576,16 +551,6 @@ export function MapView({
             ↑
           </span>
           <span className={styles.windSpeed}>{fmtKnots(displayWind.tws_kts)}</span>
-        </div>
-      )}
-      {markLegend.length > 0 && (
-        <div className={styles.markLegend}>
-          {markLegend.map(({ role, label, code }) => (
-            <span key={role} className={styles.legendItem}>
-              <span className={styles.legendBadge}>{code}</span>
-              {label}
-            </span>
-          ))}
         </div>
       )}
     </div>

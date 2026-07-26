@@ -110,12 +110,12 @@ export function RacePage() {
       {tracks.length === 0 ? (
         <Card title={t("race.leaderboard")}>
           <p className="sf-muted">{t("race.noData")}</p>
-          {mapMarks.length > 0 && <MapView tracks={[]} marks={mapMarks} showMarkLegend />}
+          {mapMarks.length > 0 && <MapView tracks={[]} marks={mapMarks} />}
         </Card>
       ) : (
         <div className={styles.race}>
           <div className="sf-section__body">
-            <MapView tracks={tracks} marks={mapMarks} showMarkLegend />
+            <MapView tracks={tracks} marks={mapMarks} />
             <Timeline />
             <SpeedChart tracks={tracks} />
           </div>

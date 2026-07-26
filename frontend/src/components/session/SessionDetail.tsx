@@ -781,7 +781,6 @@ export function SessionDetail({
               pickMode={pickMode}
               onMapClick={onMapClick}
               showBoatInfo={false}
-              showMarkLegend={extraMarks.length > 0}
               // Even on this single-track map, the popup's "more info" button
               // is a handy shortcut straight to the analysis section below,
               // rather than scrolling past crew/photos/videos to find it.

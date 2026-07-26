@@ -465,7 +465,6 @@ export function ActivityDetailPage() {
                   }
                   onOpenSession={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
                   showBoatInfo
-                  showMarkLegend
                   pickMode={pickingMarkOnMap}
                   onMapClick={(lat, lng) => {
                     setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
