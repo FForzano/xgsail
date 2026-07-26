@@ -24,6 +24,11 @@ services:
       # Vite dev server proxy target for /api — inside the compose network
       # the backend is reached by service name, not localhost.
       VITE_BACKEND_PROXY_TARGET: "http://backend:8000"
+      # Forces Vite's watcher to poll instead of relying on inotify, which
+      # doesn't reliably propagate from host to container over Docker
+      # Desktop's bind-mount filesystem — without this, HMR silently stops
+      # picking up host-side edits. See vite.config.ts.
+      VITE_DOCKER_DEV: "1"
     # docker-compose.yml already publishes 8080 for the prod nginx service;
     # `ports:` merges by appending rather than replacing across -f files, so
     # reusing 8080 here would try to double-bind it. Vite gets its own port.

@@ -29,6 +29,12 @@ export default defineConfig({
       // override (backend reached via the compose service name).
       "/api": { target: process.env.VITE_BACKEND_PROXY_TARGET ?? "http://localhost:8000", changeOrigin: true },
     },
+    // Docker Desktop's bind-mounted filesystem (docker-compose.dev.yml)
+    // doesn't reliably forward inotify events from host to container, so
+    // Vite's default watcher never sees host-side edits. Polling works
+    // around it; only enabled inside that container (see VITE_DOCKER_DEV
+    // in docker-compose.dev.yml), never on a native host run.
+    watch: process.env.VITE_DOCKER_DEV ? { usePolling: true, interval: 300 } : undefined,
   },
   build: { outDir: "dist", sourcemap: true },
   base: "/",
