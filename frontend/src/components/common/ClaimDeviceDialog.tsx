@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Capacitor } from "@capacitor/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -71,6 +71,11 @@ export function ClaimDeviceDialog({
     await queryClient.invalidateQueries({ queryKey: deviceKeys.all });
     onClose();
   };
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() && phase === "idle") void scan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!Capacitor.isNativePlatform()) {
     return (
