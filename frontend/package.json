@@ -31,6 +31,7 @@
     "@capgo/capacitor-updater": "^8.51.0",
     "@tanstack/react-query": "^5.101.2",
     "@xgsail-e1/capacitor": "^0.1.0",
+    "html-to-image": "^1.11.13",
     "i18next": "^23.11.5",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.24.0",

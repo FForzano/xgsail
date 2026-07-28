@@ -1,3 +1,4 @@
+import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { fmtTime } from "@/utils/format";
 import styles from "./Timeline.module.css";
@@ -23,21 +24,21 @@ export function Timeline({
         onClick={() => timeController.step(-stepMs)}
         aria-label="Step back"
       >
-        ⏮
+        <SkipBack size={16} fill="currentColor" />
       </button>
       <button
         className="sf-btn sf-btn--primary sf-btn--sm"
         onClick={() => timeController.toggle()}
         aria-label={playing ? "Pause" : "Play"}
       >
-        {playing ? "⏸" : "▶"}
+        {playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
       </button>
       <button
         className="sf-btn sf-btn--ghost sf-btn--sm"
         onClick={() => timeController.step(stepMs)}
         aria-label="Step forward"
       >
-        ⏭
+        <SkipForward size={16} fill="currentColor" />
       </button>
       <button
         className={`sf-btn sf-btn--ghost sf-btn--sm ${styles.speed}`}

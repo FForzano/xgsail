@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { ArrowUp } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { timeController, useTimeState } from "@/stores/timeController";
@@ -579,7 +580,7 @@ export function MapView({
             // bearing to its source.
             style={{ transform: `rotate(${(displayWind.twd_deg + 180) % 360}deg)` }}
           >
-            ↑
+            <ArrowUp size={16} strokeWidth={2.5} />
           </span>
           <span className={styles.windSpeed}>{fmtKnots(displayWind.tws_kts)}</span>
         </div>

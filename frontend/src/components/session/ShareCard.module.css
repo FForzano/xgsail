@@ -1,0 +1,116 @@
+/* Fixed 1080x1920 (9:16) export card — see ShareCard.tsx for why px, not rem. */
+.card {
+  position: relative;
+  width: 1080px;
+  height: 1920px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, var(--sf-bg) 0%, var(--sf-bg-2) 100%);
+  color: var(--sf-text);
+  font-family: var(--sf-font);
+  overflow: hidden;
+}
+.photo {
+  position: relative;
+  flex: 0 0 1280px;
+  background: var(--sf-surface-2);
+}
+.photo img:first-child {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 40%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
+  pointer-events: none;
+}
+.trackBadge {
+  position: absolute;
+  right: 48px;
+  bottom: 48px;
+  width: 340px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 5px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+.body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  padding: 56px 64px 0;
+  min-height: 0;
+}
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.boatName {
+  margin: 0;
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.date {
+  color: var(--sf-muted);
+  font-size: 32px;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 12px;
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: 20px;
+  text-align: center;
+}
+.statValue {
+  font-weight: 800;
+  font-size: 40px;
+}
+.statLabel {
+  color: var(--sf-muted);
+  font-size: 24px;
+}
+.crew {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0;
+  padding-top: 32px;
+  border-top: 1px solid var(--sf-border);
+  list-style: none;
+  font-size: 32px;
+}
+.crewRow {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.crewRole {
+  color: var(--sf-muted);
+}
+.brand {
+  flex: 0 0 auto;
+  padding: 32px 0 48px;
+  text-align: center;
+  color: var(--sf-muted);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}

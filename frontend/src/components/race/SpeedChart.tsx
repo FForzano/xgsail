@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Settings } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -128,7 +129,7 @@ export function SpeedChart({
           <Popover
             trigger={({ toggle }) => (
               <button className="sf-btn sf-btn--ghost sf-btn--sm" aria-label="Chart options" onClick={toggle}>
-                ⚙
+                <Settings size={16} />
               </button>
             )}
           >

@@ -1,0 +1,30 @@
+/* Scaled-down live preview of the fixed 1080x1920 ShareCard — the real node
+   is rendered at full size (needed for a sharp html-to-image capture) and
+   just visually shrunk to fit the modal via transform, not re-laid-out. */
+.previewWrap {
+  overflow: hidden;
+  margin: 0 auto 1.25rem;
+  border-radius: calc(var(--sf-radius) * 0.9);
+  border: 1px solid var(--sf-border);
+}
+.previewScale {
+  transform-origin: top left;
+}
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+.takePhotoBtn {
+  align-self: flex-start;
+  margin: -0.2rem 0 0.2rem 1.7rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.82rem;
+}

@@ -29,6 +29,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { UserPicker } from "@/components/common/UserPicker";
 import { WindCard } from "@/components/common/WindCard";
 import { SessionAnalysis } from "@/components/session/SessionAnalysis";
+import { ShareImageModal } from "@/components/session/ShareImageModal";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { fmtDateTime, fmtDistance, fmtDuration, fmtKnots, userLabel } from "@/utils/format";
 import { legSequence } from "@/utils/legSequence";
@@ -103,6 +104,7 @@ export function SessionDetail({
   const [notesForm, setNotesForm] = useState({ notes: "", notes_shared: false });
   const [notesEditing, setNotesEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [gps, setGps] = useState<GpsPoint[] | null>(null);
   // Per-type map display toggles — replaces the old flat showLegs/
   // showManeuvers pair so bolina/lasco/poppa and virate/abbattute/cambi
@@ -595,6 +597,9 @@ export function SessionDetail({
       ],
     });
   }
+  menuSections.push({
+    items: [{ label: t("sessions.share"), onClick: () => setSharing(true) }],
+  });
   menuSections.push({
     heading: t("sessions.menuSectionTrack"),
     items: [
@@ -1140,6 +1145,19 @@ export function SessionDetail({
           busy={removeSession.isPending}
           onConfirm={() => removeSession.mutate()}
           onClose={() => setDeleting(false)}
+        />
+      )}
+      {sharing && (
+        <ShareImageModal
+          data={{
+            boatName: boat?.name ?? t("sessions.boat"),
+            boatPhotoUrl: boat?.photos[0]?.url ?? null,
+            trackThumbUrl: s.thumbnail?.url ?? null,
+            startedAt: s.started_at,
+            stats: stats.data ?? null,
+            crew: crew.data ?? [],
+          }}
+          onClose={() => setSharing(false)}
         />
       )}
     </div>
