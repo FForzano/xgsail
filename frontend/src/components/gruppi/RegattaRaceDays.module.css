@@ -1,0 +1,138 @@
+/* Race-day/race management (RegattaRaceDays.tsx) — one card per day, races
+   as removable chips inside it, rather than the previous single-line strip
+   where the date, race buttons, delete icons and "add" button all fought for
+   the same row with no hierarchy. Deliberately its own module rather than
+   reusing the generic `sf-strip` primitive (global.css): the day/chip
+   structure here is specific to this component, not the general
+   list-of-items look `sf-strip` serves in a dozen other places. */
+
+.days {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dayCard {
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  padding: 0.85rem 1rem;
+}
+
+.dayCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.65rem;
+}
+
+.dayCardDate {
+  font-weight: 700;
+  font-size: 0.98rem;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+}
+.iconBtn:hover {
+  background: var(--sf-surface-2);
+  color: var(--sf-danger);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* A race: number + a nested remove control, not a Link nested inside a
+   button (or vice versa) — the outer element is a plain span so the Link
+   and the delete button are siblings, not interactive-in-interactive. */
+.raceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding-left: 0.8rem;
+  padding-right: 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--sf-border);
+  background: var(--sf-bg-2);
+  font-size: 0.85rem;
+}
+/* Set from React (a race chip that also renders the remove button) rather
+   than a `:has()` selector — unsupported on iOS 14, this app's declared
+   minimum (see capacitor.config.ts). */
+.raceChipManage {
+  padding-right: 0.3rem;
+}
+.raceChip a {
+  padding: 0.35rem 0;
+  color: var(--sf-text);
+  text-decoration: none;
+}
+.raceChip:hover {
+  border-color: var(--sf-primary);
+}
+
+.raceChipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+}
+.raceChipRemove:hover {
+  background: var(--sf-surface-2);
+  color: var(--sf-danger);
+}
+
+/* Same pill shape/size as .raceChip, dashed instead of solid — reads as
+   "one more of these" rather than a competing call-to-action. */
+.addChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px dashed var(--sf-border);
+  background: transparent;
+  color: var(--sf-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.addChip:hover:not(:disabled) {
+  border-color: var(--sf-primary);
+  color: var(--sf-text);
+}
+.addChip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* The "add day" form gets the same dashed-outline treatment as .addChip,
+   just sized for a form instead of a single control — reads as the next
+   item in the day-card list rather than a form dropped below it. */
+.addDayForm {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  padding: 0.7rem 1rem;
+  border-radius: var(--sf-radius);
+  border: 1px dashed var(--sf-border);
+}

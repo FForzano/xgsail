@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { regattasService, racedaysService, racesService, raceKeys } from "@/services/races";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/api/client";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
 import { fmtDate } from "@/utils/format";
 import type { UUID } from "@/types";
+import styles from "./RegattaRaceDays.module.css";
 
 /** Regatta race-day/race management: create/delete race days and races
  * within a regatta. Shared between the inline expandable block in
@@ -56,9 +57,9 @@ export function RegattaRaceDays({ regattaId, manage }: { regattaId: UUID; manage
   if (!regatta.data) return null;
 
   return (
-    <div className="sf-strip">
+    <div className={styles.days}>
       {(regatta.data.race_days ?? []).map((day) => (
-        <RaceDayRow
+        <RaceDayCard
           key={day.id}
           dayId={day.id}
           date={day.date}
@@ -75,7 +76,7 @@ export function RegattaRaceDays({ regattaId, manage }: { regattaId: UUID; manage
       ))}
       {manage && (
         <form
-          style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}
+          className={styles.addDayForm}
           onSubmit={(e: FormEvent) => {
             e.preventDefault();
             if (newDay) addDay.mutate(newDay);
@@ -89,7 +90,7 @@ export function RegattaRaceDays({ regattaId, manage }: { regattaId: UUID; manage
             onChange={(e) => setNewDay(e.target.value)}
           />
           <Button type="submit" className="sf-btn--sm" disabled={addDay.isPending || !newDay}>
-            {t("common.add")}
+            <Plus size={14} /> {t("common.add")}
           </Button>
         </form>
       )}
@@ -97,7 +98,7 @@ export function RegattaRaceDays({ regattaId, manage }: { regattaId: UUID; manage
   );
 }
 
-function RaceDayRow({
+function RaceDayCard({
   dayId,
   date,
   manage,
@@ -119,50 +120,42 @@ function RaceDayRow({
   const races = day.data?.races ?? [];
 
   return (
-    <div className="sf-strip__item sf-strip__item--muted" style={{ flexWrap: "wrap" }}>
-      <span>
-        <strong>{fmtDate(date)}</strong>
-      </span>
-      <span className="sf-strip__actions" style={{ flexWrap: "wrap" }}>
+    <div className={styles.dayCard}>
+      <div className={styles.dayCardHead}>
+        <span className={styles.dayCardDate}>{fmtDate(date)}</span>
+        {manage && (
+          <button className={styles.iconBtn} aria-label={t("regate.deleteRaceDay")} onClick={onRemoveDay}>
+            <Trash2 size={15} />
+          </button>
+        )}
+      </div>
+      <div className={styles.chipRow}>
         {races.map((r) => (
-          <span key={r.id} className="sf-strip__actions" style={{ gap: "0.15rem" }}>
+          <span key={r.id} className={`${styles.raceChip} ${manage ? styles.raceChipManage : ""}`}>
             <Link to={`/diario/regate/race/${r.id}`}>
-              <Button variant="ghost" className="sf-btn--sm">
-                {t("regate.raceNumber")} {r.race_number}
-              </Button>
+              {t("regate.raceNumber")} {r.race_number}
             </Link>
             {manage && (
-              <Button
-                variant="ghost"
-                className="sf-btn--icon-sm"
+              <button
+                className={styles.raceChipRemove}
                 aria-label={t("regate.deleteRace")}
                 onClick={() => onRemoveRace(r.id)}
               >
-                <Trash2 size={13} />
-              </Button>
+                <X size={13} />
+              </button>
             )}
           </span>
         ))}
         {manage && (
-          <Button
-            className="sf-btn--sm"
+          <button
+            className={styles.addChip}
             disabled={addingRace}
             onClick={() => onAddRace((races[races.length - 1]?.race_number ?? 0) + 1)}
           >
-            + {t("regate.newRace")}
-          </Button>
+            <Plus size={13} /> {t("regate.newRace")}
+          </button>
         )}
-        {manage && (
-          <Button
-            variant="ghost"
-            className="sf-btn--icon-sm"
-            aria-label={t("regate.deleteRaceDay")}
-            onClick={onRemoveDay}
-          >
-            <Trash2 size={14} />
-          </Button>
-        )}
-      </span>
+      </div>
     </div>
   );
 }
