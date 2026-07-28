@@ -82,7 +82,8 @@
   aspect-ratio: 4 / 3;
   object-fit: cover;
   border-radius: calc(var(--sf-radius) * 0.6);
-  border: 2px solid var(--sf-bg);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 .openBadge {
   position: absolute;

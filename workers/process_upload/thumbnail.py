@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw
 
 THUMB_SIZE = (320, 240)
 THUMB_PADDING = 16
-TRACK_COLOR = (47, 155, 224, 255)  # --sf-primary (frontend/src/styles/global.css)
+TRACK_COLOR = (255, 149, 0, 255)  # orange — stands out against sky/water photo backdrops
 MAX_POINTS = 800  # plenty of detail at ~300px; keeps rendering cheap
 
 # Same distinct, colorblind-ish palette used for map tracks in
