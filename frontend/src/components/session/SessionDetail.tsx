@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, NotebookPen, Pencil, Video } from "lucide-react";
-import { resolveApiUrl } from "@/api/client";
+import { ApiError, resolveApiUrl } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
 import { activitiesService, activityKeys } from "@/services/activities";
@@ -381,7 +381,7 @@ export function SessionDetail({
       setCrewRole("crew");
       await queryClient.invalidateQueries({ queryKey: sessionKeys.crew(sessionId) });
     },
-    onError: () => notify(t("errors.generic"), "error"),
+    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
   });
   const removeCrew = useMutation({
     mutationFn: (userId: UUID) => sessionsService.removeCrew(sessionId, userId),
@@ -398,12 +398,12 @@ export function SessionDetail({
       setNotesEditing(false);
       await queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
     },
-    onError: () => notify(t("errors.generic"), "error"),
+    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
   });
   const removeSession = useMutation({
     mutationFn: () => sessionsService.remove(sessionId),
     onSuccess: () => navigate(session.data ? `/diario/activities/${session.data.activity_id}` : "/diario/personale"),
-    onError: () => notify(t("errors.generic"), "error"),
+    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
   });
   const moveToActivity = useMutation({
     mutationFn: () => sessionsService.attachToActivity(sessionId, moveTargetId as UUID),
@@ -413,7 +413,7 @@ export function SessionDetail({
       await queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
       navigate(`/diario/activities/${updated.activity_id}/barche/${sessionId}`);
     },
-    onError: () => notify(t("errors.generic"), "error"),
+    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
   });
   // Seed the status query with "running" the instant the job is accepted:
   // without this, starting a second job right after the first one finished
@@ -426,12 +426,12 @@ export function SessionDetail({
   const reanalyze = useMutation({
     mutationFn: () => sessionsService.reanalyze(sessionId),
     onSuccess: startReanalysisPolling,
-    onError: () => notify(t("errors.generic"), "error"),
+    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
   });
   const refreshWind = useMutation({
     mutationFn: () => sessionsService.refreshWind(sessionId),
     onSuccess: startReanalysisPolling,
-    onError: () => notify(t("errors.generic"), "error"),
+    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
   });
   // Restores whatever map-display toggles were active before trim mode
   // forced them all off (see enterTrimMode) — runs whether trim was applied
@@ -464,7 +464,7 @@ export function SessionDetail({
       exitTrimMode();
       startReanalysisPolling();
     },
-    onError: () => notify(t("errors.generic"), "error"),
+    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
   });
   const applyTrim = () => {
     if (trimDraftStartMs == null || trimDraftEndMs == null) return;
@@ -483,7 +483,7 @@ export function SessionDetail({
       setManeuverDraftType("tack");
       await queryClient.invalidateQueries({ queryKey: sessionKeys.analysis(sessionId) });
     },
-    onError: () => notify(t("errors.generic"), "error"),
+    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
   });
 
   const handleManeuverPlacement = (point: { lat: number; lon: number; timestamp: number }) => {
