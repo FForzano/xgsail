@@ -3,6 +3,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { BatteryOptimization } from "@capawesome-team/capacitor-android-battery-optimization";
+import * as liveFix from "@/services/liveFix";
 import type { UUID } from "@/types";
 
 // Native-only: records a GPS track while the app is backgrounded/the phone
@@ -19,6 +20,12 @@ import type { UUID } from "@/types";
 // awareness that this GPX came from a phone recording instead of a picked
 // file or another app's share.
 
+// Only the fields this app reads, out of the plugin's full `Location` type
+// (see its definitions.d.ts). `speed`/`bearing`/`accuracy` are genuinely
+// nullable there and are consumed by the live display, not by the GPX —
+// see services/liveFix.ts.
+type WatcherLocation = liveFix.PluginLocation;
+
 interface BackgroundGeolocationPlugin {
   addWatcher(
     options: {
@@ -28,10 +35,7 @@ interface BackgroundGeolocationPlugin {
       stale: boolean;
       distanceFilter: number;
     },
-    callback: (
-      location: { latitude: number; longitude: number; time: number } | null,
-      error?: { message: string; code?: string },
-    ) => void,
+    callback: (location: WatcherLocation | null, error?: { message: string; code?: string }) => void,
   ): Promise<string>;
   removeWatcher(options: { id: string }): Promise<void>;
   openSettings(): Promise<void>;
@@ -184,11 +188,15 @@ export async function readRecordingGpx(id: UUID): Promise<File> {
   return new File([blob], `registrazione-${id}.gpx`, { type: "application/gpx+xml" });
 }
 
-function onWatcherLocation(id: UUID, location: { latitude: number; longitude: number; time: number }) {
+function onWatcherLocation(id: UUID, location: WatcherLocation) {
   if (!active || active.id !== id) return;
   const now = Date.now();
   if (now - active.lastSampleAt < SAMPLE_INTERVAL_MS) return;
   active.lastSampleAt = now;
+  // Published AFTER the sample throttle above, so the live navigation-mode
+  // display and the recorded track are fed by exactly the same points at
+  // exactly the same rate — one throttle, not two.
+  liveFix.pushFix(location);
   const isoTime = new Date(location.time).toISOString();
   void appendPoint(id, location.latitude, location.longitude, isoTime).then(async () => {
     const entry = index.find((r) => r.id === id);
@@ -338,6 +346,9 @@ export async function start(boatId: UUID, activityId: UUID | null): Promise<UUID
   });
   await saveIndex();
 
+  // Fresh session for the live display too — totals must not carry over from
+  // whatever the previous recording left behind.
+  liveFix.reset();
   active = { id, watcherId, lastSampleAt: 0 };
   notify();
   return id;
@@ -369,6 +380,9 @@ export async function stop(): Promise<void> {
   const { id, watcherId } = active;
   if (watcherId) await BackgroundGeolocation.removeWatcher({ id: watcherId });
   active = null;
+  // pause()/resume() deliberately don't reset: a paused-then-resumed
+  // recording is one session, and its distance/max/avg should span the gap.
+  liveFix.reset();
   await finalize(id);
   const entry = index.find((r) => r.id === id);
   if (entry) {

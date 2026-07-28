@@ -86,6 +86,17 @@ h1, h2, h3 {
      / .sf-tabs' `position: sticky` rely on either. */
   overflow-x: clip;
 }
+
+/* Navigation mode (components/registra/NavModeOverlay.tsx) covers the shell
+   completely. `visibility: hidden` rather than `display: none` on purpose:
+   it skips paint while keeping the layout intact, so coming back out doesn't
+   reflow the page or lose its scroll position. This is a correctness measure
+   (nothing underneath paints or animates), not a meaningful battery saving —
+   an occluded subtree is largely culled already. */
+body.sf-nav-mode .sf-shell {
+  visibility: hidden;
+}
+
 .sf-main {
   flex: 1;
   width: 100%;

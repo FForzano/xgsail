@@ -2,8 +2,16 @@
 // Date, bare YYYY-MM-DD dates are noon-anchored so they don't shift a day).
 
 import { unitsStore } from "@/stores/unitsStore";
+import { normalizeDeg } from "@/utils/geo";
 
 const KN_TO_KMH = 1.852;
+const MS_TO_KN = 1.943844;
+
+/** Metres per second (what the background-geolocation plugin reports) to
+ * knots (what every other speed value in the app is expressed in). */
+export function msToKnots(ms: number): number {
+  return ms * MS_TO_KN;
+}
 
 export function fmtDate(date?: string | null): string {
   if (!date) return "—";
@@ -53,10 +61,27 @@ export function fmtDistanceNm(nm?: number | null): string {
   return fmtDistance(nm == null ? null : nm * 1852);
 }
 
+/** Speed split into number and unit, for layouts that style the two
+ * differently — a big instrument readout with a small unit beside it (see
+ * components/registra/NavTile.tsx). `fmtKnots` is this, joined. */
+export function splitKnots(k?: number | null): { value: string; unit: string } {
+  if (unitsStore.get() === "metric") {
+    return { value: k == null ? "—" : (k * KN_TO_KMH).toFixed(1), unit: "km/h" };
+  }
+  return { value: k == null ? "—" : k.toFixed(1), unit: "kn" };
+}
+
 export function fmtKnots(k?: number | null): string {
   if (k == null) return "—";
-  if (unitsStore.get() === "metric") return `${(k * KN_TO_KMH).toFixed(1)} km/h`;
-  return `${k.toFixed(1)} kn`;
+  const { value, unit } = splitKnots(k);
+  return `${value} ${unit}`;
+}
+
+/** Nautical bearing notation: always three digits, so a heading readout keeps
+ * a constant width instead of jumping as the boat swings through 9°/10°. */
+export function fmtBearing(deg?: number | null): string {
+  if (deg == null) return "—";
+  return `${Math.round(normalizeDeg(deg)).toString().padStart(3, "0")}°`;
 }
 
 export function fmtSeconds(sec?: number | null): string {

@@ -29,6 +29,25 @@ export function bearingDegrees(
   return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360;
 }
 
+export function normalizeDeg(deg: number): number {
+  return ((deg % 360) + 360) % 360;
+}
+
+/** Shortest signed rotation from `from` to `to`, in -180..180 — the basis for
+ * every "angle relative to where I'm pointing" value (see utils/nav.ts). */
+export function angleDelta(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
+/** Coarsens a coordinate so a live position stops minting a fresh cache entry
+ * (and a fresh request) on every GPS fix. At the default 2 decimals one step is
+ * ~1.1 km — the right granularity for something like the wind lookup, whose
+ * answer comes from a station kilometres away anyway. */
+export function roundCoord(value: number, decimals = 2): number {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
 // Total path length in metres over an ordered lat/lon list.
 export function pathLengthMeters(points: Array<{ lat: number; lon: number }>): number {
   let total = 0;

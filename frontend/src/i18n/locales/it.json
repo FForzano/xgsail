@@ -582,6 +582,41 @@
       "phone": "Questo telefono",
       "e1Idle": "Ferma",
       "pendingUploads": "{{count}} sessioni in attesa di caricamento"
+    },
+    "nav": {
+      "enter": "Modalità navigazione",
+      "exitHold": "Tieni premuto per uscire",
+      "distance": "Distanza",
+      "elapsed": "Tempo",
+      "maxSpeed": "Vel. max",
+      "avgSpeed": "Vel. media",
+      "tack": {
+        "port": "Mure a sinistra",
+        "starboard": "Mure a dritta"
+      },
+      "wind": {
+        "source": "vento da {{source}}",
+        "age": "{{minutes}} min fa",
+        "unavailable": "Vento non disponibile in questa zona — niente TWA né VMG."
+      },
+      "gps": {
+        "good": "GPS ottimo",
+        "fair": "GPS discreto",
+        "poor": "GPS scarso",
+        "lost": "Segnale GPS perso"
+      },
+      "timer": {
+        "title": "Partenza",
+        "set": "{{minutes}} min",
+        "sync": "Sincronizza",
+        "reset": "Azzera"
+      },
+      "stopConfirm": {
+        "title": "Fermare la registrazione?",
+        "message": "La traccia verrà chiusa e caricata, e la modalità navigazione si chiuderà."
+      },
+      "wakeLockUnavailable": "Questo telefono non consente di tenere lo schermo sempre acceso: imposta un timeout più lungo nelle impostazioni display.",
+      "lowPowerMode": "Risparmio energetico attivo: il telefono potrebbe limitare l'aggiornamento dei dati o spegnere lo schermo comunque."
     }
   },
   "activities": {

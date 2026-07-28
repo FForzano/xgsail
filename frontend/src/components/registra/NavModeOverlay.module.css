@@ -1,0 +1,295 @@
+/* Navigation mode — the full-screen instrument display shown over the
+   recording screen (NavModeOverlay.tsx, NavTile.tsx, NavStartTimer.tsx).
+
+   Its palette is declared here on `.root`, not in global.css: global.css is
+   for the primitives dozens of pages compose with, and this is one feature's
+   look. Only the background and the ink are new values — everything else
+   reuses existing --sf-* tokens, whose contrast holds up on black. */
+
+.root {
+  /* True black, not the app's navy: on an OLED panel a black pixel is an OFF
+     pixel, and a full screen of them is the single largest power saving this
+     mode has to offer. */
+  --sf-nav-bg: #000;
+  /* Not pure white — at full brightness it blooms on OLED and is tiring to
+     read against black for a whole race. */
+  --sf-nav-ink: #f2f6f9;
+  --sf-nav-dim: var(--sf-muted);
+  --sf-nav-line: rgba(255, 255, 255, 0.08);
+
+  position: fixed;
+  inset: 0;
+  z-index: 90; /* over the action bar (60), under Modal (100) — see below */
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: calc(0.75rem + env(safe-area-inset-top, 0px)) calc(0.75rem + env(safe-area-inset-right, 0px))
+    calc(0.75rem + env(safe-area-inset-bottom, 0px)) calc(0.75rem + env(safe-area-inset-left, 0px));
+  background: var(--sf-nav-bg);
+  color: var(--sf-nav-ink);
+  /* Nothing in here scrolls, and nothing should rubber-band: a stray drag on
+     deck must not move the display. The portal already keeps these touches
+     away from AppShell's swipe/pull recognizers (they listen on <main>). */
+  touch-action: none;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Staying below Modal's z-index is what lets ConfirmDialog and GpsErrorModal
+   keep working unchanged from inside here — no second confirmation sheet, no
+   z-index war. The overlay creates its own stacking context, so the dialog's
+   z-index 100 is resolved against this root. */
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sf-nav-dim);
+}
+
+.statusRec {
+  margin-left: auto;
+  color: var(--sf-nav-ink);
+}
+
+.statusBattery {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--sf-nav-dim);
+}
+
+.statusBatteryLow {
+  color: var(--sf-warning);
+}
+
+.statusDot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.gpsGood {
+  color: var(--sf-success);
+}
+.gpsFair {
+  color: var(--sf-warning);
+}
+.gpsPoor {
+  color: var(--sf-gybe);
+}
+.gpsLost {
+  color: var(--sf-danger);
+}
+
+.warning {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--sf-warning);
+}
+
+.windNote {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--sf-nav-dim);
+}
+
+.hero {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--sf-nav-line);
+}
+
+/* Tiles are hairline-separated, never filled or bordered: a card surface on
+   an OLED is lit pixels carrying no information. */
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--sf-nav-bg);
+}
+
+.tileHero {
+  align-items: center;
+  padding: 0;
+  text-align: center;
+}
+
+.tileLabel {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sf-nav-dim);
+}
+
+.tileValue {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  font-size: clamp(1.6rem, 8vw, 3rem);
+  font-weight: 600;
+  line-height: 1;
+  /* Fixed-width digits, or every reading twitches sideways once a second and
+     the whole display reads as unstable. */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.tileHero .tileValue {
+  font-size: clamp(4rem, 26vw, 12rem);
+  justify-content: center;
+}
+
+.tileUnit {
+  font-size: 0.4em;
+  font-weight: 400;
+  color: var(--sf-nav-dim);
+}
+
+.tileHint {
+  font-size: 0.7rem;
+  color: var(--sf-nav-dim);
+}
+
+/* The last known value, kept on screen after the fix went stale rather than
+   blanked — but visibly not current. */
+.tileStale .tileValue {
+  opacity: 0.4;
+}
+
+/* Tack is carried first by the text and glyph in the tile hint; colour is the
+   secondary cue only, and uses the CVD-validated pair from global.css rather
+   than the traditional red/green, which is the one pair colourblind readers
+   cannot separate. */
+.tonePort .tileValue {
+  color: var(--sf-gybe);
+}
+.toneStarboard .tileValue {
+  color: var(--sf-primary);
+}
+.toneWarn .tileValue {
+  color: var(--sf-warning);
+}
+
+.timerPresets,
+.timerArmed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.timerButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.timerButton {
+  min-height: 44px;
+  padding: 0 0.9rem;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--sf-nav-ink);
+  background: transparent;
+  border: 1px solid var(--sf-nav-line);
+  border-radius: var(--sf-radius);
+}
+
+.controls {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.control {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  color: var(--sf-nav-ink);
+  background: transparent;
+  border: 1px solid var(--sf-nav-line);
+  border-radius: 50%;
+}
+
+.controlStop {
+  color: var(--sf-danger);
+  border-color: var(--sf-danger);
+}
+
+/* Hold-to-exit: the ring fills over the hold duration so the gesture is
+   discoverable and its progress visible, instead of feeling like a dead
+   button. Kept in sync with EXIT_HOLD_MS in NavModeOverlay.tsx. */
+.controlHolding {
+  background: linear-gradient(var(--sf-surface-2), var(--sf-surface-2)) no-repeat left center / 0 100%;
+  animation: exitHold 800ms linear forwards;
+}
+
+@keyframes exitHold {
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .controlHolding {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
+
+/* Landscape: hero on the left, tiles on the right. No orientation lock —
+   that would mean another native plugin, which this app can't ship over the
+   air; whichever way the phone is held has to work. */
+@media (orientation: landscape) {
+  .root {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: min-content;
+    align-content: center;
+    column-gap: 1rem;
+  }
+
+  /* Only the hero and the tile grid share the row; every other block —
+     including the ones that come and go (the wake-lock warning, the no-wind
+     note, the unarmed start timer) — spans the full width, so their presence
+     or absence can't shuffle the two columns. */
+  .root > *:not(.hero):not(.grid) {
+    grid-column: 1 / -1;
+  }
+
+  .hero {
+    align-self: center;
+  }
+
+  .hero .tileValue {
+    font-size: clamp(3rem, 18vh, 9rem);
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-self: center;
+  }
+}

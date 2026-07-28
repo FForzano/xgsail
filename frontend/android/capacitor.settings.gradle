@@ -11,6 +11,9 @@ project(':capacitor-community-background-geolocation').projectDir = new File('..
 include ':capacitor-community-bluetooth-le'
 project(':capacitor-community-bluetooth-le').projectDir = new File('../node_modules/@capacitor-community/bluetooth-le/android')
 
+include ':capacitor-community-keep-awake'
+project(':capacitor-community-keep-awake').projectDir = new File('../node_modules/@capacitor-community/keep-awake/android')
+
 include ':capacitor-app'
 project(':capacitor-app').projectDir = new File('../node_modules/@capacitor/app/android')
 
@@ -28,6 +31,9 @@ project(':capacitor-status-bar').projectDir = new File('../node_modules/@capacit
 
 include ':capawesome-team-capacitor-android-battery-optimization'
 project(':capawesome-team-capacitor-android-battery-optimization').projectDir = new File('../node_modules/@capawesome-team/capacitor-android-battery-optimization/android')
+
+include ':capawesome-capacitor-battery'
+project(':capawesome-capacitor-battery').projectDir = new File('../node_modules/@capawesome/capacitor-battery/android')
 
 include ':capgo-capacitor-share-target'
 project(':capgo-capacitor-share-target').projectDir = new File('../node_modules/@capgo/capacitor-share-target/android')

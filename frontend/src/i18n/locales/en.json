@@ -582,6 +582,41 @@
       "phone": "This phone",
       "e1Idle": "Idle",
       "pendingUploads": "{{count}} sessions waiting to upload"
+    },
+    "nav": {
+      "enter": "Navigation mode",
+      "exitHold": "Hold to exit",
+      "distance": "Distance",
+      "elapsed": "Elapsed",
+      "maxSpeed": "Max speed",
+      "avgSpeed": "Avg speed",
+      "tack": {
+        "port": "Port tack",
+        "starboard": "Starboard tack"
+      },
+      "wind": {
+        "source": "wind from {{source}}",
+        "age": "{{minutes}} min ago",
+        "unavailable": "No wind data for this area — no TWA or VMG."
+      },
+      "gps": {
+        "good": "GPS good",
+        "fair": "GPS fair",
+        "poor": "GPS poor",
+        "lost": "GPS signal lost"
+      },
+      "timer": {
+        "title": "Start",
+        "set": "{{minutes}} min",
+        "sync": "Sync",
+        "reset": "Reset"
+      },
+      "stopConfirm": {
+        "title": "Stop recording?",
+        "message": "The track will be closed and uploaded, and navigation mode will close."
+      },
+      "wakeLockUnavailable": "This phone won't let the screen stay on: set a longer display timeout in your settings.",
+      "lowPowerMode": "Power saving mode is on: the phone may throttle updates or turn the screen off anyway."
     }
   },
   "activities": {

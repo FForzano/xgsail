@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
 import { Network } from "@capacitor/network";
-import { Disc, Pause, Play, Square } from "lucide-react";
+import { Disc, Gauge, Pause, Play, Square } from "lucide-react";
 import { boatsService, boatKeys } from "@/services/boats";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { sessionsService } from "@/services/sessions";
@@ -21,6 +21,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { devicesService, deviceKeys, XGSAIL_E1_PARSER_KEY } from "@/services/devices";
 import { useE1Device } from "@/hooks/useE1Device";
+import { NavModeOverlay } from "@/components/registra/NavModeOverlay";
 import type { Device, UUID } from "@/types";
 
 const STANDALONE = "" as const; // empty select value = "uscita singola"
@@ -95,6 +96,38 @@ function GpsErrorModal({ error, onClose }: { error: string; onClose: () => void 
       </div>
     </Modal>
   );
+}
+
+/** Dev-only: `/registra?navmock=1` opens the navigation display against a
+ * synthetic GPS feed, so its layout, typography and sailing math can be
+ * worked on in a desktop browser — there is no background-geolocation
+ * watcher off native, and normally no way to reach the overlay at all.
+ * `import.meta.env.DEV` is a build-time constant, so this and the mock module
+ * behind it are absent from production builds. */
+function useNavMockRecording(): RecordingMeta | null {
+  const [recording, setRecording] = useState<RecordingMeta | null>(null);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (!new URLSearchParams(window.location.search).has("navmock")) return;
+    let stop: (() => void) | null = null;
+    void import("@/services/liveFixMock").then((mock) => {
+      mock.startMockFixes();
+      stop = mock.stopMockFixes;
+      setRecording({
+        id: "navmock" as UUID,
+        boatId: "navmock" as UUID,
+        activityId: null,
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        status: "recording",
+        pointCount: 0,
+      });
+    });
+    return () => stop?.();
+  }, []);
+
+  return recording;
 }
 
 function durationSeconds(recording: RecordingMeta): number {
@@ -322,6 +355,7 @@ export function RegistraPage() {
   const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const [online, setOnline] = useState(true);
+  const [navMode, setNavMode] = useState(false);
   const upload = useImportUpload();
 
   const boats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
@@ -385,8 +419,13 @@ export function RegistraPage() {
   // internet" cases the network-status event can miss). This only retries
   // while the app is in the foreground; a recording left pending with the
   // app fully closed needs the app reopened to finish uploading.
+  //
+  // Suspended in navigation mode: each tick can kick off a multipart GPX
+  // upload over cellular, the most expensive thing on this page, and nothing
+  // in the backlog is urgent mid-race. It resumes on the way out — the
+  // pending recordings are untouched meanwhile.
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform() || navMode) return;
     Network.getStatus().then((status) => setOnline(status.connected));
     const networkSub = Network.addListener("networkStatusChange", (status) => {
       setOnline(status.connected);
@@ -397,7 +436,7 @@ export function RegistraPage() {
       void networkSub.then((h) => h.remove());
       window.clearInterval(interval);
     };
-  }, [retryPending]);
+  }, [retryPending, navMode]);
 
   // Live-updating elapsed-time display while a recording is running.
   useEffect(() => {
@@ -419,7 +458,10 @@ export function RegistraPage() {
       setActiveId(null);
     }
   }, [activeEntry?.status, activeEntry?.error, activeId]);
-  const active = activeEntry?.status === "recording" || activeEntry?.status === "paused" ? activeEntry : undefined;
+  const realActive =
+    activeEntry?.status === "recording" || activeEntry?.status === "paused" ? activeEntry : undefined;
+  const mockRecording = useNavMockRecording();
+  const active = realActive ?? mockRecording ?? undefined;
 
   const onStart = async () => {
     setError(null);
@@ -444,6 +486,7 @@ export function RegistraPage() {
 
   const onStop = async () => {
     const stopped = active;
+    setNavMode(false);
     await nativeRecording.stop();
     setActiveId(null);
     refresh();
@@ -484,6 +527,14 @@ export function RegistraPage() {
                 aria-label={t("registra.stop")}
               >
                 <Square size={22} strokeWidth={1.75} />
+              </Button>
+            </div>
+            {/* Only offered for a phone-GPS recording, which is the only kind
+                that produces an `active` entry — an E1 records on board and
+                gives this phone no live fix to display. */}
+            <div className="sf-form__actions">
+              <Button onClick={() => setNavMode(true)}>
+                <Gauge size={18} strokeWidth={1.75} /> {t("registra.nav.enter")}
               </Button>
             </div>
           </>
@@ -544,6 +595,19 @@ export function RegistraPage() {
           </>
         )}
       </Card>
+      {/* Rendered only while a recording is actually active, so a GPS
+          permission failure — which nulls `activeId` in the effect above —
+          also tears the overlay down on its own, releasing the wake lock and
+          resuming the suspended background work with no extra handling. */}
+      {navMode && active && (
+        <NavModeOverlay
+          recording={active}
+          onPause={() => void onPause()}
+          onResume={() => void onResume()}
+          onStop={() => void onStop()}
+          onExit={() => setNavMode(false)}
+        />
+      )}
       {(error === ERROR_PERMISSION_DENIED || error === ERROR_LOCATION_SERVICES_DISABLED) && (
         <GpsErrorModal error={error} onClose={() => setError(null)} />
       )}
