@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/useToast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { InputField, TextAreaField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
@@ -36,6 +37,7 @@ export function RegattaDetailPage() {
   });
 
   const [editing, setEditing] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
 
   useEffect(() => {
@@ -71,7 +73,16 @@ export function RegattaDetailPage() {
       <Card>
         <div className={entityHeaderStyles.header}>
           <div className={entityHeaderStyles.identity}>
-            {r.image && <img className={styles.heroImage} src={r.image.url} alt="" />}
+            {r.image && (
+              <button
+                type="button"
+                className={styles.heroImageButton}
+                onClick={() => setLightboxOpen(true)}
+                aria-label={t("regate.viewImage")}
+              >
+                <img className={styles.heroImage} src={r.image.url} alt="" />
+              </button>
+            )}
             <div>
               <h1 className={entityHeaderStyles.name}>{r.name}</h1>
               {r.description && <p className={`sf-muted ${entityHeaderStyles.meta}`}>{r.description}</p>}
@@ -102,6 +113,10 @@ export function RegattaDetailPage() {
       <Card title={t("regate.raceDays")}>
         <RegattaRaceDays regattaId={regattaId} manage={manage} />
       </Card>
+
+      {lightboxOpen && r.image && (
+        <ImageLightbox src={r.image.url} alt="" onClose={() => setLightboxOpen(false)} />
+      )}
 
       {editing && (
         <Modal title={t("regate.editRegatta")} onClose={() => setEditing(false)}>

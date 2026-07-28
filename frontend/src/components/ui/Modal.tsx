@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 import styles from "./Modal.module.css";
 
 // Minimal accessible modal: Esc closes, backdrop click closes, body content
@@ -12,11 +13,7 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   return (
     <div className={`sf-modal__backdrop ${styles.backdrop}`} onClick={onClose}>

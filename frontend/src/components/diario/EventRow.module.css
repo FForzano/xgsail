@@ -95,6 +95,9 @@
   margin: 0;
   color: var(--sf-muted);
   font-size: 0.9rem;
+  /* Keeps the author's own line breaks within the clamped preview, instead
+     of the browser default of collapsing them into one run of text. */
+  white-space: pre-wrap;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;

@@ -18,6 +18,10 @@
 .meta {
   font-size: 0.85rem;
   margin: 0 0 0.3rem;
+  /* Free-text descriptions (club/group/regatta) keep the line breaks the
+     author actually typed, instead of the browser default of collapsing
+     them into one run of text. */
+  white-space: pre-wrap;
 }
 .actions {
   display: flex;

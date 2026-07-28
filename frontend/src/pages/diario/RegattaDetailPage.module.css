@@ -11,3 +11,12 @@
   object-fit: contain;
   flex-shrink: 0;
 }
+
+/* Wraps .heroImage in a <button> so it's keyboard-reachable and announces as
+   a control — reset to look exactly like the plain image it wraps. */
+.heroImageButton {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
