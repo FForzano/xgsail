@@ -73,6 +73,7 @@ export function useAppShellGestures<T extends HTMLElement>(
   paths: string[],
   currentPath: string,
   onRefresh: () => Promise<unknown>,
+  enabled = true,
 ): { ref: MutableRefObject<T | null>; pull: number; refreshing: boolean } {
   const navigate = useNavigate();
   const ref = useRef<T | null>(null);
@@ -89,7 +90,11 @@ export function useAppShellGestures<T extends HTMLElement>(
 
   useEffect(() => {
     const el = ref.current;
-    if (!el || !Capacitor.isNativePlatform()) return;
+    // `enabled` is belt-and-braces for navigation mode: its overlay is a
+    // portal on document.body, i.e. outside this <main>, so its touches never
+    // reach these listeners anyway — but detaching them also drops the stale
+    // `navigate` closure while the shell is inert.
+    if (!el || !Capacitor.isNativePlatform() || !enabled) return;
 
     let origin: { x: number; y: number } | null = null;
     // "h": horizontal swipe-nav · "pull": vertical drag-down at the top ·
@@ -251,7 +256,7 @@ export function useAppShellGestures<T extends HTMLElement>(
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchCancel);
     };
-  }, [navigate]);
+  }, [navigate, enabled]);
 
   return { ref, pull, refreshing };
 }

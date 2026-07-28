@@ -15,10 +15,16 @@ import type { UUID } from "@/types";
  * event, app start, and every foreground resume — `relayPending` retries any
  * session an earlier (e.g. offline) attempt couldn't upload, deleting each
  * only after it lands. No UI of its own; no-op off native or when signed
- * out. */
-export function useWatchRelay(queryClient: QueryClient, userId: UUID | undefined): void {
+ * out. `enabled` lets navigation mode suspend it (same rationale as
+ * useE1AutoSync): the relay's file IO, uploads and query invalidations can
+ * all wait until the instrument display is closed. */
+export function useWatchRelay(
+  queryClient: QueryClient,
+  userId: UUID | undefined,
+  enabled = true,
+): void {
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || !userId) return;
+    if (!Capacitor.isNativePlatform() || !userId || !enabled) return;
     let unsubscribe: (() => void) | null = null;
     let cancelled = false;
 
@@ -51,5 +57,5 @@ export function useWatchRelay(queryClient: QueryClient, userId: UUID | undefined
       unsubscribe?.();
       void appListener.then((h) => h.remove());
     };
-  }, [queryClient, userId]);
+  }, [queryClient, userId, enabled]);
 }

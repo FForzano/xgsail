@@ -14,3 +14,17 @@ export async function initNativeStatusBar(): Promise<void> {
   await StatusBar.setBackgroundColor({ color: "#0b1f33" });
   await StatusBar.setStyle({ style: Style.Dark });
 }
+
+/** Navigation mode (components/registra/NavModeOverlay.tsx) takes the whole
+ * screen: the status bar's reserved strip is one more lit band on an OLED and
+ * one more thing competing with the instrument readout, so it's hidden for
+ * the duration and the app's normal chrome restored on the way out. */
+export async function setNavModeStatusBar(on: boolean): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  if (on) {
+    await StatusBar.hide();
+    return;
+  }
+  await StatusBar.show();
+  await initNativeStatusBar();
+}

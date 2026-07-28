@@ -65,10 +65,15 @@ export async function syncE1Devices(queryClient: QueryClient): Promise<void> {
  * recordings in RegistraPage, which do surface upload status). iOS/Android
  * don't allow a reliable BLE scan with the app fully closed, so this is
  * necessarily opportunistic — foreground/recent-background only; nothing
- * is lost meanwhile since the device keeps its buffer until acknowledged. */
-export function useE1AutoSync(queryClient: QueryClient): void {
+ * is lost meanwhile since the device keeps its buffer until acknowledged.
+ *
+ * `enabled` exists so navigation mode can suspend this outright: a BLE scan
+ * per claimed device every 5 minutes is a real radio cost and is useless
+ * mid-race. Nothing is lost — the next tick after it resumes picks up
+ * whatever the device is still holding. */
+export function useE1AutoSync(queryClient: QueryClient, enabled = true): void {
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform() || !enabled) return;
     void syncE1Devices(queryClient);
 
     const listenerPromise = CapacitorApp.addListener("appStateChange", ({ isActive }) => {
@@ -80,5 +85,5 @@ export function useE1AutoSync(queryClient: QueryClient): void {
       void listenerPromise.then((h) => h.remove());
       window.clearInterval(interval);
     };
-  }, [queryClient]);
+  }, [queryClient, enabled]);
 }

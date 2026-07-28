@@ -17,6 +17,7 @@ import { ProfileMenu } from "@/components/layout/ProfileMenu";
 import { SupportPromptBanner } from "@/components/common/SupportPromptBanner";
 import { usersService, userKeys } from "@/services/users";
 import { unitsStore } from "@/stores/unitsStore";
+import { useNavMode } from "@/stores/navModeStore";
 import { canShowSupportLinks } from "@/config/platform";
 import { OnboardingProvider, useOnboarding } from "@/onboarding/OnboardingContext";
 import { TourHelpButton } from "@/onboarding/TourHelpButton";
@@ -53,15 +54,22 @@ function AppShellInner() {
     if (user) requestTour("getting-started");
   }, [user, requestTour]);
 
+  // While the full-screen navigation display is up (components/registra/),
+  // the shell suspends every background service it owns: the periodic E1 BLE
+  // scan, the Apple Watch relay and the touch-gesture recognizers. Read once
+  // here and threaded down as a parameter — the hooks themselves stay
+  // unaware of a UI mode store they have no business depending on.
+  const navMode = useNavMode();
+
   // Opportunistic, silent BLE relay of any claimed XGSail E1's buffered
   // sessions — see services/e1Sync.ts. No UI of its own; this is the
   // automatic counterpart to the E1's own WiFi upload.
-  useE1AutoSync(queryClient);
+  useE1AutoSync(queryClient, !navMode);
 
   // Relay finished sessions arriving from a paired Apple Watch (§9) — also
   // silent, event-driven; uploads land under the signed-in user as the
   // crew_member subject for the physiological streams.
-  useWatchRelay(queryClient, user?.id);
+  useWatchRelay(queryClient, user?.id, !navMode);
 
   // Local GPS recordings still waiting to upload (or retrying) — surfaced
   // as a badge on the Registra nav item so it's visible from anywhere in
@@ -125,10 +133,17 @@ function AppShellInner() {
     sections.map((s) => s.to),
     location.pathname,
     () => queryClient.refetchQueries({ type: "active" }),
+    !navMode,
   );
 
+  // `inert` keeps focus, pointer events and screen readers out of the shell
+  // while the navigation overlay covers it. Spread rather than written as a
+  // JSX prop because React 18's types don't know the attribute yet (React 19
+  // adds it) — React still passes unknown lowercase attributes through.
+  const inertProps = navMode ? ({ inert: "" } as Record<string, string>) : {};
+
   return (
-    <div className="sf-shell">
+    <div className="sf-shell" aria-hidden={navMode || undefined} {...inertProps}>
       {canShowSupportLinks && <SupportPromptBanner />}
       <header className="sf-navbar">
         <NavLink to="/" className="sf-navbar__brand">
