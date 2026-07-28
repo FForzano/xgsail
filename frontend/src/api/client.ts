@@ -174,8 +174,22 @@ export async function request<T = unknown>(
     signal: opts.signal,
   });
 
+  // Native clients authenticate via Bearer only, but a leftover `sf_access`
+  // cookie (same registrable domain as the API, see permissions.py's
+  // verify_csrf) can make an unauthenticated-looking GET (no Authorization
+  // header yet, e.g. right after a cold start before the native refresh
+  // has run) succeed via the backend's cookie fallback — leaving
+  // `accessToken` never populated. The next mutation then has no Bearer
+  // *and* can't echo the CSRF cookie (native JS can't read it cross-
+  // subdomain), so the backend 403s instead of 401ing. Treat that the same
+  // as an expired-token 401: refresh and retry once.
+  const isStaleCsrf =
+    res.status === 403 &&
+    !accessToken &&
+    (await res.clone().json().catch(() => null))?.detail === "CSRF check failed";
+
   if (
-    res.status === 401 &&
+    (res.status === 401 || isStaleCsrf) &&
     !opts._retried &&
     !NO_REFRESH_PATHS.some((p) => path.startsWith(p))
   ) {

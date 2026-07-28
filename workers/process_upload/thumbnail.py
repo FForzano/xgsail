@@ -12,7 +12,13 @@ from math import cos, radians
 from PIL import Image, ImageDraw
 
 THUMB_SIZE = (320, 240)
-THUMB_PADDING = 16
+THUMB_PADDING = 28
+TRACK_WIDTH = 5
+# Extra shrink on top of THUMB_PADDING so a thick line's rounded joints/caps
+# at the track's extreme points never poke past the frame — worth the extra
+# empty margin, since a track cut off at the edge reads worse than one with
+# breathing room around it.
+ZOOM_OUT = 0.9
 TRACK_COLOR = (255, 149, 0, 255)  # orange — stands out against sky/water photo backdrops
 MAX_POINTS = 800  # plenty of detail at ~300px; keeps rendering cheap
 
@@ -78,7 +84,7 @@ def _render(coord_sets: "list[list[tuple]]", colors: "list[tuple]") -> bytes:
     pad = THUMB_PADDING
     lat_span = max(max_lat - min_lat, 1e-9)
     lon_span = max((max_lon - min_lon) * lon_scale, 1e-9)
-    scale = min((w - 2 * pad) / lon_span, (h - 2 * pad) / lat_span)
+    scale = min((w - 2 * pad) / lon_span, (h - 2 * pad) / lat_span) * ZOOM_OUT
 
     drawn_w = lon_span * scale
     drawn_h = lat_span * scale
@@ -93,7 +99,7 @@ def _render(coord_sets: "list[list[tuple]]", colors: "list[tuple]") -> bytes:
     img = Image.new("RGBA", THUMB_SIZE, (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     for coords, color in zip(coord_sets, colors):
-        draw.line([project(lat, lon) for lat, lon in coords], fill=color, width=3, joint="curve")
+        draw.line([project(lat, lon) for lat, lon in coords], fill=color, width=TRACK_WIDTH, joint="curve")
 
     buf = BytesIO()
     img.save(buf, format="PNG", optimize=True)
