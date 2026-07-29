@@ -14,6 +14,7 @@ import { Modal } from "@/components/ui/Modal";
 import { InputField, TextAreaField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
+import { LocationPicker } from "@/components/map/LocationPicker";
 import { BackLink } from "@/components/ui/BackLink";
 import { EntityFeed } from "@/components/gruppi/EntityFeed";
 import { ClubDevices } from "./ClubDevices";
@@ -55,6 +56,7 @@ export function ClubDetailLayout() {
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", city: "", website: "" });
+  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (club.data) {
@@ -64,6 +66,11 @@ export function ClubDetailLayout() {
         city: club.data.city ?? "",
         website: club.data.website ?? "",
       });
+      setPosition(
+        club.data.lat != null && club.data.lng != null
+          ? { lat: club.data.lat, lng: club.data.lng }
+          : null,
+      );
     }
   }, [club.data]);
 
@@ -78,6 +85,8 @@ export function ClubDetailLayout() {
         description: form.description || null,
         city: form.city || null,
         website: form.website || null,
+        lat: position?.lat ?? null,
+        lng: position?.lng ?? null,
       }),
     onSuccess: async () => {
       setEditing(false);
@@ -206,6 +215,11 @@ export function ClubDetailLayout() {
                 onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
               />
             </div>
+            <LocationPicker
+              value={position}
+              address={{ city: form.city, country: c.country }}
+              onChange={setPosition}
+            />
             <div className="sf-form__actions">
               <Button type="submit" disabled={save.isPending}>
                 {t("common.save")}

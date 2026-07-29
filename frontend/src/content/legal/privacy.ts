@@ -12,7 +12,7 @@ import type { LegalDocByLang } from "./types";
  *
  * Keep PRIVACY_VERSION in sync with CURRENT_PRIVACY_VERSION in backend/legal.py.
  */
-export const PRIVACY_VERSION = "2026-07-22";
+export const PRIVACY_VERSION = "2026-07-29";
 
 const CONTROLLER = "Federico Forzano";
 const EMAIL = "f.forzano@ieee.org";
@@ -108,7 +108,7 @@ export const privacy: LegalDocByLang = {
           {
             type: "p",
             text:
-              "Allo stato, l'applicazione e i dati sono ospitati su un server gestito direttamente dal Titolare: non sono coinvolti fornitori di hosting o di archiviazione terzi in qualità di responsabili del trattamento. I dati possono essere comunicati esclusivamente:",
+              "Allo stato, l'applicazione e i dati sono ospitati su un server gestito direttamente dal Titolare: non sono coinvolti fornitori di hosting o di archiviazione terzi in qualità di responsabili del trattamento. Restano fermi i servizi cartografici di terze parti descritti al successivo punto 7, che il browser dell'Utente contatta direttamente e che agiscono come titolari autonomi. I dati possono essere comunicati esclusivamente:",
           },
           {
             type: "ul",
@@ -124,7 +124,40 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "7. Trasferimenti extra-UE",
+        title: "7. Servizi cartografici di terze parti",
+        blocks: [
+          {
+            type: "p",
+            text:
+              "Le funzionalità di mappa del Servizio (visualizzazione delle tracce, carta nautica, punti d'interesse nautici, ricerca di un indirizzo) si appoggiano a servizi cartografici pubblici gestiti da soggetti terzi. Tali servizi vengono contattati direttamente dal browser o dall'app dell'Utente, senza passare dai server del Titolare: di conseguenza tali soggetti ricevono autonomamente alcuni dati e agiscono come titolari autonomi del trattamento, non come responsabili ai sensi dell'art. 28 GDPR.",
+          },
+          {
+            type: "p",
+            text: "I servizi utilizzati e i dati che ricevono sono:",
+          },
+          {
+            type: "ul",
+            items: [
+              "OpenStreetMap Foundation (tile.openstreetmap.org) — mappa di base: indirizzo IP, user agent e coordinate delle porzioni di mappa visualizzate;",
+              "OpenSeaMap (tiles.openseamap.org) — livello opzionale della carta nautica: indirizzo IP, user agent e coordinate delle porzioni di mappa visualizzate, solo se l'Utente attiva il livello;",
+              "Overpass API (overpass-api.de) — livello opzionale dei punti d'interesse nautici: indirizzo IP, user agent e coordinate dell'area di mappa inquadrata, solo se l'Utente attiva il livello;",
+              "Nominatim (nominatim.openstreetmap.org) — geocodifica di un indirizzo in coordinate: indirizzo IP, user agent e il testo dell'indirizzo cercato, solo quando l'Utente preme il pulsante di ricerca da indirizzo.",
+            ],
+          },
+          {
+            type: "p",
+            text:
+              "Nessuna di queste richieste viene effettuata finché l'Utente non apre una schermata contenente una mappa (o, per i livelli opzionali e per la geocodifica, finché non li attiva espressamente). Tali servizi non impostano cookie sul dominio del Servizio. La base giuridica è l'esecuzione del contratto (art. 6.1.b GDPR) per le funzionalità di mappa richieste dall'Utente. Si invita a consultare le rispettive informative: osmfoundation.org/wiki/Privacy_Policy per i servizi della OpenStreetMap Foundation (mappa di base, Nominatim), e le condizioni d'uso pubblicate da OpenSeaMap e da Overpass API.",
+          },
+          {
+            type: "p",
+            text:
+              "Le mappe includono le attribuzioni richieste dalle rispettive licenze: i dati di base sono © contributori OpenStreetMap, disponibili con licenza Open Database License (ODbL); il livello nautico è © contributori OpenSeaMap.",
+          },
+        ],
+      },
+      {
+        title: "8. Trasferimenti extra-UE",
         blocks: [
           {
             type: "p",
@@ -134,7 +167,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "8. Periodo di conservazione",
+        title: "9. Periodo di conservazione",
         blocks: [
           {
             type: "p",
@@ -144,7 +177,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "9. Diritti dell'interessato",
+        title: "10. Diritti dell'interessato",
         blocks: [
           {
             type: "p",
@@ -167,7 +200,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "10. Reclamo all'autorità di controllo",
+        title: "11. Reclamo all'autorità di controllo",
         blocks: [
           {
             type: "p",
@@ -177,7 +210,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "11. Minori",
+        title: "12. Minori",
         blocks: [
           {
             type: "p",
@@ -187,7 +220,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "12. Cookie e tecnologie simili",
+        title: "13. Cookie e tecnologie simili",
         blocks: [
           // DEVELOPER NOTE (not shown to users): se in futuro verranno
           // introdotti cookie non tecnici/di analisi o di terze parti,
@@ -201,7 +234,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "13. Modifiche all'Informativa",
+        title: "14. Modifiche all'Informativa",
         blocks: [
           {
             type: "p",
@@ -299,7 +332,7 @@ export const privacy: LegalDocByLang = {
           {
             type: "p",
             text:
-              "At present, the application and the data are hosted on a server operated directly by the controller: no third-party hosting or storage providers are involved as data processors. Data may be disclosed only:",
+              "At present, the application and the data are hosted on a server operated directly by the controller: no third-party hosting or storage providers are involved as data processors. This is without prejudice to the third-party mapping services described in section 7 below, which the User's browser contacts directly and which act as independent controllers. Data may be disclosed only:",
           },
           {
             type: "ul",
@@ -315,7 +348,40 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "7. Transfers outside the EU",
+        title: "7. Third-party mapping services",
+        blocks: [
+          {
+            type: "p",
+            text:
+              "The Service's map features (track display, nautical chart, nautical points of interest, address lookup) rely on public mapping services operated by third parties. Those services are contacted directly by the User's browser or app, without passing through the controller's servers: they therefore receive certain data on their own account and act as independent controllers, not as processors under art. 28 GDPR.",
+          },
+          {
+            type: "p",
+            text: "The services used, and the data they receive, are:",
+          },
+          {
+            type: "ul",
+            items: [
+              "OpenStreetMap Foundation (tile.openstreetmap.org) — base map: IP address, user agent and the coordinates of the map tiles displayed;",
+              "OpenSeaMap (tiles.openseamap.org) — optional nautical chart layer: IP address, user agent and the coordinates of the map tiles displayed, only if the User enables the layer;",
+              "Overpass API (overpass-api.de) — optional nautical points-of-interest layer: IP address, user agent and the coordinates of the map area in view, only if the User enables the layer;",
+              "Nominatim (nominatim.openstreetmap.org) — geocoding an address into coordinates: IP address, user agent and the address text searched for, only when the User presses the find-from-address button.",
+            ],
+          },
+          {
+            type: "p",
+            text:
+              "None of these requests is made until the User opens a screen containing a map (or, for the optional layers and geocoding, until the User explicitly enables them). These services set no cookies on the Service's domain. The legal basis is performance of the contract (art. 6(1)(b) GDPR) for the map features the User requested. Please refer to their respective policies: osmfoundation.org/wiki/Privacy_Policy for OpenStreetMap Foundation services (base map, Nominatim), and the terms published by OpenSeaMap and the Overpass API.",
+          },
+          {
+            type: "p",
+            text:
+              "Maps carry the attributions required by the respective licences: base data is © OpenStreetMap contributors, available under the Open Database License (ODbL); the nautical layer is © OpenSeaMap contributors.",
+          },
+        ],
+      },
+      {
+        title: "8. Transfers outside the EU",
         blocks: [
           {
             type: "p",
@@ -325,7 +391,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "8. Retention period",
+        title: "9. Retention period",
         blocks: [
           {
             type: "p",
@@ -335,7 +401,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "9. Data-subject rights",
+        title: "10. Data-subject rights",
         blocks: [
           {
             type: "p",
@@ -358,7 +424,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "10. Complaint to a supervisory authority",
+        title: "11. Complaint to a supervisory authority",
         blocks: [
           {
             type: "p",
@@ -368,7 +434,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "11. Minors",
+        title: "12. Minors",
         blocks: [
           {
             type: "p",
@@ -378,7 +444,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "12. Cookies and similar technologies",
+        title: "13. Cookies and similar technologies",
         blocks: [
           // DEVELOPER NOTE (not shown to users): if non-technical/analytics or
           // third-party cookies are introduced in future, update this section
@@ -392,7 +458,7 @@ export const privacy: LegalDocByLang = {
         ],
       },
       {
-        title: "13. Changes to this Policy",
+        title: "14. Changes to this Policy",
         blocks: [
           {
             type: "p",

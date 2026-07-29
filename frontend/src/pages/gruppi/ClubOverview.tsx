@@ -1,10 +1,18 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
+import { ExplorerMap } from "@/components/map/ExplorerMap";
 import { useClubContext } from "./ClubDetailLayout";
 
 export function ClubOverview() {
   const { t } = useTranslation();
   const { club, stationedBoats } = useClubContext();
+  // Stable identity: ExplorerMap re-centers whenever `center` changes, and a
+  // fresh object every render would fight the user's own panning/zooming.
+  const position = useMemo(
+    () => (club.lat != null && club.lng != null ? { lat: club.lat, lng: club.lng } : null),
+    [club.lat, club.lng],
+  );
 
   return (
     <>
@@ -19,6 +27,12 @@ export function ClubOverview() {
           )}
         </p>
       </Card>
+
+      {position && (
+        <Card title={t("gruppi.clubLocation")}>
+          <ExplorerMap center={position} zoom={14} marker={position} />
+        </Card>
+      )}
 
       {stationedBoats.length > 0 && (
         <Card title={t("gruppi.stationedBoats")}>

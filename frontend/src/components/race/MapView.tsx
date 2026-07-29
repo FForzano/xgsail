@@ -1,11 +1,16 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUp } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { useWindAt } from "@/hooks/useWindAt";
+import { createBaseLayers } from "@/components/map/baseLayers";
+import { MapLayerToggles } from "@/components/map/MapLayerToggles";
+import { useMapLayers } from "@/components/map/useMapLayers";
+import { useNauticalLayers } from "@/components/map/useNauticalLayers";
 import { fmtKnots } from "@/utils/format";
+import { escapeHtml } from "@/utils/html";
 import { MARK_ROLE_LETTERS } from "@/utils/markRoles";
 import type { MarkRole, TrueWindPoint, VmgPoint } from "@/types";
 import {
@@ -36,16 +41,8 @@ const MANEUVER_TYPE_CLASS: Record<string, string> = {
 };
 
 // Track/boat names are user-supplied data (boat.name) inserted into popup
-// innerHTML below — must be escaped, unlike the rest of popupContent which is
-// only translated strings and formatted numbers.
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+// innerHTML below — must be escaped (see utils/html's escapeHtml), unlike the
+// rest of popupContent which is only translated strings and formatted numbers.
 
 // Nearest track point to a click/drag, by plain lat/lon distance (only used
 // to pick "which fix", not a real distance — squared error is fine).
@@ -111,6 +108,7 @@ export function MapView({
   onMapClick,
   onOpenSession,
   showBoatInfo,
+  nautical = false,
 }: {
   tracks: Track[];
   marks?: MapMark[];
@@ -164,10 +162,17 @@ export function MapView({
    * more-than-one-track heuristic when the caller doesn't specify (race/
    * race-manage maps). */
   showBoatInfo?: boolean;
+  /** Offers the nautical overlays (OpenSeaMap chart, POIs, clubs) with their
+   * own toggle panel in the map's top-right slot. Off by default so maps that
+   * are purely about one recorded track stay uncluttered. */
+  nautical?: boolean;
 }) {
   const { t } = useTranslation();
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  // The same map instance as `mapRef`, but as state: the nautical-overlay
+  // hooks below have to re-run once the map exists, which a ref can't signal.
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const markersRef = useRef<Record<string, L.Marker>>({});
   const marksLayerRef = useRef<L.LayerGroup | null>(null);
   // Tracks currently being drag-scrubbed — the cursor-sync effect below
@@ -256,11 +261,9 @@ export function MapView({
       },
     });
     new RecenterControl({ position: "bottomright" }).addTo(map);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-      maxZoom: 19,
-    }).addTo(map);
+    createBaseLayers().base.addTo(map);
     mapRef.current = map;
+    setMapInstance(map);
 
     // Delegated listener (not bound per-popup) so it survives popupContent's
     // innerHTML being replaced on every drag tick (see the "drag" handler
@@ -437,6 +440,7 @@ export function MapView({
       container.removeEventListener("click", onContainerClick);
       map.remove();
       mapRef.current = null;
+      setMapInstance(null);
       markersRef.current = {};
       marksLayerRef.current = null;
       draggingRef.current.clear();
@@ -554,6 +558,9 @@ export function MapView({
     mapRef.current?.getContainer().classList.toggle(styles.pickMode, pickMode);
   }, [pickMode]);
 
+  const { layers, toggle } = useMapLayers();
+  useNauticalLayers(nautical ? mapInstance : null, layers);
+
   // Move position markers to the cursor time (skipping any mid-drag).
   useEffect(() => {
     cursorRef.current = cursor;
@@ -569,7 +576,12 @@ export function MapView({
   return (
     <div className={`${styles.map} ${variant === "session" ? styles.mapSession : ""}`}>
       <div ref={elRef} className={styles.surface} />
-      {mapOptions && <div className={styles.options}>{mapOptions}</div>}
+      {(mapOptions || nautical) && (
+        <div className={styles.options}>
+          {mapOptions}
+          {nautical && <MapLayerToggles layers={layers} onToggle={toggle} />}
+        </div>
+      )}
       {controls && <div className={styles.controls}>{controls}</div>}
       {displayWind?.twd_deg != null && (
         <div className={styles.wind} title={fmtKnots(displayWind.tws_kts)}>

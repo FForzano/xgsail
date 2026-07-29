@@ -4,9 +4,14 @@ import { toBlob } from "html-to-image";
  * a PNG blob at its own CSS pixel size — the node is already built at the
  * exact 1080x1920 export resolution, so pixelRatio stays at 1 rather than
  * multiplying by devicePixelRatio (which would just make the file bigger
- * without adding real detail). */
+ * without adding real detail).
+ *
+ * `cacheBust` stays off: it appends a bare `?<timestamp>` to every image URL,
+ * which invalidates the signature of a presigned S3 URL (the shape
+ * storage/object_store.py returns when a public endpoint is configured) and
+ * silently drops that image from the export. */
 export async function renderShareCardToBlob(node: HTMLElement): Promise<Blob> {
-  const blob = await toBlob(node, { pixelRatio: 1, cacheBust: true });
+  const blob = await toBlob(node, { pixelRatio: 1, cacheBust: false });
   if (!blob) throw new Error("Image generation failed");
   return blob;
 }

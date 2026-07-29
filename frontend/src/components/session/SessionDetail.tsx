@@ -768,6 +768,7 @@ export function SessionDetail({
         ) : (
           <div className="sf-section__body">
             <MapView
+              nautical
               tracks={tracks}
               marks={marks}
               variant="session"
@@ -1152,7 +1153,7 @@ export function SessionDetail({
           data={{
             boatName: boat?.name ?? t("sessions.boat"),
             boatPhotoUrl: boat?.photos[0]?.url ?? null,
-            trackThumbUrl: s.thumbnail?.url ?? null,
+            track: tracks[0] ?? null,
             startedAt: s.started_at,
             stats: stats.data ?? null,
             crew: crew.data ?? [],

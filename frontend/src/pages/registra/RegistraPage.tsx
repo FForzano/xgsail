@@ -22,6 +22,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { devicesService, deviceKeys, XGSAIL_E1_PARSER_KEY } from "@/services/devices";
 import { useE1Device } from "@/hooks/useE1Device";
 import { NavModeOverlay } from "@/components/registra/NavModeOverlay";
+import { ExplorerMap } from "@/components/map/ExplorerMap";
 import type { Device, UUID } from "@/types";
 
 const STANDALONE = "" as const; // empty select value = "uscita singola"
@@ -31,10 +32,12 @@ function ActivityPicker({
   id,
   value,
   onChange,
+  disabled,
 }: {
   id: string;
   value: string;
   onChange: (v: string) => void;
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const activities = useQuery({
@@ -42,7 +45,13 @@ function ActivityPicker({
     queryFn: () => activitiesService.list({ mine: true }),
   });
   return (
-    <Select label={t("registra.linkTo")} id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+    <Select
+      label={t("registra.linkTo")}
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+    >
       <option value={STANDALONE}>{t("registra.standalone")}</option>
       {activities.data?.map((a) => (
         <option key={a.id} value={a.id}>
@@ -347,6 +356,11 @@ function E1RecordingControl({
 export function RegistraPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  // Recording needs a background-geolocation foreground service, which only
+  // exists in the native builds (see services/nativeRecording.ts). The web
+  // build still gets this page for the exploration map, with the recording
+  // controls visible but inert so it's clear what the app adds.
+  const native = Capacitor.isNativePlatform();
   const { recordings, refresh } = nativeRecording.useRecordings();
   const [boatId, setBoatId] = useState("");
   const [activityId, setActivityId] = useState<string>(STANDALONE);
@@ -367,7 +381,7 @@ export function RegistraPage() {
   const devicesQuery = useQuery({
     queryKey: deviceKeys.all,
     queryFn: devicesService.list,
-    enabled: Capacitor.isNativePlatform(),
+    enabled: native,
   });
   const e1Devices = (devicesQuery.data ?? []).filter(
     (d) =>
@@ -498,6 +512,14 @@ export function RegistraPage() {
 
   return (
     <>
+      {/* Exploration map: shown whenever nothing is being recorded, on web
+          and native alike. During a recording the page is about the recording
+          itself (and NavModeOverlay takes over the screen anyway). */}
+      {!active && (
+        <Card title={t("registra.explorerTitle")}>
+          <ExplorerMap />
+        </Card>
+      )}
       <Card title={t("registra.title")}>
         {active ? (
           <>
@@ -555,12 +577,14 @@ export function RegistraPage() {
                 ))}
               </Select>
             )}
+            {!native && <p className="sf-muted">{t("registra.webUnsupported")}</p>}
             <Select
               label={t("sessions.importBoat")}
               id="registra-boat"
               value={boatId}
               onChange={(e) => setBoatId(e.target.value)}
               required
+              disabled={!native}
             >
               <option value="" disabled>
                 …
@@ -571,7 +595,12 @@ export function RegistraPage() {
                 </option>
               ))}
             </Select>
-            <ActivityPicker id="registra-activity" value={activityId} onChange={setActivityId} />
+            <ActivityPicker
+              id="registra-activity"
+              value={activityId}
+              onChange={setActivityId}
+              disabled={!native}
+            />
             {selectedE1Device ? (
               <E1RecordingControl device={selectedE1Device} boatId={boatId} activityId={activityId} />
             ) : (
@@ -580,7 +609,7 @@ export function RegistraPage() {
                   <Button
                     className="sf-btn--icon"
                     onClick={() => void onStart()}
-                    disabled={!boatId}
+                    disabled={!native || !boatId}
                     aria-label={t("registra.start")}
                   >
                     <Disc size={22} strokeWidth={1.75} />

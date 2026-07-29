@@ -1,0 +1,17 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+/* Shorter than a standalone explorer map — inside a form it's a field, not
+   the page's subject. */
+.map {
+  height: 240px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}

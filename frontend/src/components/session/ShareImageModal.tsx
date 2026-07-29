@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { ColorPicker } from "@/components/ui/ColorPicker";
 import { Spinner } from "@/components/ui/Spinner";
+import { usePersistentState } from "@/hooks/usePersistentState";
 import { useToast } from "@/hooks/useToast";
 import { renderShareCardToBlob, shareOrDownloadImage } from "@/utils/shareImage";
 import { ShareCard, type ShareCardData } from "./ShareCard";
@@ -12,6 +14,11 @@ const CARD_WIDTH = 1080;
 const CARD_HEIGHT = 1920;
 const PREVIEW_WIDTH = 260;
 const PREVIEW_SCALE = PREVIEW_WIDTH / CARD_WIDTH;
+
+// Design-system colors plus plain white/black, which are what actually work
+// on an arbitrary photo. The free `<input type="color">` covers the rest.
+const TEXT_PRESETS = ["#ffffff", "#0b1f33", "#2f9be0", "#e0b24a"];
+const TRACK_PRESETS = ["#ff9500", "#ffffff", "#2f9be0", "#3fbf7f", "#e05a5a"];
 
 /** Lets the user pick what shows up in a shareable image of their session
  * (see ShareCard) and then share it via the native share sheet or download
@@ -27,6 +34,10 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
   const [includeTitle, setIncludeTitle] = useState(true);
   const [includeCrew, setIncludeCrew] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Remembered per device: whoever settled on a look for their shares keeps
+  // it for the next session without re-picking.
+  const [textColor, setTextColor] = usePersistentState("xgsail.share.textColor", "#ffffff");
+  const [trackColor, setTrackColor] = usePersistentState("xgsail.share.trackColor", "#ff9500");
   // Swaps in a photo taken/picked just for this share (never uploaded to the
   // session) — `capture="environment"` opens the camera directly on mobile,
   // falls back to a plain file picker elsewhere. Local object URL, revoked
@@ -63,6 +74,8 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
             includeStats={includeStats}
             includeTitle={includeTitle}
             includeCrew={includeCrew}
+            textColor={textColor}
+            trackColor={trackColor}
           />
         </div>
       </div>
@@ -114,6 +127,20 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
           <input type="checkbox" checked={includeCrew} onChange={(e) => setIncludeCrew(e.target.checked)} />
           {t("sessions.shareImage.includeCrew")}
         </label>
+      </div>
+      <div className={styles.colors}>
+        <ColorPicker
+          label={t("sessions.shareImage.textColor")}
+          value={textColor}
+          presets={TEXT_PRESETS}
+          onChange={setTextColor}
+        />
+        <ColorPicker
+          label={t("sessions.shareImage.trackColor")}
+          value={trackColor}
+          presets={TRACK_PRESETS}
+          onChange={setTrackColor}
+        />
       </div>
       <Button onClick={handleShare} disabled={busy}>
         {busy ? <Spinner inline /> : t("sessions.shareImage.cta")}

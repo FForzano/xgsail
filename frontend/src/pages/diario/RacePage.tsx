@@ -115,7 +115,7 @@ export function RacePage() {
       ) : (
         <div className={styles.race}>
           <div className="sf-section__body">
-            <MapView tracks={tracks} marks={mapMarks} />
+            <MapView tracks={tracks} marks={mapMarks} nautical />
             <Timeline />
             <SpeedChart tracks={tracks} />
           </div>

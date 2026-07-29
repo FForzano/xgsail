@@ -170,8 +170,16 @@ export interface Club {
   id: UUID;
   name: string;
   description: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
   city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
   country: string | null;
+  /** Where the club sits on the map — optional, set from the club edit form's
+   * location picker (see components/map/LocationPicker). */
+  lat: number | null;
+  lng: number | null;
   website: string | null;
   contact_email: string | null;
   founded_year: number | null;

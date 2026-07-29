@@ -230,7 +230,11 @@
     "revokeConfirm": "Revoke this device? It will no longer be able to upload.",
     "forget": "Forget device",
     "forgetConfirm": "Forget this device? It will no longer appear in your device list. Its recorded sessions stay untouched.",
-    "status": { "unclaimed": "Unclaimed", "claimed": "Claimed", "revoked": "Revoked" },
+    "status": {
+      "unclaimed": "Unclaimed",
+      "claimed": "Claimed",
+      "revoked": "Revoked"
+    },
     "empty": "No devices yet — claim your first device.",
     "externalId": "Hardware ID",
     "add": {
@@ -429,7 +433,11 @@
     },
     "memberCount_one": "{{count}} member",
     "memberCount_other": "{{count}} members",
-    "pendingOnly": "Pending only"
+    "pendingOnly": "Pending only",
+    "clubLocation": "Location",
+    "clubLocationHint": "Click the map or drag the pin to set where the club is.",
+    "findFromAddress": "Find from address",
+    "addressNotFound": "Address not found"
   },
   "sessions": {
     "title": "My sessions",
@@ -533,6 +541,8 @@
       "takePhoto": "Take/choose photo",
       "retakePhoto": "Change photo",
       "cta": "Share",
+      "textColor": "Text color",
+      "trackColor": "Track color",
       "downloaded": "Image downloaded"
     },
     "menuSectionTrack": "Track",
@@ -559,6 +569,26 @@
     },
     "target": "Target",
     "optimalAnglesNote": "From your recorded performance in this session (not the boat's reference polar)."
+  },
+  "map": {
+    "layers": {
+      "title": "Map layers",
+      "seamark": "Nautical chart",
+      "poi": "Points of interest",
+      "clubs": "Clubs"
+    },
+    "poi": {
+      "marina": "Marina",
+      "harbour": "Harbour",
+      "anchorage": "Anchorage",
+      "slipway": "Slipway",
+      "sailing_club": "Sailing club",
+      "sports_area": "Sports area",
+      "fuel": "Fuel"
+    },
+    "openClub": "Open club page",
+    "locate": "Center on my location",
+    "locateError": "Location unavailable"
   },
   "registra": {
     "title": "Record a GPS track",
@@ -630,13 +660,19 @@
       },
       "wakeLockUnavailable": "This phone won't let the screen stay on: set a longer display timeout in your settings.",
       "lowPowerMode": "Power saving mode is on: the phone may throttle updates or turn the screen off anyway."
-    }
+    },
+    "explorerTitle": "Explore",
+    "webUnsupported": "GPS recording is only available in the iOS and Android apps: browsers can't access location in the background. You can still explore the map from here."
   },
   "activities": {
     "title": "Activities",
     "backToActivities": "Back to all activities",
     "type": "Type",
-    "types": { "race": "Race", "training": "Training", "solo": "Solo" },
+    "types": {
+      "race": "Race",
+      "training": "Training",
+      "solo": "Solo"
+    },
     "visibility": {
       "public": "Public",
       "club": "Club",

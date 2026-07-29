@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Capacitor } from "@capacitor/core";
 import { Disc, NotebookText, Settings, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useShareTarget } from "@/hooks/useShareTarget";
@@ -107,12 +106,11 @@ function AppShellInner() {
 
   const sections = [
     { to: "/diario", label: t("nav.diario"), Icon: NotebookText, dataTour: "nav-diario" },
-    // Native-only: recording a GPS track directly from the phone (with the
-    // screen locked) has no equivalent on the web, which has no background
-    // GPS/foreground-service access — see services/nativeRecording.ts.
-    ...(Capacitor.isNativePlatform()
-      ? [{ to: "/registra", label: t("nav.registra"), Icon: Disc, dataTour: undefined }]
-      : []),
+    // Available everywhere for the exploration map (nautical chart, POIs,
+    // clubs). Recording itself stays native-only — the web has no background
+    // GPS/foreground-service access (see services/nativeRecording.ts), so on
+    // web the page shows the map with the recording controls disabled.
+    { to: "/registra", label: t("nav.registra"), Icon: Disc, dataTour: undefined },
     { to: "/gruppi", label: t("nav.gruppi"), Icon: Users, dataTour: "nav-gruppi" },
     // Icon unused for /profilo (the action bar always shows the Avatar for
     // it instead, see below) — kept only so every section has the same

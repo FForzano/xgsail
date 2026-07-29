@@ -453,6 +453,7 @@ export function ActivityDetailPage() {
               <div className="sf-section__body">
                 {pickingMarkOnMap && <p className="sf-muted sf-card__pad">{t("activities.pickOnMapHint")}</p>}
                 <MapView
+                  nautical
                   tracks={tracks}
                   marks={mapMarksWithPreview}
                   wind={

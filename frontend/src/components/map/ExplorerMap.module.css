@@ -1,0 +1,80 @@
+/* Same frame and Leaflet-containment treatment as components/race/MapView.
+   Height is intentionally taller than the replay map's: this one is the page's
+   subject, not a panel next to charts. */
+.map {
+  height: clamp(320px, 55vh, 560px);
+  border-radius: var(--sf-radius);
+  border: 1px solid var(--sf-border);
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+.map :global(.leaflet-container) {
+  height: 100%;
+  width: 100%;
+  background: #e9e5dc;
+  cursor: grab;
+}
+.surface {
+  position: absolute;
+  inset: 0;
+}
+
+/* Zoom control restyled the same way MapView does (bottom-right, small,
+   horizontal) so the two maps don't look like different apps. */
+.map :global(.leaflet-control-zoom) {
+  display: flex;
+  flex-direction: row;
+  border: none;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.map :global(.leaflet-control-zoom) a {
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  font-size: 14px;
+  border-bottom: none;
+}
+.map :global(.leaflet-control-zoom-in) {
+  border-right: 1px solid var(--sf-border);
+}
+
+.options {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+}
+.locate {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+}
+/* Opaque chrome regardless of the tile behind it — same reasoning as
+   MapView's .options button treatment. */
+.options :global(.sf-btn),
+.locate :global(.sf-btn) {
+  background: rgba(20, 50, 77, 0.85);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.options :global(.sf-btn):hover:not(:disabled),
+.locate :global(.sf-btn):hover:not(:disabled) {
+  background: rgba(20, 50, 77, 1);
+}
+
+/* Picker pin: a plain dot, since the picked point is a coordinate rather than
+   a place with a category (unlike the POI/club pins). */
+.pinDot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sf-primary);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}

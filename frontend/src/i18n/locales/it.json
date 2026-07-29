@@ -230,7 +230,11 @@
     "revokeConfirm": "Revocare questo dispositivo? Non potrà più caricare dati.",
     "forget": "Dimentica dispositivo",
     "forgetConfirm": "Dimenticare questo dispositivo? Non comparirà più nel tuo elenco dispositivi. Le sessioni già registrate restano intatte.",
-    "status": { "unclaimed": "Non registrato", "claimed": "Registrato", "revoked": "Revocato" },
+    "status": {
+      "unclaimed": "Non registrato",
+      "claimed": "Registrato",
+      "revoked": "Revocato"
+    },
     "empty": "Nessun dispositivo — registra il tuo primo dispositivo.",
     "externalId": "ID hardware",
     "add": {
@@ -429,7 +433,11 @@
     },
     "memberCount_one": "{{count}} membro",
     "memberCount_other": "{{count}} membri",
-    "pendingOnly": "Solo in sospeso"
+    "pendingOnly": "Solo in sospeso",
+    "clubLocation": "Posizione",
+    "clubLocationHint": "Clicca sulla mappa o trascina il segnaposto per indicare dove si trova il circolo.",
+    "findFromAddress": "Trova da indirizzo",
+    "addressNotFound": "Indirizzo non trovato"
   },
   "sessions": {
     "title": "Le mie sessioni",
@@ -533,6 +541,8 @@
       "takePhoto": "Scatta/scegli foto",
       "retakePhoto": "Cambia foto",
       "cta": "Condividi",
+      "textColor": "Colore testo",
+      "trackColor": "Colore tracciato",
       "downloaded": "Immagine scaricata"
     },
     "menuSectionTrack": "Traccia",
@@ -559,6 +569,26 @@
     },
     "target": "Target",
     "optimalAnglesNote": "Dalla tua performance registrata in questa sessione (non dal polare della barca)."
+  },
+  "map": {
+    "layers": {
+      "title": "Livelli mappa",
+      "seamark": "Carta nautica",
+      "poi": "Punti d'interesse",
+      "clubs": "Circoli"
+    },
+    "poi": {
+      "marina": "Marina",
+      "harbour": "Porto",
+      "anchorage": "Ancoraggio",
+      "slipway": "Scivolo di alaggio",
+      "sailing_club": "Circolo velico",
+      "sports_area": "Area sportiva",
+      "fuel": "Rifornimento"
+    },
+    "openClub": "Apri scheda circolo",
+    "locate": "Centra sulla mia posizione",
+    "locateError": "Posizione non disponibile"
   },
   "registra": {
     "title": "Registra traccia GPS",
@@ -630,13 +660,19 @@
       },
       "wakeLockUnavailable": "Questo telefono non consente di tenere lo schermo sempre acceso: imposta un timeout più lungo nelle impostazioni display.",
       "lowPowerMode": "Risparmio energetico attivo: il telefono potrebbe limitare l'aggiornamento dei dati o spegnere lo schermo comunque."
-    }
+    },
+    "explorerTitle": "Esplora",
+    "webUnsupported": "La registrazione GPS è disponibile solo nelle app iOS e Android: sul web il browser non può accedere alla posizione in background. Da qui puoi comunque esplorare la mappa."
   },
   "activities": {
     "title": "Attività",
     "backToActivities": "Torna a tutte le attività",
     "type": "Tipo",
-    "types": { "race": "Regata", "training": "Allenamento", "solo": "Solo" },
+    "types": {
+      "race": "Regata",
+      "training": "Allenamento",
+      "solo": "Solo"
+    },
     "visibility": {
       "public": "Pubblica",
       "club": "Circolo",

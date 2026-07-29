@@ -70,8 +70,8 @@ export default function App() {
           <Route path="/diario/regate/race/:raceId" element={<RacePage />} />
           <Route path="/diario/regate/regatta/:regattaId" element={<RegattaDetailPage />} />
 
-          {/* Native-only — see AppShell's Capacitor.isNativePlatform() gate;
-              the route itself is harmless on web (just unreachable). */}
+          {/* Everywhere: the exploration map works on web too, only the
+              recording controls are native-gated (see RegistraPage). */}
           <Route path="/registra" element={<RegistraPage />} />
 
           <Route path="/gruppi" element={<GruppiLayout />}>

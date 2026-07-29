@@ -22,6 +22,12 @@
   gap: 0.6rem;
   font-size: 0.9rem;
 }
+.colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
 .takePhotoBtn {
   align-self: flex-start;
   margin: -0.2rem 0 0.2rem 1.7rem;

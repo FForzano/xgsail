@@ -1,0 +1,47 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.swatches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid var(--sf-border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.swatch.selected {
+  border-color: var(--sf-text);
+  box-shadow: 0 0 0 2px var(--sf-bg);
+}
+/* Strip the native swatch chrome so the free picker reads as one more circle
+   in the row rather than a platform-styled button. */
+.custom {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px dashed var(--sf-border);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.custom::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.custom::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+.custom::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
