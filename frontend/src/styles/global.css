@@ -131,6 +131,10 @@ body.sf-nav-mode .sf-shell {
 .sf-main--wide {
   max-width: none;
 }
+.sf-main--bleed {
+  max-width: none;
+  padding: 0;
+}
 
 .sf-navbar {
   display: flex;
@@ -316,6 +320,9 @@ body.sf-nav-mode .sf-shell {
   /* Keep content clear of the fixed bar. */
   .sf-main {
     padding-bottom: calc(var(--sf-actionbar-h) + 2rem);
+  }
+  .sf-main--bleed {
+    padding-bottom: 0;
   }
   .sf-toasts {
     bottom: calc(var(--sf-actionbar-h) + env(safe-area-inset-bottom, 0px) + 1rem);

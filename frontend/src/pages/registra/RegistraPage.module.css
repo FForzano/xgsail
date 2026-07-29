@@ -1,0 +1,35 @@
+.page {
+  height: 100%;
+}
+
+.fab {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+}
+
+.statusPanel {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  background: rgba(20, 50, 77, 0.9);
+  color: #fff;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  max-width: calc(100% - 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (max-width: 600px) {
+  .fab,
+  .statusPanel {
+    bottom: calc(var(--sf-actionbar-h, 60px) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+}
