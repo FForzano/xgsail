@@ -9,6 +9,11 @@
   position: relative;
   isolation: isolate;
 }
+.mapFill {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+}
 .map :global(.leaflet-container) {
   height: 100%;
   width: 100%;

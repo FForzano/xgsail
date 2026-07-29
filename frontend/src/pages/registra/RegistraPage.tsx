@@ -18,12 +18,14 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Spinner } from "@/components/ui/Spinner";
 import { devicesService, deviceKeys, XGSAIL_E1_PARSER_KEY } from "@/services/devices";
 import { useE1Device } from "@/hooks/useE1Device";
 import { NavModeOverlay } from "@/components/registra/NavModeOverlay";
 import { ExplorerMap } from "@/components/map/ExplorerMap";
 import type { Device, UUID } from "@/types";
+import styles from "./RegistraPage.module.css";
 
 const STANDALONE = "" as const; // empty select value = "uscita singola"
 const PHONE_SOURCE = "phone" as const; // recording source select: this phone's own GPS
@@ -370,6 +372,7 @@ export function RegistraPage() {
   const [, setTick] = useState(0);
   const [online, setOnline] = useState(true);
   const [navMode, setNavMode] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const upload = useImportUpload();
 
   const boats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
@@ -482,6 +485,7 @@ export function RegistraPage() {
     try {
       const id = await nativeRecording.start(boatId as UUID, activityId ? (activityId as UUID) : null);
       setActiveId(id);
+      setSheetOpen(false);
       refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -510,124 +514,138 @@ export function RegistraPage() {
     if (stopped) void attemptUpload(stopped);
   };
 
+  const pendingRecordingCount = recordings.filter(
+    (r) => r.id !== activeId && (r.status === "stopped" || r.status === "failed" || r.status === "uploading"),
+  ).length;
+
   return (
-    <>
-      {/* Exploration map: shown whenever nothing is being recorded, on web
-          and native alike. During a recording the page is about the recording
-          itself (and NavModeOverlay takes over the screen anyway). */}
+    <div className={styles.page}>
+      {/* Full-height map, always mounted */}
+      <ExplorerMap fill className={styles.mapContainer} />
+
+      {/* FAB: record button when idle */}
       {!active && (
-        <Card title={t("registra.explorerTitle")}>
-          <ExplorerMap />
-        </Card>
+        <button
+          type="button"
+          className={`sf-btn sf-btn--icon ${styles.fab}`}
+          onClick={() => setSheetOpen(true)}
+          aria-label={t("registra.start")}
+        >
+          <Disc size={24} strokeWidth={1.75} />
+          {pendingRecordingCount > 0 && <span className="sf-nav-dot sf-nav-dot--floating" aria-hidden />}
+        </button>
       )}
-      <Card title={t("registra.title")}>
-        {active ? (
-          <>
-            <p className="sf-badge sf-badge--success">
-              {t(active.status === "paused" ? "registra.status.paused" : "registra.recording")}
-            </p>
-            <p className="sf-field__label">{elapsedLabel(active.startedAt)}</p>
-            <div className="sf-form__actions">
-              {active.status === "paused" ? (
-                <Button className="sf-btn--icon" onClick={() => void onResume()} aria-label={t("registra.resume")}>
-                  <Play size={22} strokeWidth={1.75} />
-                </Button>
-              ) : (
-                <Button
-                  className="sf-btn--icon"
-                  variant="ghost"
-                  onClick={() => void onPause()}
-                  aria-label={t("registra.pause")}
-                >
-                  <Pause size={22} strokeWidth={1.75} />
-                </Button>
-              )}
+
+      {/* Status panel: floating controls during an active recording */}
+      {active && (
+        <div className={styles.statusPanel}>
+          <p className="sf-badge sf-badge--success">
+            {t(active.status === "paused" ? "registra.status.paused" : "registra.recording")}
+          </p>
+          <p style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700 }}>
+            {elapsedLabel(active.startedAt)}
+          </p>
+          <div className="sf-form__actions">
+            {active.status === "paused" ? (
+              <Button className="sf-btn--icon" onClick={() => void onResume()} aria-label={t("registra.resume")}>
+                <Play size={22} strokeWidth={1.75} />
+              </Button>
+            ) : (
               <Button
                 className="sf-btn--icon"
-                variant="danger"
-                onClick={() => void onStop()}
-                aria-label={t("registra.stop")}
+                variant="ghost"
+                onClick={() => void onPause()}
+                aria-label={t("registra.pause")}
               >
-                <Square size={22} strokeWidth={1.75} />
+                <Pause size={22} strokeWidth={1.75} />
               </Button>
-            </div>
-            {/* Only offered for a phone-GPS recording, which is the only kind
-                that produces an `active` entry — an E1 records on board and
-                gives this phone no live fix to display. */}
-            <div className="sf-form__actions">
-              <Button onClick={() => setNavMode(true)}>
-                <Gauge size={18} strokeWidth={1.75} /> {t("registra.nav.enter")}
-              </Button>
-            </div>
-          </>
+            )}
+            <Button
+              className="sf-btn--icon"
+              variant="danger"
+              onClick={() => void onStop()}
+              aria-label={t("registra.stop")}
+            >
+              <Square size={22} strokeWidth={1.75} />
+            </Button>
+          </div>
+          <div className="sf-form__actions">
+            <Button onClick={() => setNavMode(true)}>
+              <Gauge size={18} strokeWidth={1.75} /> {t("registra.nav.enter")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom sheet: pre-recording form */}
+      <BottomSheet open={sheetOpen && !active} onClose={() => setSheetOpen(false)} title={t("registra.title")}>
+        {e1Devices.length > 0 && (
+          <Select
+            label={t("registra.source.label")}
+            id="registra-source"
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+          >
+            <option value={PHONE_SOURCE}>{t("registra.source.phone")}</option>
+            {e1Devices.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.nickname ?? d.external_id ?? d.id.slice(0, 8)}
+              </option>
+            ))}
+          </Select>
+        )}
+        {!native && <p className="sf-muted">{t("registra.webUnsupported")}</p>}
+        <Select
+          label={t("sessions.importBoat")}
+          id="registra-boat"
+          value={boatId}
+          onChange={(e) => setBoatId(e.target.value)}
+          required
+          disabled={!native}
+        >
+          <option value="" disabled>
+            …
+          </option>
+          {boats.data?.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </Select>
+        <ActivityPicker
+          id="registra-activity"
+          value={activityId}
+          onChange={setActivityId}
+          disabled={!native}
+        />
+        {selectedE1Device ? (
+          <E1RecordingControl device={selectedE1Device} boatId={boatId} activityId={activityId} />
         ) : (
           <>
-            {e1Devices.length > 0 && (
-              <Select
-                label={t("registra.source.label")}
-                id="registra-source"
-                value={source}
-                onChange={(e) => setSource(e.target.value)}
+            <div className="sf-form__actions">
+              <Button
+                className="sf-btn--icon"
+                onClick={() => void onStart()}
+                disabled={!native || !boatId}
+                aria-label={t("registra.start")}
               >
-                <option value={PHONE_SOURCE}>{t("registra.source.phone")}</option>
-                {e1Devices.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.nickname ?? d.external_id ?? d.id.slice(0, 8)}
-                  </option>
-                ))}
-              </Select>
-            )}
-            {!native && <p className="sf-muted">{t("registra.webUnsupported")}</p>}
-            <Select
-              label={t("sessions.importBoat")}
-              id="registra-boat"
-              value={boatId}
-              onChange={(e) => setBoatId(e.target.value)}
-              required
-              disabled={!native}
-            >
-              <option value="" disabled>
-                …
-              </option>
-              {boats.data?.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </Select>
-            <ActivityPicker
-              id="registra-activity"
-              value={activityId}
-              onChange={setActivityId}
-              disabled={!native}
-            />
-            {selectedE1Device ? (
-              <E1RecordingControl device={selectedE1Device} boatId={boatId} activityId={activityId} />
-            ) : (
-              <>
-                <div className="sf-form__actions">
-                  <Button
-                    className="sf-btn--icon"
-                    onClick={() => void onStart()}
-                    disabled={!native || !boatId}
-                    aria-label={t("registra.start")}
-                  >
-                    <Disc size={22} strokeWidth={1.75} />
-                  </Button>
-                </div>
-                <p className="sf-muted">{t("registra.batteryHint")}</p>
-                {error && error !== ERROR_PERMISSION_DENIED && error !== ERROR_LOCATION_SERVICES_DISABLED && (
-                  <p className="sf-form__error">{recordingErrorMessage(t, error)}</p>
-                )}
-              </>
+                <Disc size={22} strokeWidth={1.75} />
+              </Button>
+            </div>
+            <p className="sf-muted">{t("registra.batteryHint")}</p>
+            {error && error !== ERROR_PERMISSION_DENIED && error !== ERROR_LOCATION_SERVICES_DISABLED && (
+              <p className="sf-form__error">{recordingErrorMessage(t, error)}</p>
             )}
           </>
         )}
-      </Card>
-      {/* Rendered only while a recording is actually active, so a GPS
-          permission failure — which nulls `activeId` in the effect above —
-          also tears the overlay down on its own, releasing the wake lock and
-          resuming the suspended background work with no extra handling. */}
+        {/* Pending recordings list inside the sheet */}
+        {recordings.filter((r) => r.id !== activeId).map((r) => (
+          <RecordingRow key={r.id} recording={r} online={online} onChanged={refresh} />
+        ))}
+        {recordings.length === 0 && !active && <p className="sf-muted">{t("registra.empty")}</p>}
+      </BottomSheet>
+
+      {/* Navigation mode overlay */}
       {navMode && active && (
         <NavModeOverlay
           recording={active}
@@ -637,15 +655,11 @@ export function RegistraPage() {
           onExit={() => setNavMode(false)}
         />
       )}
+
+      {/* GPS error modal */}
       {(error === ERROR_PERMISSION_DENIED || error === ERROR_LOCATION_SERVICES_DISABLED) && (
         <GpsErrorModal error={error} onClose={() => setError(null)} />
       )}
-      {recordings
-        .filter((r) => r.id !== activeId)
-        .map((r) => (
-          <RecordingRow key={r.id} recording={r} online={online} onChanged={refresh} />
-        ))}
-      {recordings.length === 0 && !active && <p className="sf-muted">{t("registra.empty")}</p>}
-    </>
+    </div>
   );
 }

@@ -169,7 +169,7 @@ function AppShellInner() {
           email={user?.email}
         />
       </header>
-      <main className="sf-main" ref={mainRef}>
+      <main className={`sf-main ${location.pathname === "/registra" ? "sf-main--bleed" : ""}`} ref={mainRef}>
         {/* SectionLayout renders the actual reveal strip, below its own tab
             bar — see PullRefreshIndicator/PullRefreshContext. Routes outside
             SectionLayout (Registra, race/regatta detail) don't show one;

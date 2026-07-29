@@ -40,6 +40,7 @@ export function ExplorerMap({
   zoom,
   marker,
   onPick,
+  fill,
 }: {
   className?: string;
   /** Initial center; falls back to the last view this device looked at. */
@@ -50,6 +51,8 @@ export function ExplorerMap({
   /** Enables picker mode: clicking the map or dragging the pin reports a
    * position. Omit for a read-only map. */
   onPick?: (lat: number, lng: number) => void;
+  /** Full-height, edge-to-edge variant (e.g. for a full-screen map page). */
+  fill?: boolean;
 }) {
   const { t } = useTranslation();
   const elRef = useRef<HTMLDivElement>(null);
@@ -161,7 +164,7 @@ export function ExplorerMap({
   };
 
   return (
-    <div className={`${styles.map} ${className}`}>
+    <div className={`${styles.map} ${fill ? styles.mapFill : ""} ${className}`}>
       <div ref={elRef} className={styles.surface} />
       <div className={styles.options}>
         <MapLayerToggles layers={layers} onToggle={toggle} />
