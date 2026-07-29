@@ -72,9 +72,8 @@
 .inner.expanded .card {
   display: flex;
 }
-.inner.expanded .tail {
-  border-top-color: rgba(10, 24, 38, 0.95);
-}
+/* .tail stays its default white in both states — same color as .card's own
+   border, so the pin's collapsed and expanded halves read as one shape. */
 .cardHead {
   display: flex;
   align-items: center;
