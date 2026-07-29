@@ -60,9 +60,16 @@
   line-height: 22px;
   font-size: 14px;
   border-bottom: none;
+  /* Leaflet's own white default reads as a foreign control next to
+     .options/.locate's navy circles — same chrome color as those. */
+  background: rgba(20, 50, 77, 0.85);
+  color: #fff;
+}
+.map :global(.leaflet-control-zoom) a:hover {
+  background: rgba(20, 50, 77, 1);
 }
 .map :global(.leaflet-control-zoom-in) {
-  border-right: 1px solid var(--sf-border);
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .options {

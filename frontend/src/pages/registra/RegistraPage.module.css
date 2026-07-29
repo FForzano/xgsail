@@ -34,7 +34,10 @@
   border-radius: 12px;
   padding: 1rem 1.25rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  max-width: calc(100% - 2rem);
+  /* Near-full width on a phone; capped so it doesn't stretch edge-to-edge
+     on a tablet/desktop viewport. */
+  width: calc(100% - 2rem);
+  max-width: 480px;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

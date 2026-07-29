@@ -527,7 +527,7 @@ export function RegistraPage() {
       {!active && (
         <button
           type="button"
-          className={`sf-btn sf-btn--icon ${styles.fab}`}
+          className={`sf-btn sf-btn--icon sf-btn--danger ${styles.fab}`}
           data-tour="registra-record"
           onClick={() => setSheetOpen(true)}
           aria-label={t("registra.start")}

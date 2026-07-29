@@ -56,11 +56,13 @@
   display: none;
   flex-direction: column;
   gap: 0.4rem;
-  max-width: 260px;
-  padding: 0.5rem 0.6rem;
+  width: 300px;
+  padding: 0.6rem 0.75rem;
   border-radius: var(--sf-radius);
   background: rgba(10, 24, 38, 0.95);
-  border: 1px solid var(--sf-border);
+  /* Same white the collapsed badge/tail are ringed in (see .badge, .tail) —
+     one pin, one border color, whichever half is showing. */
+  border: 1px solid #fff;
   color: #fff;
   text-align: left;
 }
