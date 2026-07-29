@@ -6,7 +6,17 @@ import { Button } from "@/components/ui/Button";
 import { getCroppedImageBlob } from "@/utils/cropImage";
 
 /** Lets the user pan/zoom a crop of `imageSrc` before it's used.
- * `imageSrc` must be an object URL owned by the caller (revoked on close).
+ * `imageSrc` must be an object URL owned by the caller (revoked on close) —
+ * except when it's an already-hosted photo the caller is re-cropping in
+ * place (see ShareImageModal's "Ritaglia foto" on the default boat photo),
+ * where it's the remote URL itself and there's nothing to revoke.
+ *
+ * That remote case is also the only one where "Apply" can fail: cropImage.ts
+ * loads with crossOrigin="anonymous" so the canvas can read pixels back out,
+ * which needs the host to send CORS headers (true for this app's own MinIO/S3
+ * bucket in every deployment this modal ships against, but not guaranteed for
+ * an arbitrary photo host) — shown inline rather than left as a silently
+ * stuck "…" button.
  *
  * Square and round by default — that's the avatar/logo case every uploader
  * goes through (see ImageUploader). The share card passes its own 9:16 frame
@@ -16,6 +26,7 @@ export function ImageCropModal({
   imageSrc,
   onCancel,
   onCropped,
+  title,
   aspect = 1,
   cropShape = "round",
   outputWidth = 512,
@@ -25,6 +36,9 @@ export function ImageCropModal({
   imageSrc: string;
   onCancel: () => void;
   onCropped: (blob: Blob) => void;
+  /** Defaults to the profile-picture wording, which is wrong for every other
+   * caller (boat/club photos, the share card) — pass this explicitly there. */
+  title?: string;
   aspect?: number;
   cropShape?: "round" | "rect";
   outputWidth?: number;
@@ -37,6 +51,7 @@ export function ImageCropModal({
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const onCropComplete = useCallback((_area: Area, areaPixels: Area) => {
     setCroppedArea(areaPixels);
@@ -45,12 +60,18 @@ export function ImageCropModal({
   const confirm = async () => {
     if (!croppedArea) return;
     setBusy(true);
-    const blob = await getCroppedImageBlob(imageSrc, croppedArea, outputWidth, outputHeight);
-    onCropped(blob);
+    setError(null);
+    try {
+      const blob = await getCroppedImageBlob(imageSrc, croppedArea, outputWidth, outputHeight);
+      onCropped(blob);
+    } catch {
+      setError(t("common.cropFailed"));
+      setBusy(false);
+    }
   };
 
   return (
-    <Modal title={t("profile.cropImage")} onClose={onCancel}>
+    <Modal title={title ?? t("profile.cropImage")} onClose={onCancel}>
       <div style={{ position: "relative", width: "100%", height: previewHeight, background: "#000" }}>
         <Cropper
           image={imageSrc}
@@ -76,11 +97,12 @@ export function ImageCropModal({
           onChange={(e) => setZoom(Number(e.target.value))}
         />
       </div>
+      {error && <p className="sf-form__error">{error}</p>}
       <div className="sf-form__actions">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
           {t("common.cancel")}
         </Button>
-        <Button type="button" onClick={confirm} disabled={busy || !croppedArea}>
+        <Button type="button" onClick={() => void confirm()} disabled={busy || !croppedArea}>
           {busy ? "…" : t("common.apply")}
         </Button>
       </div>

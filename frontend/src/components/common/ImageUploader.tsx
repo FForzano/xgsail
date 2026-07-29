@@ -82,6 +82,7 @@ export function ImageUploader({
       {cropSrc && (
         <ImageCropModal
           imageSrc={cropSrc}
+          title={label}
           onCancel={closeCrop}
           onCropped={(blob) => {
             closeCrop();

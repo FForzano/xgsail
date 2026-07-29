@@ -150,6 +150,20 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
         >
           {t("sessions.shareImage.choosePhoto")}
         </Button>
+        {/* Crops whatever photo is active right now — the default boat photo
+            included it never went through the crop step, since it was never
+            picked/shot in this modal. Same pendingCropUrl/ImageCropModal as
+            the other two: closeCrop's revokeObjectURL is a harmless no-op on
+            a plain https URL, which is what this sets it to. */}
+        <Button
+          type="button"
+          variant="ghost"
+          className={styles.takePhotoBtn}
+          disabled={!cardData.boatPhotoUrl}
+          onClick={() => setPendingCropUrl(cardData.boatPhotoUrl)}
+        >
+          {t("sessions.shareImage.cropPhoto")}
+        </Button>
         <label className={styles.option}>
           <input type="checkbox" checked={includeTrack} onChange={(e) => setIncludeTrack(e.target.checked)} />
           {t("sessions.shareImage.includeTrack")}
@@ -201,6 +215,7 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
       {pendingCropUrl && (
         <ImageCropModal
           imageSrc={pendingCropUrl}
+          title={t("sessions.shareImage.cropPhoto")}
           aspect={CARD_WIDTH / CARD_HEIGHT}
           cropShape="rect"
           outputWidth={CARD_WIDTH}
