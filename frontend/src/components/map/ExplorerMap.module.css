@@ -25,6 +25,14 @@
 .mapFill .locate {
   top: calc(10px + env(safe-area-inset-top, 0px));
 }
+/* Same story at the bottom edge, where the fixed action bar overlays the map:
+   push Leaflet's own bottom corners (zoom control and attribution) above it.
+   Breakpoint matches global.css's — that's where .sf-actionbar appears. */
+@media (max-width: 700px) {
+  .mapFill :global(.leaflet-bottom) {
+    bottom: calc(var(--sf-actionbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+}
 .map :global(.leaflet-container) {
   height: 100%;
   width: 100%;

@@ -7,7 +7,7 @@ import { useNauticalPoi } from "@/hooks/useNauticalPoi";
 import { clubKeys, clubsService } from "@/services/clubs";
 import type { NauticalPoi } from "@/services/overpass";
 import { createBaseLayers } from "./baseLayers";
-import { syncClubsLayer } from "./ClubsLayer";
+import { collapseClubCards, syncClubsLayer } from "./ClubsLayer";
 import { syncPoiLayer } from "./PoiLayer";
 import type { MapLayers } from "./useMapLayers";
 
@@ -68,9 +68,16 @@ export function useNauticalLayers(map: L.Map | null, layers: MapLayers): void {
 
   const clubsGroup = useLayerGroup(map, layers.clubs);
   useEffect(() => {
-    if (!clubsGroup) return;
-    syncClubsLayer(clubsGroup, clubs.data ?? [], { open: t("map.openClub") }, (clubId) =>
+    if (!map || !clubsGroup) return;
+    syncClubsLayer(map, clubsGroup, clubs.data ?? [], { open: t("map.openClub") }, (clubId) =>
       navigate(`/gruppi/clubs/${clubId}`),
     );
-  }, [clubsGroup, clubs.data, t, navigate]);
+    // Tapping the map (rather than another pin) closes whichever club card is
+    // open — the pins themselves handle the pin-to-pin case.
+    const collapse = () => collapseClubCards(map);
+    map.on("click", collapse);
+    return () => {
+      map.off("click", collapse);
+    };
+  }, [map, clubsGroup, clubs.data, t, navigate]);
 }

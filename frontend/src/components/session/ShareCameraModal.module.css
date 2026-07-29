@@ -1,0 +1,28 @@
+/* The viewfinder is the card's own frame: a definite height with
+   `aspect-ratio` (and auto width) gives an exact 9:16 box that fits inside the
+   modal, and `object-fit: cover` on the video crops the live feed to it — the
+   same crop captureFrame() then applies to the still. */
+.stage {
+  position: relative;
+  height: 55vh;
+  aspect-ratio: 9 / 16;
+  width: auto;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: var(--sf-radius);
+  background: #000;
+}
+.video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

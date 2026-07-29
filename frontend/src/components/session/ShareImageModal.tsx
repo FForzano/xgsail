@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { ImageCropModal } from "@/components/common/ImageCropModal";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { ColorPicker } from "@/components/ui/ColorPicker";
@@ -8,6 +9,7 @@ import { usePersistentState } from "@/hooks/usePersistentState";
 import { useToast } from "@/hooks/useToast";
 import { renderShareCardToBlob, shareOrDownloadImage } from "@/utils/shareImage";
 import { ShareCard, type ShareCardData } from "./ShareCard";
+import { ShareCameraModal, cameraCaptureSupported } from "./ShareCameraModal";
 import styles from "./ShareImageModal.module.css";
 
 const CARD_WIDTH = 1080;
@@ -28,6 +30,7 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
   const { notify } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [includeBoatPhoto, setIncludeBoatPhoto] = useState(true);
   const [includeTrack, setIncludeTrack] = useState(true);
   const [includeStats, setIncludeStats] = useState(true);
@@ -39,14 +42,41 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
   const [textColor, setTextColor] = usePersistentState("xgsail.share.textColor", "#ffffff");
   const [trackColor, setTrackColor] = usePersistentState("xgsail.share.trackColor", "#ff9500");
   // Swaps in a photo taken/picked just for this share (never uploaded to the
-  // session) — `capture="environment"` opens the camera directly on mobile,
-  // falls back to a plain file picker elsewhere. Local object URL, revoked
-  // on replace/unmount so it doesn't leak.
+  // session). Local object URL, revoked on replace/unmount so it doesn't leak.
   const [customPhotoUrl, setCustomPhotoUrl] = useState<string | null>(null);
   useEffect(() => () => {
     if (customPhotoUrl) URL.revokeObjectURL(customPhotoUrl);
   }, [customPhotoUrl]);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  // Set once the in-app camera turns out to be unusable (permission refused):
+  // from then on "Scatta" goes straight to the system camera. Retrying the
+  // in-app one would just fail again, and the fallback can't be opened from
+  // here — a file input only opens from a real user gesture, which the async
+  // getUserMedia rejection no longer is.
+  const [cameraBlocked, setCameraBlocked] = useState(false);
+  // A picked (or system-camera) photo is almost never 9:16, so it goes through
+  // the cropper before landing on the card — otherwise the card's
+  // `object-fit: cover` would silently cut its sides. The in-app camera skips
+  // this: it already shoots in frame.
+  const [pendingCropUrl, setPendingCropUrl] = useState<string | null>(null);
   const cardData = { ...data, boatPhotoUrl: customPhotoUrl ?? data.boatPhotoUrl };
+
+  function commitPhoto(blob: Blob) {
+    if (customPhotoUrl) URL.revokeObjectURL(customPhotoUrl);
+    setCustomPhotoUrl(URL.createObjectURL(blob));
+    setIncludeBoatPhoto(true);
+  }
+
+  function closeCrop() {
+    if (pendingCropUrl) URL.revokeObjectURL(pendingCropUrl);
+    setPendingCropUrl(null);
+  }
+
+  const pickFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) setPendingCropUrl(URL.createObjectURL(file));
+  };
 
   async function handleShare() {
     if (!cardRef.current) return;
@@ -79,21 +109,18 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
           />
         </div>
       </div>
+      {/* Two inputs, deliberately: `capture` is what makes mobile open the
+          system camera instead of the gallery, so the fallback shooter and the
+          "choose an existing photo" picker can't be the same element. */}
       <input
         ref={photoInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         hidden
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (!f) return;
-          if (customPhotoUrl) URL.revokeObjectURL(customPhotoUrl);
-          setCustomPhotoUrl(URL.createObjectURL(f));
-          setIncludeBoatPhoto(true);
-        }}
+        onChange={pickFile}
       />
+      <input ref={galleryInputRef} type="file" accept="image/*" hidden onChange={pickFile} />
       <div className={styles.options}>
         <label className={styles.option}>
           <input
@@ -107,9 +134,21 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
           type="button"
           variant="ghost"
           className={styles.takePhotoBtn}
-          onClick={() => photoInputRef.current?.click()}
+          onClick={() =>
+            cameraCaptureSupported && !cameraBlocked
+              ? setCameraOpen(true)
+              : photoInputRef.current?.click()
+          }
         >
-          {customPhotoUrl ? t("sessions.shareImage.retakePhoto") : t("sessions.shareImage.takePhoto")}
+          {t("sessions.shareImage.takePhoto")}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className={styles.takePhotoBtn}
+          onClick={() => galleryInputRef.current?.click()}
+        >
+          {t("sessions.shareImage.choosePhoto")}
         </Button>
         <label className={styles.option}>
           <input type="checkbox" checked={includeTrack} onChange={(e) => setIncludeTrack(e.target.checked)} />
@@ -145,6 +184,35 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
       <Button onClick={handleShare} disabled={busy}>
         {busy ? <Spinner inline /> : t("sessions.shareImage.cta")}
       </Button>
+      {cameraOpen && (
+        <ShareCameraModal
+          onCancel={() => setCameraOpen(false)}
+          onCaptured={(blob) => {
+            commitPhoto(blob);
+            setCameraOpen(false);
+          }}
+          onUnavailable={() => {
+            setCameraOpen(false);
+            setCameraBlocked(true);
+            notify(t("sessions.shareImage.cameraUnavailable"), "error");
+          }}
+        />
+      )}
+      {pendingCropUrl && (
+        <ImageCropModal
+          imageSrc={pendingCropUrl}
+          aspect={CARD_WIDTH / CARD_HEIGHT}
+          cropShape="rect"
+          outputWidth={CARD_WIDTH}
+          outputHeight={CARD_HEIGHT}
+          previewHeight={420}
+          onCancel={closeCrop}
+          onCropped={(blob) => {
+            commitPhoto(blob);
+            closeCrop();
+          }}
+        />
+      )}
     </Modal>
   );
 }

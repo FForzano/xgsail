@@ -23,15 +23,24 @@ export interface GeocodeResult {
   displayName: string;
 }
 
-/** Returns the single best match, or null when the address yields nothing. */
-export async function geocodeAddress(
-  parts: AddressParts,
-  language?: string,
-): Promise<GeocodeResult | null> {
-  const q = [parts.addressLine1, parts.postalCode, parts.city, parts.stateProvince, parts.country]
+/** The one-line address a set of form fields spells out — also what the
+ * location picker seeds its editable search box with. */
+export function addressToQuery(parts: AddressParts): string {
+  return [parts.addressLine1, parts.postalCode, parts.city, parts.stateProvince, parts.country]
     .map((s) => s?.trim())
     .filter(Boolean)
     .join(", ");
+}
+
+/** Returns the single best match for a free-text address, or null when it
+ * yields nothing. Free text rather than assembled form fields: a club record
+ * stores a city, not a street, so geocoding its fields alone could only ever
+ * land on the city centre (see LocationPicker). */
+export async function geocodeQuery(
+  query: string,
+  language?: string,
+): Promise<GeocodeResult | null> {
+  const q = query.trim();
   if (!q) return null;
 
   const url = `${ENDPOINT}?${new URLSearchParams({ format: "jsonv2", limit: "1", q })}`;

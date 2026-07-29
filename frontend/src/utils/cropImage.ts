@@ -15,17 +15,19 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Renders the cropped area of `imageSrc` (an object URL) onto a square
- * canvas at `outputSize` px and returns it as a JPEG blob. */
+/** Renders the cropped area of `imageSrc` (an object URL) onto a canvas of
+ * `outputWidth` x `outputHeight` and returns it as a JPEG blob. Square by
+ * default (avatars, logos); the share card asks for its own 9:16 frame. */
 export async function getCroppedImageBlob(
   imageSrc: string,
   crop: PixelCrop,
-  outputSize = 512,
+  outputWidth = 512,
+  outputHeight = outputWidth,
 ): Promise<Blob> {
   const image = await loadImage(imageSrc);
   const canvas = document.createElement("canvas");
-  canvas.width = outputSize;
-  canvas.height = outputSize;
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas not supported");
 
@@ -37,8 +39,8 @@ export async function getCroppedImageBlob(
     crop.height,
     0,
     0,
-    outputSize,
-    outputSize,
+    outputWidth,
+    outputHeight,
   );
 
   return new Promise((resolve, reject) => {

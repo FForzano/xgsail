@@ -54,4 +54,10 @@
          legitimate use case here since the app's core function (background
          GPS recording) is otherwise cut short by the OS. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- In-app camera for the share image (components/session/ShareCameraModal):
+         the WebView's getUserMedia needs this declared before Chromium will
+         even prompt. `required="false"` keeps the app installable on devices
+         with no camera — they fall back to picking an existing photo. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

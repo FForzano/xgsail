@@ -6,6 +6,7 @@ import "leaflet/dist/leaflet.css";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { useWindAt } from "@/hooks/useWindAt";
 import { createBaseLayers } from "@/components/map/baseLayers";
+import { bindExpandableMarker, collapseExpandable } from "@/components/map/expandableMarker";
 import { MapLayerToggles } from "@/components/map/MapLayerToggles";
 import { useMapLayers } from "@/components/map/useMapLayers";
 import { useNauticalLayers } from "@/components/map/useNauticalLayers";
@@ -197,13 +198,11 @@ export function MapView({
 
   // Collapses any race-mark pin currently expanded to its full-name label
   // (see the "else" branch of the marks effect below) — called on map click
-  // (tapping elsewhere) and before expanding a different pin, so at most one
-  // is ever expanded at a time.
+  // (tapping elsewhere); expanding a different pin collapses the rest through
+  // the same helper, so at most one is ever expanded at a time.
   const collapseRaceLabels = () => {
-    mapRef.current
-      ?.getContainer()
-      .querySelectorAll<HTMLElement>(`.${styles.markiconRaceLabelInner}.${styles.expanded}`)
-      .forEach((el) => el.classList.remove(styles.expanded));
+    const map = mapRef.current;
+    if (map) collapseExpandable(map, styles.markiconRaceLabelInner, styles.expanded);
   };
 
   const { data: windAt } = useWindAt(wind?.lat, wind?.lng, wind?.at);
@@ -517,13 +516,9 @@ export function MapView({
           iconSize: [0, 0],
           iconAnchor: [0, 0],
         });
-        const marker = L.marker([mk.lat, mk.lng], { icon, draggable: mk.draggable ?? false }).addTo(layer);
-        marker.on("click", () => {
-          const inner = marker.getElement()?.querySelector<HTMLElement>(`.${styles.markiconRaceLabelInner}`);
-          const wasExpanded = inner?.classList.contains(styles.expanded);
-          collapseRaceLabels();
-          if (inner && !wasExpanded) inner.classList.add(styles.expanded);
-        });
+        const marker = L.marker([mk.lat, mk.lng], { icon, draggable: mk.draggable ?? false });
+        bindExpandableMarker(marker, map, styles.markiconRaceLabelInner, styles.expanded);
+        marker.addTo(layer);
         if (mk.draggable && mk.onDragEnd) {
           marker.on("dragend", () => {
             const { lat, lng } = marker.getLatLng();
