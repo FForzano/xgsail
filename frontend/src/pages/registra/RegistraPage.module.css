@@ -1,8 +1,12 @@
+/* Sized by flex-grow inside .sf-main--bleed, not by a percentage height —
+   see the .sf-main--bleed comment in global.css for why a percentage
+   collapses to zero here. `min-height: 0` lets it shrink below the map's
+   own intrinsic height instead of overflowing the viewport. */
 .page {
-  height: 100%;
-  width: 100%;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 

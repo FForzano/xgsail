@@ -9,10 +9,21 @@
   position: relative;
   isolation: isolate;
 }
+/* Full-screen variant: `height: auto` so the flex parent that owns this map
+   decides the height (a percentage would depend on that parent having a
+   definite one, which a flex-grown page doesn't), and no frame, since there
+   is no card around it to sit inside. */
 .mapFill {
-  height: 100% !important;
+  height: auto;
   border: none;
   border-radius: 0;
+}
+/* Only a full-bleed map can reach under a phone's status bar/notch — an
+   in-card one is always well below it — so the inset belongs here rather
+   than on .options/.locate themselves. */
+.mapFill .options,
+.mapFill .locate {
+  top: calc(10px + env(safe-area-inset-top, 0px));
 }
 .map :global(.leaflet-container) {
   height: 100%;

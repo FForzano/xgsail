@@ -131,9 +131,19 @@ body.sf-nav-mode .sf-shell {
 .sf-main--wide {
   max-width: none;
 }
+/* Edge-to-edge page (currently only /registra, whose subject is a full-screen
+   map). Besides dropping the padding/width cap, it becomes a flex column so
+   the page underneath can claim the height .sf-main gets from `flex: 1` —
+   .sf-shell is `min-height: 100%` with an auto `height`, so a `height: 100%`
+   child of .sf-main has no definite height to resolve against and collapses
+   to zero. Flex growth doesn't need a definite height, so the whole chain
+   (main → page → map) is sized by flex-grow instead of percentages. */
 .sf-main--bleed {
   max-width: none;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .sf-navbar {
@@ -321,8 +331,12 @@ body.sf-nav-mode .sf-shell {
   .sf-main {
     padding-bottom: calc(var(--sf-actionbar-h) + 2rem);
   }
+  /* Cancels both the notch padding-top and the action-bar padding-bottom the
+     two .sf-main rules in this breakpoint add: a full-bleed page runs edge to
+     edge under both (the action bar keeps its own opaque background, and
+     .mapFill's controls carry the notch inset themselves). */
   .sf-main--bleed {
-    padding-bottom: 0;
+    padding: 0;
   }
   .sf-toasts {
     bottom: calc(var(--sf-actionbar-h) + env(safe-area-inset-bottom, 0px) + 1rem);
