@@ -521,7 +521,7 @@ export function RegistraPage() {
   return (
     <div className={styles.page}>
       {/* Full-height map, always mounted */}
-      <ExplorerMap fill />
+      <ExplorerMap fill className={styles.mapContainer} />
 
       {/* FAB: record button when idle */}
       {!active && (
