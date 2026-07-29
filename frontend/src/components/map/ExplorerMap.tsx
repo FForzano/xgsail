@@ -41,6 +41,7 @@ export function ExplorerMap({
   marker,
   onPick,
   fill,
+  dataTour,
 }: {
   className?: string;
   /** Initial center; falls back to the last view this device looked at. */
@@ -53,6 +54,8 @@ export function ExplorerMap({
   onPick?: (lat: number, lng: number) => void;
   /** Full-height, edge-to-edge variant (e.g. for a full-screen map page). */
   fill?: boolean;
+  /** Anchor for a guided-tour step (see onboarding/tours.ts). */
+  dataTour?: string;
 }) {
   const { t } = useTranslation();
   const elRef = useRef<HTMLDivElement>(null);
@@ -164,7 +167,7 @@ export function ExplorerMap({
   };
 
   return (
-    <div className={`${styles.map} ${fill ? styles.mapFill : ""} ${className}`}>
+    <div className={`${styles.map} ${fill ? styles.mapFill : ""} ${className}`} data-tour={dataTour}>
       <div ref={elRef} className={styles.surface} />
       <div className={styles.options}>
         <MapLayerToggles layers={layers} onToggle={toggle} />

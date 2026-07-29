@@ -24,6 +24,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>XGSail uses Bluetooth to pair with your XGSail E1 tracker and relay its data when it has no WiFi of its own.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>XGSail uses the camera to take a photo for the image you share from a session. Photos taken here stay on your device unless you share them.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

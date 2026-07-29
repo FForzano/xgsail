@@ -521,13 +521,14 @@ export function RegistraPage() {
   return (
     <div className={styles.page}>
       {/* Full-height map, always mounted */}
-      <ExplorerMap fill className={styles.mapContainer} />
+      <ExplorerMap fill className={styles.mapContainer} dataTour="registra-map" />
 
       {/* FAB: record button when idle */}
       {!active && (
         <button
           type="button"
           className={`sf-btn sf-btn--icon ${styles.fab}`}
+          data-tour="registra-record"
           onClick={() => setSheetOpen(true)}
           aria-label={t("registra.start")}
         >

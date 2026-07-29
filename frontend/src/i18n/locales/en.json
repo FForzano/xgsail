@@ -435,7 +435,11 @@
     "memberCount_other": "{{count}} members",
     "pendingOnly": "Pending only",
     "clubLocation": "Location",
-    "clubLocationHint": "Click the map or drag the pin to set where the club is.",
+    "clubLocationHint": "Search the club's address, or click the map or drag the pin.",
+    "addressQuery": "Club address",
+    "addressQueryPlaceholder": "Street, number, city",
+    "useMyPosition": "Use my position",
+    "noLocation": "No location set",
     "findFromAddress": "Find from address",
     "addressNotFound": "Address not found"
   },
@@ -538,8 +542,12 @@
       "includeStats": "Stats",
       "includeTitle": "Name and date",
       "includeCrew": "Crew",
-      "takePhoto": "Take/choose photo",
-      "retakePhoto": "Change photo",
+      "takePhoto": "Take photo",
+      "choosePhoto": "Choose photo",
+      "cameraTitle": "Take the photo",
+      "cameraHint": "What you see here is exactly what the final image will show.",
+      "shutter": "Shoot",
+      "cameraUnavailable": "Camera unavailable — tap \"Take photo\" again to use the system camera.",
       "cta": "Share",
       "textColor": "Text color",
       "trackColor": "Track color",
@@ -888,6 +896,20 @@
       "feed": {
         "title": "Your outings",
         "body": "Every activity and regatta appears as a card like this one. Tap it to open the full analysis."
+      }
+    },
+    "registra": {
+      "map": {
+        "title": "The map",
+        "body": "A full-screen map with the nautical chart, points of interest and sailing clubs. Tap a club to see its details."
+      },
+      "layers": {
+        "title": "Layers",
+        "body": "Switch the nautical chart, points of interest and clubs on and off here. Your choice is remembered on this device."
+      },
+      "record": {
+        "title": "Record",
+        "body": "Tap the button to pick a boat and activity and start recording GPS. Available in the iOS and Android apps only."
       }
     },
     "gruppi": {

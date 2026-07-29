@@ -435,7 +435,11 @@
     "memberCount_other": "{{count}} membri",
     "pendingOnly": "Solo in sospeso",
     "clubLocation": "Posizione",
-    "clubLocationHint": "Clicca sulla mappa o trascina il segnaposto per indicare dove si trova il circolo.",
+    "clubLocationHint": "Cerca l'indirizzo del circolo, oppure clicca sulla mappa o trascina il segnaposto.",
+    "addressQuery": "Indirizzo del circolo",
+    "addressQueryPlaceholder": "Via, numero, città",
+    "useMyPosition": "Usa la mia posizione",
+    "noLocation": "Nessuna posizione impostata",
     "findFromAddress": "Trova da indirizzo",
     "addressNotFound": "Indirizzo non trovato"
   },
@@ -538,8 +542,12 @@
       "includeStats": "Statistiche",
       "includeTitle": "Nome e data",
       "includeCrew": "Equipaggio",
-      "takePhoto": "Scatta/scegli foto",
-      "retakePhoto": "Cambia foto",
+      "takePhoto": "Scatta foto",
+      "choosePhoto": "Scegli foto",
+      "cameraTitle": "Scatta la foto",
+      "cameraHint": "L'inquadratura che vedi è esattamente quella dell'immagine finale.",
+      "shutter": "Scatta",
+      "cameraUnavailable": "Fotocamera non disponibile: tocca di nuovo \"Scatta foto\" per usare quella di sistema.",
       "cta": "Condividi",
       "textColor": "Colore testo",
       "trackColor": "Colore tracciato",
@@ -888,6 +896,20 @@
       "feed": {
         "title": "Le tue uscite",
         "body": "Ogni attività e regata compare come una scheda come questa. Toccala per aprirne l'analisi completa."
+      }
+    },
+    "registra": {
+      "map": {
+        "title": "La mappa",
+        "body": "La mappa a tutto schermo con la carta nautica, i punti d'interesse e i circoli velici. Tocca un circolo per vederne i dettagli."
+      },
+      "layers": {
+        "title": "Livelli",
+        "body": "Da qui accendi e spegni la carta nautica, i punti d'interesse e i circoli. La scelta resta salvata su questo dispositivo."
+      },
+      "record": {
+        "title": "Registra",
+        "body": "Tocca il pulsante per scegliere barca e attività e avviare la registrazione GPS. Disponibile solo nelle app iOS e Android."
       }
     },
     "gruppi": {

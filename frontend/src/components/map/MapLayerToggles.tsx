@@ -27,6 +27,7 @@ export function MapLayerToggles({
         type="button"
         className="sf-btn--icon"
         variant="ghost"
+        data-tour="map-layers"
         aria-label={t("map.layers.title")}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}

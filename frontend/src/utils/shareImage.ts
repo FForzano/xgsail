@@ -1,4 +1,7 @@
 import { toBlob } from "html-to-image";
+import { Capacitor } from "@capacitor/core";
+import { Directory, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 
 /** Rasterizes a ShareCard DOM node (see components/session/ShareCard.tsx) to
  * a PNG blob at its own CSS pixel size — the node is already built at the
@@ -18,15 +21,53 @@ export async function renderShareCardToBlob(node: HTMLElement): Promise<Blob> {
 
 export type ShareImageResult = "shared" | "cancelled" | "downloaded";
 
+/** Base64 body (no data: prefix), which is the only shape Filesystem.writeFile
+ * accepts on native — its Blob support is web-only. Chunked because
+ * String.fromCharCode(...bytes) blows the argument limit on a ~2 MP PNG. */
+async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
 /** Native share sheet (files) when supported, otherwise a plain browser
  * download — same blob+anchor mechanics as any client-side file save,
  * there's no server round-trip to proxy through (unlike the GPX download,
- * which streams from the backend). */
+ * which streams from the backend).
+ *
+ * The native branch goes through the Share plugin rather than the Web Share
+ * API: an Android WebView doesn't expose navigator.share for files, so the web
+ * path below would always fall through to the download and the image would
+ * never reach Instagram et al. The file is written to the cache directory
+ * (already exposed by the app's FileProvider, see res/xml/file_paths.xml) —
+ * it's a throwaway the share target copies, not app data to keep. */
 export async function shareOrDownloadImage(
   blob: Blob,
   filename: string,
   shareTitle?: string,
 ): Promise<ShareImageResult> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await Filesystem.writeFile({
+        path: filename,
+        directory: Directory.Cache,
+        data: await blobToBase64(blob),
+      });
+      const { uri } = await Filesystem.getUri({ path: filename, directory: Directory.Cache });
+      await Share.share({ files: [uri], title: shareTitle });
+      return "shared";
+    } catch {
+      // The plugin rejects with a plain Error both when the user dismisses the
+      // sheet and when nothing can handle the file, with no code to tell them
+      // apart — treat both as a cancel rather than showing an error over a
+      // sheet the user closed on purpose.
+      return "cancelled";
+    }
+  }
+
   const file = new File([blob], filename, { type: blob.type || "image/png" });
   if (navigator.canShare?.({ files: [file] })) {
     try {

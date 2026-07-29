@@ -94,6 +94,18 @@ export const TOURS: Tour[] = [
     ],
   },
   {
+    id: "registra-overview",
+    priority: 1,
+    routes: ["/registra"],
+    steps: [
+      { target: "registra-map", titleKey: "onboarding.registra.map.title", bodyKey: "onboarding.registra.map.body" },
+      // The layer switcher is the same control on every map (MapLayerToggles),
+      // so its anchor is named after the control, not this page.
+      { target: "map-layers", titleKey: "onboarding.registra.layers.title", bodyKey: "onboarding.registra.layers.body" },
+      { target: "registra-record", titleKey: "onboarding.registra.record.title", bodyKey: "onboarding.registra.record.body" },
+    ],
+  },
+  {
     id: "gruppi-overview",
     priority: 1,
     routes: ["/gruppi"],
