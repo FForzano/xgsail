@@ -12,6 +12,13 @@ Xcode step, exactly like the iOS Share Extension in `docs/native-apps.md`.
 Like all native code here, it **does not ship via OTA** and needs a **paid
 Apple Developer account** to build to a device.
 
+Physical location note: on Xcode 16+, a new watchOS target is backed by a
+*filesystem-synchronized group* tied to a fixed on-disk folder next to
+`App.xcodeproj` (`frontend/ios/App/XGSailWatch Watch App/`, this folder) —
+that's why these sources live under `ios/App/`, not a standalone
+`ios/XGSailWatch/` directory; Xcode requires the target's real files there,
+not just a reference.
+
 ## Files
 
 | File | Role |
@@ -28,24 +35,48 @@ the JS is `frontend/src/plugins/watchBridge.ts` / `services/nativeWatch.ts`.
 ## One-time Xcode setup
 
 1. **Add the target**: File → New → Target → **watchOS → App**. Name it
-   `XGSailWatch`, interface **SwiftUI**, language **Swift**, and select
-   *"Watch App for Existing iOS App"* so it embeds in the `App` target
-   (bundle id `com.xgsail.app.watchkitapp`).
+   `XGSailWatch`, interface **SwiftUI**, language **Swift**, select
+   *"Watch App for Existing iOS App"* (embeds in `App`), and set the
+   Organization Identifier so the bundle id comes out as
+   `com.xgsail.app.watchkitapp` (fix it by hand in Signing & Capabilities if
+   the wizard doesn't land on it exactly).
 2. **Replace the generated sources** with the files in this folder (delete the
-   stub `ContentView.swift`/`…App.swift` Xcode created, add these instead).
+   stub `ContentView.swift`/`…App.swift` Xcode created, drag these 5 files in
+   from Finder — **Action: "Move files to destination"**, not Copy, since the
+   target's synchronized folder needs the real files inside it, and Move
+   avoids leaving a duplicate copy elsewhere).
 3. **Capabilities** (watch target): add **HealthKit**. **Background Modes**:
    enable **Workout processing**.
 4. **Watch `Info.plist`** usage strings (required or the app crashes on first
-   use):
+   use) — settable directly from the HealthKit capability's own Usage
+   Description fields plus one added manually under the target's **Info** tab:
    - `NSHealthShareUsageDescription` — "XGSail reads heart rate, energy, HRV
      and respiration to attach them to your sailing session."
    - `NSHealthUpdateUsageDescription` — "XGSail records a workout for the
      session."
    - `NSLocationWhenInUseUsageDescription` — "XGSail records your GPS track."
 5. **Phone side**: add `WatchBridgePlugin.swift` + `WatchBridgePlugin.m` to the
-   `App` target (they register the `WatchBridge` Capacitor plugin). No extra
-   phone entitlement is needed for WatchConnectivity.
-6. **Deployment target**: watchOS 9+ (for `.sailing` workout type + the
+   `App` target (**Action: "Reference files in place"** — the `App` target
+   isn't a synchronized-folder target, so no move needed). No extra phone
+   entitlement is needed for WatchConnectivity.
+6. **Plugin registration (required, easy to miss)**: this Capacitor version
+   does *not* auto-discover local (non-npm) native plugins by scanning the
+   Objective-C runtime — calling `WatchBridge.*` from JS fails with `"WatchBridge"
+   plugin is not implemented on ios` unless it's registered explicitly. Add
+   `frontend/ios/App/App/BridgeViewController.swift`, a `CAPBridgeViewController`
+   subclass that registers it in `capacitorDidLoad()`:
+   ```swift
+   import Capacitor
+   class BridgeViewController: CAPBridgeViewController {
+       override func capacitorDidLoad() {
+           bridge?.registerPluginInstance(WatchBridgePlugin())
+       }
+   }
+   ```
+   and point `Main.storyboard`'s view controller's custom class at it
+   (`BridgeViewController`, module `App`) instead of the default
+   `CAPBridgeViewController` (module `Capacitor`).
+7. **Deployment target**: watchOS 9+ (for `.sailing` workout type + the
    `HKLiveWorkoutBuilder` background behavior used here).
 
 ## How it flows
@@ -79,4 +110,7 @@ and there are safety nets so nothing lingers forever:
   (`sweepAbandonedPartials`). Neither ever deletes a real, still-pending
   upload.
 
-Verification is manual on a paired watch (see `docs/native-apps.md`).
+Full verification (a real `transferFile` CSV bundle arriving, real HealthKit
+sensor data) is manual on a paired watch — see `docs/native-apps.md`'s
+"Testing without a paid Apple account" section for exactly what the
+Simulator can and can't stand in for.

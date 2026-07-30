@@ -61,19 +61,32 @@ public class WatchBridgePlugin: CAPPlugin, CAPBridgedPlugin, WCSessionDelegate {
     // MARK: - Plugin methods
 
     @objc func isSupported(_ call: CAPPluginCall) {
+        #if targetEnvironment(simulator) && DEBUG
+        // WCSession.isPaired/isWatchAppInstalled stay false in Simulator even
+        // with `simctl pair`ed devices — local-testing-only bypass, compiled
+        // out of every device/Release build by the guards above.
+        call.resolve(["supported": true])
+        return
+        #else
         let ok = WCSession.isSupported() && WCSession.default.isPaired
             && WCSession.default.isWatchAppInstalled
         call.resolve(["supported": ok])
+        #endif
     }
 
     @objc func isPaired(_ call: CAPPluginCall) {
         guard WCSession.isSupported() else {
             call.resolve(["paired": false, "reachable": false]); return
         }
+        #if targetEnvironment(simulator) && DEBUG
+        call.resolve(["paired": true, "reachable": true])
+        return
+        #else
         call.resolve([
             "paired": WCSession.default.isPaired,
             "reachable": WCSession.default.isReachable,
         ])
+        #endif
     }
 
     @objc func sendContext(_ call: CAPPluginCall) {

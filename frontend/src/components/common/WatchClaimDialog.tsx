@@ -26,6 +26,7 @@ export function WatchClaimDialog({ userId, onClose }: { userId: UUID; onClose: (
     mutationFn: () => nativeWatch.claimWatch(userId),
     onSuccess: async () => {
       setPhase("done");
+      await nativeWatch.sendContext({});
       await queryClient.invalidateQueries({ queryKey: deviceKeys.all });
     },
     onError: (err) => {
