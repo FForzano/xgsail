@@ -13,17 +13,30 @@ import HealthKit
 ///   watch_energy.csv  t,kcal
 ///   watch_hrv.csv     t,ms
 ///   watch_resp.csv    t,brpm
+///   watch_race.csv    t,phase   (optional — only written if race mode is used)
 ///
 /// `t` is ISO 8601 UTC with millisecond precision + trailing Z. On stop the
 /// files are handed to `WatchConnectivityClient` to transfer to the phone.
 final class SessionRecorder: NSObject, ObservableObject {
     enum State { case idle, recording, paused, stopped }
 
+    /// Race-mode start-sequence state (docs/device-protocol.md). Purely a
+    /// watch-side observation: `.started`'s instant is written to
+    /// `watch_race.csv` as raw per-session data, never as an authoritative
+    /// race start — human tap latency means independent boats' watches will
+    /// disagree slightly.
+    enum RaceState: Equatable {
+        case off
+        case countdown(target: Date)
+        case started(at: Date)
+    }
+
     @Published private(set) var state: State = .idle
     /// Live nav readouts for the UI.
     @Published private(set) var speedKn: Double = 0
     @Published private(set) var courseDeg: Double = 0
     @Published private(set) var heartRate: Int = 0
+    @Published private(set) var raceState: RaceState = .off
 
     private let healthStore = HKHealthStore()
     private var workoutSession: HKWorkoutSession?
@@ -34,6 +47,7 @@ final class SessionRecorder: NSObject, ObservableObject {
     private var startedAt: Date?
     private var sessionDir: URL?
     private var anchoredQueries: [HKQuery] = []
+    private var raceFileReady = false
 
     private let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -137,6 +151,8 @@ final class SessionRecorder: NSObject, ObservableObject {
             )
         }
         state = .stopped
+        raceState = .off
+        raceFileReady = false
     }
 
     func reset() {
@@ -144,6 +160,48 @@ final class SessionRecorder: NSObject, ObservableObject {
         speedKn = 0
         courseDeg = 0
         heartRate = 0
+        raceState = .off
+        raceFileReady = false
+    }
+
+    // MARK: - Race mode
+
+    /// Enter the countdown, `minutes` from now. Only meaningful while
+    /// recording — the marker needs a session to attach to.
+    func startRaceCountdown(minutes: Int) {
+        guard state == .recording, raceState == .off else { return }
+        raceState = .countdown(target: Date().addingTimeInterval(TimeInterval(minutes * 60)))
+        appendRaceEvent("countdown_start")
+    }
+
+    /// Realign the countdown target to the nearest whole minute (matches the
+    /// committee boat's minute signals, same behavior as dedicated regatta
+    /// watches), correcting for drift since `startRaceCountdown`.
+    func resyncRaceCountdown() {
+        guard case .countdown(let target) = raceState else { return }
+        let rounded = (target.timeIntervalSince1970 / 60).rounded() * 60
+        raceState = .countdown(target: Date(timeIntervalSince1970: rounded))
+        appendRaceEvent("resync")
+    }
+
+    /// Called by the UI's periodic tick once `target` has passed — flips the
+    /// countdown into a running chronometer and logs the observed start.
+    func markRaceStart() {
+        guard case .countdown = raceState else { return }
+        raceState = .started(at: Date())
+        appendRaceEvent("start")
+    }
+
+    func cancelRaceCountdown() {
+        raceState = .off
+    }
+
+    private func appendRaceEvent(_ phase: String) {
+        if !raceFileReady {
+            writeHeader("watch_race.csv", "t,phase")
+            raceFileReady = true
+        }
+        append("watch_race.csv", "\(now()),\(phase)")
     }
 
     // MARK: - File writing

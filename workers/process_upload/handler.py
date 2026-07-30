@@ -331,6 +331,10 @@ def _sensor_from_filename(filename: str) -> str:
         return 'hrv'
     if '_resp.csv' in filename:
         return 'respiration'
+    # Race-mode start-sequence marker (docs/device-protocol.md) — an
+    # observational timestamp only, never authoritative race timing.
+    if '_race.csv' in filename:
+        return 'race_marker'
     return None
 
 
@@ -422,6 +426,8 @@ def process_file(bucket: str, key: str):
             data = process_pressure(csv_content, date, start_time)
         elif sensor_type == 'wind':
             data = process_wind(csv_content, date, start_time)
+        elif sensor_type == 'race_marker':
+            data = process_events(csv_content)
         else:
             # heart_rate / energy / hrv / respiration — wearable scalar streams.
             data = process_scalar(csv_content, SCALAR_SENSOR_COLUMNS[sensor_type])
@@ -1217,6 +1223,27 @@ def process_scalar(csv_content: str, value_col: str) -> list:
         except (ValueError, TypeError):
             continue
         result.append({'t': ts, value_col: value})
+    return result
+
+
+def process_events(csv_content: str) -> list:
+    """Parse the Apple Watch race-mode marker stream, ``watch_race.csv``
+    (docs/device-protocol.md) — ``t,phase`` with an ISO 8601 UTC ``t`` and a
+    string ``phase`` (``countdown_start``/``resync``/``start``). Unlike
+    ``process_scalar`` the value is kept as a label, not cast to a float: this
+    is an observational marker, not a measurement, and is never written to
+    ``races.start_time`` or used by any scoring computation.
+
+    Returns ``[{'t': <iso>, 'phase': <str>}]``.
+    """
+    reader = _csv_reader(csv_content)
+    result = []
+    for row in reader:
+        ts = (row.get('t') or '').strip()
+        phase = (row.get('phase') or '').strip()
+        if not ts or not phase:
+            continue
+        result.append({'t': ts, 'phase': phase})
     return result
 
 

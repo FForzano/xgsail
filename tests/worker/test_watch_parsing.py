@@ -97,3 +97,30 @@ def test_sensor_from_filename_watch():
     assert h._sensor_from_filename("watch_energy.csv") == "energy"
     assert h._sensor_from_filename("watch_hrv.csv") == "hrv"
     assert h._sensor_from_filename("watch_resp.csv") == "respiration"
+    assert h._sensor_from_filename("watch_race.csv") == "race_marker"
+
+
+# --- Race-mode marker (observational only, docs/device-protocol.md) --------
+
+def test_process_events_race_marker():
+    csv = (
+        "t,phase\n"
+        "2026-07-24T14:00:00.000Z,countdown_start\n"
+        "2026-07-24T14:02:30.000Z,resync\n"
+        "2026-07-24T14:05:00.000Z,start\n"
+    )
+    out = h.process_events(csv)
+    assert [r['phase'] for r in out] == ["countdown_start", "resync", "start"]
+    assert out[-1]['t'] == "2026-07-24T14:05:00.000Z"
+
+
+def test_process_events_skips_bad_rows():
+    csv = (
+        "t,phase\n"
+        "2026-07-24T14:00:00Z,countdown_start\n"
+        ",resync\n"                       # missing timestamp
+        "2026-07-24T14:05:00Z,\n"         # missing phase
+        "2026-07-24T14:05:01Z,start\n"
+    )
+    out = h.process_events(csv)
+    assert [r['phase'] for r in out] == ["countdown_start", "start"]

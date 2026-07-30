@@ -113,9 +113,11 @@ export async function sendContext(opts: {
   await WatchBridge.sendContext({ boatId: opts.boatId ?? null, mode: opts.mode, deviceClaimed });
 }
 
-// Filename suffix → which subject the file belongs to. GPS is the boat track
-// (or personal, per mode); the physiological files are always the wearer's.
+// Filename suffix → which subject the file belongs to. GPS (and the race-mode
+// start marker, which travels with it) is the boat track (or personal, per
+// mode); the physiological files are always the wearer's.
 const GPS_SUFFIX = "_nav.csv";
+const RACE_SUFFIX = "_race.csv";
 const PHYSIO_SUFFIXES = ["_hr.csv", "_energy.csv", "_hrv.csv", "_resp.csv"];
 
 async function readBundleFile(dir: string, name: string): Promise<BundleFile> {
@@ -146,10 +148,13 @@ export async function relaySession(
   if (!deviceKey) throw new Error("No device key stored for the watch");
   if (!event.boatId) throw new Error("Watch session has no boat selected");
 
-  const gpsFiles = event.files.filter((f) => f.includes(GPS_SUFFIX));
+  const gpsFiles = event.files.filter(
+    (f) => f.includes(GPS_SUFFIX) || f.includes(RACE_SUFFIX),
+  );
   const physioFiles = event.files.filter((f) => PHYSIO_SUFFIXES.some((s) => f.includes(s)));
 
-  // seq 0 — GPS. subject_type=boat unless the operator chose personal-only.
+  // seq 0 — GPS (+ race-mode start marker, if the sailor used it this
+  // session). subject_type=boat unless the operator chose personal-only.
   if (gpsFiles.length > 0) {
     const files = await Promise.all(gpsFiles.map((n) => readBundleFile(event.dir, n)));
     await relayBundle({

@@ -435,7 +435,7 @@ window in `backend/services/ingestion.py`), distinguished by
 
 | seq | `subject_type` | `subject_user_id` | files |
 |---|---|---|---|
-| 0 | `boat` | — | `watch_nav.csv` |
+| 0 | `boat` | — | `watch_nav.csv`, `watch_race.csv` (optional) |
 | 1 | `crew_member` | the wearer | `watch_hr.csv`, `watch_energy.csv`, `watch_hrv.csv`, `watch_resp.csv` |
 
 The GPS upload is `subject_type=boat` so it can serve as the boat track when
@@ -458,18 +458,40 @@ precision and a trailing `Z`** (e.g. `2026-07-24T14:05:03.000Z`) — always
 include the milliseconds so timestamps sort consistently. GPS speed is in
 knots, course in degrees. The worker
 (`workers/process_upload/handler.py`) keys the sensor off the filename suffix
-(`_nav`/`_hr`/`_energy`/`_hrv`/`_resp`) and applies **no** clock correction
-(unlike the legacy S1 format) — the watch's `t` is already correct GPS/UTC.
+(`_nav`/`_hr`/`_energy`/`_hrv`/`_resp`/`_race`) and applies **no** clock
+correction (unlike the legacy S1 format) — the watch's `t` is already correct
+GPS/UTC.
 
 ```
-watch_nav.csv     t,lat,lon,speed_kn,course        -> gps
-watch_hr.csv      t,bpm                             -> heart_rate
-watch_energy.csv  t,kcal                            -> energy    (cumulative active energy)
-watch_hrv.csv     t,ms                              -> hrv        (SDNN, sparse)
-watch_resp.csv    t,brpm                            -> respiration (breaths/min, sparse)
+watch_nav.csv     t,lat,lon,speed_kn,course   -> gps
+watch_hr.csv      t,bpm                       -> heart_rate
+watch_energy.csv  t,kcal                      -> energy       (cumulative active energy)
+watch_hrv.csv     t,ms                        -> hrv          (SDNN, sparse)
+watch_resp.csv    t,brpm                      -> respiration  (breaths/min, sparse)
+watch_race.csv    t,phase                     -> race_marker  (optional, see below)
 ```
 
 HRV, energy and respiration arrive far more sparsely than heart rate — send
 each at whatever cadence HealthKit delivers; the backend does not resample
 them. `sensor_type` values `energy`/`hrv`/`respiration` were added to
-`session_streams` in migration `0035`.
+`session_streams` in migration `0035`; `race_marker` in migration `0040`.
+
+### 9.3 Race-mode marker (`watch_race.csv`) — observational only
+
+The watch's optional race-mode UI runs a countdown to a start time, with a
+"resync" action that realigns the countdown target to the nearest whole
+minute (correcting drift against the committee boat's minute signals, same
+idea as a dedicated regatta watch). `watch_race.csv` logs each event as it
+happens: `phase` is `countdown_start`, `resync` (one row per tap), or `start`
+(the countdown reaching zero). It's parsed by
+`workers/process_upload/handler.py::process_events` into
+`{'t': <iso>, 'phase': <str>}` rows, stored as an ordinary `session_streams`
+row (`sensor_type=race_marker`) — same storage path as any other stream.
+
+**This is raw, per-crew observational data, not a race result.** Different
+boats' watches will log slightly different `start` instants for the same
+race (human tap latency), so it is never written to `races.start_time`
+(`backend/db/models/race.py`) and no scoring/results computation reads it.
+It exists so that, once several boats in the same race have logged a start,
+that data can later be compared/aggregated to evaluate whether it's usable —
+a separate, not-yet-built piece of work.
