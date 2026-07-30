@@ -91,6 +91,28 @@ export function catmullRomInterval(
   return out;
 }
 
+/** Runs `catmullRomInterval` across an entire smoothed line, splicing each
+ * interval's curve into one continuous path — the shared "turn this line
+ * into a curve" step used by both the map's per-segment coloring (MapView.tsx,
+ * which needs the raw per-interval points to color each one by speed) and
+ * anywhere a single flat-colored curve through the whole line is enough
+ * (TrackSvg.tsx). */
+export function curveThroughLine(
+  smoothed: Array<[number, number]>,
+  subdivisions = CURVE_SUBDIVISIONS,
+): Array<[number, number]> {
+  if (smoothed.length < 3) return smoothed;
+  const out: Array<[number, number]> = [smoothed[0]];
+  for (let i = 1; i < smoothed.length; i++) {
+    const p0 = smoothed[Math.max(0, i - 2)];
+    const p1 = smoothed[i - 1];
+    const p2 = smoothed[i];
+    const p3 = smoothed[Math.min(smoothed.length - 1, i + 1)];
+    out.push(...catmullRomInterval(p0, p1, p2, p3, subdivisions).slice(1));
+  }
+  return out;
+}
+
 export function trackColor(i: number): string {
   return PALETTE[i % PALETTE.length];
 }

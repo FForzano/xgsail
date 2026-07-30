@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { smoothTrackLine, type Track } from "@/components/race/raceModel";
+import { curveThroughLine, smoothTrackLine, type Track } from "@/components/race/raceModel";
 
-// Same downsample cap and extra shrink as the worker-side thumbnail renderer
-// (workers/process_upload/thumbnail.py) — kept in sync so a track looks the
-// same whether it comes from the PNG thumbnail or from this SVG.
+// Same downsample cap, smoothing, and curve subdivision as the worker-side
+// thumbnail renderer (workers/process_upload/thumbnail.py) — kept in sync so
+// a track looks the same whether it comes from the PNG thumbnail, this SVG,
+// or the full map view (MapView.tsx).
 const MAX_POINTS = 800;
 const ZOOM_OUT = 0.9;
 
@@ -39,8 +40,9 @@ export function TrackSvg({
   className?: string;
 }) {
   const points = useMemo(() => {
-    const line = smoothTrackLine(downsample(track.pts));
-    if (line.length < 2) return null;
+    const smoothed = smoothTrackLine(downsample(track.pts));
+    if (smoothed.length < 2) return null;
+    const line = curveThroughLine(smoothed);
 
     let minLat = Infinity;
     let maxLat = -Infinity;
