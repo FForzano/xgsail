@@ -14,11 +14,11 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 
-from ..auth import require_permission, require_user, verify_csrf
+from ..auth import current_user, require_permission, require_user, verify_csrf
 from ..schemas import RaceWriteModel, ResultWriteModel
 from ..services import course as course_service
 from ..services import gpx as gpx_service
-from ..services import ingestion
+from ..services import ingestion, nav_source
 from ..storage import BlobNotFound
 from ._common import activity_sensor_data, blob, repos
 from ._common import parse_point_t as _parse_point_t
@@ -59,13 +59,18 @@ def _race_activity(race, *, create: bool = False):
 
 
 def _session_gps(session_id: uuid.UUID, sensor_type: str = "gps") -> list[dict]:
-    for stream in repos.ingest.list_streams_for_session(session_id):
-        if stream.sensor_type == sensor_type and stream.data_ref:
-            try:
-                return blob.get_json(stream.data_ref)
-            except BlobNotFound:
-                continue
-    return []
+    """A boat sensor series of the session's resolved navigation source.
+
+    Not "the first matching stream": a session can hold several GPS tracks (boat
+    tracker + a watch per crew member) and the race must score the same track
+    the rest of the app shows — see ``services/nav_source.py``."""
+    stream = nav_source.nav_stream(session_id, sensor_type)
+    if stream is None:
+        return []
+    try:
+        return blob.get_json(stream.data_ref)
+    except BlobNotFound:
+        return []
 
 
 def _race_boat_gps(race) -> tuple[dict, "object"]:
@@ -164,10 +169,14 @@ def delete_result(race_id: uuid.UUID, boat_id: uuid.UUID, request: Request):
 # --- compute --------------------------------------------------------------------
 
 @router.get("/{race_id}/data")
-def get_race_data(race_id: uuid.UUID, sensors: str = "gps",
+def get_race_data(race_id: uuid.UUID, request: Request, sensors: str = "gps",
                   pad_start: int = 0, pad_end: int = 0):
     """Time-aligned sensor data of every session in the race activity, keyed
-    by session id with boat info embedded."""
+    by session id with boat info embedded.
+
+    ``request`` is read only to identify the caller for the physiological
+    series, which are per-person and permission-gated; the boat data here stays
+    as public as the race itself."""
     race = _require_race(race_id)
     activity = _race_activity(race)
     if activity is None:
@@ -175,7 +184,8 @@ def get_race_data(race_id: uuid.UUID, sensors: str = "gps",
     start = activity.started_at - timedelta(seconds=pad_start) if activity.started_at else None
     end = activity.ended_at + timedelta(seconds=pad_end) if activity.ended_at else None
 
-    out = activity_sensor_data(activity.id, sensors, start, end)
+    out = activity_sensor_data(activity.id, sensors, start, end,
+                              user=current_user(request))
     return {"race_id": race_id, "activity_id": activity.id, "sessions": out}
 
 

@@ -32,6 +32,20 @@ class StreamPayload(BaseModel):
     row_count: Optional[int] = None
 
 
+class PhysioStatsPayload(BaseModel):
+    """Aggregates the worker derived from one physiological file. Every field is
+    optional: one callback carries only what its file could yield (heart rate
+    knows nothing about energy), and the row is merged, not replaced."""
+    avg_hr_bpm: Optional[float] = None
+    max_hr_bpm: Optional[float] = None
+    min_hr_bpm: Optional[float] = None
+    total_kcal: Optional[float] = None
+    avg_kcal_per_min: Optional[float] = None
+    avg_hrv_ms: Optional[float] = None
+    avg_resp_brpm: Optional[float] = None
+    hr_duration_s: Optional[int] = None
+
+
 class IngestCompletePayload(BaseModel):
     session_upload_id: uuid.UUID
     status: str  # processed | failed
@@ -39,6 +53,10 @@ class IngestCompletePayload(BaseModel):
     start_time: Optional[AwareDatetime] = None
     end_time: Optional[AwareDatetime] = None
     streams: list[StreamPayload] = []
+    # Present only for the wearable physiological files — travels with the
+    # stream that produced it rather than through its own endpoint, since this
+    # callback is already per-upload and already idempotent.
+    physio_stats: Optional[PhysioStatsPayload] = None
 
 
 class UploadStatusPayload(BaseModel):
@@ -71,6 +89,12 @@ def ingest_complete(payload: IngestCompletePayload, request: Request):
 
     if payload.streams:
         repos.ingest.upsert_streams(upload.id, [s.model_dump() for s in payload.streams])
+
+    if payload.physio_stats is not None:
+        changes = payload.physio_stats.model_dump(exclude_unset=True, exclude_none=True)
+        if changes:
+            changes["computed_at"] = datetime.now(timezone.utc)
+            repos.ingest.upsert_physio_stats(upload.id, changes)
 
     if payload.status == "processed":
         repos.ingest.set_upload_status(upload.id, "processed")

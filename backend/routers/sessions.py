@@ -21,17 +21,20 @@ from ..auth import (
     session_visible_to,
     verify_csrf,
 )
+from ..db.models.ingest import NAV_SENSOR_TYPES
 from ..schemas import (
     ManeuverCorrectionModel,
     ManeuverCreateModel,
     ManeuverRejectionModel,
+    NavSourceModel,
+    PhysioSharingModel,
     SessionAttachModel,
     SessionCrewModel,
     SessionNotesModel,
     SessionTrimModel,
     SessionWriteModel,
 )
-from ..services import gpx, ingestion, media
+from ..services import gpx, ingestion, media, nav_source, physio
 from ._common import blob, load_json_or_404, repos, with_user
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -201,11 +204,17 @@ def delete_session(session_id: uuid.UUID, request: Request):
     return {"ok": True}
 
 
-def _latest_upload_or_404(session_id: uuid.UUID):
-    uploads = repos.ingest.list_uploads(session_id=session_id)
-    if not uploads:
+def _nav_upload_or_404(session_id: uuid.UUID):
+    """The upload the analysis pipeline must run against: the one holding this
+    session's navigation track (``services/nav_source.py``).
+
+    Not "the most recently uploaded" — with an Apple Watch aboard the newest
+    upload is often the physiological one, which has no ``gps.json`` at all, so
+    the analysis would be dispatched at a prefix with no track in it."""
+    upload = nav_source.resolve_nav_upload(session_id)
+    if upload is None:
         raise HTTPException(404, "No processed data for this session")
-    return max(uploads, key=lambda u: u.uploaded_at)
+    return upload
 
 
 def _start_reanalysis_job(upload) -> None:
@@ -253,7 +262,7 @@ def reanalyze_session(session_id: uuid.UUID, request: Request, background_tasks:
     session = _require_session(session_id)
     if not _can_edit(session, user):
         raise HTTPException(403, "Not allowed")
-    upload = _latest_upload_or_404(session_id)
+    upload = _nav_upload_or_404(session_id)
     _start_reanalysis_job(upload)
     prefix = ingestion.processed_prefix(upload.id)
     background_tasks.add_task(_run_reanalyze, upload.id, prefix,
@@ -280,7 +289,7 @@ def set_session_trim(session_id: uuid.UUID, body: SessionTrimModel, request: Req
             and body.trim_end_time <= body.trim_start_time):
         raise HTTPException(422, "trim_end_time must be after trim_start_time")
     session = repos.sessions.update(session_id, body.model_dump())
-    upload = _latest_upload_or_404(session_id)
+    upload = _nav_upload_or_404(session_id)
     _start_reanalysis_job(upload)
     prefix = ingestion.processed_prefix(upload.id)
     background_tasks.add_task(_run_reanalyze, upload.id, prefix,
@@ -303,7 +312,7 @@ def refresh_session_wind(session_id: uuid.UUID, request: Request, background_tas
     session = _require_session(session_id)
     if not _can_edit(session, user):
         raise HTTPException(403, "Not allowed")
-    upload = _latest_upload_or_404(session_id)
+    upload = _nav_upload_or_404(session_id)
     _start_reanalysis_job(upload)
     background_tasks.add_task(_run_wind_refresh, session_id, upload.id)
     return {"ok": True, "session_upload_id": upload.id, "status": "running"}
@@ -326,12 +335,33 @@ def get_reanalysis_status(session_id: uuid.UUID, request: Request):
 
 @router.get("/{session_id}/streams")
 def list_streams(session_id: uuid.UUID, request: Request):
+    """This session's data series. Each row carries which upload it came from
+    and, for a wearable, whose body it describes — without that a client can't
+    tell one crew member's heart rate from another's.
+
+    Two filters make this "the session's data" rather than "every row we hold":
+
+    - the boat sensors come from the single resolved navigation upload, so a
+      session recorded by a tracker and two watches yields **one** ``gps`` row
+      and every consumer necessarily agrees on it. The alternatives are listed
+      by ``GET .../nav-sources``, which exists to choose between them.
+    - physiological rows the caller isn't allowed to see are omitted entirely
+      (``auth.session_physio_visible_to``)."""
     user = current_user(request)
-    _require_visible(session_id, user)
+    session = _require_visible(session_id, user)
+    nav_streams = nav_source.resolve_nav_streams(session_id)
+    nav_ids = {s.id for s in nav_streams.values()}
     out = []
-    for st in repos.ingest.list_streams_for_session(session_id):
+    for st, upload in repos.ingest.list_streams_with_uploads_for_session(session_id):
+        if st.sensor_type in NAV_SENSOR_TYPES and st.id not in nav_ids:
+            continue
+        if physio.is_physio_hidden(st, upload, session, user):
+            continue
         d = st.to_dict()
         d["download_url"] = blob.download_ref(st.data_ref) if st.data_ref else None
+        d["subject_type"] = upload.subject_type
+        d["subject_user_id"] = upload.subject_user_id
+        d["physio_shared"] = bool(upload.physio_shared)
         out.append(d)
     return out
 
@@ -341,11 +371,14 @@ def download_gpx(session_id: uuid.UUID, request: Request):
     """Export this session's processed GPS track as a GPX file — always
     regenerated from ``gps.json`` (see ``services/gpx.py::build_gpx``), never
     the original raw upload bytes, so it's uniform whether the session came
-    from a device or a manual GPX/CSV import."""
+    from a device or a manual GPX/CSV import.
+
+    Exports the session's *resolved* navigation track (see
+    ``services/nav_source.py``), so a session recorded by a boat tracker and
+    two watches at once exports the same track the map shows."""
     user = current_user(request)
     _require_visible(session_id, user)
-    streams = repos.ingest.list_streams_for_session(session_id)
-    gps_stream = next((s for s in streams if s.sensor_type == "gps" and s.data_ref), None)
+    gps_stream = nav_source.nav_stream(session_id)
     if gps_stream is None:
         raise HTTPException(404, "No GPS track for this session")
     points = load_json_or_404(gps_stream.data_ref)
@@ -384,6 +417,89 @@ def get_analysis(session_id: uuid.UUID, request: Request):
     data["maneuvers"] = [m.to_dict() for m in maneuvers]
     data["legs"] = [l.to_dict() for l in legs]
     return data
+
+
+# --- personal health data -------------------------------------------------------
+
+@router.get("/{session_id}/physio")
+def get_physio(session_id: uuid.UUID, request: Request):
+    """Personal health data recorded during this session, one entry per crew
+    member whose data the caller may see: aggregates, heart-rate zone bounds,
+    and download URLs for the series themselves.
+
+    Returns an empty list rather than 404 when nothing is visible — a caller
+    must not be able to tell "nobody wore a watch" apart from "someone did and
+    keeps it to themselves". Zone bounds are derived from the *subject's*
+    profile (aged to the session date); the profile fields behind them are
+    never exposed."""
+    user = current_user(request)
+    session = _require_visible(session_id, user)
+    return physio.session_physio(session, user)
+
+
+@router.patch("/{session_id}/physio/sharing")
+def set_physio_sharing(session_id: uuid.UUID, body: PhysioSharingModel, request: Request):
+    """Share (or stop sharing) your own physiological data with this session's
+    crew and boat managers.
+
+    Only the subject may call this — deliberately not ``_can_edit`` and not
+    ``is_session_crew_or_manager``: nobody, boat owner included, gets to publish
+    someone else's heart rate."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = _require_session(session_id)
+    if not session_visible_to(session, user):
+        raise HTTPException(404, "Session not found")
+    uploads = [u for u in repos.ingest.list_uploads(session_id=session_id)
+               if u.subject_user_id == user.id
+               and physio.physio_upload_or_none(session_id, u.id) is not None]
+    if not uploads:
+        raise HTTPException(404, "No physiological data of yours in this session")
+    for upload in uploads:
+        repos.ingest.update_upload(upload.id, {"physio_shared": body.shared})
+    return {"ok": True, "shared": body.shared}
+
+
+# --- navigation source ----------------------------------------------------------
+
+@router.get("/{session_id}/nav-sources")
+def list_nav_sources(session_id: uuid.UUID, request: Request, quality: bool = False):
+    """The GPS tracks available for this session, and which one is in use.
+
+    Empty list when there is nothing to choose (zero or one track), which is the
+    ordinary case — so a page can cheaply ask "is there a choice here?" before
+    offering one. ``quality=true`` additionally measures each candidate's span
+    and gaps, which reads every candidate series out of object storage: only
+    worth it once the user actually opens the picker."""
+    user = current_user(request)
+    _require_visible(session_id, user)
+    return nav_source.candidate_payloads(session_id, with_quality=quality)
+
+
+@router.patch("/{session_id}/nav-source", status_code=202)
+def set_nav_source(session_id: uuid.UUID, body: NavSourceModel, request: Request,
+                   background_tasks: BackgroundTasks):
+    """Choose which upload's GPS is this session's track.
+
+    Edit-level permission (not the subject's own, unlike the health sharing
+    toggle): the track is shared data — everyone's view of the session changes.
+    Re-runs the analysis on the new track, since maneuvers/legs/VMG/polars were
+    all computed against the previous one; poll ``GET .../reanalysis-status``."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = _require_session(session_id)
+    if not _can_edit(session, user):
+        raise HTTPException(403, "Not allowed")
+    candidates = {u.id for u, _ in nav_source.nav_candidates(session_id)}
+    if body.session_upload_id not in candidates:
+        raise HTTPException(422, "That upload has no GPS track for this session")
+    repos.sessions.update(session_id, {"primary_nav_upload_id": body.session_upload_id})
+    upload = repos.ingest.get_upload(body.session_upload_id)
+    _start_reanalysis_job(upload)
+    prefix = ingestion.processed_prefix(upload.id)
+    background_tasks.add_task(_run_reanalyze, upload.id, prefix,
+                              session.trim_start_time, session.trim_end_time)
+    return {"ok": True, "session_upload_id": upload.id, "status": "running"}
 
 
 def _require_maneuver(session_id: uuid.UUID, maneuver_id: uuid.UUID):
@@ -486,7 +602,7 @@ def add_maneuver(session_id: uuid.UUID, body: ManeuverCreateModel, request: Requ
         raise HTTPException(403, "Not allowed")
     if body.end_time <= body.start_time:
         raise HTTPException(422, "end_time must be after start_time")
-    upload = _latest_upload_or_404(session_id)
+    upload = _nav_upload_or_404(session_id)
     maneuver = repos.sessions.add_manual_maneuver(
         session_id, body.maneuver_type, body.start_time, body.end_time,
     )

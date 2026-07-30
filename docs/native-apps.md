@@ -226,6 +226,19 @@ account** to build to a device — the same gate as the Share Extension above.
   time window. The worker parses the watch's CSVs (`watch_*.csv`) with no clock
   correction — see `workers/process_upload/handler.py::process_scalar` and the
   watch-format branch in `process_gps`.
+- **Privacy**: the physiological streams are private to the wearer. Only they
+  can see them until they opt in via `session_uploads.physio_shared`, which
+  widens the audience to the session's crew and boat managers — not even the
+  boat owner sees a crew member's heart rate otherwise. Shown by
+  `components/session/HealthCard.tsx`, read through
+  `GET /api/sessions/{id}/physio`. See `docs/device-protocol.md` §9.2b.
+- **One track per session**: because the watch's GPS uploads as the boat track,
+  a boat with an onboard tracker *and* crew watches yields several `gps`
+  streams for one session. `sessions.primary_nav_upload_id` (with the ranked
+  fallback in `backend/services/nav_source.py`) decides which one the map,
+  export and analysis all use; the UI offers the choice via
+  `components/session/NavSourceModal.tsx` when there's more than one. See
+  `docs/device-protocol.md` §9.2c.
 - **Testing**: the Simulator can validate build/UI/capabilities, plugin
   registration, claiming, and `sendContext` (`WCSession.updateApplicationContext`
   is a small durable state push, not gated on real pairing hardware) — pair an

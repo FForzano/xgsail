@@ -9,7 +9,7 @@ import uuid
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..base import Base, TimestampMixin, UUIDPKMixin, enum_check
@@ -32,6 +32,15 @@ class UserORM(UUIDPKMixin, TimestampMixin, Base):
     first_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     dob: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # Optional, self-reported, and used for exactly one thing: deriving the
+    # heart-rate zones shown on a session's health card (see
+    # services/hr_zones.py). ``max_hr_bpm`` is a *measured* maximum and wins
+    # over any age-based estimate; ``resting_hr_bpm`` upgrades the zone maths
+    # from %HRmax to the more accurate heart-rate-reserve method. Never exposed
+    # to other users — only the derived zone bounds are (see routers/_common.py
+    # ::user_summary, which omits these and dob).
+    resting_hr_bpm: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    max_hr_bpm: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     terms_and_conditions: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Versioned legal acceptance: which version of each document the user last
     # accepted, and when. NULL/"legacy" (vs the current version in

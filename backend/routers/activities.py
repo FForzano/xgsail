@@ -176,10 +176,11 @@ def get_activity_data(activity_id: uuid.UUID, request: Request,
     """Time-aligned sensor data of every session in the activity, keyed by
     session id with boat info embedded — same shape as ``GET
     /races/{id}/data`` minus ``race_id``, for the activity's own overlay map."""
-    activity = _require_visible(activity_id, current_user(request))
+    user = current_user(request)
+    activity = _require_visible(activity_id, user)
     start = activity.started_at - timedelta(seconds=pad_start) if activity.started_at else None
     end = activity.ended_at + timedelta(seconds=pad_end) if activity.ended_at else None
-    out = activity_sensor_data(activity.id, sensors, start, end)
+    out = activity_sensor_data(activity.id, sensors, start, end, user=user)
     return {"activity_id": activity_id, "sessions": out}
 
 

@@ -178,7 +178,10 @@
     "units": "Unità di misura",
     "unitsNautical": "Nautico (kn, nm)",
     "unitsMetric": "Metrico (km/h, km)",
-    "noteTemplates": "Modelli di annotazione"
+    "noteTemplates": "Modelli di annotazione",
+    "hrHint": "Opzionali, servono solo a mostrare le zone cardio delle tue uscite. Non vengono condivisi: gli altri vedono al massimo i limiti delle zone, e solo se condividi i dati di salute di una sessione.",
+    "restingHr": "Battito a riposo (bpm)",
+    "maxHr": "Battito massimo, se misurato (bpm)"
   },
   "noteTemplates": {
     "new": "Nuovo modello",
@@ -578,7 +581,51 @@
       "port": "Sinistra"
     },
     "target": "Target",
-    "optimalAnglesNote": "Dalla tua performance registrata in questa sessione (non dal polare della barca)."
+    "optimalAnglesNote": "Dalla tua performance registrata in questa sessione (non dal polare della barca).",
+    "health": {
+      "title": "Salute",
+      "heartRate": "Battito",
+      "energyRate": "Ritmo energia",
+      "hrv": "HRV",
+      "respiration": "Respirazione",
+      "bpm": "bpm",
+      "kcal": "kcal",
+      "kcalPerMin": "kcal/min",
+      "ms": "ms",
+      "brpm": "resp/min",
+      "avgHr": "Battito medio",
+      "maxHr": "Battito massimo",
+      "totalKcal": "Energia attiva",
+      "avgHrv": "HRV media",
+      "avgResp": "Respirazione media",
+      "shareWithCrew": "Condividi con l'equipaggio",
+      "sharedBadge": "Condiviso",
+      "timeInZones": "Tempo nelle zone cardio",
+      "zone": "Z{{n}}",
+      "basis": {
+        "measured": "Massimo {{max}} bpm (misurato)",
+        "tanaka": "Massimo {{max}} bpm (stimato dall'età)"
+      },
+      "method": {
+        "hrr": "riserva cardiaca",
+        "pct_max": "% del massimo"
+      },
+      "completeProfileHint": "Aggiungi la data di nascita — e il battito a riposo, per una stima più precisa — per vedere le zone cardio.",
+      "completeProfileLink": "Vai al profilo"
+    },
+    "navSource": {
+      "title": "Sorgente traccia",
+      "choose": "Sorgente traccia…",
+      "intro": "Questa sessione è stata registrata da più dispositivi. Scegli quale traccia usare: mappa, esportazione e tutta l'analisi leggono questa.",
+      "current": "In uso",
+      "manualImport": "Import manuale",
+      "points": "{{n}} punti",
+      "rate": "{{hz}} Hz",
+      "gaps": "{{n}} buchi",
+      "reanalyzeNote": "Cambiare la traccia riavvia l'analisi: manovre, lati, VMG e polari erano calcolati sulla precedente.",
+      "applyAndReanalyze": "Usa questa traccia",
+      "applied": "Traccia cambiata — rianalisi avviata"
+    }
   },
   "map": {
     "layers": {

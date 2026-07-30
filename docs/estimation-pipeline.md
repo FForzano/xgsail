@@ -35,6 +35,17 @@ Two independent producers, converging on the same on-disk shape
 Both paths register their `gps.json`/`gps_10hz.json` blobs in
 `session_streams` (`sensor_type="gps"`) via the normal ingestion flow.
 
+**Which track, when there's more than one.** A session can hold several `gps`
+streams — an onboard tracker plus an Apple Watch per crew member (see
+`docs/device-protocol.md` §9.2c). The pipeline runs against one processed
+prefix, and that prefix is the session's resolved navigation upload:
+`sessions.primary_nav_upload_id`, or the ranked fallback in
+`backend/services/nav_source.py`. Anything that dispatches analysis
+(`reanalyze`, `trim`, `wind/refresh`, or changing the track itself) goes
+through that resolver. It used to pick the *most recently uploaded* upload,
+which with a watch aboard could be the physiological one — a prefix with no
+`gps.json` in it at all.
+
 ### Estimation — the joint position/motion estimator
 
 **File: `workers/process_upload/processing/track.py`.**

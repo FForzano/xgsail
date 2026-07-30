@@ -483,6 +483,19 @@ def process_file(bucket: str, key: str):
         s3.put_object(Bucket=bucket, Key=key_10hz,
                       Body=json.dumps(merged_10hz, default=str), ContentType='application/json')
 
+    # The physiological streams arrive at HealthKit's own cadence — heart rate
+    # every few seconds, HRV/respiration far more sparsely — so measure it
+    # instead of reporting the 1.0 that holds for the boat sensors. Aggregates
+    # go out on the same callback, computed on the *merged* series so a
+    # multi-file bundle reports the whole session, not just its last chunk.
+    physio_stats = None
+    rate_hz = 1.0
+    if sensor_type in SCALAR_SENSOR_COLUMNS:
+        from processing import physio  # local, like compute_manual_maneuver below
+
+        rate_hz = physio.sample_rate_hz(merged, sensor_type)
+        physio_stats = physio.physio_stats(sensor_type, merged) or None
+
     _post_callback({
         'session_upload_id': upload_id,
         'status': 'processed',
@@ -491,9 +504,10 @@ def process_file(bucket: str, key: str):
         'streams': [{
             'sensor_type': sensor_type,
             'data_ref': output_key,
-            'sample_rate_hz': 1.0,
+            'sample_rate_hz': rate_hz,
             'row_count': len(merged),
         }],
+        'physio_stats': physio_stats,
     })
 
 

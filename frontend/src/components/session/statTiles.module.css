@@ -1,11 +1,14 @@
-/* Live playback readouts: 4-up row on desktop, 2×2 on mobile. */
-.indicators {
+/* Small labelled-value tiles, laid out 4-up on desktop and 2×2 on mobile.
+   Shared by the playback readouts (value at the cursor) and the health card's
+   session aggregates — same visual pattern, different data, so one stylesheet
+   rather than a copy per component. */
+.tiles {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 0.5rem;
 }
 @media (max-width: 700px) {
-  .indicators {
+  .tiles {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -25,5 +28,7 @@
 .value {
   font-size: 1.05rem;
   font-weight: 600;
+  /* Tabular figures so a value ticking with the playback cursor doesn't make
+     the tile jitter as digit widths change. */
   font-variant-numeric: tabular-nums;
 }

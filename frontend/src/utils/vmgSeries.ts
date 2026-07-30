@@ -1,17 +1,10 @@
 import type { VmgPoint } from "@/types";
+import { lastIndexAtOrBefore } from "./timeSeries";
 
-// Nearest VMG-series sample at or before `ms` (same binary-search shape as
-// raceModel's `indexAt`, applied to the worker-native (seconds) VMG series).
+// Nearest VMG-series sample at or before `ms`. The series is worker-native
+// (timestamps in seconds), the cursor is in ms — hence the conversion.
 export function vmgAt(series: VmgPoint[] | null | undefined, ms: number): VmgPoint | null {
   if (!series?.length) return null;
-  const t = ms / 1000;
-  if (t < series[0].timestamp) return null;
-  let lo = 0;
-  let hi = series.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (series[mid].timestamp <= t) lo = mid;
-    else hi = mid - 1;
-  }
-  return series[lo];
+  const idx = lastIndexAtOrBefore(series, ms / 1000, (p) => p.timestamp);
+  return idx < 0 ? null : series[idx];
 }

@@ -246,6 +246,22 @@ def session_notes_visible_to(session, user) -> bool:
     return bool(session.notes_shared) and session_visible_to(session, user)
 
 
+def session_physio_visible_to(session, upload, user) -> bool:
+    """Physiological data (heart rate, energy, HRV, respiration) is private to
+    the crew member it describes — ``upload.subject_user_id``. Their
+    ``physio_shared`` opt-in widens it to the session's crew/boat managers, the
+    same audience as shared notes.
+
+    Deliberately stricter than ``session_notes_visible_to``: the boat's owner
+    does NOT see a crew member's heart rate by virtue of owning the boat, only
+    because that person chose to share it."""
+    if user is None:
+        return False
+    if user.is_superadmin or upload.subject_user_id == user.id:
+        return True
+    return bool(upload.physio_shared) and is_session_crew_or_manager(session, user)
+
+
 def can_edit_activity(activity, user) -> bool:
     """Creator, superadmin, or club-scoped activity.manage when club-linked."""
     if user is None or activity is None:

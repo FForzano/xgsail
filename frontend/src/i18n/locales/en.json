@@ -178,7 +178,10 @@
     "units": "Units",
     "unitsNautical": "Nautical (kn, nm)",
     "unitsMetric": "Metric (km/h, km)",
-    "noteTemplates": "Note templates"
+    "noteTemplates": "Note templates",
+    "hrHint": "Optional, only used to show heart-rate zones for your outings. Never shared: others only ever see the zone boundaries, and only if you share a session's health data.",
+    "restingHr": "Resting heart rate (bpm)",
+    "maxHr": "Max heart rate, if measured (bpm)"
   },
   "noteTemplates": {
     "new": "New template",
@@ -578,7 +581,51 @@
       "port": "Port"
     },
     "target": "Target",
-    "optimalAnglesNote": "From your recorded performance in this session (not the boat's reference polar)."
+    "optimalAnglesNote": "From your recorded performance in this session (not the boat's reference polar).",
+    "health": {
+      "title": "Health",
+      "heartRate": "Heart rate",
+      "energyRate": "Energy rate",
+      "hrv": "HRV",
+      "respiration": "Respiration",
+      "bpm": "bpm",
+      "kcal": "kcal",
+      "kcalPerMin": "kcal/min",
+      "ms": "ms",
+      "brpm": "br/min",
+      "avgHr": "Avg heart rate",
+      "maxHr": "Max heart rate",
+      "totalKcal": "Active energy",
+      "avgHrv": "Avg HRV",
+      "avgResp": "Avg respiration",
+      "shareWithCrew": "Share with the crew",
+      "sharedBadge": "Shared",
+      "timeInZones": "Time in heart-rate zones",
+      "zone": "Z{{n}}",
+      "basis": {
+        "measured": "Max {{max}} bpm (measured)",
+        "tanaka": "Max {{max}} bpm (estimated from age)"
+      },
+      "method": {
+        "hrr": "heart-rate reserve",
+        "pct_max": "% of maximum"
+      },
+      "completeProfileHint": "Add your date of birth — and your resting heart rate, for a closer estimate — to see heart-rate zones.",
+      "completeProfileLink": "Open your profile"
+    },
+    "navSource": {
+      "title": "Track source",
+      "choose": "Track source…",
+      "intro": "This session was recorded by more than one device. Pick which track it should use — the map, the export and the whole analysis all read this one.",
+      "current": "In use",
+      "manualImport": "Manual import",
+      "points": "{{n}} points",
+      "rate": "{{hz}} Hz",
+      "gaps": "{{n}} gaps",
+      "reanalyzeNote": "Changing the track re-runs the analysis: maneuvers, legs, VMG and polars were all computed from the previous one.",
+      "applyAndReanalyze": "Use this track",
+      "applied": "Track changed — reanalysis started"
+    }
   },
   "map": {
     "layers": {

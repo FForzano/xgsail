@@ -1,4 +1,5 @@
 import type { ActivitySessionData, GpsPoint, VmgPoint } from "@/types";
+import { lastIndexAtOrBefore } from "@/utils/timeSeries";
 
 // A replay track: parsed points (ms epoch) + a stable display color.
 export interface TrackPoint {
@@ -205,32 +206,13 @@ export function pointAt(track: Track, ms: number): TrackPoint | null {
 
 // Index of the last point at or before `ms` (−1 if before the track starts).
 export function indexAt(track: Track, ms: number): number {
-  const { pts } = track;
-  if (!pts.length || ms < pts[0].ms) return -1;
-  let lo = 0;
-  let hi = pts.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (pts[mid].ms <= ms) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo;
+  return lastIndexAtOrBefore(track.pts, ms, (p) => p.ms);
 }
 
-// Nearest VMG sample at-or-before `ms` — `vmg_series` is its own time axis
-// (epoch seconds, not necessarily the same cadence as GPS fixes), so this
-// mirrors `indexAt`'s binary search rather than joining by index.
-export function vmgAt(vmg: VmgPoint[] | null | undefined, ms: number): VmgPoint | null {
-  if (!vmg?.length || ms < vmg[0].timestamp * 1000) return null;
-  let lo = 0;
-  let hi = vmg.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (vmg[mid].timestamp * 1000 <= ms) lo = mid;
-    else hi = mid - 1;
-  }
-  return vmg[lo];
-}
+// Re-exported so callers already importing from raceModel don't have to change:
+// `vmg_series` has its own time axis (epoch seconds, a different cadence from
+// GPS fixes) and lives in utils/vmgSeries, over the same search as `indexAt`.
+export { vmgAt } from "@/utils/vmgSeries";
 
 // Earth radius in meters, for the haversine distance used by the cumulative
 // distance helper below.

@@ -1,6 +1,14 @@
 import { useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { PolarPoint } from "@/types";
+import {
+  BASE_RGB,
+  RAMP_DARK,
+  RAMP_LIGHT,
+  lightenRgb,
+  rampRgb,
+  rgbCss,
+} from "@/utils/colorRamp";
 import styles from "./PolarChart.module.css";
 
 // Hand-rolled SVG polar diagram: boat speed (radius) vs true wind angle
@@ -25,40 +33,10 @@ const SPOKES = [0, 45, 90, 135, 180];
 // chord — otherwise the no-go zone near 0° looks like smooth coverage.
 const GAP_THRESHOLD_DEG = 9;
 
-type Rgb = [number, number, number];
-
-function hexToRgb(hex: string): Rgb {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-}
-
-function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
-  return [0, 1, 2].map((i) => Math.round(a[i] + (b[i] - a[i]) * t)) as Rgb;
-}
-
-function rgbCss([r, g, b]: Rgb): string {
-  return `rgb(${r},${g},${b})`;
-}
-
-/** Blends an rgb triple toward white — used for the "target" (max-speed)
- * curve so it reads as a distinct tint of the average curve's color rather
- * than an identical overlapping line. */
-function lightenRgb(rgb: Rgb, amount: number): Rgb {
-  return mixRgb(rgb, [255, 255, 255], amount);
-}
-
 // Ordinal ramp (one hue, light→dark by bucket position — see dataviz skill's
-// "ordinal" job) anchored on --sf-primary: the lightest bucket is a tint of
-// it, the strongest a shade, so the slider position and the drawn curve's
-// color always agree.
-const BASE_RGB = hexToRgb("#2f9be0");
-const RAMP_LIGHT = mixRgb(BASE_RGB, [255, 255, 255], 0.55);
-const RAMP_DARK = mixRgb(BASE_RGB, [0, 0, 0], 0.35);
-
-function rampRgb(t: number): Rgb {
-  return mixRgb(RAMP_LIGHT, RAMP_DARK, t);
-}
-
+// "ordinal" job) anchored on --sf-primary, so the slider position and the drawn
+// curve's color always agree. Shared with the health card's heart-rate zones,
+// which encode the same kind of ordered intensity — see utils/colorRamp.
 const TWS_TRACK_GRADIENT = `linear-gradient(to right, ${rgbCss(RAMP_LIGHT)}, ${rgbCss(RAMP_DARK)})`;
 
 function polar(twaDeg: number, radius: number, side: 1 | -1): [number, number] {

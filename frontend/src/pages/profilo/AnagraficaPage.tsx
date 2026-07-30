@@ -23,7 +23,16 @@ export function AnagraficaPage() {
 
   const me = useQuery({ queryKey: userKeys.me, queryFn: usersService.me });
   const units = useUnits();
-  const [form, setForm] = useState({ first_name: "", last_name: "", dob: "" });
+  const [form, setForm] = useState({
+    first_name: "",
+    last_name: "",
+    dob: "",
+    // Optional, and used for one thing only: the heart-rate zones on a
+    // session's health card (see components/session/HealthCard). Kept as
+    // strings so an empty field stays empty rather than becoming 0.
+    resting_hr_bpm: "",
+    max_hr_bpm: "",
+  });
 
   // Note templates: personal reusable snippets to prefill the session-notes
   // textarea (see SessionDetail.tsx's notes-editing modal) — managed here
@@ -77,6 +86,8 @@ export function AnagraficaPage() {
         first_name: me.data.first_name ?? "",
         last_name: me.data.last_name ?? "",
         dob: me.data.dob ?? "",
+        resting_hr_bpm: me.data.resting_hr_bpm?.toString() ?? "",
+        max_hr_bpm: me.data.max_hr_bpm?.toString() ?? "",
       });
     }
   }, [me.data]);
@@ -87,6 +98,8 @@ export function AnagraficaPage() {
         first_name: form.first_name || null,
         last_name: form.last_name || null,
         dob: form.dob || null,
+        resting_hr_bpm: form.resting_hr_bpm ? Number(form.resting_hr_bpm) : null,
+        max_hr_bpm: form.max_hr_bpm ? Number(form.max_hr_bpm) : null,
       }),
     onSuccess: async () => {
       notify(t("common.saved"), "success");
@@ -141,6 +154,32 @@ export function AnagraficaPage() {
           type="date"
           value={form.dob}
           onChange={(e) => setForm((f) => ({ ...f, dob: e.target.value }))}
+        />
+        {/* Health data, and health data only: these two exist so a session's
+            heart-rate zones can be worked out. Nothing else reads them, and
+            nobody else sees them — only the resulting zone boundaries are
+            shared, and only with whoever you share the session's health data
+            with. */}
+        <p className="sf-muted" style={{ fontSize: "0.8rem", margin: "0.75rem 0 0.25rem" }}>
+          {t("profile.hrHint")}
+        </p>
+        <InputField
+          label={t("profile.restingHr")}
+          id="resting_hr_bpm"
+          type="number"
+          min={30}
+          max={120}
+          value={form.resting_hr_bpm}
+          onChange={(e) => setForm((f) => ({ ...f, resting_hr_bpm: e.target.value }))}
+        />
+        <InputField
+          label={t("profile.maxHr")}
+          id="max_hr_bpm"
+          type="number"
+          min={100}
+          max={240}
+          value={form.max_hr_bpm}
+          onChange={(e) => setForm((f) => ({ ...f, max_hr_bpm: e.target.value }))}
         />
         <div className="sf-form__actions">
           <Button type="submit" disabled={save.isPending}>

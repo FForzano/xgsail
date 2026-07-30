@@ -68,6 +68,21 @@ class SessionORM(UUIDPKMixin, Base):
     # auth.session_notes_visible_to).
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notes_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Which upload's GPS is THE track of this session. A session can receive
+    # several gps streams at once (a boat tracker + one Apple Watch per crew
+    # member), but navigation must be single-valued: the map, the GPX export,
+    # the replay endpoints and the analysis pipeline all read the one resolved
+    # here. NULL = no explicit choice, apply the deterministic ranking in
+    # services/nav_source.py. On the session (not a flag on the uploads) so
+    # "two primaries" / "no primary" are unrepresentable. Physiological streams
+    # are NOT deduplicated this way — every crew member keeps their own.
+    # use_alter breaks the sessions<->session_uploads FK cycle
+    # (session_uploads.session_id -> sessions): added by a separate ALTER once
+    # both tables exist, same trick as users.profile_image_id.
+    primary_nav_upload_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("session_uploads.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+    )
 
 
 class SessionCrewORM(UUIDPKMixin, CreatedAtMixin, Base):
@@ -139,6 +154,45 @@ class SessionStatsORM(Base):
     # Require wind data (onboard or wind_observations).
     avg_polar_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     max_polar_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class SessionPhysioStatsORM(Base):
+    """Aggregate physiological stats of ONE crew member for ONE session — PK is
+    their upload, so a boat with two watches aboard gets two rows.
+
+    Deliberately not columns on ``session_stats``: that table is 1:1 with the
+    session (two wearers would collide) and is served to everyone who can see
+    the session, whereas these numbers go through
+    ``auth.session_physio_visible_to``. Every column is nullable because the
+    four physio files (hr/energy/hrv/respiration) arrive as independent worker
+    callbacks and fill this row progressively.
+
+    Heart-rate *zones* are deliberately absent: they depend on profile data the
+    user can correct after the fact, so they're derived per request in
+    ``services/hr_zones.py`` rather than frozen here.
+    """
+
+    __tablename__ = "session_physio_stats"
+
+    session_upload_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("session_uploads.id", ondelete="CASCADE"), primary_key=True
+    )
+    avg_hr_bpm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_hr_bpm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    min_hr_bpm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Active energy actually burned over the session — the watch reports a
+    # cumulative counter, the worker turns it into this total (see
+    # workers/process_upload/processing/physio.py).
+    total_kcal: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    avg_kcal_per_min: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    avg_hrv_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    avg_resp_brpm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Span actually covered by heart-rate samples — can be shorter than the
+    # session (watch started late, battery died, sensor lost contact).
+    hr_duration_s: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

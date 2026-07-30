@@ -473,8 +473,69 @@ watch_race.csv    t,phase                     -> race_marker  (optional, see bel
 
 HRV, energy and respiration arrive far more sparsely than heart rate — send
 each at whatever cadence HealthKit delivers; the backend does not resample
-them. `sensor_type` values `energy`/`hrv`/`respiration` were added to
-`session_streams` in migration `0035`; `race_marker` in migration `0040`.
+them, and `session_streams.sample_rate_hz` reports the cadence it measured
+rather than a nominal 1 Hz. `sensor_type` values `energy`/`hrv`/`respiration`
+were added to `session_streams` in migration `0035`; `race_marker` in
+migration `0040`.
+
+Energy is a **cumulative counter**, not a per-sample reading, and it can reset
+to zero if the watch restarts mid-session. Anything totalling it must sum the
+counter's *increments*, not subtract its endpoints — see
+`workers/process_upload/processing/physio.py::cumulative_total`, which also
+derives the per-session aggregates stored in `session_physio_stats`.
+
+### 9.2b Who can read physiological data
+
+Position and boat sensors follow the session's ordinary visibility.
+Physiological streams do not: they are **private to `subject_user_id`** by
+default. `session_uploads.physio_shared` (migration `0041`) is that person's
+opt-in to let the session's crew and boat managers see them — the same audience
+as shared session notes, and deliberately stricter, since owning the boat does
+not grant access to a crew member's heart rate. Only the subject may flip it
+(`PATCH /api/sessions/{id}/physio/sharing`).
+
+Consequences for anything reading streams:
+
+- `GET /api/sessions/{id}/streams` omits physiological rows the caller may not
+  see, and carries `subject_user_id` on the ones it returns (without it, two
+  wearers' heart rates are indistinguishable).
+- `GET /api/activities/{id}/data` and `GET /api/races/{id}/data` apply the same
+  gate, and return physiological series under a per-subject `physio` key rather
+  than flattened by `sensor_type`.
+- `GET /api/sessions/{id}/physio` is the purpose-built read: aggregates plus
+  derived heart-rate zone bounds per crew member. It returns `[]` — never 404 —
+  when nothing is visible, so a caller cannot distinguish "nobody wore a watch"
+  from "someone did, privately". Zones are computed from the *subject's*
+  profile; the inputs (date of birth, resting/max heart rate) are never exposed.
+
+See `backend/auth/permissions.py::session_physio_visible_to`.
+
+### 9.2c Several GPS tracks in one session
+
+Because a wearable's nav upload is `subject_type=boat` and merges by boat +
+time window, one session can legitimately end up with **several `gps`
+streams** — an onboard tracker plus a watch per crew member. Personal data
+stays per-person, but navigation must be single-valued: the map, the GPX
+export, the replay endpoints and the whole analysis pipeline have to agree on
+one track.
+
+`sessions.primary_nav_upload_id` (migration `0041`) records an explicit choice.
+When it is NULL, `backend/services/nav_source.py` ranks the candidates: a
+`boat_tracker` device before a `wearable`, `subject_type=boat` before
+`crew_member`, more points before fewer, older upload as a stable tiebreak.
+The ranking deliberately ignores upload *recency* — otherwise a crew member
+relaying their watch after the boat's tracker would silently swap out the track
+of an already-analysed session.
+
+Two consequences worth knowing when integrating:
+
+- `GET /api/sessions/{id}/streams` returns **one** row per boat sensor: the
+  resolved upload's. The alternatives are listed by
+  `GET /api/sessions/{id}/nav-sources`, which exists to choose between them
+  (`PATCH /api/sessions/{id}/nav-source`, which re-runs the analysis).
+- `imu`/`wind`/`pressure` come from the same upload as the track, since they
+  are the same physical device. Mixing one device's heel with another's
+  position would fabricate a boat state that never existed.
 
 ### 9.3 Race-mode marker (`watch_race.csv`) — observational only
 

@@ -4,11 +4,13 @@ import type {
   FileUploadTicket,
   ImageRef,
   ImageUploadTicket,
+  NavSourceCandidate,
   SailingRole,
   Session,
   SessionAnalysis,
   SessionCrew,
   SessionManeuver,
+  SessionPhysio,
   SessionStats,
   SessionStream,
   UUID,
@@ -24,6 +26,9 @@ export const sessionKeys = {
   crew: (id: UUID) => ["sessions", id, "crew"] as const,
   photos: (id: UUID) => ["sessions", id, "photos"] as const,
   videos: (id: UUID) => ["sessions", id, "videos"] as const,
+  physio: (id: UUID) => ["sessions", id, "physio"] as const,
+  navSources: (id: UUID, quality = false) =>
+    ["sessions", id, "nav-sources", quality] as const,
 };
 
 export const sessionsService = {
@@ -54,6 +59,26 @@ export const sessionsService = {
   streams: (id: UUID) => api.get<SessionStream[]>(`/sessions/${id}/streams`),
   stats: (id: UUID) => api.get<SessionStats>(`/sessions/${id}/stats`),
   analysis: (id: UUID) => api.get<SessionAnalysis>(`/sessions/${id}/analysis`),
+
+  // Personal health data, one entry per crew member the caller may see —
+  // always a list (empty, never 404, when nothing is visible).
+  physio: (id: UUID) => api.get<SessionPhysio[]>(`/sessions/${id}/physio`),
+  // Share your OWN physiological data with this session's crew/boat managers.
+  updatePhysioSharing: (id: UUID, shared: boolean) =>
+    api.patch<{ ok: boolean; shared: boolean }>(`/sessions/${id}/physio/sharing`, { shared }),
+
+  // The GPS tracks available for this session — empty unless there are at
+  // least two to choose between, so it's cheap enough to ask on page load just
+  // to decide whether to offer the choice. `quality` adds each candidate's span
+  // and gap count, which reads the series themselves: only for the picker.
+  navSources: (id: UUID, quality = false) =>
+    api.get<NavSourceCandidate[]>(`/sessions/${id}/nav-sources${quality ? "?quality=true" : ""}`),
+  // Changing the track re-runs the analysis; poll reanalysisStatus after.
+  setNavSource: (id: UUID, sessionUploadId: UUID) =>
+    api.patch<{ ok: boolean; session_upload_id: UUID; status: "running" }>(
+      `/sessions/${id}/nav-source`,
+      { session_upload_id: sessionUploadId },
+    ),
 
   correctManeuver: (id: UUID, maneuverId: UUID, maneuverType: SessionManeuver["maneuver_type"]) =>
     api.patch<SessionManeuver>(`/sessions/${id}/maneuvers/${maneuverId}`, { maneuver_type: maneuverType }),

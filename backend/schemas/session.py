@@ -49,3 +49,17 @@ class SessionAttachModel(BaseModel):
 class SessionNotesModel(BaseModel):
     notes: Optional[str] = None
     notes_shared: bool = False
+
+
+class PhysioSharingModel(BaseModel):
+    """Whether this crew member lets the session's crew/boat managers see their
+    physiological data. Only the subject may send it — see
+    ``auth.session_physio_visible_to``."""
+    shared: bool
+
+
+class NavSourceModel(BaseModel):
+    """Which upload's GPS becomes the session's navigation track (see
+    ``services/nav_source.py``). Changing it re-runs the analysis, because
+    polars/VMG/maneuvers were computed against the previous track."""
+    session_upload_id: uuid.UUID

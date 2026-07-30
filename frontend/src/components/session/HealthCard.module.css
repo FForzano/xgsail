@@ -1,0 +1,112 @@
+/* The health card: per-crew-member blocks, each a KPI row + a stack of short
+   single-metric panels sharing one time axis. */
+
+.member + .member {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--sf-border);
+}
+
+.memberHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.panels {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* One metric. Deliberately its own y-scale: four different units cannot share
+   an axis, and stacking beats a second y-axis on the right. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.panelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.panelTitle {
+  color: var(--sf-muted);
+}
+
+/* Value at the playback cursor. Tabular so it doesn't jitter while scrubbing. */
+.panelValue {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Time in each heart-rate zone: one row, widths proportional to the seconds
+   spent there. Ordered intensity, so a single-hue ramp — not a traffic light. */
+.zoneBar {
+  display: flex;
+  width: 100%;
+  height: 12px;
+  margin-top: 0.5rem;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--sf-surface);
+}
+
+.zoneSegment {
+  height: 100%;
+  /* Keeps adjacent segments from reading as one block. */
+  box-shadow: inset -2px 0 0 var(--sf-bg-2);
+}
+
+.zoneLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.85rem;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.zoneLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--sf-muted);
+}
+
+.zoneDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.zoneTime {
+  color: var(--sf-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* How the zones were derived — an estimate has to say so. */
+.zoneBasis {
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+}
+
+.hint {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.sharing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}

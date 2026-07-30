@@ -10,12 +10,20 @@ from typing import Optional
 
 from sqlalchemy import select
 
-from ...db.models import ImportORM, SessionStreamORM, SessionUploadORM
+from ...db.models import (
+    ImportORM,
+    SessionPhysioStatsORM,
+    SessionStreamORM,
+    SessionUploadORM,
+)
 
 _UPLOAD_FIELDS = ("session_id", "source_type", "device_id", "import_id",
                   "subject_type", "subject_user_id", "raw_ref",
                   "sequence_number", "is_final", "status")
 _STREAM_FIELDS = ("sensor_type", "data_ref", "sample_rate_hz", "row_count")
+_PHYSIO_STAT_FIELDS = ("avg_hr_bpm", "max_hr_bpm", "min_hr_bpm", "total_kcal",
+                       "avg_kcal_per_min", "avg_hrv_ms", "avg_resp_brpm",
+                       "hr_duration_s", "computed_at")
 
 
 class SqlIngestRepo:
@@ -99,7 +107,8 @@ class SqlIngestRepo:
             return list(s.scalars(q).all())
 
     def update_upload(self, upload_id: uuid.UUID, changes: dict) -> Optional[SessionUploadORM]:
-        allowed = ("status", "is_final", "raw_ref", "reanalysis_status", "reanalysis_error")
+        allowed = ("status", "is_final", "raw_ref", "reanalysis_status",
+                   "reanalysis_error", "physio_shared")
         with self.Session() as s:
             orm = s.get(SessionUploadORM, upload_id)
             if orm is None:
@@ -166,3 +175,57 @@ class SqlIngestRepo:
                       SessionStreamORM.session_upload_id == SessionUploadORM.id)
                 .where(SessionUploadORM.session_id == session_id)
             ).all())
+
+    def list_streams_with_uploads_for_session(
+        self, session_id: uuid.UUID
+    ) -> "list[tuple[SessionStreamORM, SessionUploadORM]]":
+        """Same join as ``list_streams_for_session`` but keeping the upload too.
+
+        Needed wherever a stream can't be interpreted on its own: whose data is
+        this (``subject_user_id``), may the caller see it (``physio_shared``),
+        and which upload does the navigation track come from."""
+        with self.Session() as s:
+            return list(s.execute(
+                select(SessionStreamORM, SessionUploadORM)
+                .join(SessionUploadORM,
+                      SessionStreamORM.session_upload_id == SessionUploadORM.id)
+                .where(SessionUploadORM.session_id == session_id)
+            ).all())
+
+    # --- session_physio_stats ---
+
+    def upsert_physio_stats(self, session_upload_id: uuid.UUID,
+                            changes: dict) -> SessionPhysioStatsORM:
+        """Merge (not replace) one crew member's physiological aggregates.
+
+        The four physio files arrive as independent worker callbacks, each
+        carrying only the metrics it could compute, so an absent key must leave
+        the stored value alone — same reasoning as ``upsert_streams``."""
+        with self.Session() as s:
+            orm = s.get(SessionPhysioStatsORM, session_upload_id)
+            if orm is None:
+                orm = SessionPhysioStatsORM(session_upload_id=session_upload_id)
+                s.add(orm)
+            for k, v in changes.items():
+                if k in _PHYSIO_STAT_FIELDS:
+                    setattr(orm, k, v)
+            s.commit()
+        return self.get_physio_stats(session_upload_id)
+
+    def get_physio_stats(self, session_upload_id: uuid.UUID) -> Optional[SessionPhysioStatsORM]:
+        with self.Session() as s:
+            return s.get(SessionPhysioStatsORM, session_upload_id)
+
+    def list_physio_stats_for_session(
+        self, session_id: uuid.UUID
+    ) -> "dict[uuid.UUID, SessionPhysioStatsORM]":
+        """Physiological aggregates of every upload of a session, keyed by
+        upload id — one entry per crew member who wore a device."""
+        with self.Session() as s:
+            rows = s.scalars(
+                select(SessionPhysioStatsORM)
+                .join(SessionUploadORM,
+                      SessionPhysioStatsORM.session_upload_id == SessionUploadORM.id)
+                .where(SessionUploadORM.session_id == session_id)
+            ).all()
+            return {r.session_upload_id: r for r in rows}

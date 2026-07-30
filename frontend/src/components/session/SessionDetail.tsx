@@ -3,13 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, NotebookPen, Pencil, Video } from "lucide-react";
-import { ApiError, resolveApiUrl } from "@/api/client";
+import { ApiError } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useAuth } from "@/hooks/useAuth";
 import { useCapabilities } from "@/hooks/useCapabilities";
+import { useStreamJson } from "@/hooks/useStreamJson";
 import { useToast } from "@/hooks/useToast";
 import { timeController } from "@/stores/timeController";
 import { buildTrack, medianIntervalMs, timeBounds, trackColor } from "@/components/race/raceModel";
@@ -30,6 +31,8 @@ import { UserPicker } from "@/components/common/UserPicker";
 import { WindCard } from "@/components/common/WindCard";
 import { SessionAnalysis } from "@/components/session/SessionAnalysis";
 import { ShareImageModal } from "@/components/session/ShareImageModal";
+import { HealthCard } from "@/components/session/HealthCard";
+import { NavSourceModal } from "@/components/session/NavSourceModal";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { fmtDateTime, fmtDistance, fmtDuration, fmtKnots, userLabel } from "@/utils/format";
 import { legSequence } from "@/utils/legSequence";
@@ -105,7 +108,7 @@ export function SessionDetail({
   const [notesEditing, setNotesEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [gps, setGps] = useState<GpsPoint[] | null>(null);
+  const [pickingNavSource, setPickingNavSource] = useState(false);
   // Per-type map display toggles — replaces the old flat showLegs/
   // showManeuvers pair so bolina/lasco/poppa and virate/abbattute/cambi
   // rotta can each be shown/hidden independently. Hidden by default —
@@ -247,23 +250,22 @@ export function SessionDetail({
       query.state.data?.maneuvers.some((m) => m.pending) ? 3000 : false,
   });
 
-  // The gps stream JSON lives in object storage — fetch via its download_url.
-  const gpsStream = streams.data?.find((s) => s.sensor_type === "gps" && s.download_url);
-  useEffect(() => {
-    if (!gpsStream?.download_url) return;
-    let cancelled = false;
-    void fetch(resolveApiUrl(gpsStream.download_url))
-      .then((r) => (r.ok ? r.json() : []))
-      .then((points: GpsPoint[]) => {
-        if (!cancelled) setGps(points);
-      })
-      .catch(() => {
-        if (!cancelled) setGps([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [gpsStream?.download_url]);
+  // Just to know whether this session even has a track to choose (a boat
+  // tracker plus a crew watch, say) — returns [] with a single one, and without
+  // `quality` it's a DB-only question, no series read. The picker itself asks
+  // for the quality metrics.
+  const navSources = useQuery({
+    queryKey: sessionKeys.navSources(sessionId),
+    queryFn: () => sessionsService.navSources(sessionId),
+    enabled: !!sessionId,
+  });
+
+  // The gps stream JSON lives in object storage — fetched via its download_url
+  // (see useStreamJson). `subject_type: "boat"` picks the boat's own track when
+  // crew wearables contributed their own GPS to the same session; which of
+  // several boat tracks wins is the backend's call (services/nav_source.py),
+  // and it only ever exposes the resolved one.
+  const gps = useStreamJson<GpsPoint>(streams.data, "gps");
 
   // The boat's actual name/photo (not the generic "Playback" track label) —
   // shown in the map popup, so it needs the real boat even on this
@@ -618,6 +620,17 @@ export function SessionDetail({
             },
           ]
         : []),
+      // Only when there's actually a choice: with one recording device — the
+      // overwhelmingly common case — the endpoint returns nothing and this
+      // stays out of the way.
+      ...(manager && (navSources.data?.length ?? 0) > 1
+        ? [
+            {
+              label: t("sessions.navSource.choose"),
+              onClick: () => setPickingNavSource(true),
+            },
+          ]
+        : []),
     ],
   });
   if (analysis.data?.legs.length || analysis.data?.maneuvers.length) {
@@ -682,6 +695,7 @@ export function SessionDetail({
     photos.data?.length ?? 0,
     videos.data?.length ?? 0,
     !!session.data?.notes,
+    navSources.data?.length ?? 0,
     mapShow,
     variant,
   ]);
@@ -759,7 +773,7 @@ export function SessionDetail({
       )}
 
       <Card className="sf-card--flush sf-card--flush-top">
-        {streams.isLoading || (gpsStream && gps === null) ? (
+        {streams.isLoading || gps === null ? (
           <div className="sf-card__pad">
             <Spinner />
           </div>
@@ -863,6 +877,10 @@ export function SessionDetail({
           </div>
         </Card>
       )}
+
+      {/* Renders nothing unless this viewer may see someone's health data —
+          see HealthCard, which also handles the multi-crew case. */}
+      <HealthCard sessionId={sessionId} />
 
       {tracks[0]?.pts[0] && (
         <WindCard lat={tracks[0].pts[0].lat} lng={tracks[0].pts[0].lon} at={s.started_at} />
@@ -1160,6 +1178,9 @@ export function SessionDetail({
           }}
           onClose={() => setSharing(false)}
         />
+      )}
+      {pickingNavSource && (
+        <NavSourceModal sessionId={sessionId} onClose={() => setPickingNavSource(false)} />
       )}
     </div>
   );

@@ -12,7 +12,17 @@ export const usersService = {
   me: () => api.get<User & { profile_image: ImageRef | null }>("/users/me"),
   update: (
     id: UUID,
-    changes: Partial<Pick<User, "first_name" | "last_name" | "dob" | "unit_system">>,
+    changes: Partial<
+      Pick<
+        User,
+        | "first_name"
+        | "last_name"
+        | "dob"
+        | "unit_system"
+        | "resting_hr_bpm"
+        | "max_hr_bpm"
+      >
+    >,
   ) => api.patch<User>(`/users/${id}`, changes),
   remove: (id: UUID) => api.del(`/users/${id}`),
   lookup: (email: string) =>

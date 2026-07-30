@@ -34,6 +34,11 @@ export interface User {
   first_name: string | null;
   last_name: string | null;
   dob: string | null;
+  // Optional and self-reported; the only consumer is the heart-rate zone
+  // derivation on a session's health card (backend/services/hr_zones.py).
+  // Private to the user — other people only ever see the derived zone bounds.
+  resting_hr_bpm: number | null;
+  max_hr_bpm: number | null;
   is_active: boolean;
   is_superadmin: boolean;
   status: string;
@@ -42,6 +47,8 @@ export interface User {
   created_at?: string;
 }
 
+// The public projection embedded in crew/member rows — deliberately without
+// dob or the heart-rate fields (see routers/_common.py::user_summary).
 export interface UserSummary {
   id: UUID;
   first_name: string | null;
@@ -358,10 +365,101 @@ export interface Session {
 }
 
 export interface SessionStream {
-  sensor_type: string; // gps | imu | wind | pressure…
+  sensor_type: string; // gps | imu | wind | pressure | heart_rate | energy | hrv | respiration…
   sample_rate_hz: number | null;
   row_count: number | null;
   download_url: string | null;
+  // Whose data this is: the boat, or one crew member (wearables). Without it a
+  // multi-watch session can't tell two people's heart rates apart. Physio
+  // streams the current user may not see are omitted from the response
+  // entirely — see backend/auth/permissions.py::session_physio_visible_to.
+  subject_type?: "boat" | "crew_member";
+  subject_user_id?: UUID | null;
+  physio_shared?: boolean;
+}
+
+// --- personal health data --------------------------------------------------------------
+
+// One sample of a wearable scalar series. The value key varies by sensor:
+// bpm (heart_rate), kcal (energy, cumulative), ms (hrv), brpm (respiration).
+// `t` is an ISO 8601 UTC string — unlike VmgPoint.timestamp, which is seconds.
+export interface ScalarSample {
+  t: string;
+  bpm?: number;
+  kcal?: number;
+  ms?: number;
+  brpm?: number;
+}
+
+export interface PhysioStats {
+  avg_hr_bpm: number | null;
+  max_hr_bpm: number | null;
+  min_hr_bpm: number | null;
+  total_kcal: number | null;
+  avg_kcal_per_min: number | null;
+  avg_hrv_ms: number | null;
+  avg_resp_brpm: number | null;
+  hr_duration_s: number | null;
+  computed_at: string | null;
+}
+
+export interface HrZone {
+  zone: number; // 1–5
+  min_bpm: number;
+  max_bpm: number;
+}
+
+// Derived from the *subject's* profile (date of birth, optional resting/max
+// heart rate), aged to the session date. `basis`/`method` say how, because a
+// zone boundary estimated from age is not a measurement and must be labelled
+// as such. Null when their profile can't support any zones.
+export interface HrZones {
+  hr_max_bpm: number;
+  basis: "measured" | "tanaka";
+  method: "hrr" | "pct_max";
+  zones: HrZone[];
+}
+
+// One crew member's health data for a session. The API only returns entries
+// the caller is allowed to see, and an empty array when nothing is visible —
+// so "nobody wore a watch" and "someone did, privately" look identical.
+export interface SessionPhysio {
+  session_upload_id: UUID;
+  subject_user_id: UUID | null;
+  user: UserSummary | null;
+  shared: boolean;
+  is_self: boolean;
+  stats: PhysioStats | null;
+  hr_zones: HrZones | null;
+  streams: SessionStream[];
+}
+
+// --- navigation source -----------------------------------------------------------------
+
+// A GPS track a session could use, with the numbers needed to choose between
+// them. Only listed when there are at least two — see services/nav_source.py.
+export interface NavSourceCandidate {
+  session_upload_id: UUID;
+  device: {
+    id: UUID | null;
+    nickname: string | null;
+    category: "boat_tracker" | "wearable" | null;
+    type_name: string | null;
+  } | null;
+  subject_type: "boat" | "crew_member";
+  subject_user_id: UUID | null;
+  user: UserSummary | null;
+  row_count: number | null;
+  sample_rate_hz: number | null;
+  uploaded_at: string;
+  first_t: string | null;
+  last_t: string | null;
+  duration_s: number | null;
+  gap_count: number | null;
+  // is_primary = explicitly chosen; is_resolved = what the app reads today,
+  // which differs when no choice was ever made and the ranking decided.
+  is_primary: boolean;
+  is_resolved: boolean;
 }
 
 export interface SessionStats {

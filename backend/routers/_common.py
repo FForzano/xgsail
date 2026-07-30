@@ -22,6 +22,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 from ..storage import get_blob_store, BlobNotFound
+from ..db.models.ingest import NAV_SENSOR_TYPES, PHYSIO_SENSOR_TYPES
 from ..repositories import get_repos
 from ..services import media
 
@@ -154,12 +155,29 @@ def window_filter(points: list[dict], start: Optional[datetime],
 
 
 def activity_sensor_data(activity_id: uuid.UUID, sensors: str,
-                         start: Optional[datetime], end: Optional[datetime]) -> dict:
+                         start: Optional[datetime], end: Optional[datetime],
+                         user=None) -> dict:
     """Time-aligned sensor data for every session of an activity, keyed by
     session id with boat info embedded — the shared body behind both the
     race replay endpoint (``GET /races/{id}/data``, whose activity is
     resolved via ``race_id``) and the plain activity replay endpoint
-    (``GET /activities/{id}/data``)."""
+    (``GET /activities/{id}/data``).
+
+    Two rules keep a multi-device session honest, and ``user`` is required for
+    the second:
+
+    - the boat sensors (``gps``/``imu``/``wind``/``pressure``) come from the one
+      upload resolved as the session's navigation source. Previously each
+      sensor_type was assigned in iteration order, so a second GPS track
+      silently overwrote the first — and could pair one device's position with
+      another's heel.
+    - physiological series are per-person and permission-gated, so a caller
+      asking for ``sensors=heart_rate`` only receives the crew members whose
+      data they may see. Without this, this endpoint bypassed the gate on
+      ``GET /sessions/{id}/streams`` entirely.
+    """
+    from ..services import nav_source, physio  # local: services import routers
+
     wanted = [s.strip() for s in sensors.split(",") if s.strip()]
     out = {}
     for session in repos.sessions.list(activity_id=activity_id):
@@ -170,16 +188,53 @@ def activity_sensor_data(activity_id: uuid.UUID, sensors: str,
             if boat else None,
             "sensors": {},
         }
-        for stream in repos.ingest.list_streams_for_session(session.id):
+        nav_streams = nav_source.resolve_nav_streams(session.id)
+        # Anything that is neither hull data nor personal data (race_marker,
+        # other) has no single-valued constraint — keep the previous
+        # first-match behaviour. Resolved lazily: the common request is `gps`,
+        # which never reaches this.
+        other_streams = None
+        for sensor_type in wanted:
+            if sensor_type in PHYSIO_SENSOR_TYPES:
+                continue  # handled below, per subject
+            if sensor_type in NAV_SENSOR_TYPES:
+                stream = nav_streams.get(sensor_type)
+            else:
+                if other_streams is None:
+                    other_streams = repos.ingest.list_streams_for_session(session.id)
+                stream = next((s for s in other_streams
+                               if s.sensor_type == sensor_type and s.data_ref), None)
+            if stream is None:
+                continue
+            points = _stream_points(stream)
+            if points is not None:
+                entry["sensors"][sensor_type] = window_filter(points, start, end)
+        # Physiological series stay keyed by subject, not by sensor type: two
+        # crew members' heart rates are two different series and must not
+        # collapse into one.
+        physio_out = {}
+        for stream, upload in physio.visible_physio_streams(session, user):
             if stream.sensor_type not in wanted or not stream.data_ref:
                 continue
-            try:
-                points = blob.get_json(stream.data_ref)
-            except BlobNotFound:
+            points = _stream_points(stream)
+            if points is None:
                 continue
-            entry["sensors"][stream.sensor_type] = window_filter(points, start, end)
+            subject = physio_out.setdefault(str(upload.subject_user_id), {})
+            subject[stream.sensor_type] = window_filter(points, start, end)
+        if physio_out:
+            entry["physio"] = physio_out
         out[str(session.id)] = entry
     return out
+
+
+def _stream_points(stream) -> Optional[list]:
+    """A stream's processed series, or None if its blob has gone missing."""
+    if not stream.data_ref:
+        return None
+    try:
+        return blob.get_json(stream.data_ref)
+    except BlobNotFound:
+        return None
 
 
 # --- Misc -----------------------------------------------------------------

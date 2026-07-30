@@ -43,6 +43,21 @@ UPLOAD_SUBJECT_TYPES = ("boat", "crew_member")
 STREAM_SENSOR_TYPES = ("gps", "imu", "wind", "pressure", "heart_rate",
                        "energy", "hrv", "respiration", "race_marker",
                        "estimated_position", "estimated_motion", "other")
+# The subset of STREAM_SENSOR_TYPES that describes a *person* rather than the
+# boat — private to the upload's subject_user_id unless shared (see
+# auth.session_physio_visible_to). Single source of truth for every read path
+# that has to gate or group by "is this physiological data".
+PHYSIO_SENSOR_TYPES = ("heart_rate", "energy", "hrv", "respiration")
+# Boat sensors, plus what the pipeline derives from them: all describe the hull,
+# all come from the same device as the navigation track, so they follow whichever
+# upload services/nav_source.py resolves instead of being merged across uploads.
+# Pairing one device's heel with another's position would fabricate a boat state
+# that never existed.
+#
+# Everything not in here and not in PHYSIO_SENSOR_TYPES (``race_marker``,
+# ``other``) is per-upload observational data with no single-valued constraint.
+NAV_SENSOR_TYPES = ("gps", "imu", "wind", "pressure",
+                    "estimated_position", "estimated_motion")
 
 
 class ImportORM(UUIDPKMixin, Base):
@@ -111,6 +126,13 @@ class SessionUploadORM(UUIDPKMixin, Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    # Opt-in: this crew member lets the session's crew/boat managers see their
+    # physiological streams (PHYSIO_SENSOR_TYPES). Private by default — same
+    # shape as sessions.notes_shared, see auth.session_physio_visible_to. Lives
+    # on the upload because one upload IS one crew member's physio bundle
+    # (subject_type='crew_member' + subject_user_id). Meaningless, and left
+    # False, on subject_type='boat' rows.
+    physio_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Re-analysis / wind-refresh job tracking (``POST .../reanalyze``,
     # ``POST .../wind/refresh``) — NULL/"running"/"failed", see
     # REANALYSIS_STATUSES. Independent of ``status`` above.

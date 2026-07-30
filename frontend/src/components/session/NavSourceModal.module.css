@@ -1,0 +1,76 @@
+/* Picking which recorded track a session should use. */
+
+.intro {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.7rem;
+  text-align: left;
+  width: 100%;
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  color: inherit;
+  cursor: pointer;
+}
+
+.option:hover {
+  background: var(--sf-surface-2);
+}
+
+.optionSelected {
+  border-color: var(--sf-primary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--sf-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Gaps are the one metric where more is worse — flagged rather than left to be
+   spotted among the neutral numbers. */
+.warn {
+  color: var(--sf-warning);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.note {
+  margin: 0.75rem 0 0;
+  font-size: 0.78rem;
+}
