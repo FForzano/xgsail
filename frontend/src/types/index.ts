@@ -667,7 +667,13 @@ export interface Regatta {
 export interface RegattaEntry {
   id: UUID;
   regatta_id: UUID;
-  boat_id: UUID;
+  /** Null for a manual entry (no linked boat record yet) — see `boat_name`/`sail_number`. */
+  boat_id: UUID | null;
+  boat_name: string | null;
+  sail_number: string | null;
+  /** Resolved server-side: from the linked boat if any, otherwise from the stored manual fields. */
+  display_name: string;
+  display_sail_number: string | null;
   source: "organizer" | "code";
   created_by: UUID | null;
   created_at: string;
@@ -724,6 +730,8 @@ export interface RegattaStandings {
   scoring_system: string;
   races: Array<{ id: UUID; race_number: number; date: string | null; status: string }>;
   standings: StandingRow[];
+  /** True when the organizer has published a manual override (`PUT .../official-standings`). */
+  is_official: boolean;
 }
 
 export type ActivitySessionData = Record<

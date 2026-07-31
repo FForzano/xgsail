@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, RefreshCw, Trash2, X } from "lucide-react";
+import { Copy, Link2, RefreshCw, Trash2, X } from "lucide-react";
 import { regattasService, raceKeys } from "@/services/races";
 import { useToast } from "@/hooks/useToast";
 import { BoatPicker } from "@/components/common/BoatPicker";
 import { Button } from "@/components/ui/Button";
+import { InputField } from "@/components/ui/InputField";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { UUID } from "@/types";
 import styles from "./RegattaEntries.module.css";
@@ -22,6 +23,10 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
   const { notify } = useToast();
   const queryClient = useQueryClient();
   const [boatId, setBoatId] = useState<UUID | "">("");
+  const [manualName, setManualName] = useState("");
+  const [manualSail, setManualSail] = useState("");
+  const [linkingEntryId, setLinkingEntryId] = useState<UUID | null>(null);
+  const [linkBoatId, setLinkBoatId] = useState<UUID | "">("");
 
   const entries = useQuery({
     queryKey: raceKeys.entries(regattaId),
@@ -45,10 +50,29 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
     },
     onError: () => notify(t("errors.generic"), "error"),
   });
+  const addManual = useMutation({
+    mutationFn: () => regattasService.addManualEntry(regattaId, manualName.trim(), manualSail.trim() || null),
+    onSuccess: async () => {
+      setManualName("");
+      setManualSail("");
+      await invalidate();
+    },
+    onError: () => notify(t("errors.generic"), "error"),
+  });
   const remove = useMutation({
-    mutationFn: (id: UUID) => regattasService.removeEntry(regattaId, id),
+    mutationFn: (entryId: UUID) => regattasService.removeEntry(regattaId, entryId),
     onSuccess: invalidate,
     onError: () => notify(t("errors.generic"), "error"),
+  });
+  const link = useMutation({
+    mutationFn: ({ entryId, boatId }: { entryId: UUID; boatId: UUID }) =>
+      regattasService.linkEntry(regattaId, entryId, boatId),
+    onSuccess: async () => {
+      setLinkingEntryId(null);
+      setLinkBoatId("");
+      await invalidate();
+    },
+    onError: () => notify(t("regate.linkEntryFailed"), "error"),
   });
   const regenerate = useMutation({
     mutationFn: () => regattasService.regenerateJoinCode(regattaId),
@@ -80,20 +104,53 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
           {rows.map((e) => (
             <div key={e.id} className={styles.boatChip}>
               <span className={styles.boatIdentity}>
-                <span className={styles.boatName}>{e.boat?.name ?? e.boat_id.slice(0, 8)}</span>
-                {e.boat?.sail_number && (
-                  <span className={styles.sailNumber}>{e.boat.sail_number}</span>
+                <span className={styles.boatName}>{e.display_name}</span>
+                {e.display_sail_number && (
+                  <span className={styles.sailNumber}>{e.display_sail_number}</span>
                 )}
               </span>
+              {!e.boat_id && (
+                <span className="sf-badge sf-badge--sm">{t("regate.manualEntry")}</span>
+              )}
               <span className="sf-badge sf-badge--sm">{t(`regate.entrySource_${e.source}`)}</span>
+              {manage && !e.boat_id && (
+                <button
+                  className={styles.removeBoat}
+                  aria-label={t("regate.linkEntry")}
+                  title={t("regate.linkEntry")}
+                  onClick={() => setLinkingEntryId(linkingEntryId === e.id ? null : e.id)}
+                >
+                  <Link2 size={14} />
+                </button>
+              )}
               {manage && (
                 <button
                   className={styles.removeBoat}
                   aria-label={t("common.remove")}
-                  onClick={() => remove.mutate(e.boat_id)}
+                  onClick={() => remove.mutate(e.id)}
                 >
                   <X size={14} />
                 </button>
+              )}
+              {manage && linkingEntryId === e.id && (
+                <form
+                  className={`sf-form__row ${styles.linkForm}`}
+                  onSubmit={(ev: FormEvent) => {
+                    ev.preventDefault();
+                    if (linkBoatId) link.mutate({ entryId: e.id, boatId: linkBoatId });
+                  }}
+                >
+                  <BoatPicker
+                    id={`link-boat-${e.id}`}
+                    label={t("regate.linkEntry")}
+                    value={linkBoatId}
+                    onChange={setLinkBoatId}
+                    exclude={rows.map((r) => r.boat_id).filter((id): id is UUID => !!id)}
+                  />
+                  <Button type="submit" disabled={!linkBoatId || link.isPending}>
+                    {t("common.save")}
+                  </Button>
+                </form>
               )}
             </div>
           ))}
@@ -114,9 +171,36 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
               label={t("regate.addEntry")}
               value={boatId}
               onChange={setBoatId}
-              exclude={rows.map((e) => e.boat_id)}
+              exclude={rows.map((e) => e.boat_id).filter((id): id is UUID => !!id)}
             />
             <Button type="submit" disabled={!boatId || add.isPending}>
+              {t("common.add")}
+            </Button>
+          </form>
+
+          {/* For a boat with no record on the instance yet — a visitor entered
+              by name until they register (or get linked to) a real boat. */}
+          <form
+            className={`sf-form__row ${styles.addForm}`}
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              if (manualName.trim()) addManual.mutate();
+            }}
+          >
+            <InputField
+              id="entry-manual-name"
+              label={t("regate.manualEntryName")}
+              value={manualName}
+              onChange={(e) => setManualName(e.target.value)}
+              required
+            />
+            <InputField
+              id="entry-manual-sail"
+              label={t("regate.manualEntrySail")}
+              value={manualSail}
+              onChange={(e) => setManualSail(e.target.value)}
+            />
+            <Button type="submit" disabled={!manualName.trim() || addManual.isPending}>
               {t("common.add")}
             </Button>
           </form>

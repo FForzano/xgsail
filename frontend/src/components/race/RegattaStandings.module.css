@@ -4,6 +4,11 @@
    readable at any race count. Every number is tabular so totals line up
    down the column and a two-digit position doesn't shift the one below it. */
 
+.officialBadge {
+  display: inline-block;
+  margin: 0 0 0.75rem;
+}
+
 .rankCell {
   width: 1%;
   white-space: nowrap;

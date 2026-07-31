@@ -851,7 +851,18 @@
     "joinAction": "Enter boat",
     "joined": "Boat entered",
     "joinFailed": "Invalid or revoked code",
-    "joinNeedsBoat": "Add a boat to your profile first"
+    "joinNeedsBoat": "Add a boat to your profile first",
+    "manualEntry": "Manual",
+    "manualEntryName": "Boat name",
+    "manualEntrySail": "Sail number",
+    "linkEntry": "Link to a boat",
+    "linkEntryFailed": "Couldn't link the boat",
+    "officialStandings": "Official standings",
+    "manageOfficialStandings": "Manage official standings",
+    "clearOfficialStandings": "Revert to computed standings",
+    "officialStandingsCleared": "Official standings cleared",
+    "officialStandingsIntro": "Manually set each boat's position and score: this overrides the computed standings until you revert it.",
+    "publishOfficialStandings": "Publish official standings"
   },
   "race": {
     "leaderboard": "Leaderboard",

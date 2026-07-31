@@ -13,6 +13,13 @@ import type {
   UUID,
 } from "@/types";
 
+export interface OfficialStandingInput {
+  boat_id: UUID;
+  position: number;
+  score?: number;
+  status?: string;
+}
+
 export const raceKeys = {
   regattas: ["regattas"] as const,
   regatta: (id: UUID) => ["regattas", id] as const,
@@ -47,13 +54,27 @@ export const regattasService = {
   entries: (id: UUID) => api.get<RegattaEntry[]>(`/regattas/${id}/entries`),
   addEntry: (id: UUID, boatId: UUID) =>
     api.post<RegattaEntry>(`/regattas/${id}/entries`, { boat_id: boatId }),
-  removeEntry: (id: UUID, boatId: UUID) => api.del(`/regattas/${id}/entries/${boatId}`),
+  // Manual entry for a boat with no record on the instance yet (e.g. a visitor
+  // the organizer wants on the start list before they've registered a boat).
+  addManualEntry: (id: UUID, boatName: string, sailNumber: string | null) =>
+    api.post<RegattaEntry>(`/regattas/${id}/entries`, {
+      boat_name: boatName,
+      sail_number: sailNumber,
+    }),
+  removeEntry: (id: UUID, entryId: UUID) => api.del(`/regattas/${id}/entries/${entryId}`),
+  // Links a manual entry to a real boat record once one exists.
+  linkEntry: (id: UUID, entryId: UUID, boatId: UUID) =>
+    api.patch<RegattaEntry>(`/regattas/${id}/entries/${entryId}`, { boat_id: boatId }),
   join: (id: UUID, body: { code: string; boat_id: UUID }) =>
     api.post<RegattaEntry>(`/regattas/${id}/join`, body),
 
   // Series standings, computed server-side. Public like the rest of a
   // regatta's read surface — no manage permission needed.
   standings: (id: UUID) => api.get<RegattaStandings>(`/regattas/${id}/standings`),
+  // Organizer override replacing computed standings; clearing reverts to them.
+  setOfficialStandings: (id: UUID, standings: OfficialStandingInput[]) =>
+    api.put<RegattaStandings>(`/regattas/${id}/official-standings`, { standings }),
+  clearOfficialStandings: (id: UUID) => api.del(`/regattas/${id}/official-standings`),
 
   joinCode: (id: UUID) => api.get<{ join_code: string | null }>(`/regattas/${id}/join-code`),
   regenerateJoinCode: (id: UUID) =>
