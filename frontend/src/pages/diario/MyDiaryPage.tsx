@@ -25,8 +25,8 @@ export function MyDiaryPage() {
 
   return (
     <>
-      <UpcomingEventsBanner />
       <div className={feedStyles.page}>
+        <UpcomingEventsBanner />
         <DiaryToolbar type={type} onTypeChange={setType} importHref="/diario/activities/import" />
 
         {isLoading ? (

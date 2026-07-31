@@ -830,35 +830,6 @@ body.sf-nav-mode .sf-shell {
 
 /* "In arrivo" banner (personal diary): announced club/group events, styled
    to stand out from the plain activity grid below. */
-.sf-highlight-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-.sf-highlight-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  align-items: flex-start;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--sf-primary);
-  border-radius: var(--sf-radius);
-  background: color-mix(in srgb, var(--sf-primary) 8%, var(--sf-surface));
-  color: inherit;
-  text-decoration: none;
-  transition: background 0.15s ease;
-}
-.sf-highlight-card:hover {
-  background: color-mix(in srgb, var(--sf-primary) 15%, var(--sf-surface));
-}
-.sf-highlight-card__cta {
-  margin-top: 0.15rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--sf-primary);
-}
-
 .sf-progress {
   width: 100%;
   height: 8px;

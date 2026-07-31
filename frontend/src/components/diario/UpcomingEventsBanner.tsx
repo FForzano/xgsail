@@ -7,6 +7,7 @@ import { groupsService, groupKeys } from "@/services/groups";
 import { fmtDateTime } from "@/utils/format";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
 import type { Activity } from "@/types";
+import styles from "./UpcomingEventsBanner.module.css";
 
 function relativeDayLabel(date: string, t: (key: string) => string): string {
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -41,11 +42,14 @@ export function UpcomingEventsBanner() {
     // has something to point at (it vanishes as soon as the tour advances).
     if (isDemoTarget("diario-upcoming-banner")) {
       return (
-        <div className="sf-highlight-strip" data-tour="diario-upcoming-banner">
-          <div className="sf-highlight-card">
+        <div className={styles.strip} data-tour="diario-upcoming-banner">
+          <div className={styles.card}>
             <span className="sf-badge sf-badge--success">{t("activities.tomorrow")}</span>
-            <strong>{t("onboarding.demo.event.title")}</strong>
-            <p className="sf-muted">{t("onboarding.demo.event.organizer")}</p>
+            <div className={styles.text}>
+              <span className={styles.title}>{t("onboarding.demo.event.title")}</span>
+              <p className={`sf-muted ${styles.organizer}`}>{t("onboarding.demo.event.organizer")}</p>
+            </div>
+            <span className={styles.cta}>{t("activities.viewDetails")}</span>
           </div>
         </div>
       );
@@ -59,17 +63,23 @@ export function UpcomingEventsBanner() {
     null;
 
   return (
-    <div className="sf-highlight-strip" data-tour="diario-upcoming-banner">
+    <div className={styles.strip} data-tour="diario-upcoming-banner">
       {events.map((a) => {
         const org = organizerName(a);
         return (
-          <Link key={a.id} to={`/diario/activities/${a.id}`} className="sf-highlight-card">
+          <Link key={a.id} to={`/diario/activities/${a.id}`} className={styles.card}>
             {a.started_at && (
               <span className="sf-badge sf-badge--success">{relativeDayLabel(a.started_at, t)}</span>
             )}
-            <strong>{a.name ?? t(`activities.types.${a.type}`)}</strong>
-            {org && <p className="sf-muted">{t("activities.organizedBy", { name: org })}</p>}
-            <span className="sf-highlight-card__cta">{t("activities.viewDetails")}</span>
+            <div className={styles.text}>
+              <span className={styles.title}>{a.name ?? t(`activities.types.${a.type}`)}</span>
+              {org && (
+                <p className={`sf-muted ${styles.organizer}`}>
+                  {t("activities.organizedBy", { name: org })}
+                </p>
+              )}
+            </div>
+            <span className={styles.cta}>{t("activities.viewDetails")}</span>
           </Link>
         );
       })}
