@@ -63,7 +63,8 @@
     "sortBy": "Ordina per",
     "sortOrder": "Direzione",
     "ascending": "Crescente",
-    "descending": "Decrescente"
+    "descending": "Decrescente",
+    "loading": "Caricamento…"
   },
   "support": {
     "title": "Sostieni XGSail",
@@ -209,7 +210,10 @@
     "lastOwner": "La barca deve avere sempre almeno un owner",
     "empty": "Nessuna barca — aggiungi la tua prima barca.",
     "noClassMatch": "Nessuna classe trovata",
-    "noClass": "Nessuna classe"
+    "noClass": "Nessuna classe",
+    "searchHint": "Digita almeno 2 caratteri",
+    "searchPlaceholder": "Nome, numero velico o classe",
+    "noBoatMatch": "Nessuna barca trovata"
   },
   "devices": {
     "title": "I miei dispositivi",
@@ -719,7 +723,9 @@
       "lowPowerMode": "Risparmio energetico attivo: il telefono potrebbe limitare l'aggiornamento dei dati o spegnere lo schermo comunque."
     },
     "explorerTitle": "Esplora",
-    "webUnsupported": "La registrazione GPS è disponibile solo nelle app iOS e Android: sul web il browser non può accedere alla posizione in background. Da qui puoi comunque esplorare la mappa."
+    "webUnsupported": "La registrazione GPS è disponibile solo nelle app iOS e Android: sul web il browser non può accedere alla posizione in background. Da qui puoi comunque esplorare la mappa.",
+    "myRaces": "Le mie prove",
+    "myActivities": "Le mie attività"
   },
   "activities": {
     "title": "Attività",
@@ -803,7 +809,25 @@
     "startTime": "Orario di partenza",
     "scoring": "Punteggio",
     "open": "Apri dashboard",
-    "empty": "Nessuna regata."
+    "empty": "Nessuna regata.",
+    "entries": "Iscritti",
+    "noEntries": "Nessuna barca iscritta",
+    "addEntry": "Aggiungi barca",
+    "entrySource": "Iscrizione",
+    "entrySource_organizer": "Organizzatore",
+    "entrySource_code": "Codice",
+    "joinCode": "Codice di partecipazione",
+    "joinCodeHint": "Condividi questo link con i partecipanti: potranno iscrivere la propria barca anche se non sono soci del circolo.",
+    "createJoinCode": "Genera codice",
+    "copyJoinLink": "Copia link di partecipazione",
+    "regenerateJoinCode": "Rigenera codice",
+    "revokeJoinCode": "Revoca codice",
+    "joinTitle": "Iscriviti a {{name}}",
+    "joinIntro": "Iscrivi la tua barca per poter collegare le registrazioni alle prove di questa regata. Non sostituisce l'iscrizione ufficiale alla regata.",
+    "joinAction": "Iscrivi la barca",
+    "joined": "Barca iscritta",
+    "joinFailed": "Codice non valido o revocato",
+    "joinNeedsBoat": "Aggiungi prima una barca al tuo profilo"
   },
   "race": {
     "leaderboard": "Classifica live",

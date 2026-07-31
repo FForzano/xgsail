@@ -57,7 +57,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 # Tests — run from repo root, not from backend/
 pytest                    # all suites: tests/backend, tests/windfusion, tests/worker
 pytest tests/backend      # backend only
-cd frontend && npm test   # frontend
+cd frontend && npm run typecheck   # frontend has no test runner yet — tsc is the gate
 
 # DB migrations (Alembic)
 cd backend && alembic revision --autogenerate -m "description"
@@ -157,6 +157,14 @@ Two authorization models:
 2. **Per-resource ownership** (`user_boats.role`, `user_groups.role`)
    for personal/boat-scoped resources — the relationship itself grants
    access, no centralized permission check.
+3. **Regatta start list** (`regatta_entries`) for the one case neither
+   covers: a competitor who is not a club member and not an editor of
+   the organizing club's race activity, but must still be able to
+   attach their own recording to the race they sailed. Keys on the
+   **boat**, so it works identically for member and visiting boats
+   (`can_attach_session_to_activity`). Sailors get on the list either
+   by the organizer entering them or by redeeming the regatta's
+   `join_code`.
 
 **Workers** (`workers/`) — heavy processing (GPS/CSV/GPX analysis,
 video transcoding, maneuver-detector training). Invoked by the backend
@@ -419,6 +427,20 @@ Capacitor plugin changes, which still require a store release.
   device data flows through the same presigned-upload + webhook
   pipeline as manual imports; don't add a device-specific endpoint,
   extend the claim + device-key flow in `docs/device-protocol.md` instead.
+- **A regatta's participants are not its club's members.** Club
+  regattas are routinely sailed by visiting boats, so anything gating
+  race participation on club membership (`member_clubs`, `activity.manage`)
+  is wrong by construction — go through `regatta_entries`, which keys
+  on the boat. See "Auth" above.
+- **`regatta_entries` is not `results`.** An entry says a boat is
+  expected at the event and exists *before* the racing; a result
+  carries scoring. Pre-creating results rows as a start list puts
+  boats in the standings before they have sailed.
+- **`regattas.join_code` must never reach a public payload.** Regattas
+  are pub-readable; the code is kept out via
+  `RegattaORM.__wire_exclude__` and served only by the manage-gated
+  `/join-code` endpoint. It is also deliberately absent from
+  `_REGATTA_FIELDS`, so a generic `PATCH /regattas/{id}` can't set it.
 - **Native auth is Bearer, not cookie.** Adding an endpoint that reads
   auth state directly from the request cookie (instead of going
   through `current_user()`) silently breaks it for the native apps —
@@ -478,7 +500,7 @@ See `.env.example` for the full list with defaults. Grouped by concern:
   multi-step, multi-file, or ambiguous; skip it for a one-line fix.
 - **Size each plan step to the reasoning depth it needs** (a mechanical
   step vs. a design tradeoff differ a lot), not uniformly to the
-  hardest part.
+  hardest part. Use the appropriate model for each step (sub-agents).
 
 ---
 
@@ -501,5 +523,5 @@ See `.env.example` for the full list with defaults. Grouped by concern:
   are the source of truth for data contracts.
 - Don't modify native auth, `ota-service/`, or `scripts/deploy-ota.sh`
   without reading `docs/native-apps.md` / `docs/ota-updates.md` first.
-- Run `pytest` (from repo root) and `npm test` (in `frontend/`) before
+- Run `pytest` (from repo root) and `npm run typecheck` (in `frontend/`) before
   considering a task done.

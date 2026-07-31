@@ -6,7 +6,7 @@ edit never clobbers the roster)."""
 import uuid
 from typing import Optional
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 
 from ...db.models import BoatClassORM, BoatORM, BoatPhotoORM, UserBoatORM
 
@@ -22,9 +22,30 @@ class SqlBoatRepo:
     def __init__(self, session_factory):
         self.Session = session_factory
 
-    def list(self) -> "list[BoatORM]":
+    def list(self, *, q: Optional[str] = None,
+             limit: Optional[int] = None, offset: int = 0) -> "list[BoatORM]":
+        """Boats, optionally filtered by a free-text query on name, sail
+        number, or class name.
+
+        Always paginate from the API: this table grows with every user on the
+        instance, and the callers that used to pull it whole (the results
+        editor's boat select) became unusable well before that."""
         with self.Session() as s:
-            return list(s.scalars(select(BoatORM)).all())
+            stmt = select(BoatORM)
+            if q:
+                like = f"%{q.strip()}%"
+                matching_classes = select(BoatClassORM.id).where(
+                    BoatClassORM.name.ilike(like)
+                )
+                stmt = stmt.where(or_(
+                    BoatORM.name.ilike(like),
+                    BoatORM.sail_number.ilike(like),
+                    BoatORM.boat_class_id.in_(matching_classes),
+                ))
+            stmt = stmt.order_by(BoatORM.name.asc()).offset(offset)
+            if limit is not None:
+                stmt = stmt.limit(limit)
+            return list(s.scalars(stmt).all())
 
     def get(self, boat_id: uuid.UUID) -> Optional[BoatORM]:
         with self.Session() as s:

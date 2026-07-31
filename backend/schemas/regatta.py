@@ -4,7 +4,22 @@ import uuid
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class RegattaEntryWriteModel(BaseModel):
+    """Organizer putting a boat on the start list."""
+
+    boat_id: uuid.UUID
+
+
+class RegattaJoinModel(BaseModel):
+    """Sailor self-entering with the share code. ``boat_id`` must be a boat
+    they own/administer — the code grants entry, not the right to enter
+    someone else's boat."""
+
+    code: str = Field(min_length=1, max_length=32)
+    boat_id: uuid.UUID
 
 
 class RegattaWriteModel(BaseModel):

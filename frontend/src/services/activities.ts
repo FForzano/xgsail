@@ -27,6 +27,8 @@ export const activitiesService = {
       status?: ActivityStatus;
       mine?: boolean;
       member_clubs?: boolean;
+      /** Races one of the caller's boats is entered for, around now. */
+      entered?: boolean;
       limit?: number;
       offset?: number;
     } = {},
@@ -36,6 +38,7 @@ export const activitiesService = {
         ...filters,
         mine: filters.mine ? "true" : undefined,
         member_clubs: filters.member_clubs ? "true" : undefined,
+        entered: filters.entered ? "true" : undefined,
         limit: filters.limit ? String(filters.limit) : undefined,
         offset: filters.offset ? String(filters.offset) : undefined,
       })}`,

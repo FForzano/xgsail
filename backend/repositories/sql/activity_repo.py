@@ -15,9 +15,13 @@ from ...db.models import (
     ActivityORM,
     MarkORM,
     PermissionORM,
+    RaceDayORM,
+    RaceORM,
+    RegattaEntryORM,
     RolePermissionORM,
     SessionCrewORM,
     SessionORM,
+    UserBoatORM,
     UserClubORM,
     UserGroupORM,
     UserRoleORM,
@@ -167,6 +171,38 @@ class SqlActivityRepo:
                 ))
                 .order_by(ActivityORM.started_at.asc())
                 .limit(limit)
+            )
+            return list(s.scalars(q).all())
+
+    def list_entered_for_user(self, user_id: uuid.UUID, *, since: datetime,
+                              until: datetime) -> "list[ActivityORM]":
+        """Race activities the user can legitimately record for: their boat is
+        on the start list of the race's regatta, and the race falls in the
+        given window.
+
+        Deliberately not club-scoped — a club regatta is regularly sailed by
+        visitors from other clubs, so membership is the wrong axis; the entry
+        (which keys on the boat) is the right one."""
+        with self.Session() as s:
+            my_boat_ids = select(UserBoatORM.boat_id).where(
+                UserBoatORM.user_id == user_id
+            )
+            my_regatta_ids = select(RegattaEntryORM.regatta_id).where(
+                RegattaEntryORM.boat_id.in_(my_boat_ids)
+            )
+            my_race_ids = (
+                select(RaceORM.id)
+                .join(RaceDayORM, RaceDayORM.id == RaceORM.race_day_id)
+                .where(RaceDayORM.regatta_id.in_(my_regatta_ids))
+            )
+            q = (
+                select(ActivityORM)
+                .where(ActivityORM.type == "race")
+                .where(ActivityORM.race_id.in_(my_race_ids))
+                .where(ActivityORM.started_at.isnot(None))
+                .where(ActivityORM.started_at >= since)
+                .where(ActivityORM.started_at <= until)
+                .order_by(ActivityORM.started_at.asc())
             )
             return list(s.scalars(q).all())
 

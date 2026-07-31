@@ -9,7 +9,7 @@ via the regatta's club; marks via ``mark.manage``.
 """
 
 import uuid
-from datetime import timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
@@ -40,19 +40,44 @@ def _require_manage(request: Request, race_id: uuid.UUID, key: str = "race.manag
     require_permission(request, key, club_id=repos.races.club_id_for_race(race_id))
 
 
+def _race_window(race) -> tuple:
+    """When the race's activity spans. Falls back to the race day's date when
+    no start time is set yet, so a scheduled race is still reachable in
+    advance — a race with no window at all can't be found by anyone wanting to
+    record it."""
+    started = race.start_time
+    if started is None:
+        raceday = repos.racedays.get(race.race_day_id)
+        if raceday is not None and raceday.date is not None:
+            started = datetime.combine(raceday.date, time.min, tzinfo=timezone.utc)
+    ended = started + timedelta(hours=DEFAULT_RACE_WINDOW_HOURS) if started else None
+    return started, ended
+
+
 def _race_activity(race, *, create: bool = False):
-    """THE activity tracking this race (activities.race_id), created lazily."""
+    """THE activity tracking this race (activities.race_id).
+
+    Normally created up-front by ``create_race`` so entered sailors can pick
+    the race in the recording screen *before* it is sailed; the lazy path
+    stays for races created before that (and for free race days)."""
     activity = repos.activities.get_by_race(race.id)
     if activity is not None or not create:
         return activity
-    started = race.start_time
-    ended = started + timedelta(hours=DEFAULT_RACE_WINDOW_HOURS) if started else None
+    return _create_race_activity(race)
+
+
+def _create_race_activity(race):
+    started, ended = _race_window(race)
     return repos.activities.create({
         "name": f"Race {race.race_number}",
         "type": "race",
         "race_id": race.id,
         "club_id": repos.races.club_id_for_race(race.id),
         "visibility": "public",
+        # "planned" until the race has actually been sailed. Attaching a
+        # recording does NOT flip this (several boats attach over time) — see
+        # routers/sessions.py::attach_to_activity.
+        "status": "planned" if race.status == "scheduled" else "completed",
         "started_at": started,
         "ended_at": ended,
     })
@@ -114,7 +139,9 @@ def create_race(body: RaceWriteModel, request: Request):
         raise HTTPException(404, "Race day not found")
     require_permission(request, "race.manage",
                        club_id=repos.racedays.club_id_for_raceday(body.race_day_id))
-    return repos.races.create(body.model_dump(exclude_unset=True)).to_dict()
+    race = repos.races.create(body.model_dump(exclude_unset=True))
+    _create_race_activity(race)
+    return race.to_dict()
 
 
 @router.patch("/{race_id}")
@@ -124,7 +151,14 @@ def update_race(race_id: uuid.UUID, body: RaceWriteModel, request: Request):
     _require_manage(request, race_id)
     changes = body.model_dump(exclude_unset=True)
     changes.pop("race_day_id", None)  # a race doesn't move between days
-    return repos.races.update(race_id, changes).to_dict()
+    race = repos.races.update(race_id, changes)
+    # Keep the activity's window on the race it tracks: a postponed start that
+    # only moved the race would leave the activity advertising the old time.
+    activity = _race_activity(race)
+    if activity is not None:
+        started, ended = _race_window(race)
+        repos.activities.update(activity.id, {"started_at": started, "ended_at": ended})
+    return race.to_dict()
 
 
 @router.delete("/{race_id}")

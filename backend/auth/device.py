@@ -12,16 +12,14 @@ import hashlib
 import hmac
 import os
 import secrets
-import time
-from collections import deque
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request
 
+from .throttle import new_code, throttle
+
 DEVICE_KEY_PREFIX = "sfd_"
 
-# Unambiguous alphabet (no 0/O/1/I) — codes get typed into config.txt by hand.
-_CLAIM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 CLAIM_CODE_LENGTH = 8
 CLAIM_CODE_TTL_MIN = 15
 
@@ -35,7 +33,7 @@ def hash_device_key(key: str) -> str:
 
 
 def new_claim_code() -> str:
-    return "".join(secrets.choice(_CLAIM_ALPHABET) for _ in range(CLAIM_CODE_LENGTH))
+    return new_code(CLAIM_CODE_LENGTH)
 
 
 def claim_code_expiry() -> datetime:
@@ -70,21 +68,10 @@ def require_system(request: Request) -> None:
         raise HTTPException(401, "Invalid system token")
 
 
-# --- claim-confirm throttle (in-memory, per-IP) ----------------------------
-
-_THROTTLE_MAX_PER_MIN = 10
-_attempts: dict = {}
-
+# --- claim-confirm throttle ------------------------------------------------
 
 def throttle_claim_confirm(request: Request) -> None:
     """Cheap per-IP rate limit on the unauthenticated claim-confirm endpoint
-    (429 per the protocol's error table). In-memory: resets on restart, which
-    is acceptable for this surface."""
-    ip = request.client.host if request.client else "?"
-    now = time.monotonic()
-    q = _attempts.setdefault(ip, deque())
-    while q and now - q[0] > 60:
-        q.popleft()
-    if len(q) >= _THROTTLE_MAX_PER_MIN:
-        raise HTTPException(429, "Too many claim attempts, retry later")
-    q.append(now)
+    (429 per the protocol's error table)."""
+    throttle(request, bucket="claim_confirm", max_per_min=10,
+             message="Too many claim attempts, retry later")

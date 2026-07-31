@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 
 from ..auth import (
-    can_edit_activity,
+    can_attach_session_to_activity,
     current_user,
     is_session_crew_or_manager,
     require_user,
@@ -168,7 +168,11 @@ def attach_to_activity(session_id: uuid.UUID, body: SessionAttachModel, request:
     no longer flips its status: several boats may attach recordings to the
     same club/group event over time (including late imports), so upcoming vs.
     past is decided purely by ``started_at``, not by whether a recording has
-    landed yet."""
+    landed yet.
+
+    For a race activity the caller need not be able to *edit* it — being on
+    the regatta's start list with this boat is enough (see
+    ``can_attach_session_to_activity``)."""
     verify_csrf(request)
     user = require_user(request)
     session = _require_session(session_id)
@@ -181,7 +185,7 @@ def attach_to_activity(session_id: uuid.UUID, body: SessionAttachModel, request:
     target_activity = repos.activities.get(body.activity_id)
     if target_activity is None:
         raise HTTPException(404, "Activity not found")
-    if not can_edit_activity(target_activity, user):
+    if not can_attach_session_to_activity(target_activity, session.boat_id, user):
         raise HTTPException(403, "Not allowed to attach to this activity")
     updated = repos.sessions.update(session_id, {"activity_id": body.activity_id})
     repos.activities.delete(current_activity.id)

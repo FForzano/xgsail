@@ -1,9 +1,12 @@
 """SQL race-structure repositories: regattas -> race_days -> races (+ results).
 
-Results are per-boat rows on ``SqlRaceRepo`` (unique per race+boat, upsert).
-``club_id_for_race``/``club_id_for_raceday`` resolve the RBAC scope for
-``require_permission(key, club_id=...)`` — ``None`` for free race days
-(``regatta_id`` NULL), which therefore require a global grant/superadmin.
+Results are per-boat rows on ``SqlRaceRepo`` (unique per race+boat, upsert);
+start-list entries are per-boat rows on ``SqlRegattaRepo`` (unique per
+regatta+boat). ``club_id_for_race``/``club_id_for_raceday`` resolve the RBAC
+scope for ``require_permission(key, club_id=...)`` — ``None`` for free race
+days (``regatta_id`` NULL), which therefore require a global grant/superadmin.
+``regatta_id_for_race`` resolves the other direction a race needs: which start
+list governs it.
 """
 
 import uuid
@@ -15,6 +18,7 @@ from sqlalchemy import select
 from ...db.models import (
     RaceDayORM,
     RaceORM,
+    RegattaEntryORM,
     RegattaORM,
     ResultORM,
     SessionCrewORM,
@@ -22,6 +26,8 @@ from ...db.models import (
     UserClubORM,
 )
 
+# ``join_code`` is deliberately absent: it is set only through the dedicated
+# manage-gated endpoints, never through a generic regatta PATCH.
 _REGATTA_FIELDS = ("name", "description", "image_id", "club_id", "class_id",
                    "scoring_system", "start_date", "end_date", "status")
 _RACEDAY_FIELDS = ("regatta_id", "date", "notes")
@@ -110,6 +116,89 @@ class SqlRegattaRepo:
             s.delete(orm)
             s.commit()
             return True
+
+    # --- share code -------------------------------------------------------
+
+    def get_by_join_code(self, code: str) -> Optional[RegattaORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(RegattaORM).where(RegattaORM.join_code == code)
+            ).first()
+
+    def set_join_code(self, regatta_id: uuid.UUID, code: Optional[str]) -> Optional[RegattaORM]:
+        """Set (or, with ``None``, revoke) the share code."""
+        with self.Session() as s:
+            orm = s.get(RegattaORM, regatta_id)
+            if orm is None:
+                return None
+            orm.join_code = code
+            s.commit()
+        return self.get(regatta_id)
+
+    # --- start list (one row per regatta+boat) ----------------------------
+
+    def list_entries(self, regatta_id: uuid.UUID) -> "list[RegattaEntryORM]":
+        with self.Session() as s:
+            return list(s.scalars(
+                select(RegattaEntryORM)
+                .where(RegattaEntryORM.regatta_id == regatta_id)
+                .order_by(RegattaEntryORM.created_at.asc())
+            ).all())
+
+    def get_entry(self, regatta_id: uuid.UUID,
+                  boat_id: uuid.UUID) -> Optional[RegattaEntryORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(RegattaEntryORM).where(
+                    RegattaEntryORM.regatta_id == regatta_id,
+                    RegattaEntryORM.boat_id == boat_id,
+                )
+            ).first()
+
+    def add_entry(self, regatta_id: uuid.UUID, boat_id: uuid.UUID, *,
+                  source: str, created_by: Optional[uuid.UUID]) -> RegattaEntryORM:
+        """Idempotent: re-entering an already-listed boat returns the existing
+        row rather than tripping the unique constraint (a sailor opening the
+        share link twice is not an error)."""
+        existing = self.get_entry(regatta_id, boat_id)
+        if existing is not None:
+            return existing
+        with self.Session() as s:
+            orm = RegattaEntryORM(
+                regatta_id=regatta_id, boat_id=boat_id,
+                source=source, created_by=created_by,
+            )
+            s.add(orm)
+            s.commit()
+        return self.get_entry(regatta_id, boat_id)
+
+    def remove_entry(self, regatta_id: uuid.UUID, boat_id: uuid.UUID) -> bool:
+        with self.Session() as s:
+            orm = s.scalars(
+                select(RegattaEntryORM).where(
+                    RegattaEntryORM.regatta_id == regatta_id,
+                    RegattaEntryORM.boat_id == boat_id,
+                )
+            ).first()
+            if orm is None:
+                return False
+            s.delete(orm)
+            s.commit()
+            return True
+
+    def entered_boat_ids(self, regatta_id: uuid.UUID,
+                         user_id: uuid.UUID) -> "list[uuid.UUID]":
+        """The user's own boats that are on this regatta's start list."""
+        with self.Session() as s:
+            my_boat_ids = select(UserBoatORM.boat_id).where(
+                UserBoatORM.user_id == user_id
+            )
+            return list(s.scalars(
+                select(RegattaEntryORM.boat_id).where(
+                    RegattaEntryORM.regatta_id == regatta_id,
+                    RegattaEntryORM.boat_id.in_(my_boat_ids),
+                )
+            ).all())
 
 
 class SqlRaceDayRepo:
@@ -220,6 +309,16 @@ class SqlRaceRepo:
                 return None
             regatta = s.get(RegattaORM, rd.regatta_id)
             return regatta.club_id if regatta else None
+
+    def regatta_id_for_race(self, race_id: uuid.UUID) -> Optional[uuid.UUID]:
+        """Which regatta's start list governs this race — ``None`` for a race
+        on a free race day, which has no entries to check against."""
+        with self.Session() as s:
+            race = s.get(RaceORM, race_id)
+            if race is None:
+                return None
+            rd = s.get(RaceDayORM, race.race_day_id)
+            return rd.regatta_id if rd else None
 
     # --- results (one row per race+boat) ---
 

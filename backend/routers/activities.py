@@ -11,7 +11,7 @@ group-linked one requires an owner/admin role in that group.
 """
 
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -31,6 +31,12 @@ from ..services import ingestion, media
 from ._common import activity_sensor_data, repos
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
+
+# How far around "now" the ``entered`` filter looks. Generous on both sides: a
+# race is often postponed by hours, and a sailor may only link the recording
+# once ashore.
+ENTERED_WINDOW_PAST = timedelta(hours=12)
+ENTERED_WINDOW_AHEAD = timedelta(hours=36)
 
 
 def _with_thumbnail(activity) -> dict:
@@ -69,11 +75,21 @@ def list_activities(request: Request, type: Optional[str] = None,
                     status: Optional[str] = None,
                     mine: bool = False,
                     member_clubs: bool = False,
+                    entered: bool = False,
                     limit: Optional[int] = Query(None, le=100, gt=0),
                     offset: int = Query(0, ge=0)):
     user = current_user(request)
-    if (mine or member_clubs) and user is None:
+    if (mine or member_clubs or entered) and user is None:
         raise HTTPException(401, "Authentication required")
+    if entered:
+        # Races the caller's boats are entered for, around now — what the
+        # recording screen offers as "the race I am about to sail".
+        now = datetime.now(timezone.utc)
+        return [_with_thumbnail(a) for a in repos.activities.list_entered_for_user(
+            user.id,
+            since=now - ENTERED_WINDOW_PAST,
+            until=now + ENTERED_WINDOW_AHEAD,
+        )]
     activities = repos.activities.list(
         club_id=club_id, group_id=group_id, type=type, status=status,
         created_by=user.id if mine else None,

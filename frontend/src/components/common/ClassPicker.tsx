@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
+import { Combobox } from "@/components/ui/Combobox";
 import type { BoatClass, UUID } from "@/types";
 
 const MAX_RESULTS = 30;
@@ -35,28 +36,25 @@ export function ClassPicker({
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const selected = classes.find((c) => c.id === value) ?? null;
 
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
+  // Client-side: the catalog is already loaded, so there is nothing to fetch.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const pool = q ? classes.filter((c) => c.name.toLowerCase().includes(q)) : classes;
-    return pool.slice(0, MAX_RESULTS);
+    return pool.slice(0, MAX_RESULTS).map((c) => ({
+      id: c.id,
+      label: c.name,
+      render: (
+        <>
+          {c.logo ? <img className="sf-avatar sf-avatar--sm" src={c.logo.url} alt="" /> : null}
+          <span>{c.name}</span>
+        </>
+      ),
+    }));
   }, [classes, query]);
-
-  const pick = (id: UUID | "") => {
-    onChange(id);
-    setQuery("");
-    setOpen(false);
-    setEditing(false);
-  };
 
   if (selected && !editing) {
     const bits = classInfoBits(selected, t);
@@ -89,44 +87,21 @@ export function ClassPicker({
   }
 
   return (
-    <div className="sf-field sf-combobox">
-      <span className="sf-field__label">{label}</span>
-      <input
-        ref={inputRef}
-        id={id}
-        className="sf-field__input"
-        autoComplete="off"
-        value={open ? query : (selected?.name ?? "")}
-        placeholder={t("common.search")}
-        onFocus={() => setOpen(true)}
-        onChange={(e) => setQuery(e.target.value)}
-        onBlur={() =>
-          // Delay so a click on an option (which blurs the input first) still registers.
-          setTimeout(() => {
-            setOpen(false);
-            setEditing(false);
-          }, 150)
-        }
-      />
-      {open && (
-        <div className="sf-combobox__list">
-          <div className="sf-combobox__option sf-muted" onMouseDown={() => pick("")}>
-            {t("boats.noClass")}
-          </div>
-          {filtered.length === 0 && (
-            <div className="sf-combobox__option sf-muted">{t("boats.noClassMatch")}</div>
-          )}
-          {filtered.map((c) => (
-            <div key={c.id} className="sf-combobox__option" onMouseDown={() => pick(c.id)}>
-              {c.logo ? (
-                <img className="sf-avatar sf-avatar--sm" src={c.logo.url} alt="" />
-              ) : null}
-              <span>{c.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <Combobox
+      id={id}
+      label={label}
+      options={filtered}
+      query={query}
+      onQueryChange={setQuery}
+      onPick={(picked) => {
+        onChange(picked as UUID | "");
+        setEditing(false);
+      }}
+      selectedLabel={selected?.name}
+      emptyOption={{ label: t("boats.noClass"), value: "" }}
+      emptyMessage={t("boats.noClassMatch")}
+      autoFocus={editing}
+    />
   );
 }
 

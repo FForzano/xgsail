@@ -16,6 +16,7 @@ export type SortOrder = "asc" | "desc";
 export const boatKeys = {
   all: ["boats"] as const,
   mine: ["boats", "mine"] as const,
+  search: (q: string) => ["boats", "search", q] as const,
   detail: (id: UUID) => ["boats", id] as const,
   members: (id: UUID) => ["boats", id, "members"] as const,
   classes: (
@@ -29,6 +30,9 @@ export const boatKeys = {
 
 export const boatsService = {
   list: (mine = false) => api.get<Boat[]>(`/boats${mine ? "?mine=true" : ""}`),
+  /** Server-side search for pickers — never pull every boat on the instance. */
+  search: (q: string, limit = 20) =>
+    api.get<Boat[]>(`/boats?q=${encodeURIComponent(q)}&limit=${limit}`),
   get: (id: UUID) => api.get<Boat>(`/boats/${id}`),
   create: (body: Partial<Boat>) => api.post<Boat>("/boats", body),
   update: (id: UUID, body: Partial<Boat>) => api.patch<Boat>(`/boats/${id}`, body),

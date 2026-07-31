@@ -273,6 +273,30 @@ def can_edit_activity(activity, user) -> bool:
     return False
 
 
+def can_attach_session_to_activity(activity, boat_id, user) -> bool:
+    """May this user hang a recording of ``boat_id`` on this activity?
+
+    Broader than ``can_edit_activity`` on purpose: a competitor is not an
+    editor of the club's race activity, but must still be able to file their
+    own track against the race they sailed. The right to do so comes from the
+    start list (``regatta_entries``) — which keys on the boat, so it works
+    identically for club members and visiting boats — and grants nothing
+    beyond attaching that boat's own session."""
+    if can_edit_activity(activity, user):
+        return True
+    if user is None or activity is None or boat_id is None:
+        return False
+    if activity.type != "race" or activity.race_id is None:
+        return False
+    from ..repositories import get_repos
+
+    repos = get_repos()
+    regatta_id = repos.races.regatta_id_for_race(activity.race_id)
+    if regatta_id is None:  # free race day: no start list to check against
+        return False
+    return repos.regattas.get_entry(regatta_id, boat_id) is not None
+
+
 def can_change_activity_visibility(activity, user) -> bool:
     """Visibility on a club-linked activity may only be changed by a
     club-scoped activity.manage holder (or superadmin) — not just any

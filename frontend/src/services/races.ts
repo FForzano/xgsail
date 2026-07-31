@@ -1,9 +1,22 @@
 import { api } from "@/api/client";
-import type { ImageUploadTicket, Mark, Race, RaceData, RaceDay, RaceResult, Regatta, Session, UUID } from "@/types";
+import type {
+  ImageUploadTicket,
+  Mark,
+  Race,
+  RaceData,
+  RaceDay,
+  RaceResult,
+  Regatta,
+  RegattaEntry,
+  Session,
+  UUID,
+} from "@/types";
 
 export const raceKeys = {
   regattas: ["regattas"] as const,
   regatta: (id: UUID) => ["regattas", id] as const,
+  entries: (id: UUID) => ["regattas", id, "entries"] as const,
+  joinCode: (id: UUID) => ["regattas", id, "join-code"] as const,
   raceday: (id: UUID) => ["racedays", id] as const,
   race: (id: UUID) => ["races", id] as const,
   data: (id: UUID) => ["races", id, "data"] as const,
@@ -25,6 +38,21 @@ export const regattasService = {
 
   uploadImage: (id: UUID) => api.post<ImageUploadTicket>(`/regattas/${id}/image`),
   confirmImage: (id: UUID, imageId: UUID) => api.post(`/regattas/${id}/image/${imageId}/confirm`),
+
+  // Start list. Being on it is what lets a sailor tag a recording with one of
+  // this regatta's races, so it is not organizer-only: `join` is the
+  // self-service path for boats the organizer hasn't entered by hand.
+  entries: (id: UUID) => api.get<RegattaEntry[]>(`/regattas/${id}/entries`),
+  addEntry: (id: UUID, boatId: UUID) =>
+    api.post<RegattaEntry>(`/regattas/${id}/entries`, { boat_id: boatId }),
+  removeEntry: (id: UUID, boatId: UUID) => api.del(`/regattas/${id}/entries/${boatId}`),
+  join: (id: UUID, body: { code: string; boat_id: UUID }) =>
+    api.post<RegattaEntry>(`/regattas/${id}/join`, body),
+
+  joinCode: (id: UUID) => api.get<{ join_code: string | null }>(`/regattas/${id}/join-code`),
+  regenerateJoinCode: (id: UUID) =>
+    api.post<{ join_code: string }>(`/regattas/${id}/join-code`),
+  revokeJoinCode: (id: UUID) => api.del(`/regattas/${id}/join-code`),
 };
 
 export const racedaysService = {

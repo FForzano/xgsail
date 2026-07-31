@@ -46,6 +46,14 @@ function ActivityPicker({
     queryKey: activityKeys.list({ mine: "true" }),
     queryFn: () => activitiesService.list({ mine: true }),
   });
+  // Races the sailor's boats are entered for. Kept as a separate query (and a
+  // separate group below) because it answers a different question from "my
+  // activities": these belong to the organizing club, not to the sailor, and
+  // are reachable through the regatta's start list rather than ownership.
+  const races = useQuery({
+    queryKey: activityKeys.list({ entered: "true" }),
+    queryFn: () => activitiesService.list({ entered: true }),
+  });
   return (
     <Select
       label={t("registra.linkTo")}
@@ -55,11 +63,24 @@ function ActivityPicker({
       disabled={disabled}
     >
       <option value={STANDALONE}>{t("registra.standalone")}</option>
-      {activities.data?.map((a) => (
-        <option key={a.id} value={a.id}>
-          {activityDisplayName(a, t)}
-        </option>
-      ))}
+      {races.data && races.data.length > 0 && (
+        <optgroup label={t("registra.myRaces")}>
+          {races.data.map((a) => (
+            <option key={a.id} value={a.id}>
+              {activityDisplayName(a, t)}
+            </option>
+          ))}
+        </optgroup>
+      )}
+      {activities.data && activities.data.length > 0 && (
+        <optgroup label={t("registra.myActivities")}>
+          {activities.data.map((a) => (
+            <option key={a.id} value={a.id}>
+              {activityDisplayName(a, t)}
+            </option>
+          ))}
+        </optgroup>
+      )}
     </Select>
   );
 }

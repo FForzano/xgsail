@@ -661,6 +661,19 @@ export interface Regatta {
   race_days?: RaceDay[];
 }
 
+/** Start-list row. Distinct from RaceResult: an entry says a boat is expected
+ * at the event and exists before the racing; a result carries scoring. Being
+ * entered is what authorizes tagging a recording with one of its races. */
+export interface RegattaEntry {
+  id: UUID;
+  regatta_id: UUID;
+  boat_id: UUID;
+  source: "organizer" | "code";
+  created_by: UUID | null;
+  created_at: string;
+  boat: { id: UUID; name: string; sail_number: string | null; boat_class_id: UUID | null } | null;
+}
+
 export interface RaceDay {
   id: UUID;
   regatta_id: UUID | null;

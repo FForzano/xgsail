@@ -15,6 +15,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { BackLink } from "@/components/ui/BackLink";
 import { RegattaRaceDays } from "@/components/gruppi/RegattaRaceDays";
+import { RegattaEntries } from "@/components/race/RegattaEntries";
 import type { UUID } from "@/types";
 import entityHeaderStyles from "@/components/gruppi/entityHeader.module.css";
 import styles from "./RegattaDetailPage.module.css";
@@ -112,6 +113,10 @@ export function RegattaDetailPage() {
 
       <Card title={t("regate.raceDays")}>
         <RegattaRaceDays regattaId={regattaId} manage={manage} />
+      </Card>
+
+      <Card title={t("regate.entries")}>
+        <RegattaEntries regattaId={regattaId} manage={manage} />
       </Card>
 
       {lightboxOpen && r.image && (

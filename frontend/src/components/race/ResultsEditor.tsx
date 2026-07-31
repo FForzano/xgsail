@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { racesService, raceKeys } from "@/services/races";
-import { boatsService, boatKeys } from "@/services/boats";
+import { useBoatNames } from "@/hooks/useBoatNames";
 import { useToast } from "@/hooks/useToast";
+import { BoatPicker } from "@/components/common/BoatPicker";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { InputField } from "@/components/ui/InputField";
@@ -16,7 +17,7 @@ export function ResultsEditor({ raceId, results }: { raceId: UUID; results: Race
   const { t } = useTranslation();
   const { notify } = useToast();
   const queryClient = useQueryClient();
-  const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
+  const boatName = useBoatNames(results.map((r) => r.boat_id));
 
   const [boatId, setBoatId] = useState("");
   const [position, setPosition] = useState("");
@@ -42,8 +43,6 @@ export function ResultsEditor({ raceId, results }: { raceId: UUID; results: Race
     mutationFn: (bId: UUID) => racesService.removeResult(raceId, bId),
     onSuccess: invalidate,
   });
-
-  const boatName = (id: UUID) => boats.data?.find((b) => b.id === id)?.name ?? id.slice(0, 8);
 
   return (
     <div>
@@ -91,14 +90,12 @@ export function ResultsEditor({ raceId, results }: { raceId: UUID; results: Race
           if (boatId) upsert.mutate();
         }}
       >
-        <Select label={t("race.boat")} id="res-boat" value={boatId} onChange={(e) => setBoatId(e.target.value)}>
-          <option value="">…</option>
-          {boats.data?.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </Select>
+        <BoatPicker
+          id="res-boat"
+          label={t("race.boat")}
+          value={boatId as UUID | ""}
+          onChange={(id) => setBoatId(id)}
+        />
         <InputField
           label={t("race.position")}
           id="res-pos"

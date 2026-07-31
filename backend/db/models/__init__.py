@@ -16,7 +16,7 @@ from .polar import PolarPointORM
 from .device import DeviceTypeORM, DeviceORM
 from .integration import IntegrationConnectionORM
 from .note_template import NoteTemplateORM
-from .race import RegattaORM, RaceDayORM, RaceORM, ResultORM
+from .race import RegattaORM, RegattaEntryORM, RaceDayORM, RaceORM, ResultORM
 from .activity import ActivityORM, MarkORM
 from .session import (
     SessionORM,
@@ -58,6 +58,7 @@ __all__ = [
     "IntegrationConnectionORM",
     "NoteTemplateORM",
     "RegattaORM",
+    "RegattaEntryORM",
     "RaceDayORM",
     "RaceORM",
     "ResultORM",

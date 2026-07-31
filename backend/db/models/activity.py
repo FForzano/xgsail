@@ -20,11 +20,15 @@ from ..base import Base, UUIDPKMixin, enum_check
 
 ACTIVITY_TYPES = ("race", "training", "solo")
 ACTIVITY_VISIBILITIES = ("public", "club", "group", "private")
-# "planned" = announced ahead of time, no session attached yet (e.g. a club
-# outing); "completed" = has (or once had) recorded data — the default, so
-# every activity created alongside a session (the common case) needs no
-# explicit status. See routers/sessions.py::attach_to_activity for the
-# planned -> completed transition.
+# "planned" = announced ahead of time (a club outing, or a scheduled race —
+# see routers/races.py, which creates a race's activity up front so entered
+# sailors can pick it before the start); "completed" = has (or once had)
+# recorded data — the default, so every activity created alongside a session
+# (the common case) needs no explicit status.
+#
+# Attaching a session does NOT flip planned -> completed: several boats attach
+# to the same event over time, so upcoming vs. past is decided by
+# ``started_at`` alone (see routers/sessions.py::attach_to_activity).
 ACTIVITY_STATUSES = ("planned", "completed")
 MARK_ROLES = (
     "pin",

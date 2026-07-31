@@ -142,14 +142,18 @@ def delete_boat_class(class_id: uuid.UUID, request: Request):
 # --- boats ------------------------------------------------------------------
 
 @router.get("/boats")
-def list_boats(request: Request, mine: bool = False):
+def list_boats(request: Request, mine: bool = False, q: Optional[str] = None,
+               limit: Optional[int] = Query(None, le=100, gt=0),
+               offset: int = Query(0, ge=0)):
+    """``q`` searches name / sail number / class name — for pickers that must
+    not pull the whole instance's boats into a select."""
     user = current_user(request)
     if mine:
         if user is None:
             raise HTTPException(401, "Authentication required")
         boats = repos.boats.list_boats_for_user(user.id)
     else:
-        boats = repos.boats.list()
+        boats = repos.boats.list(q=q, limit=limit, offset=offset)
     return [_boat_payload(b, user) for b in boats]
 
 

@@ -63,7 +63,8 @@
     "sortBy": "Sort by",
     "sortOrder": "Order",
     "ascending": "Ascending",
-    "descending": "Descending"
+    "descending": "Descending",
+    "loading": "Loading…"
   },
   "support": {
     "title": "Support XGSail",
@@ -209,7 +210,10 @@
     "lastOwner": "A boat must always have at least one owner",
     "empty": "No boats yet — add your first boat.",
     "noClassMatch": "No matching class",
-    "noClass": "No class"
+    "noClass": "No class",
+    "searchHint": "Type at least 2 characters",
+    "searchPlaceholder": "Name, sail number or class",
+    "noBoatMatch": "No boat found"
   },
   "devices": {
     "title": "My devices",
@@ -719,7 +723,9 @@
       "lowPowerMode": "Power saving mode is on: the phone may throttle updates or turn the screen off anyway."
     },
     "explorerTitle": "Explore",
-    "webUnsupported": "GPS recording is only available in the iOS and Android apps: browsers can't access location in the background. You can still explore the map from here."
+    "webUnsupported": "GPS recording is only available in the iOS and Android apps: browsers can't access location in the background. You can still explore the map from here.",
+    "myRaces": "My races",
+    "myActivities": "My activities"
   },
   "activities": {
     "title": "Activities",
@@ -803,7 +809,25 @@
     "startTime": "Start time",
     "scoring": "Scoring",
     "open": "Open dashboard",
-    "empty": "No regattas."
+    "empty": "No regattas.",
+    "entries": "Entries",
+    "noEntries": "No boats entered",
+    "addEntry": "Add boat",
+    "entrySource": "Entry",
+    "entrySource_organizer": "Organizer",
+    "entrySource_code": "Code",
+    "joinCode": "Share code",
+    "joinCodeHint": "Share this link with competitors: they can enter their own boat even if they are not club members.",
+    "createJoinCode": "Generate code",
+    "copyJoinLink": "Copy join link",
+    "regenerateJoinCode": "Regenerate code",
+    "revokeJoinCode": "Revoke code",
+    "joinTitle": "Enter {{name}}",
+    "joinIntro": "Enter your boat so you can link recordings to this regatta's races. This does not replace the official race entry.",
+    "joinAction": "Enter boat",
+    "joined": "Boat entered",
+    "joinFailed": "Invalid or revoked code",
+    "joinNeedsBoat": "Add a boat to your profile first"
   },
   "race": {
     "leaderboard": "Leaderboard",

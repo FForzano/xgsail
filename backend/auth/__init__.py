@@ -24,6 +24,7 @@ from .permissions import (
     session_notes_visible_to,
     session_physio_visible_to,
     can_edit_activity,
+    can_attach_session_to_activity,
     can_change_activity_visibility,
     effective_capabilities,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "session_notes_visible_to",
     "session_physio_visible_to",
     "can_edit_activity",
+    "can_attach_session_to_activity",
     "can_change_activity_visibility",
     "effective_capabilities",
     "current_device",

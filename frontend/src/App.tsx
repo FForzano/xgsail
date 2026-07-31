@@ -15,6 +15,7 @@ import { ClubsDiaryPage } from "@/pages/diario/ClubsDiaryPage";
 import { ActivityDetailPage } from "@/pages/diario/ActivityDetailPage";
 import { RacePage } from "@/pages/diario/RacePage";
 import { RegattaDetailPage } from "@/pages/diario/RegattaDetailPage";
+import { RegattaJoinPage } from "@/pages/diario/RegattaJoinPage";
 import { RegistraPage } from "@/pages/registra/RegistraPage";
 import { GruppiLayout } from "@/pages/gruppi/GruppiLayout";
 import { GroupsPage } from "@/pages/gruppi/GroupsPage";
@@ -69,6 +70,8 @@ export default function App() {
           {/* The race dashboard and its regatta are full-width, outside the tabbed layout. */}
           <Route path="/diario/regate/race/:raceId" element={<RacePage />} />
           <Route path="/diario/regate/regatta/:regattaId" element={<RegattaDetailPage />} />
+          {/* Short path: this link gets pasted into the fleet's chat group. */}
+          <Route path="/regate/:regattaId/join" element={<RegattaJoinPage />} />
 
           {/* Everywhere: the exploration map works on web too, only the
               recording controls are native-gated (see RegistraPage). */}
