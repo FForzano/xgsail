@@ -40,6 +40,8 @@ from .session import (
     SessionWriteModel,
 )
 from .regatta import (
+    OfficialStandingsRowModel,
+    OfficialStandingsUploadModel,
     RegattaEntryLinkModel,
     RegattaEntryWriteModel,
     RegattaJoinModel,
@@ -97,6 +99,8 @@ __all__ = [
     "RegattaEntryWriteModel",
     "RegattaEntryLinkModel",
     "RegattaJoinModel",
+    "OfficialStandingsRowModel",
+    "OfficialStandingsUploadModel",
     "RaceDayWriteModel",
     "RaceWriteModel",
     "ResultWriteModel",

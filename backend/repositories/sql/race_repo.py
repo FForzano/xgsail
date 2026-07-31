@@ -16,6 +16,7 @@ from typing import Optional
 from sqlalchemy import select
 
 from ...db.models import (
+    OfficialStandingsORM,
     RaceDayORM,
     RaceORM,
     RegattaEntryORM,
@@ -275,6 +276,55 @@ class SqlRegattaRepo:
                     RegattaEntryORM.boat_id.in_(my_boat_ids),
                 )
             ).all())
+
+    # --- official standings ---
+
+    def list_official_standings(self, regatta_id: uuid.UUID) -> "list[OfficialStandingsORM]":
+        """Fetch official standings rows for a regatta, ordered by position."""
+        with self.Session() as s:
+            return list(s.scalars(
+                select(OfficialStandingsORM)
+                .where(OfficialStandingsORM.regatta_id == regatta_id)
+                .order_by(OfficialStandingsORM.position.asc())
+            ).all())
+
+    def set_official_standings(self, regatta_id: uuid.UUID,
+                               standings: "list[dict]",
+                               user_id: uuid.UUID) -> bool:
+        """Replace the official standings for a regatta with a new list.
+
+        Each item in standings should have: boat_id, position, score (optional),
+        status (optional). This clears any existing official standings and
+        creates new rows.
+        """
+        with self.Session() as s:
+            # Delete existing official standings
+            s.query(OfficialStandingsORM).where(
+                OfficialStandingsORM.regatta_id == regatta_id
+            ).delete()
+
+            # Insert new ones
+            for item in standings:
+                orm = OfficialStandingsORM(
+                    regatta_id=regatta_id,
+                    boat_id=item["boat_id"],
+                    position=item["position"],
+                    score=item.get("score"),
+                    status=item.get("status"),
+                    created_by=user_id,
+                )
+                s.add(orm)
+            s.commit()
+            return True
+
+    def clear_official_standings(self, regatta_id: uuid.UUID) -> bool:
+        """Delete all official standings for a regatta, reverting to computed ones."""
+        with self.Session() as s:
+            count = s.query(OfficialStandingsORM).where(
+                OfficialStandingsORM.regatta_id == regatta_id
+            ).delete()
+            s.commit()
+            return count > 0
 
 
 class SqlRaceDayRepo:

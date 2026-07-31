@@ -181,3 +181,26 @@ class ResultORM(UUIDPKMixin, Base):
     position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # redress can be fractional
     status: Mapped[str] = mapped_column(String, nullable=False, default="finished")
+
+
+class OfficialStandingsORM(UUIDPKMixin, CreatedAtMixin, Base):
+    """Official/published standings for a regatta. Takes precedence over
+    auto-computed standings. One row per boat per regatta; deleting all rows
+    reverts to computed standings."""
+    __tablename__ = "official_standings"
+    __table_args__ = (
+        UniqueConstraint("regatta_id", "boat_id"),
+    )
+
+    regatta_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    boat_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("boats.id", ondelete="RESTRICT"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )

@@ -48,3 +48,18 @@ class RegattaWriteModel(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     status: Optional[str] = None  # scheduled | active | completed
+
+
+class OfficialStandingsRowModel(BaseModel):
+    """One row of official standings: a boat and its official position/score."""
+
+    boat_id: uuid.UUID
+    position: int
+    score: Optional[float] = None
+    status: Optional[str] = None  # dnf, dns, dsq, etc
+
+
+class OfficialStandingsUploadModel(BaseModel):
+    """Upload official standings to replace computed standings for a regatta."""
+
+    standings: list[OfficialStandingsRowModel]
