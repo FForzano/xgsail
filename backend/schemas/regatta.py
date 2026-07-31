@@ -4,11 +4,28 @@ import uuid
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class RegattaEntryWriteModel(BaseModel):
-    """Organizer putting a boat on the start list."""
+    """Organizer putting a boat on the start list — either a real boat
+    (``boat_id``) or a manual/paper entry (``boat_name``, optionally
+    ``sail_number``) for a boat with no XGSail account yet."""
+
+    boat_id: Optional[uuid.UUID] = None
+    boat_name: Optional[str] = None
+    sail_number: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _require_boat_id_or_name(self) -> "RegattaEntryWriteModel":
+        # Mirrors the DB CHECK (boat_id IS NOT NULL OR boat_name IS NOT NULL).
+        if self.boat_id is None and not (self.boat_name and self.boat_name.strip()):
+            raise ValueError("boat_id or boat_name is required")
+        return self
+
+
+class RegattaEntryLinkModel(BaseModel):
+    """Organizer matching a manual entry to a real boat."""
 
     boat_id: uuid.UUID
 

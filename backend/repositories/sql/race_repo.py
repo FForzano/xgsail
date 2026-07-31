@@ -146,7 +146,13 @@ class SqlRegattaRepo:
             ).all())
 
     def get_entry(self, regatta_id: uuid.UUID,
-                  boat_id: uuid.UUID) -> Optional[RegattaEntryORM]:
+                  boat_id: Optional[uuid.UUID]) -> Optional[RegattaEntryORM]:
+        # Guard: ``boat_id`` is nullable on manual entries, and
+        # ``boat_id == None`` renders as ``IS NULL`` in SQL — without this
+        # guard, calling with ``boat_id=None`` would spuriously match every
+        # manual entry on the regatta instead of finding nothing.
+        if boat_id is None:
+            return None
         with self.Session() as s:
             return s.scalars(
                 select(RegattaEntryORM).where(
@@ -155,36 +161,106 @@ class SqlRegattaRepo:
                 )
             ).first()
 
-    def add_entry(self, regatta_id: uuid.UUID, boat_id: uuid.UUID, *,
+    def get_entry_by_id(self, regatta_id: uuid.UUID,
+                        entry_id: uuid.UUID) -> Optional[RegattaEntryORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(RegattaEntryORM).where(
+                    RegattaEntryORM.regatta_id == regatta_id,
+                    RegattaEntryORM.id == entry_id,
+                )
+            ).first()
+
+    @staticmethod
+    def _normalized_name(boat_name: Optional[str],
+                         sail_number: Optional[str]) -> Optional[str]:
+        if boat_name is None or not boat_name.strip():
+            return None
+        name = boat_name.strip().lower()
+        sail = (sail_number or "").strip().lower()
+        return f"{name}|{sail}"
+
+    def _get_manual_entry(self, regatta_id: uuid.UUID,
+                          normalized: str) -> Optional[RegattaEntryORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(RegattaEntryORM).where(
+                    RegattaEntryORM.regatta_id == regatta_id,
+                    RegattaEntryORM.boat_name_normalized == normalized,
+                )
+            ).first()
+
+    def add_entry(self, regatta_id: uuid.UUID, boat_id: Optional[uuid.UUID], *,
+                  boat_name: Optional[str] = None,
+                  sail_number: Optional[str] = None,
                   source: str, created_by: Optional[uuid.UUID]) -> RegattaEntryORM:
-        """Idempotent: re-entering an already-listed boat returns the existing
-        row rather than tripping the unique constraint (a sailor opening the
-        share link twice is not an error)."""
-        existing = self.get_entry(regatta_id, boat_id)
+        """Idempotent: re-entering an already-listed boat (by ``boat_id``, or
+        by normalized name+sail number for a manual entry with no boat yet)
+        returns the existing row rather than tripping the unique constraint —
+        a sailor opening the share link twice, or an organizer re-submitting
+        the same paper entry, is not an error."""
+        if boat_id is not None:
+            existing = self.get_entry(regatta_id, boat_id)
+            if existing is not None:
+                return existing
+            with self.Session() as s:
+                orm = RegattaEntryORM(
+                    regatta_id=regatta_id, boat_id=boat_id,
+                    source=source, created_by=created_by,
+                )
+                s.add(orm)
+                s.commit()
+            return self.get_entry(regatta_id, boat_id)
+
+        normalized = self._normalized_name(boat_name, sail_number)
+        existing = self._get_manual_entry(regatta_id, normalized)
         if existing is not None:
             return existing
         with self.Session() as s:
             orm = RegattaEntryORM(
-                regatta_id=regatta_id, boat_id=boat_id,
+                regatta_id=regatta_id, boat_id=None,
+                boat_name=boat_name.strip(), sail_number=sail_number,
+                boat_name_normalized=normalized,
                 source=source, created_by=created_by,
             )
             s.add(orm)
             s.commit()
-        return self.get_entry(regatta_id, boat_id)
+            new_id = orm.id
+        return self.get_entry_by_id(regatta_id, new_id)
 
-    def remove_entry(self, regatta_id: uuid.UUID, boat_id: uuid.UUID) -> bool:
+    def remove_entry_by_id(self, entry_id: uuid.UUID) -> bool:
         with self.Session() as s:
-            orm = s.scalars(
-                select(RegattaEntryORM).where(
-                    RegattaEntryORM.regatta_id == regatta_id,
-                    RegattaEntryORM.boat_id == boat_id,
-                )
-            ).first()
+            orm = s.get(RegattaEntryORM, entry_id)
             if orm is None:
                 return False
             s.delete(orm)
             s.commit()
             return True
+
+    def link_entry(self, regatta_id: uuid.UUID, entry_id: uuid.UUID,
+                   boat_id: uuid.UUID) -> Optional[RegattaEntryORM]:
+        """Match a manual entry to a real boat: sets ``boat_id`` and clears
+        the manual fields. Idempotent if the entry is already linked to this
+        same boat. Caller is expected to have already checked that no other
+        entry on this regatta holds ``boat_id`` (409) — enforced here only as
+        a last-resort safety net via the partial unique index."""
+        with self.Session() as s:
+            orm = s.scalars(
+                select(RegattaEntryORM).where(
+                    RegattaEntryORM.regatta_id == regatta_id,
+                    RegattaEntryORM.id == entry_id,
+                )
+            ).first()
+            if orm is None:
+                return None
+            if orm.boat_id == boat_id:
+                return orm
+            orm.boat_id = boat_id
+            orm.boat_name = None
+            orm.sail_number = None
+            orm.boat_name_normalized = None
+            s.commit()
+        return self.get_entry_by_id(regatta_id, entry_id)
 
     def entered_boat_ids(self, regatta_id: uuid.UUID,
                          user_id: uuid.UUID) -> "list[uuid.UUID]":
