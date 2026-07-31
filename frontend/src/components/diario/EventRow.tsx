@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Megaphone, Sailboat, Trophy } from "lucide-react";
+import { Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { MediaPlaceholder } from "@/components/common/MediaPlaceholder";
 import { RegattaRaceDays } from "@/components/gruppi/RegattaRaceDays";
 import { PostComposer } from "@/components/gruppi/PostComposer";
-import { fmtDate, fmtDateTime } from "@/utils/format";
+import { fmtDateRange, fmtDateTime } from "@/utils/format";
 import type { Activity, Regatta, UUID } from "@/types";
 import styles from "./EventRow.module.css";
 
@@ -82,9 +83,7 @@ export function EventRow({
             // thumbnail (or with different track shapes) different heights.
             <img src={imageUrl} alt="" className={styles.media} />
           ) : (
-            <div className={styles.mediaPlaceholder} data-kind={item.kind} aria-hidden>
-              {item.kind === "regatta" ? <Trophy size={32} /> : <Sailboat size={32} />}
-            </div>
+            <MediaPlaceholder kind={item.kind} />
           )}
         </div>
       </Link>
@@ -104,9 +103,7 @@ export function EventRow({
           {item.title}
         </Link>
         <span className={styles.meta}>
-          {item.kind === "regatta"
-            ? `${fmtDate(item.date)}${item.endDate && item.endDate !== item.date ? ` – ${fmtDate(item.endDate)}` : ""}`
-            : fmtDateTime(item.date)}
+          {item.kind === "regatta" ? fmtDateRange(item.date, item.endDate) : fmtDateTime(item.date)}
         </span>
         {description && <p className={styles.description}>{description}</p>}
         {(item.kind === "regatta" || (canAnnounce && clubId)) && (

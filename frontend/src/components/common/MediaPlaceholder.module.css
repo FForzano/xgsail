@@ -1,0 +1,20 @@
+/* Stand-in for a missing cover image. Fills its parent (which owns the
+   aspect ratio — a 4/3 feed card, a wide hero poster), so the same tint works
+   at any size instead of each caller re-deciding a box. The tint carries the
+   kind, so a card without a picture still reads as "regatta" or "outing" at a
+   glance rather than as a grey hole. */
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.placeholder[data-kind="regatta"] {
+  background: color-mix(in srgb, var(--sf-warning) 15%, var(--sf-bg-2));
+  color: var(--sf-warning);
+}
+.placeholder[data-kind="activity"] {
+  background: color-mix(in srgb, var(--sf-leg-upwind) 15%, var(--sf-bg-2));
+  color: var(--sf-leg-upwind);
+}

@@ -121,7 +121,8 @@ Shared HTTP helpers go in `routers/_common.py`, not copy-pasted per
 router.
 
 **Services** (`backend/services/`) — business logic by domain (course,
-geo, gpx, wind estimation, import processing, maneuver reconciliation).
+geo, gpx, wind estimation, import processing, maneuver reconciliation,
+regatta scoring).
 
 **Repositories** (`backend/repositories/`) — data-access layer only.
 Base class in `repositories/base.py`, SQL implementations in
@@ -268,7 +269,7 @@ pages/`pages/**` → global.css. Combine both with a template string:
 ├── backend/                    # FastAPI REST API (API-only, no static mount)
 │   ├── main.py                 # Composition root: CORS, RBAC startup seed, routers
 │   ├── routers/                # One module per resource (see below)
-│   ├── services/                # Business logic: course, geo, gpx, wind, import, maneuvers
+│   ├── services/                # Business logic: course, geo, gpx, wind, import, maneuvers, scoring
 │   ├── repositories/           # Data-access layer (base.py + sql/ implementation)
 │   ├── auth/                   # Passwords, tokens (cookie + Bearer), permissions, RBAC seed
 │   ├── db/                     # SQLAlchemy models + base
@@ -495,12 +496,55 @@ See `.env.example` for the full list with defaults. Grouped by concern:
 
 ## Planning workflow
 
-- **Plan before executing, except for small/obvious changes** — a
-  short plan (what changes, in what order, why) for anything
-  multi-step, multi-file, or ambiguous; skip it for a one-line fix.
-- **Size each plan step to the reasoning depth it needs** (a mechanical
-  step vs. a design tradeoff differ a lot), not uniformly to the
-  hardest part. Use the appropriate model for each step (sub-agents).
+**Standing authorization:** the user of this repo has pre-authorized
+subagent delegation as the default execution mode for the tasks
+described below. Treat the workflow here as an explicit, already-given
+request to use the `Agent` tool — it does not need to be asked for
+again per task. Do not ask for confirmation before spawning; just
+announce the split.
+
+The workflow, in order:
+
+1. **Plan before executing.** For anything multi-step, multi-file, or
+   ambiguous, write a short plan first: what changes, in what order,
+   why. Skip only for a genuinely small/obvious change (one file, no
+   design decision) — do that inline.
+2. **Split the plan into units** along two axes: logical boundary
+   (a unit is independently verifiable and owns its own files) and
+   difficulty (mechanical vs. requires judgment). Do not split below
+   the point where handoff costs more than the work.
+3. **Assign each unit a model + depth** — this is a required field of
+   the plan, written out explicitly per unit, not implicit:
+   - `haiku` — mechanical, fully specified: renames, moving files,
+     applying one known pattern across N call sites, formatting.
+   - `sonnet` — normal implementation work: a new endpoint following
+     an existing playbook, a migration, tests for a known behaviour.
+   - `opus` — design tradeoffs, cross-layer refactors, debugging
+     something nobody has explained yet, anything touching a Gotcha.
+   Reasoning depth is not a tool parameter: express it in the
+   subagent's prompt ("think hard about X before writing", or
+   conversely "this is fully specified, do not redesign it").
+4. **Spawn one subagent per unit** via `Agent`, passing that unit's
+   `model` explicitly. Use `subagent_type: "Explore"` for read-only
+   investigation, `"Plan"` for design-only units, `"general-purpose"`
+   for units that write code. Independent units go out in a single
+   message so they run in parallel; dependent units wait for their
+   predecessor's result.
+5. **Each subagent prompt is self-contained** — it does not inherit
+   this conversation. State the goal, the files in scope, the
+   conventions from this file that apply, what must NOT be touched,
+   and what "done" looks like (which command must pass).
+6. **Integrate and verify yourself.** Subagent reports are not shown
+   to the user and are not proof: re-read the diff, run the checks in
+   "Operational notes", and report what actually passed.
+
+Do not delegate when the whole task is one unit anyway, when it is
+faster to do than to describe, or when it needs conversation context a
+prompt cannot carry.
+
+The same workflow is available as an explicit, project-agnostic
+command — `/plan-and-delegate`, from `common/` in this template repo —
+for when it should run for certain rather than by default.
 
 ---
 

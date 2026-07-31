@@ -267,6 +267,18 @@ class SqlRaceRepo:
                 q = q.where(RaceORM.race_day_id == race_day_id)
             return list(s.scalars(q).all())
 
+    def list_for_racedays(self, race_day_ids) -> "list[RaceORM]":
+        """Every race of several days in one query — the regatta payload and
+        the standings would otherwise issue one query per day."""
+        if not race_day_ids:
+            return []
+        with self.Session() as s:
+            return list(s.scalars(
+                select(RaceORM)
+                .where(RaceORM.race_day_id.in_(list(race_day_ids)))
+                .order_by(RaceORM.race_number.asc())
+            ).all())
+
     def get(self, race_id: uuid.UUID) -> Optional[RaceORM]:
         with self.Session() as s:
             return s.get(RaceORM, race_id)
@@ -326,6 +338,14 @@ class SqlRaceRepo:
         with self.Session() as s:
             return list(s.scalars(
                 select(ResultORM).where(ResultORM.race_id == race_id)
+            ).all())
+
+    def list_results_for_races(self, race_ids) -> "list[ResultORM]":
+        if not race_ids:
+            return []
+        with self.Session() as s:
+            return list(s.scalars(
+                select(ResultORM).where(ResultORM.race_id.in_(list(race_ids)))
             ).all())
 
     def get_result(self, result_id: uuid.UUID) -> Optional[ResultORM]:

@@ -1,10 +1,16 @@
-/* Race-day/race management (RegattaRaceDays.tsx) — one card per day, races
-   as removable chips inside it, rather than the previous single-line strip
-   where the date, race buttons, delete icons and "add" button all fought for
-   the same row with no hierarchy. Deliberately its own module rather than
-   reusing the generic `sf-strip` primitive (global.css): the day/chip
-   structure here is specific to this component, not the general
-   list-of-items look `sf-strip` serves in a dozen other places. */
+/* Race days (RegattaRaceDays.tsx) — one card per day, its races as a grid of
+   small cards inside it, rather than the previous single-line strip where the
+   date, race buttons, delete icons and "add" button all fought for the same
+   row with no hierarchy. A race card carries three lines (number + status,
+   start time, outcome) because "which races have actually been sailed" is the
+   first thing anyone asks of a regatta's schedule, and an anonymous "Prova 2"
+   chip answered none of it. Deliberately its own module rather than reusing
+   the generic `sf-strip` primitive (global.css): the day/race structure here
+   is specific to this component, not the general list-of-items look
+   `sf-strip` serves in a dozen other places.
+
+   Variants are switched from React, never with `:has()` — iOS 14 is this
+   app's declared minimum (see capacitor.config.ts) and doesn't support it. */
 
 .days {
   display: flex;
@@ -48,43 +54,70 @@
   color: var(--sf-danger);
 }
 
-.chipRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+/* Auto-fill rather than a fixed column count: a day holds anywhere from one
+   race to half a dozen, and the cards should fill the row they're given. */
+.raceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
   gap: 0.5rem;
 }
 
-/* A race: number + a nested remove control, not a Link nested inside a
-   button (or vice versa) — the outer element is a plain span so the Link
-   and the delete button are siblings, not interactive-in-interactive. */
-.raceChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  padding-left: 0.8rem;
-  padding-right: 0.8rem;
-  border-radius: 999px;
+/* The remove control is a sibling of the Link, not nested inside it —
+   positioned over the card's corner so the whole card stays one click
+   target without putting a button inside a link. */
+.raceCard {
+  position: relative;
   border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
   background: var(--sf-bg-2);
-  font-size: 0.85rem;
+  transition: border-color 0.15s ease;
 }
-/* Set from React (a race chip that also renders the remove button) rather
-   than a `:has()` selector — unsupported on iOS 14, this app's declared
-   minimum (see capacitor.config.ts). */
-.raceChipManage {
-  padding-right: 0.3rem;
-}
-.raceChip a {
-  padding: 0.35rem 0;
-  color: var(--sf-text);
-  text-decoration: none;
-}
-.raceChip:hover {
+.raceCard:hover {
   border-color: var(--sf-primary);
 }
 
-.raceChipRemove {
+.raceLink {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0.7rem;
+  color: var(--sf-text);
+  text-decoration: none;
+}
+
+.raceHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  /* Room for the remove button's corner, so the badge never sits under it. */
+  padding-right: 1.1rem;
+}
+
+.raceNumber {
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.raceTime {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--sf-muted);
+}
+
+.raceOutcome {
+  font-size: 0.8rem;
+  color: var(--sf-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.raceRemove {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -96,31 +129,36 @@
   color: var(--sf-muted);
   cursor: pointer;
 }
-.raceChipRemove:hover {
+.raceRemove:hover {
   background: var(--sf-surface-2);
   color: var(--sf-danger);
 }
 
-/* Same pill shape/size as .raceChip, dashed instead of solid — reads as
-   "one more of these" rather than a competing call-to-action. */
-.addChip {
-  display: inline-flex;
+/* Same footprint as a race card, dashed instead of solid — reads as "one more
+   of these" rather than a competing call-to-action. */
+.addCard {
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.3rem;
-  padding: 0.35rem 0.85rem;
-  border-radius: 999px;
+  min-height: 4.5rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--sf-radius);
   border: 1px dashed var(--sf-border);
   background: transparent;
   color: var(--sf-muted);
   font: inherit;
   font-size: 0.85rem;
   cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
-.addChip:hover:not(:disabled) {
+.addCard:hover:not(:disabled) {
   border-color: var(--sf-primary);
   color: var(--sf-text);
 }
-.addChip:disabled {
+.addCard:disabled {
   opacity: 0.6;
   cursor: default;
 }

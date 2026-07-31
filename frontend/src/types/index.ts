@@ -679,6 +679,9 @@ export interface RaceDay {
   regatta_id: UUID | null;
   date: string;
   notes: string | null;
+  /** Optional because the `GET /racedays` list form omits it — but
+   * `regattasService.get` always populates it, so a regatta's race days
+   * carry their races without a query per day. */
   races?: Race[];
 }
 
@@ -701,6 +704,26 @@ export interface RaceResult {
   position: number | null;
   score: number | null;
   status: string; // finished | dnf | dns | dsq…
+}
+
+/** One boat's line in a regatta's overall standings: its rank and total, plus
+ * its result in every race keyed by race id (races it did not sail are simply
+ * absent from the map). Boats on the start list that have not raced yet are
+ * included too, at the bottom, with `total: 0` and an empty `races`. */
+export interface StandingRow {
+  rank: number;
+  total: number;
+  boat: { id: UUID; name: string; sail_number: string | null };
+  races: Record<UUID, { position: number | null; score: number | null; status: string }>;
+}
+
+/** `GET /regattas/{id}/standings` — series standings computed server-side
+ * (see backend/services/scoring.py), not derived in the client. `races` is
+ * the column order: every row's `races` map is keyed by these ids. */
+export interface RegattaStandings {
+  scoring_system: string;
+  races: Array<{ id: UUID; race_number: number; date: string | null; status: string }>;
+  standings: StandingRow[];
 }
 
 export type ActivitySessionData = Record<

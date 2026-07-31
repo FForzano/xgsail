@@ -1,10 +1,12 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, Pencil } from "lucide-react";
 import { regattasService, raceKeys } from "@/services/races";
+import { boatsService, boatKeys } from "@/services/boats";
 import { useCapabilities } from "@/hooks/useCapabilities";
+import { useRegattaMeta } from "@/hooks/useRegattaMeta";
 import { useToast } from "@/hooks/useToast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -14,16 +16,19 @@ import { InputField, TextAreaField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { BackLink } from "@/components/ui/BackLink";
+import { StatTile, StatTiles } from "@/components/session/StatTile";
 import { RegattaRaceDays } from "@/components/gruppi/RegattaRaceDays";
 import { RegattaEntries } from "@/components/race/RegattaEntries";
+import { RegattaHero } from "@/components/race/RegattaHero";
+import { RegattaStandings } from "@/components/race/RegattaStandings";
+import { MyRegattaCard } from "@/components/race/MyRegattaCard";
 import type { UUID } from "@/types";
-import entityHeaderStyles from "@/components/gruppi/entityHeader.module.css";
-import styles from "./RegattaDetailPage.module.css";
 
-/** Regatta detail page (name, hero image, description, race days/races) —
- * reachable from a race's dashboard (`RacePage`'s back link) or from the
- * club's Eventi tab. Race-day/race management is the same
- * `RegattaRaceDays` block used inline there, just full-page here. */
+/** Regatta detail page (name, poster, standings, race days/races, start list)
+ * — reachable from a race's dashboard (`RacePage`'s back link) or from the
+ * club's Eventi tab. Ordered for the competitor first (hero, totals, their own
+ * standing, the standings table) and the organizer last (race-day and start
+ * list management), rather than putting the admin blocks up top. */
 export function RegattaDetailPage() {
   const { regattaId } = useParams<{ regattaId: UUID }>();
   const { t } = useTranslation();
@@ -36,6 +41,13 @@ export function RegattaDetailPage() {
     queryFn: () => regattasService.get(regattaId!),
     enabled: !!regattaId,
   });
+  const entries = useQuery({
+    queryKey: raceKeys.entries(regattaId!),
+    queryFn: () => regattasService.entries(regattaId!),
+    enabled: !!regattaId,
+  });
+  const myBoats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
+  const { clubName, boatClassName, raceCount } = useRegattaMeta(regatta.data);
 
   const [editing, setEditing] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -46,6 +58,13 @@ export function RegattaDetailPage() {
       setForm({ name: regatta.data.name ?? "", description: regatta.data.description ?? "" });
     }
   }, [regatta.data]);
+
+  // Which of the viewer's own boats is on this start list — drives both the
+  // personal card and the highlighted row in the standings.
+  const myBoatId = useMemo(() => {
+    const mine = new Set((myBoats.data ?? []).map((b) => b.id));
+    return entries.data?.find((e) => mine.has(e.boat_id))?.boat_id ?? null;
+  }, [entries.data, myBoats.data]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: raceKeys.regatta(regattaId!) });
 
@@ -67,30 +86,25 @@ export function RegattaDetailPage() {
   if (!regatta.data) return null;
   const r = regatta.data;
   const manage = can("regatta.manage", r.club_id);
+  const days = r.race_days ?? [];
+  const finishedRaces = days.reduce(
+    (n, day) => n + (day.races ?? []).filter((race) => race.status === "finished").length,
+    0,
+  );
 
   return (
     <div className="sf-section__body">
       <BackLink fallback={`/gruppi/clubs/${r.club_id}/eventi`} label={t("regate.backToEvents")} />
-      <Card>
-        <div className={entityHeaderStyles.header}>
-          <div className={entityHeaderStyles.identity}>
-            {r.image && (
-              <button
-                type="button"
-                className={styles.heroImageButton}
-                onClick={() => setLightboxOpen(true)}
-                aria-label={t("regate.viewImage")}
-              >
-                <img className={styles.heroImage} src={r.image.url} alt="" />
-              </button>
-            )}
-            <div>
-              <h1 className={entityHeaderStyles.name}>{r.name}</h1>
-              {r.description && <p className={`sf-muted ${entityHeaderStyles.meta}`}>{r.description}</p>}
-            </div>
-          </div>
-          {manage && (
-            <div className={entityHeaderStyles.actions}>
+
+      <RegattaHero
+        regatta={r}
+        clubName={clubName}
+        boatClassName={boatClassName}
+        raceCount={raceCount}
+        onOpenImage={r.image ? () => setLightboxOpen(true) : undefined}
+        actions={
+          manage && (
+            <>
               <ImageUploader
                 create={() => regattasService.uploadImage(regattaId)}
                 confirm={(id) => regattasService.confirmImage(regattaId, id)}
@@ -106,9 +120,22 @@ export function RegattaDetailPage() {
               >
                 <Pencil size={16} />
               </Button>
-            </div>
-          )}
-        </div>
+            </>
+          )
+        }
+      />
+
+      <StatTiles>
+        <StatTile label={t("regate.statDays")} value={days.length} />
+        <StatTile label={t("regate.statRaces")} value={raceCount} />
+        <StatTile label={t("regate.statEntries")} value={entries.data?.length ?? "—"} />
+        <StatTile label={t("regate.statFinished")} value={finishedRaces} />
+      </StatTiles>
+
+      <MyRegattaCard regattaId={regattaId} boatId={myBoatId} />
+
+      <Card title={t("regate.standings")}>
+        <RegattaStandings regattaId={regattaId} highlightBoatId={myBoatId} />
       </Card>
 
       <Card title={t("regate.raceDays")}>

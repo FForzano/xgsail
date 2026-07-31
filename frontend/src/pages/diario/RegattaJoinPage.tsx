@@ -5,6 +5,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { regattasService, raceKeys } from "@/services/races";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useToast } from "@/hooks/useToast";
+import { useRegattaMeta } from "@/hooks/useRegattaMeta";
+import { RegattaHero } from "@/components/race/RegattaHero";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -38,6 +40,7 @@ export function RegattaJoinPage() {
   // Only boats the sailor owns/administers can be entered, so the picker is
   // their own list rather than a search over every boat.
   const myBoats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
+  const { clubName, boatClassName, raceCount } = useRegattaMeta(regatta.data);
 
   useEffect(() => {
     if (myBoats.data?.length === 1) setBoatId(myBoats.data[0].id);
@@ -57,6 +60,15 @@ export function RegattaJoinPage() {
 
   return (
     <div className="sf-section__body">
+      {/* This link gets pasted into the fleet's chat group, so the landing has
+          to say which regatta it is before it asks for anything. Read-only:
+          no manage actions, no lightbox. */}
+      <RegattaHero
+        regatta={regatta.data}
+        clubName={clubName}
+        boatClassName={boatClassName}
+        raceCount={raceCount}
+      />
       <Card title={t("regate.joinTitle", { name: regatta.data.name })}>
         <p className="sf-muted">{t("regate.joinIntro")}</p>
         {myBoats.data?.length === 0 ? (

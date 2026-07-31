@@ -19,6 +19,15 @@ export function fmtDate(date?: string | null): string {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
+/** Span of a multi-day event (a regatta, an entry's validity). Collapses to a
+ * single date when the event lasts one day or has no end, so callers don't
+ * each re-derive "same day → don't repeat it". */
+export function fmtDateRange(start?: string | null, end?: string | null): string {
+  const from = fmtDate(start);
+  if (!end || end === start) return from;
+  return `${from} – ${fmtDate(end)}`;
+}
+
 export function fmtDateTime(ts?: string | null): string {
   if (!ts) return "—";
   return new Date(ts).toLocaleString(undefined, {
@@ -43,6 +52,13 @@ export function fmtDuration(sec?: number | null): string {
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
   return `${h}h ${m % 60}m`;
+}
+
+/** Race/series points. Usually whole numbers, but redress and average-points
+ * scoring produce halves — show the decimal only when there is one. */
+export function fmtPoints(points?: number | null): string {
+  if (points == null) return "—";
+  return Number.isInteger(points) ? String(points) : points.toFixed(1);
 }
 
 export function fmtDistance(m?: number | null): string {

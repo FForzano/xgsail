@@ -1,0 +1,42 @@
+/* Podium tinting, shared by the series standings table and the per-race
+   podium on the race dashboard: two surfaces showing the same three places,
+   so gold/silver/bronze are defined once instead of drifting apart.
+
+   `.rank1/2/3` only declare the tint variable — the pieces that paint with it
+   (`.medal`, `.surface`) are separate, so a caller can put the rank on a table
+   row and the paint on one cell, or put both on a single podium box. Without a
+   rank class both fall back to neutral, which is exactly what places 4+ want.
+   Tints come from existing tokens (warning reads gold, muted silver, the
+   downwind leg color bronze) — no medal hex introduced. */
+
+.rank1 {
+  --sf-podium-tint: var(--sf-warning);
+}
+.rank2 {
+  --sf-podium-tint: var(--sf-muted);
+}
+.rank3 {
+  --sf-podium-tint: var(--sf-leg-downwind);
+}
+
+/* Round rank chip — the number itself, in a table cell or on a podium box. */
+.medal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--sf-podium-tint, var(--sf-muted)) 22%, transparent);
+  color: var(--sf-podium-tint, var(--sf-muted));
+}
+
+/* Tinted panel for a standalone podium box. */
+.surface {
+  background: color-mix(in srgb, var(--sf-podium-tint, var(--sf-border)) 12%, var(--sf-surface));
+  border: 1px solid color-mix(in srgb, var(--sf-podium-tint, var(--sf-border)) 40%, var(--sf-border));
+  border-radius: var(--sf-radius);
+}

@@ -1,3 +1,10 @@
+/* Race dashboard layout (RacePage.tsx). The map and the live leaderboard sit
+   side by side while there's room for both — the leaderboard is only useful
+   read *against* the replay — and stack once there isn't. The 900px
+   breakpoint is this page's own (not the app's usual 700px): the split dies
+   when the map column stops being wide enough to sail in, which happens well
+   before phone width. */
+
 .race {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
@@ -8,4 +15,63 @@
   .race {
     grid-template-columns: 1fr;
   }
+}
+
+/* Podium: three boxes on one row, collapsing to a single column on phones
+   rather than squeezing three boat names into a third of the width each.
+   Tints come from podium.module.css, shared with the series standings. */
+.podium {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.podiumBox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.85rem;
+}
+
+.podiumBoat {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The viewer's own row on the page: a medal, who they are, and the way into
+   the full analysis of their own track — the one block here that is about
+   the reader rather than the event. Wraps instead of using a breakpoint. */
+.yourRace {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.yourRaceText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.yourRaceBoat {
+  font-weight: 700;
+}
+
+.yourRaceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--sf-primary);
+  text-decoration: none;
+  white-space: nowrap;
 }

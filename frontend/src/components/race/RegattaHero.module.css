@@ -1,0 +1,166 @@
+/* Regatta hero — the first thing a sailor sees when a notice-of-race link
+   lands in the fleet chat, so the poster runs edge to edge (the Card is
+   `sf-card--flush sf-card--flush-top`, same full-bleed treatment as the
+   session map) and the identity sits *on* it rather than under it: title,
+   status and the meta line are stacked over a bottom-up gradient scrim, which
+   is what keeps white text readable over an arbitrary poster we don't control.
+   The poster is a fixed-ratio box, not an <img> sized by its own intrinsic
+   dimensions — posters range from A4 portrait scans to wide banners, and the
+   hero must be the same height either way.
+
+   The compact variant is the same component reduced to a breadcrumb line, for
+   the race dashboard: there the regatta is context, not the subject, so it
+   gets one row instead of a poster. */
+
+.hero {
+  overflow: hidden;
+}
+
+.poster {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  background: var(--sf-bg-2);
+  overflow: hidden;
+}
+@media (max-width: 700px) {
+  .poster {
+    aspect-ratio: 3 / 2;
+  }
+}
+
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Button, not a bare <img>, so opening the full-size poster is reachable by
+   keyboard — it covers the whole poster and stays under the overlay text. */
+.imageButton {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--sf-bg) 92%, transparent) 0%,
+    color-mix(in srgb, var(--sf-bg) 65%, transparent) 32%,
+    transparent 68%
+  );
+}
+
+.overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 1rem 1.25rem 1.1rem;
+  /* Text only — clicks belong to the poster button underneath. */
+  pointer-events: none;
+}
+
+.name {
+  margin: 0;
+  font-size: 1.7rem;
+  line-height: 1.15;
+  font-weight: 800;
+  color: var(--sf-text);
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--sf-bg) 80%, transparent);
+}
+@media (max-width: 700px) {
+  .name {
+    font-size: 1.3rem;
+  }
+}
+
+.meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--sf-text);
+  opacity: 0.85;
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--sf-bg) 80%, transparent);
+}
+
+.actions {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.75rem;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.description {
+  margin: 0;
+  padding: 0.85rem 1.25rem 0;
+  color: var(--sf-muted);
+  font-size: 0.9rem;
+  /* Keeps the organizer's own line breaks instead of collapsing them. */
+  white-space: pre-wrap;
+}
+
+/* ---------- compact (race dashboard) ---------- */
+
+.compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.crumbs {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--sf-muted);
+  min-width: 0;
+}
+
+.crumbLink {
+  color: var(--sf-text);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.crumbLink:hover {
+  color: var(--sf-primary);
+}
+
+.separator {
+  color: var(--sf-muted);
+  opacity: 0.6;
+}
+
+.raceTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--sf-text);
+}
+
+.compactMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--sf-muted);
+  font-variant-numeric: tabular-nums;
+}

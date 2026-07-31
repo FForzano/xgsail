@@ -8,6 +8,7 @@ import type {
   RaceResult,
   Regatta,
   RegattaEntry,
+  RegattaStandings,
   Session,
   UUID,
 } from "@/types";
@@ -17,6 +18,7 @@ export const raceKeys = {
   regatta: (id: UUID) => ["regattas", id] as const,
   entries: (id: UUID) => ["regattas", id, "entries"] as const,
   joinCode: (id: UUID) => ["regattas", id, "join-code"] as const,
+  standings: (id: UUID) => ["regattas", id, "standings"] as const,
   raceday: (id: UUID) => ["racedays", id] as const,
   race: (id: UUID) => ["races", id] as const,
   data: (id: UUID) => ["races", id, "data"] as const,
@@ -31,7 +33,7 @@ export const regattasService = {
     const qs = params.toString();
     return api.get<Regatta[]>(`/regattas${qs ? `?${qs}` : ""}`);
   },
-  get: (id: UUID) => api.get<Regatta>(`/regattas/${id}`), // embeds race_days
+  get: (id: UUID) => api.get<Regatta>(`/regattas/${id}`), // embeds race_days, each with its races
   create: (body: Partial<Regatta>) => api.post<Regatta>("/regattas", body),
   update: (id: UUID, body: Partial<Regatta>) => api.patch<Regatta>(`/regattas/${id}`, body),
   remove: (id: UUID) => api.del(`/regattas/${id}`),
@@ -48,6 +50,10 @@ export const regattasService = {
   removeEntry: (id: UUID, boatId: UUID) => api.del(`/regattas/${id}/entries/${boatId}`),
   join: (id: UUID, body: { code: string; boat_id: UUID }) =>
     api.post<RegattaEntry>(`/regattas/${id}/join`, body),
+
+  // Series standings, computed server-side. Public like the rest of a
+  // regatta's read surface — no manage permission needed.
+  standings: (id: UUID) => api.get<RegattaStandings>(`/regattas/${id}/standings`),
 
   joinCode: (id: UUID) => api.get<{ join_code: string | null }>(`/regattas/${id}/join-code`),
   regenerateJoinCode: (id: UUID) =>

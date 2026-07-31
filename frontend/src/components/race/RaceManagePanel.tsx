@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { racesService, raceKeys } from "@/services/races";
 import { activityKeys } from "@/services/activities";
 import { boatsService, boatKeys } from "@/services/boats";
@@ -13,11 +14,15 @@ import { InputField } from "@/components/ui/InputField";
 import { ResultsEditor } from "./ResultsEditor";
 import type { MapMark } from "./MapView";
 import type { Race, UUID } from "@/types";
+import styles from "./RaceManagePanel.module.css";
 
 /** Management actions on the race dashboard, gated per scoped permission:
  * race.manage → start time / match-sessions / boat GPX; mark.manage →
  * auto-start-line + suggest-marks with preview-then-apply; result.manage →
- * results editor. */
+ * results editor.
+ *
+ * Collapsed by default — these controls reach a handful of officers, while
+ * the replay above them is what everyone else opened the page for. */
 export function RaceManagePanel({
   race,
   canRace,
@@ -40,6 +45,7 @@ export function RaceManagePanel({
     race.start_time ? race.start_time.slice(0, 16) : "",
   );
   const [preview, setPreview] = useState<"start" | "marks" | null>(null);
+  const [open, setOpen] = useState(false);
 
   const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
 
@@ -130,111 +136,129 @@ export function RaceManagePanel({
   });
 
   return (
-    <Card title={t("race.manage")}>
-      {canRace && (
-        <div className="sf-form__section">
-          <form
-            className="sf-form__row"
-            style={{ alignItems: "end" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (startTime) saveStart.mutate();
-            }}
-          >
-            <InputField
-              label={t("regate.startTime")}
-              id="race-start"
-              type="datetime-local"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-            />
-            <div className="sf-field">
-              <Button type="submit" disabled={saveStart.isPending || !startTime}>
-                {t("common.save")}
-              </Button>
-            </div>
-          </form>
-          {!race.start_time && <p className="sf-muted">{t("race.setStartTime")}</p>}
-        </div>
-      )}
-
-      {canRace && (
-        <div className="sf-form__section" style={{ display: "flex", justifyContent: "flex-start" }}>
-          <Button
-            variant="ghost"
-            disabled={match.isPending || !race.start_time}
-            onClick={() => match.mutate()}
-          >
-            {t("race.matchSessions")}
-          </Button>
-        </div>
-      )}
-
-      {canRace && (
-        <div className="sf-form__section">
-          <form
-            className="sf-form__row"
-            style={{ alignItems: "end" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              const file = fileRef.current?.files?.[0];
-              if (file && gpxBoat) uploadGpx.mutate({ boatId: gpxBoat as UUID, file });
-            }}
-          >
-            <Select
-              label={t("race.uploadGpx")}
-              id="gpx-boat"
-              value={gpxBoat}
-              onChange={(e) => setGpxBoat(e.target.value)}
-            >
-              <option value="">…</option>
-              {boats.data?.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </Select>
-            <label className="sf-field">
-              <span className="sf-field__label">GPX</span>
-              <input ref={fileRef} type="file" accept=".gpx" className="sf-field__input" />
-            </label>
-            <div className="sf-field">
-              <Button type="submit" variant="ghost" disabled={uploadGpx.isPending || !gpxBoat}>
-                {t("common.upload")}
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {canMarks && (
-        <div
-          className="sf-form__section"
-          style={{ display: "flex", justifyContent: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}
+    <Card
+      title={t("race.manage")}
+      actions={
+        <Button
+          variant="ghost"
+          className="sf-btn--icon-sm"
+          aria-expanded={open}
+          aria-label={t(open ? "common.collapse" : "common.expand")}
+          onClick={() => setOpen((v) => !v)}
         >
-          <Button variant="ghost" disabled={startLine.isPending} onClick={() => startLine.mutate(false)}>
-            {t("race.autoStartLine")} ({t("common.preview")})
-          </Button>
-          <Button variant="ghost" disabled={suggest.isPending} onClick={() => suggest.mutate(false)}>
-            {t("race.suggestMarks")} ({t("common.preview")})
-          </Button>
-          {preview === "start" && (
-            <Button disabled={startLine.isPending} onClick={() => startLine.mutate(true)}>
-              {t("race.autoStartLine")} — {t("common.apply")}
-            </Button>
-          )}
-          {preview === "marks" && (
-            <Button disabled={suggest.isPending} onClick={() => suggest.mutate(true)}>
-              {t("race.applyMarks")}
-            </Button>
-          )}
-        </div>
-      )}
+          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </Button>
+      }
+    >
+      {!open ? null : (
+        <div className={styles.groups}>
+          {canRace && (
+            <section className={styles.group}>
+              <h3 className={styles.groupTitle}>{t("race.manageRace")}</h3>
+              <form
+                className={`sf-form__row ${styles.row}`}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (startTime) saveStart.mutate();
+                }}
+              >
+                <InputField
+                  label={t("regate.startTime")}
+                  id="race-start"
+                  type="datetime-local"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+                <div className="sf-field">
+                  <Button type="submit" disabled={saveStart.isPending || !startTime}>
+                    {t("common.save")}
+                  </Button>
+                </div>
+              </form>
+              {!race.start_time && <p className="sf-muted">{t("race.setStartTime")}</p>}
 
-      {canResults && (
-        <div className="sf-form__section">
-          <h3>{t("race.results")}</h3>
-          <ResultsEditor raceId={race.id} results={race.results ?? []} />
+              <div className={styles.actions}>
+                <Button
+                  variant="ghost"
+                  disabled={match.isPending || !race.start_time}
+                  onClick={() => match.mutate()}
+                >
+                  {t("race.matchSessions")}
+                </Button>
+              </div>
+
+              <form
+                className={`sf-form__row ${styles.row}`}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const file = fileRef.current?.files?.[0];
+                  if (file && gpxBoat) uploadGpx.mutate({ boatId: gpxBoat as UUID, file });
+                }}
+              >
+                <Select
+                  label={t("race.uploadGpx")}
+                  id="gpx-boat"
+                  value={gpxBoat}
+                  onChange={(e) => setGpxBoat(e.target.value)}
+                >
+                  <option value="">…</option>
+                  {boats.data?.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </Select>
+                <label className="sf-field">
+                  <span className="sf-field__label">GPX</span>
+                  <input ref={fileRef} type="file" accept=".gpx" className="sf-field__input" />
+                </label>
+                <div className="sf-field">
+                  <Button type="submit" variant="ghost" disabled={uploadGpx.isPending || !gpxBoat}>
+                    {t("common.upload")}
+                  </Button>
+                </div>
+              </form>
+            </section>
+          )}
+
+          {canMarks && (
+            <section className={styles.group}>
+              <h3 className={styles.groupTitle}>{t("race.manageCourse")}</h3>
+              <div className={styles.actions}>
+                <Button
+                  variant="ghost"
+                  disabled={startLine.isPending}
+                  onClick={() => startLine.mutate(false)}
+                >
+                  {t("race.autoStartLine")} ({t("common.preview")})
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={suggest.isPending}
+                  onClick={() => suggest.mutate(false)}
+                >
+                  {t("race.suggestMarks")} ({t("common.preview")})
+                </Button>
+                {preview === "start" && (
+                  <Button disabled={startLine.isPending} onClick={() => startLine.mutate(true)}>
+                    {t("race.autoStartLine")} — {t("common.apply")}
+                  </Button>
+                )}
+                {preview === "marks" && (
+                  <Button disabled={suggest.isPending} onClick={() => suggest.mutate(true)}>
+                    {t("race.applyMarks")}
+                  </Button>
+                )}
+              </div>
+            </section>
+          )}
+
+          {canResults && (
+            <section className={styles.group}>
+              <h3 className={styles.groupTitle}>{t("race.results")}</h3>
+              <ResultsEditor raceId={race.id} results={race.results ?? []} />
+            </section>
+          )}
         </div>
       )}
     </Card>

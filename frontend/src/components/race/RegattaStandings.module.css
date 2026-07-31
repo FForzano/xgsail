@@ -1,0 +1,54 @@
+/* Series standings. The table gains a column per race, so it is meant to
+   scroll sideways inside `sf-tablewrap` rather than squeeze columns or wrap
+   cells — boat and total are the two things you look up, and they stay
+   readable at any race count. Every number is tabular so totals line up
+   down the column and a two-digit position doesn't shift the one below it. */
+
+.rankCell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.boatName {
+  font-weight: 600;
+}
+
+.sail {
+  color: var(--sf-muted);
+  font-size: 0.8rem;
+  margin-left: 0.4rem;
+}
+@media (max-width: 700px) {
+  /* Under the name instead of beside it: the boat column is the one that has
+     to survive the horizontal scroll, so it must not get any wider. */
+  .sail {
+    display: block;
+    margin-left: 0;
+  }
+}
+
+.raceCol {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.totalCol {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Doubled class on purpose: global.css's `.sf-table tr:hover td` is a
+   two-class selector and would otherwise wash this highlight out on hover. */
+.mine.mine td {
+  background: color-mix(in srgb, var(--sf-primary) 12%, transparent);
+}
+.mine.mine:hover td {
+  background: color-mix(in srgb, var(--sf-primary) 18%, transparent);
+}
+
+/* Entered but hasn't raced yet — present in the list, visibly not scored. */
+.idle td {
+  color: var(--sf-muted);
+}

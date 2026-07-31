@@ -50,21 +50,9 @@
      fill a wide feed card makes the already-blocky line noticeably worse. */
   object-fit: contain;
 }
-.mediaPlaceholder {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.mediaPlaceholder[data-kind="regatta"] {
-  background: color-mix(in srgb, var(--sf-warning) 15%, var(--sf-bg-2));
-  color: var(--sf-warning);
-}
-.mediaPlaceholder[data-kind="activity"] {
-  background: color-mix(in srgb, var(--sf-leg-upwind) 15%, var(--sf-bg-2));
-  color: var(--sf-leg-upwind);
-}
+/* The no-image case lives in components/common/MediaPlaceholder.module.css —
+   the regatta hero shows the same tinted stand-in, so the recipe is shared
+   rather than copied per surface. */
 
 .body {
   padding: 0.85rem 1rem 1rem;

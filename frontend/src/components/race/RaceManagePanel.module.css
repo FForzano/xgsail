@@ -1,0 +1,46 @@
+/* Race management (RaceManagePanel.tsx) — the organizer's tools, grouped into
+   three labelled blocks (the race itself, its course, its results) instead of
+   the previous flat stack, where a start-time field, a GPX picker and two
+   mark buttons sat at the same level with nothing saying which belonged with
+   which. The panel is collapsed by default: on a race dashboard the replay is
+   what almost everyone opened the page for, and these controls are visible to
+   a handful of officers only.
+
+   Field layout still comes from the globals (`sf-form__row`, `sf-field`);
+   this module only adds what they don't cover — the group headings and the
+   button rows that used to be inline `style={{…}}`. */
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sf-muted);
+}
+
+/* Buttons wrap rather than overflow: the course group grows a third "apply"
+   button once a preview is on the map. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* End-aligned so a submit button sits on the input's baseline instead of
+   floating above it — the reason for the old inline `alignItems: "end"`. */
+.row {
+  align-items: flex-end;
+}

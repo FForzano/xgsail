@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException, Request
 from ..auth import current_user, require_permission, require_user, verify_csrf
 from ..auth.throttle import code_matches, new_code, throttle
 from ..schemas import RegattaEntryWriteModel, RegattaJoinModel, RegattaWriteModel
-from ..services import media
+from ..services import media, scoring
 from ._common import repos
 
 router = APIRouter(prefix="/api/regattas", tags=["regattas"])
@@ -46,18 +46,37 @@ def _regatta_payload(regatta) -> dict:
     return d
 
 
-def _entry_payload(entry) -> dict:
-    """Start-list row with the boat inlined — the list is rendered as boat
-    names, and the client shouldn't have to fetch each boat separately."""
-    d = entry.to_dict()
-    boat = repos.boats.get(entry.boat_id)
-    d["boat"] = None if boat is None else {
+def _boat_summary(boat_id) -> Optional[dict]:
+    """Minimal boat shape inlined in start-list and standings rows, so the
+    client doesn't have to fetch each boat separately."""
+    boat = repos.boats.get(boat_id)
+    if boat is None:
+        return None
+    return {
         "id": boat.id,
         "name": boat.name,
         "sail_number": boat.sail_number,
         "boat_class_id": boat.boat_class_id,
     }
+
+
+def _entry_payload(entry) -> dict:
+    d = entry.to_dict()
+    d["boat"] = _boat_summary(entry.boat_id)
     return d
+
+
+def _regatta_races(regatta_id: uuid.UUID):
+    """Race days of a regatta plus their races, in one query for the races.
+
+    Returns ``(days, races_by_day)`` with days ordered by date and races by
+    race number.
+    """
+    days = sorted(repos.racedays.list(regatta_id=regatta_id), key=lambda rd: rd.date)
+    races_by_day: dict = {rd.id: [] for rd in days}
+    for race in repos.races.list_for_racedays([rd.id for rd in days]):
+        races_by_day[race.race_day_id].append(race)
+    return days, races_by_day
 
 
 @router.get("")
@@ -81,8 +100,48 @@ def list_regattas(request: Request, club_id: Optional[uuid.UUID] = None,
 def get_regatta(regatta_id: uuid.UUID):
     regatta = _require_regatta(regatta_id)
     d = _regatta_payload(regatta)
-    d["race_days"] = [rd.to_dict() for rd in repos.racedays.list(regatta_id=regatta_id)]
+    days, races_by_day = _regatta_races(regatta_id)
+    d["race_days"] = [{**rd.to_dict(),
+                       "races": [r.to_dict() for r in races_by_day[rd.id]]}
+                      for rd in days]
     return d
+
+
+@router.get("/{regatta_id}/standings")
+def get_standings(regatta_id: uuid.UUID):
+    """Series standings, public like the rest of a regatta.
+
+    Boats ranked = those with at least one result, plus the start list, so an
+    entered boat that hasn't raced yet still shows up; that same union is the
+    entry count RRS A9 penalties are scored against.
+    """
+    regatta = _require_regatta(regatta_id)
+    days, races_by_day = _regatta_races(regatta_id)
+    races = [race for rd in days for race in races_by_day[rd.id]]
+    date_by_day = {rd.id: rd.date for rd in days}
+
+    results_by_race: dict = {race.id: [] for race in races}
+    for result in repos.races.list_results_for_races([race.id for race in races]):
+        results_by_race[result.race_id].append(result)
+
+    boat_ids = list(dict.fromkeys(
+        [r.boat_id for race in races for r in results_by_race[race.id]]
+        + [e.boat_id for e in repos.regattas.list_entries(regatta_id)]
+    ))
+    standings = scoring.compute_standings(
+        races, results_by_race, len(boat_ids),
+        regatta.scoring_system, boat_ids=boat_ids,
+    )
+    return {
+        "scoring_system": regatta.scoring_system,
+        "races": [{"id": race.id, "race_number": race.race_number,
+                   "date": date_by_day[race.race_day_id], "status": race.status}
+                  for race in races],
+        "standings": [{"rank": row["rank"], "total": row["total"],
+                       "boat": _boat_summary(row["boat_id"]),
+                       "races": {str(rid): v for rid, v in row["races"].items()}}
+                      for row in standings],
+    }
 
 
 @router.post("")

@@ -64,6 +64,8 @@ secrets.json
 
 # Claude Code
 .claude/
+!.claude/commands
+!.claude/commands/*
 
 # Media
 *.mp4

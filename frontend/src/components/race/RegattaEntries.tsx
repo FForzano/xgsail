@@ -1,15 +1,16 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, RefreshCw, Trash2, X } from "lucide-react";
 import { regattasService, raceKeys } from "@/services/races";
 import { useToast } from "@/hooks/useToast";
-import { BoatPicker, boatLabel } from "@/components/common/BoatPicker";
+import { BoatPicker } from "@/components/common/BoatPicker";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { UUID } from "@/types";
+import styles from "./RegattaEntries.module.css";
 
-/** The regatta's start list, plus the share code that lets sailors add
+/** The regatta's start list, plus the share link that lets sailors add
  * themselves.
  *
  * Being on this list is what allows a competitor to tag a recording with one
@@ -75,46 +76,34 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
       {rows.length === 0 ? (
         <EmptyState>{t("regate.noEntries")}</EmptyState>
       ) : (
-        <div className="sf-tablewrap">
-          <table className="sf-table">
-            <thead>
-              <tr>
-                <th>{t("race.boat")}</th>
-                <th>{t("regate.entrySource")}</th>
-                {manage && <th />}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((e) => (
-                <tr key={e.id}>
-                  <td>{e.boat ? boatLabel(e.boat) : e.boat_id.slice(0, 8)}</td>
-                  <td>
-                    <span className="sf-badge">{t(`regate.entrySource_${e.source}`)}</span>
-                  </td>
-                  {manage && (
-                    <td>
-                      <Button
-                        variant="ghost"
-                        className="sf-btn--icon-sm"
-                        aria-label={t("common.remove")}
-                        onClick={() => remove.mutate(e.boat_id)}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className={styles.boatGrid}>
+          {rows.map((e) => (
+            <div key={e.id} className={styles.boatChip}>
+              <span className={styles.boatIdentity}>
+                <span className={styles.boatName}>{e.boat?.name ?? e.boat_id.slice(0, 8)}</span>
+                {e.boat?.sail_number && (
+                  <span className={styles.sailNumber}>{e.boat.sail_number}</span>
+                )}
+              </span>
+              <span className="sf-badge sf-badge--sm">{t(`regate.entrySource_${e.source}`)}</span>
+              {manage && (
+                <button
+                  className={styles.removeBoat}
+                  aria-label={t("common.remove")}
+                  onClick={() => remove.mutate(e.boat_id)}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
       {manage && (
         <>
           <form
-            className="sf-form__row"
-            style={{ alignItems: "end", marginTop: "0.75rem" }}
+            className={`sf-form__row ${styles.addForm}`}
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
               if (boatId) add.mutate();
@@ -132,25 +121,25 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
             </Button>
           </form>
 
-          <div className="sf-field" style={{ marginTop: "1rem" }}>
+          {/* The link, not the bare code, is what actually gets pasted into the
+              fleet's chat — so it is shown in full and copying it is the one
+              filled button; rotating and revoking stay quiet icons. */}
+          <div className={styles.share}>
             <span className="sf-field__label">{t("regate.joinCode")}</span>
-            <p className="sf-muted">{t("regate.joinCodeHint")}</p>
-            {code ? (
-              <div className="sf-strip__item sf-strip__item--muted">
-                <code>{code}</code>
-                <span style={{ display: "flex", gap: "0.25rem" }}>
-                  <Button
-                    variant="ghost"
-                    className="sf-btn--icon-sm"
-                    aria-label={t("regate.copyJoinLink")}
-                    onClick={copyLink}
-                  >
-                    <Copy size={16} />
+            <p className={`sf-muted ${styles.shareHint}`}>{t("regate.joinCodeHint")}</p>
+            {joinUrl ? (
+              <>
+                <code className={styles.link}>{joinUrl}</code>
+                <div className={styles.shareActions}>
+                  <Button onClick={copyLink} title={t("regate.copyJoinLink")}>
+                    <Copy size={16} /> {t("regate.copyLink")}
                   </Button>
                   <Button
                     variant="ghost"
                     className="sf-btn--icon-sm"
                     aria-label={t("regate.regenerateJoinCode")}
+                    title={t("regate.regenerateJoinCode")}
+                    disabled={regenerate.isPending}
                     onClick={() => regenerate.mutate()}
                   >
                     <RefreshCw size={16} />
@@ -159,14 +148,20 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
                     variant="ghost"
                     className="sf-btn--icon-sm"
                     aria-label={t("regate.revokeJoinCode")}
+                    title={t("regate.revokeJoinCode")}
+                    disabled={revoke.isPending}
                     onClick={() => revoke.mutate()}
                   >
                     <Trash2 size={16} />
                   </Button>
-                </span>
-              </div>
+                </div>
+              </>
             ) : (
-              <Button onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
+              <Button
+                className={styles.createCode}
+                onClick={() => regenerate.mutate()}
+                disabled={regenerate.isPending}
+              >
                 {t("regate.createJoinCode")}
               </Button>
             )}

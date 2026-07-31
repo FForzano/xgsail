@@ -1,0 +1,105 @@
+/* Start list. A table was the wrong shape for it: the rows carry two short
+   fields and no sortable numbers, so they read better as a wrapping grid of
+   boat chips that fits a whole fleet on one screen instead of scrolling.
+
+   The share block below is the organizer's actual job here — getting a link
+   into the fleet's chat — so the full URL is visible and selectable, with
+   copying as the only filled button on the block. */
+
+.boatGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  gap: 0.5rem;
+}
+
+.boatChip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-bg-2);
+}
+
+.boatIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.boatName {
+  font-weight: 600;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sailNumber {
+  font-size: 0.78rem;
+  color: var(--sf-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.removeBoat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+}
+.removeBoat:hover {
+  background: var(--sf-surface-2);
+  color: var(--sf-danger);
+}
+
+/* The picker and its submit button sit on one baseline; `sf-form__row` gives
+   the columns, this only aligns the button with the input above it. */
+.addForm {
+  align-items: flex-end;
+  margin-top: 1rem;
+}
+
+.share {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--sf-border);
+}
+
+.shareHint {
+  margin: 0.2rem 0 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* Wraps rather than scrolls: the point is that the whole link is readable at
+   a glance before it's sent to anyone. */
+.link {
+  display: block;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-surface);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.shareActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.createCode {
+  margin-top: 0.4rem;
+}
