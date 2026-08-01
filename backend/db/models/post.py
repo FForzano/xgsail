@@ -26,7 +26,16 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..base import Base, CreatedAtMixin, UUIDPKMixin, enum_check
@@ -41,6 +50,10 @@ class PostORM(UUIDPKMixin, CreatedAtMixin, Base):
         CheckConstraint(
             "activity_id IS NULL OR regatta_id IS NULL", name="single_event_link"
         ),
+        # Every feed read is a lookup by owner (repositories/sql/post_repo.py::
+        # list_for_owner); the index exists in the DB since migration 0025 and
+        # is declared here so ORM metadata and physical schema stay comparable.
+        Index("ix_posts_owner", "owner_type", "owner_id"),
     )
 
     owner_type: Mapped[str] = mapped_column(String, nullable=False)

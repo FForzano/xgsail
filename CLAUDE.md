@@ -64,6 +64,12 @@ cd backend && alembic revision --autogenerate -m "description"
 cd backend && alembic upgrade head
 cd backend && alembic downgrade -1
 
+# Schema/ORM drift gate — what CI runs on every push (needs a live Postgres;
+# `docker compose up postgres` is enough). Run from the repo root.
+alembic -c backend/alembic.ini upgrade head    # from an EMPTY db
+alembic -c backend/alembic.ini check           # no drift vs. Base.metadata
+alembic -c backend/alembic.ini downgrade base && alembic -c backend/alembic.ini upgrade head
+
 # OTA service (standalone Node/Express, independent of backend/DB)
 cd ota-service && npm run dev         # tsx watch
 cd ota-service && npm run build       # tsc
@@ -460,6 +466,17 @@ Capacitor plugin changes, which still require a store release.
   those instead of running the scoring algorithm, and flags the response
   with `is_official`. Deleting the rows reverts to computed. Don't add
   scoring logic assuming the computed path always runs.
+- **A deployed database can only be repaired by a new revision.** Deploys
+  are unattended (Watchtower pulls `*-latest` on the VM) and the backend
+  runs `alembic upgrade head` at startup, so an environment already
+  stamped at revision N will never re-run a *corrected* revision ≤ N — and
+  a fix-up script somebody has to run by hand simply never runs. When a
+  shipped migration turns out to be wrong, fix it in place **and** add a
+  follow-up revision that repairs the databases which already applied the
+  broken one, written so every statement is a no-op where the schema is
+  already right (`0045_reconcile_manual_entry_schema.py` is the worked
+  example). Do not delete such a revision as "redundant" — it is the only
+  thing standing between a corrected file and a still-broken production.
 - **Native auth is Bearer, not cookie.** Adding an endpoint that reads
   auth state directly from the request cookie (instead of going
   through `current_user()`) silently breaks it for the native apps —
@@ -509,6 +526,15 @@ See `.env.example` for the full list with defaults. Grouped by concern:
   of the normal test run, not a one-off manual check.
 - **Bug fixes get a regression test** reproducing the bug first, then
   passing once fixed. Default, not optional.
+- **Migrations are gated in CI, not by pytest.** The pytest suite is
+  database-free, so a migration that diverges from its ORM model can
+  pass every test and still 500 in production (this happened — see the
+  `test` job comment in `.github/workflows/docker-publish.yml`). The
+  `test` job runs `upgrade head` from an empty Postgres, `alembic
+  check` for drift, and a `downgrade base` round trip; `publish` and
+  `deploy-ota` both `needs: test`. **Any change to `backend/db/models/`
+  needs a matching migration, and vice versa** — run the three commands
+  in "Commands" locally before pushing.
 
 ---
 

@@ -35,8 +35,41 @@ jobs:
             frontend:
               - 'frontend/**'
 
+  # Gates everything downstream: `publish` and `deploy-ota` both `needs: test`,
+  # so a red result here is unpublishable by construction.
+  #
+  # The migration steps below exist because the pytest suite is entirely
+  # database-free (pure functions), which once let a migration and its
+  # SQLAlchemy model ship to production out of sync: RegattaEntryORM declared
+  # a column that migration 0043 never created, so every SELECT of that model
+  # raised UndefinedColumn and all /api/regattas/{id}/entries routes 500'd.
+  # Nothing in CI executed a migration or compared the physical schema to the
+  # ORM metadata, so nothing noticed. These steps do both, against a real
+  # Postgres matching docker-compose.yml's major version.
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sailframes
+          POSTGRES_PASSWORD: sailframes
+          POSTGRES_DB: sailframes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sailframes"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      # backend/db/__init__.py::_build_url() reads these; backend/alembic/env.py
+      # reuses it, so migrations and the app never diverge on connection config.
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: sailframes
+      POSTGRES_PASSWORD: sailframes
+      POSTGRES_DB: sailframes
     steps:
       - uses: actions/checkout@v4
 
@@ -49,6 +82,26 @@ jobs:
           pip install --no-cache-dir -r workers/process_upload/requirements.txt
           pip install --no-cache-dir ./libs/xgsail_windfusion
           pip install --no-cache-dir pytest
+
+      # From an empty database, so every revision executes in order — this
+      # alone catches a migration that errors or references a column an
+      # earlier revision forgot to add.
+      - name: Migrations — upgrade head from an empty database
+        run: alembic -c backend/alembic.ini upgrade head
+
+      # Verified empirically to flag an ORM-declared column absent from the
+      # physical schema (the exact 0043 failure mode), not just table-level
+      # differences: it reports "Detected added column ...", non-zero exit.
+      - name: Migrations — no drift between schema and ORM metadata
+        run: alembic -c backend/alembic.ini check
+
+      # Every downgrade() must actually run, not just exist. Round-tripping
+      # back to head afterwards keeps this from leaving a torn-down schema.
+      - name: Migrations — downgrade to base and back
+        run: |
+          alembic -c backend/alembic.ini downgrade base
+          alembic -c backend/alembic.ini upgrade head
+
       - name: Backend tests
         run: pytest
 

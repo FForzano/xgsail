@@ -39,10 +39,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # `create_check_constraint`'s naming convention prefixes whatever name is
-    # passed with `ck_<table>_`, so the constraint actually created above is
-    # named `ck_posts_single_event_link`, not the bare name given to it.
-    op.drop_constraint('ck_posts_single_event_link', 'posts', type_='check')
+    # `drop_constraint` applies the same `ck_<table>_` naming convention as
+    # `create_check_constraint`, so it must be given the same bare name — an
+    # already-prefixed one gets prefixed twice
+    # (`ck_posts_ck_posts_single_event_link`) and the DROP fails.
+    op.drop_constraint('single_event_link', 'posts', type_='check')
     op.drop_constraint('fk_posts_regatta_id_regattas', 'posts', type_='foreignkey')
     op.drop_constraint('fk_posts_activity_id_activities', 'posts', type_='foreignkey')
     op.drop_column('posts', 'regatta_id')
