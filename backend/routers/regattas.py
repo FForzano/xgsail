@@ -20,7 +20,10 @@ from fastapi import APIRouter, HTTPException, Request
 
 from ..auth import current_user, require_permission, require_user, verify_csrf
 from ..auth.throttle import code_matches, new_code, throttle
-from ..schemas import RegattaEntryWriteModel, RegattaJoinModel, RegattaWriteModel
+from ..schemas import (
+    OfficialStandingsUploadModel, RegattaEntryLinkModel, RegattaEntryWriteModel,
+    RegattaJoinModel, RegattaWriteModel,
+)
 from ..services import media, scoring
 from ._common import repos
 
@@ -62,7 +65,17 @@ def _boat_summary(boat_id) -> Optional[dict]:
 
 def _entry_payload(entry) -> dict:
     d = entry.to_dict()
-    d["boat"] = _boat_summary(entry.boat_id)
+    # Resolve boat info: if linked, read from boat record; if manual, use stored fields
+    if entry.boat_id is not None:
+        d["boat"] = _boat_summary(entry.boat_id)
+        d["display_name"] = d["boat"]["name"] if d["boat"] else None
+        d["display_sail_number"] = d["boat"]["sail_number"] if d["boat"] else None
+    else:
+        d["boat"] = None
+        d["display_name"] = entry.boat_name
+        d["display_sail_number"] = entry.sail_number
+    # Exclude internal normalized field from API
+    d.pop("boat_name_normalized", None)
     return d
 
 
@@ -111,9 +124,10 @@ def get_regatta(regatta_id: uuid.UUID):
 def get_standings(regatta_id: uuid.UUID):
     """Series standings, public like the rest of a regatta.
 
-    Boats ranked = those with at least one result, plus the start list, so an
-    entered boat that hasn't raced yet still shows up; that same union is the
-    entry count RRS A9 penalties are scored against.
+    If official standings have been published, they are returned instead of
+    computed ones. Otherwise, standings are calculated from results:
+    boats ranked = those with at least one result, plus the start list,
+    so an entered boat that hasn't raced yet still shows up.
     """
     regatta = _require_regatta(regatta_id)
     days, races_by_day = _regatta_races(regatta_id)
@@ -124,23 +138,45 @@ def get_standings(regatta_id: uuid.UUID):
     for result in repos.races.list_results_for_races([race.id for race in races]):
         results_by_race[result.race_id].append(result)
 
-    boat_ids = list(dict.fromkeys(
-        [r.boat_id for race in races for r in results_by_race[race.id]]
-        + [e.boat_id for e in repos.regattas.list_entries(regatta_id)]
-    ))
-    standings = scoring.compute_standings(
-        races, results_by_race, len(boat_ids),
-        regatta.scoring_system, boat_ids=boat_ids,
-    )
+    # Check for official standings first; use them if present
+    official_standings = repos.regattas.list_official_standings(regatta_id)
+    if official_standings:
+        standings_rows = [
+            {
+                "rank": i + 1,
+                "boat_id": os.boat_id,
+                "position": os.position,
+                "score": os.score,
+                "status": os.status,
+            }
+            for i, os in enumerate(official_standings)
+        ]
+    else:
+        all_entries = repos.regattas.list_entries(regatta_id)
+        # Ranked/scored rows need a boat_id (results and standings positions
+        # key on it), so manual entries with none are excluded here — but
+        # entry_count (see total_entered_count) still counts them, for RRS A9.
+        boat_ids = list(dict.fromkeys(
+            [r.boat_id for race in races for r in results_by_race[race.id]]
+            + [e.boat_id for e in all_entries if e.boat_id is not None]
+        ))
+        computed = scoring.compute_standings(
+            races, results_by_race,
+            scoring.total_entered_count(boat_ids, all_entries),
+            regatta.scoring_system, boat_ids=boat_ids,
+        )
+        standings_rows = computed
+
     return {
         "scoring_system": regatta.scoring_system,
+        "is_official": bool(official_standings),
         "races": [{"id": race.id, "race_number": race.race_number,
                    "date": date_by_day[race.race_day_id], "status": race.status}
                   for race in races],
-        "standings": [{"rank": row["rank"], "total": row["total"],
+        "standings": [{"rank": row["rank"], "total": row.get("total"),
                        "boat": _boat_summary(row["boat_id"]),
-                       "races": {str(rid): v for rid, v in row["races"].items()}}
-                      for row in standings],
+                       "races": {str(rid): v for rid, v in row.get("races", {}).items()}}
+                      for row in standings_rows],
     }
 
 
@@ -194,30 +230,113 @@ def list_entries(regatta_id: uuid.UUID):
 
 @router.post("/{regatta_id}/entries")
 def add_entry(regatta_id: uuid.UUID, body: RegattaEntryWriteModel, request: Request):
+    """Add a boat to the start list: either a real boat (``boat_id``) or a
+    manual entry (``boat_name``) for participants without an XGSail account."""
     verify_csrf(request)
     user = require_user(request)
     regatta = _require_regatta(regatta_id)
     _require_manage(request, regatta)
-    if repos.boats.get(body.boat_id) is None:
-        raise HTTPException(404, "Boat not found")
-    entry = repos.regattas.add_entry(regatta_id, body.boat_id,
-                                     source="organizer", created_by=user.id)
+
+    # Linked entry: verify boat exists
+    if body.boat_id is not None:
+        if repos.boats.get(body.boat_id) is None:
+            raise HTTPException(404, "Boat not found")
+
+    entry = repos.regattas.add_entry(
+        regatta_id, body.boat_id,
+        boat_name=body.boat_name, sail_number=body.sail_number,
+        source="organizer", created_by=user.id
+    )
     return _entry_payload(entry)
 
 
-@router.delete("/{regatta_id}/entries/{boat_id}")
-def remove_entry(regatta_id: uuid.UUID, boat_id: uuid.UUID, request: Request):
+@router.delete("/{regatta_id}/entries/{entry_id}")
+def remove_entry(regatta_id: uuid.UUID, entry_id: uuid.UUID, request: Request):
     """Removable by the organizer or by the boat's own owner/admin — a sailor
     who self-entered can withdraw without chasing the race office."""
     verify_csrf(request)
     user = require_user(request)
     regatta = _require_regatta(regatta_id)
-    if not (user.is_superadmin
-            or repos.boats.is_member(boat_id, user.id, roles=["owner", "admin"])):
-        _require_manage(request, regatta)
-    if not repos.regattas.remove_entry(regatta_id, boat_id):
+
+    entry = repos.regattas.get_entry_by_id(regatta_id, entry_id)
+    if entry is None:
         raise HTTPException(404, "Entry not found")
+
+    # Organizer can always remove, or boat owner/admin if entry is linked
+    is_owner = (
+        entry.boat_id is not None
+        and (user.is_superadmin
+             or repos.boats.is_member(entry.boat_id, user.id, roles=["owner", "admin"]))
+    )
+    if not is_owner:
+        _require_manage(request, regatta)
+
+    repos.regattas.remove_entry_by_id(entry_id)
     return {"ok": True}
+
+
+@router.patch("/{regatta_id}/entries/{entry_id}")
+def link_entry(regatta_id: uuid.UUID, entry_id: uuid.UUID,
+               body: RegattaEntryLinkModel, request: Request):
+    """Organizer linking a manual entry to a real boat. Idempotent if already
+    linked to the same boat. Returns 409 if the boat is already entered separately."""
+    verify_csrf(request)
+    regatta = _require_regatta(regatta_id)
+    _require_manage(request, regatta)
+
+    entry = repos.regattas.get_entry_by_id(regatta_id, entry_id)
+    if entry is None:
+        raise HTTPException(404, "Entry not found")
+
+    # Verify boat exists
+    boat = repos.boats.get(body.boat_id)
+    if boat is None:
+        raise HTTPException(404, "Boat not found")
+
+    # Check if this boat is already entered (elsewhere on this regatta)
+    existing = repos.regattas.get_entry(regatta_id, body.boat_id)
+    if existing is not None and existing.id != entry_id:
+        raise HTTPException(409, "Boat is already entered on this regatta")
+
+    updated = repos.regattas.link_entry(regatta_id, entry_id, body.boat_id)
+    if updated is None:
+        raise HTTPException(500, "Link failed")
+    return _entry_payload(updated)
+
+
+# --- official standings -------------------------------------------------------
+
+@router.put("/{regatta_id}/official-standings")
+def set_official_standings(regatta_id: uuid.UUID, body: OfficialStandingsUploadModel,
+                           request: Request):
+    """Publish official standings for a regatta, overriding computed standings.
+    Requires regatta.manage permission. The standings provided replace any
+    existing official standings."""
+    verify_csrf(request)
+    user = require_user(request)
+    regatta = _require_regatta(regatta_id)
+    _require_manage(request, regatta)
+
+    standings_data = []
+    for row in body.standings:
+        # Verify each boat exists
+        if repos.boats.get(row.boat_id) is None:
+            raise HTTPException(404, f"Boat {row.boat_id} not found")
+        standings_data.append(row.model_dump())
+
+    repos.regattas.set_official_standings(regatta_id, standings_data, user.id)
+    return {"ok": True, "count": len(standings_data)}
+
+
+@router.delete("/{regatta_id}/official-standings")
+def clear_official_standings(regatta_id: uuid.UUID, request: Request):
+    """Delete official standings for a regatta, reverting to computed standings."""
+    verify_csrf(request)
+    regatta = _require_regatta(regatta_id)
+    _require_manage(request, regatta)
+
+    had_official = repos.regattas.clear_official_standings(regatta_id)
+    return {"ok": True, "had_official": had_official}
 
 
 @router.post("/{regatta_id}/join")
@@ -237,6 +356,7 @@ def join_regatta(regatta_id: uuid.UUID, body: RegattaJoinModel, request: Request
     if not code_matches(body.code, regatta.join_code):
         raise HTTPException(403, "Invalid or revoked code")
     entry = repos.regattas.add_entry(regatta_id, body.boat_id,
+                                     boat_name=None, sail_number=None,
                                      source="code", created_by=user.id)
     return _entry_payload(entry)
 

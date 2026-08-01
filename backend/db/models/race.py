@@ -12,13 +12,25 @@ exist *before* the racing, whereas a result carries scoring
 (``position``/``score``/``status``) and would pollute the standings if
 pre-created. It is also per-regatta, not per-race — a boat enters the event
 once and sails all of its races.
+
+An entry's ``boat_id`` is nullable: an organizer can pre-populate a start
+list with boats that don't have an XGSail account/boat record yet (paper
+entries), captured instead as ``boat_name``/``sail_number``. Such a manual
+entry can later be linked to a real boat (``link_entry``), which clears the
+manual fields. Uniqueness is therefore two partial indexes rather than one
+plain constraint: ``(regatta_id, boat_id)`` where ``boat_id`` is set, and
+``(regatta_id, boat_name_normalized)`` where it isn't — plus a CHECK that at
+least one of ``boat_id``/``boat_name`` is present.
 """
 
 import uuid
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, String,
+    Text, UniqueConstraint, text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..base import Base, CreatedAtMixin, UUIDPKMixin, enum_check
@@ -69,23 +81,54 @@ class RegattaORM(UUIDPKMixin, Base):
 class RegattaEntryORM(UUIDPKMixin, CreatedAtMixin, Base):
     __tablename__ = "regatta_entries"
     __table_args__ = (
-        UniqueConstraint("regatta_id", "boat_id"),
+        # Partial rather than plain unique: a linked entry is unique per
+        # boat, a manual (unlinked) one is unique per normalized name — the
+        # two populations never collide with each other on the same index.
+        Index(
+            "uq_regatta_entries_regatta_boat",
+            "regatta_id", "boat_id",
+            unique=True,
+            postgresql_where=text("boat_id IS NOT NULL"),
+            sqlite_where=text("boat_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_regatta_entries_regatta_manual_name",
+            "regatta_id", "boat_name_normalized",
+            unique=True,
+            postgresql_where=text("boat_id IS NULL"),
+            sqlite_where=text("boat_id IS NULL"),
+        ),
+        CheckConstraint(
+            "boat_id IS NOT NULL OR boat_name IS NOT NULL",
+            name="boat_id_or_boat_name",
+        ),
         enum_check("source", ENTRY_SOURCES),
     )
 
     regatta_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # RESTRICT mirrors ``results``: never silently drop a start list by
-    # deleting a boat.
-    boat_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("boats.id", ondelete="RESTRICT"), nullable=False
+    # Nullable: a manual (paper) entry has no boat record yet — see module
+    # docstring. RESTRICT mirrors ``results``: never silently drop a start
+    # list by deleting a boat once one is linked.
+    boat_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("boats.id", ondelete="RESTRICT"), nullable=True
     )
+    # Manual-entry fields, populated only while boat_id is NULL; cleared by
+    # link_entry() once the entry is matched to a real boat.
+    boat_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    sail_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Bookkeeping only (not part of the API payload): lower/trimmed
+    # "name|sail_number" used by the partial unique index above and by
+    # add_entry's idempotency check. Never read directly by callers.
+    boat_name_normalized: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     source: Mapped[str] = mapped_column(String, nullable=False, default="organizer")
     # Who put the boat on the list — the organizer, or the sailor themselves.
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+
+    __wire_exclude__ = ("boat_name_normalized",)
 
 
 class RaceDayORM(UUIDPKMixin, Base):
@@ -138,3 +181,26 @@ class ResultORM(UUIDPKMixin, Base):
     position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # redress can be fractional
     status: Mapped[str] = mapped_column(String, nullable=False, default="finished")
+
+
+class OfficialStandingsORM(UUIDPKMixin, CreatedAtMixin, Base):
+    """Official/published standings for a regatta. Takes precedence over
+    auto-computed standings. One row per boat per regatta; deleting all rows
+    reverts to computed standings."""
+    __tablename__ = "official_standings"
+    __table_args__ = (
+        UniqueConstraint("regatta_id", "boat_id"),
+    )
+
+    regatta_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    boat_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("boats.id", ondelete="RESTRICT"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )

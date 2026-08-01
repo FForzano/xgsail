@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, Pencil } from "lucide-react";
-import { regattasService, raceKeys } from "@/services/races";
+import { regattasService, raceKeys, type OfficialStandingInput } from "@/services/races";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useRegattaMeta } from "@/hooks/useRegattaMeta";
@@ -47,11 +47,23 @@ export function RegattaDetailPage() {
     enabled: !!regattaId,
   });
   const myBoats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
+  // Same query key as `RegattaStandings`'s own fetch, so this shares its cache
+  // entry rather than doubling the request — needed here only to know
+  // `is_official` and prefill the override editor with the current ranking.
+  const standings = useQuery({
+    queryKey: raceKeys.standings(regattaId!),
+    queryFn: () => regattasService.standings(regattaId!),
+    enabled: !!regattaId,
+  });
   const { clubName, boatClassName, raceCount } = useRegattaMeta(regatta.data);
 
   const [editing, setEditing] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
+  const [officialEditing, setOfficialEditing] = useState(false);
+  const [officialRows, setOfficialRows] = useState<Record<UUID, { position: string; score: string }>>(
+    {},
+  );
 
   useEffect(() => {
     if (regatta.data) {
@@ -63,7 +75,7 @@ export function RegattaDetailPage() {
   // personal card and the highlighted row in the standings.
   const myBoatId = useMemo(() => {
     const mine = new Set((myBoats.data ?? []).map((b) => b.id));
-    return entries.data?.find((e) => mine.has(e.boat_id))?.boat_id ?? null;
+    return entries.data?.find((e) => e.boat_id && mine.has(e.boat_id))?.boat_id ?? null;
   }, [entries.data, myBoats.data]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: raceKeys.regatta(regattaId!) });
@@ -78,6 +90,46 @@ export function RegattaDetailPage() {
       setEditing(false);
       notify(t("common.saved"), "success");
       await invalidate();
+    },
+    onError: () => notify(t("errors.generic"), "error"),
+  });
+
+  const invalidateStandings = () =>
+    queryClient.invalidateQueries({ queryKey: raceKeys.standings(regattaId!) });
+
+  const openOfficialEditor = () => {
+    const initial: Record<UUID, { position: string; score: string }> = {};
+    (standings.data?.standings ?? []).forEach((row) => {
+      initial[row.boat.id] = { position: String(row.rank), score: row.total ? String(row.total) : "" };
+    });
+    setOfficialRows(initial);
+    setOfficialEditing(true);
+  };
+
+  const setOfficial = useMutation({
+    mutationFn: () => {
+      const payload: OfficialStandingInput[] = Object.entries(officialRows)
+        .filter(([, v]) => v.position.trim() !== "")
+        .map(([boatId, v]) => ({
+          boat_id: boatId as UUID,
+          position: Number(v.position),
+          ...(v.score.trim() ? { score: Number(v.score) } : {}),
+        }));
+      return regattasService.setOfficialStandings(regattaId!, payload);
+    },
+    onSuccess: async () => {
+      setOfficialEditing(false);
+      notify(t("common.saved"), "success");
+      await invalidateStandings();
+    },
+    onError: () => notify(t("errors.generic"), "error"),
+  });
+
+  const clearOfficial = useMutation({
+    mutationFn: () => regattasService.clearOfficialStandings(regattaId!),
+    onSuccess: async () => {
+      notify(t("regate.officialStandingsCleared"), "success");
+      await invalidateStandings();
     },
     onError: () => notify(t("errors.generic"), "error"),
   });
@@ -134,7 +186,27 @@ export function RegattaDetailPage() {
 
       <MyRegattaCard regattaId={regattaId} boatId={myBoatId} />
 
-      <Card title={t("regate.standings")}>
+      <Card
+        title={t("regate.standings")}
+        actions={
+          manage && (
+            <>
+              <Button variant="ghost" onClick={openOfficialEditor}>
+                {t("regate.manageOfficialStandings")}
+              </Button>
+              {standings.data?.is_official && (
+                <Button
+                  variant="ghost"
+                  onClick={() => clearOfficial.mutate()}
+                  disabled={clearOfficial.isPending}
+                >
+                  {t("regate.clearOfficialStandings")}
+                </Button>
+              )}
+            </>
+          )
+        }
+      >
         <RegattaStandings regattaId={regattaId} highlightBoatId={myBoatId} />
       </Card>
 
@@ -174,6 +246,60 @@ export function RegattaDetailPage() {
             <div className="sf-form__actions">
               <Button type="submit" disabled={save.isPending || !form.name}>
                 {t("common.save")}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {officialEditing && (
+        <Modal title={t("regate.manageOfficialStandings")} onClose={() => setOfficialEditing(false)}>
+          <form
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              setOfficial.mutate();
+            }}
+          >
+            <p className="sf-muted">{t("regate.officialStandingsIntro")}</p>
+            {(standings.data?.standings ?? []).map((row) => (
+              <div key={row.boat.id} className="sf-form__row">
+                <span>
+                  {row.boat.name}
+                  {row.boat.sail_number ? ` — ${row.boat.sail_number}` : ""}
+                </span>
+                <InputField
+                  id={`official-pos-${row.boat.id}`}
+                  label={t("race.position")}
+                  type="number"
+                  min={1}
+                  value={officialRows[row.boat.id]?.position ?? ""}
+                  onChange={(e) =>
+                    setOfficialRows((r) => ({
+                      ...r,
+                      [row.boat.id]: { score: r[row.boat.id]?.score ?? "", position: e.target.value },
+                    }))
+                  }
+                />
+                <InputField
+                  id={`official-score-${row.boat.id}`}
+                  label={t("regate.total")}
+                  type="number"
+                  value={officialRows[row.boat.id]?.score ?? ""}
+                  onChange={(e) =>
+                    setOfficialRows((r) => ({
+                      ...r,
+                      [row.boat.id]: {
+                        position: r[row.boat.id]?.position ?? "",
+                        score: e.target.value,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            ))}
+            <div className="sf-form__actions">
+              <Button type="submit" disabled={setOfficial.isPending}>
+                {t("regate.publishOfficialStandings")}
               </Button>
             </div>
           </form>

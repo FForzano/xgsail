@@ -165,7 +165,10 @@ Two authorization models:
    **boat**, so it works identically for member and visiting boats
    (`can_attach_session_to_activity`). Sailors get on the list either
    by the organizer entering them or by redeeming the regatta's
-   `join_code`.
+   `join_code`. An entry's `boat_id` is **nullable**: an organizer can
+   also enter a boat that has no XGSail record at all (a paper entry),
+   captured as `boat_name`/`sail_number` instead, and link it to a real
+   boat later (`PATCH /regattas/{id}/entries/{entry_id}`).
 
 **Workers** (`workers/`) — heavy processing (GPS/CSV/GPX analysis,
 video transcoding, maneuver-detector training). Invoked by the backend
@@ -442,6 +445,21 @@ Capacitor plugin changes, which still require a store release.
   `RegattaORM.__wire_exclude__` and served only by the manage-gated
   `/join-code` endpoint. It is also deliberately absent from
   `_REGATTA_FIELDS`, so a generic `PATCH /regattas/{id}` can't set it.
+- **A manual entry's `boat_id` is NULL, and `get_entry(regatta_id, None)`
+  must not match it.** `boat_id == None` renders as `IS NULL` in SQL, so
+  without the guard in `SqlRegattaRepo.get_entry` a caller passing a null
+  boat would be authorized against an arbitrary manual entry. The same
+  reason `GET /standings` filters `None` out of its `boat_ids` union — a
+  null would become a phantom ranked row (no boat to display). That filter
+  is only about the *ranked rows*, though: the RRS A9 penalty's fleet size
+  (`scoring.total_entered_count`) deliberately counts manual entries back
+  in, or a club whose start list is mostly paper entries would score every
+  DNF/DNS against a fleet far smaller than the one that actually started.
+- **Official standings win over computed ones.** If any
+  `official_standings` row exists for a regatta, `GET /standings` serves
+  those instead of running the scoring algorithm, and flags the response
+  with `is_official`. Deleting the rows reverts to computed. Don't add
+  scoring logic assuming the computed path always runs.
 - **Native auth is Bearer, not cookie.** Adding an endpoint that reads
   auth state directly from the request cookie (instead of going
   through `current_user()`) silently breaks it for the native apps —

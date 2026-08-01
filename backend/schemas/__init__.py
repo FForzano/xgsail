@@ -39,7 +39,14 @@ from .session import (
     SessionTrimModel,
     SessionWriteModel,
 )
-from .regatta import RegattaEntryWriteModel, RegattaJoinModel, RegattaWriteModel
+from .regatta import (
+    OfficialStandingsRowModel,
+    OfficialStandingsUploadModel,
+    RegattaEntryLinkModel,
+    RegattaEntryWriteModel,
+    RegattaJoinModel,
+    RegattaWriteModel,
+)
 from .raceday import RaceDayWriteModel
 from .race import RaceWriteModel, ResultWriteModel
 from .imports import ImportCreateModel, ImportCompleteModel
@@ -90,7 +97,10 @@ __all__ = [
     "ManeuverCreateModel",
     "RegattaWriteModel",
     "RegattaEntryWriteModel",
+    "RegattaEntryLinkModel",
     "RegattaJoinModel",
+    "OfficialStandingsRowModel",
+    "OfficialStandingsUploadModel",
     "RaceDayWriteModel",
     "RaceWriteModel",
     "ResultWriteModel",

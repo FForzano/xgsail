@@ -37,35 +37,40 @@ export function RegattaStandings({
   if (!data || !scored) return <EmptyState>{t("regate.standingsEmpty")}</EmptyState>;
 
   return (
-    <div className="sf-tablewrap">
-      <table className="sf-table">
-        <thead>
-          <tr>
-            <th className={styles.rankCell}>{t("race.position")}</th>
-            <th>{t("race.boat")}</th>
-            {data.races.map((race) => (
-              <th
-                key={race.id}
-                className={styles.raceCol}
-                title={`${t("regate.raceNumber")} ${race.race_number}`}
-              >
-                {t("regate.raceAbbr", { n: race.race_number })}
-              </th>
+    <div>
+      {data.is_official && (
+        <p className={`sf-badge ${styles.officialBadge}`}>{t("regate.officialStandings")}</p>
+      )}
+      <div className="sf-tablewrap">
+        <table className="sf-table">
+          <thead>
+            <tr>
+              <th className={styles.rankCell}>{t("race.position")}</th>
+              <th>{t("race.boat")}</th>
+              {data.races.map((race) => (
+                <th
+                  key={race.id}
+                  className={styles.raceCol}
+                  title={`${t("regate.raceNumber")} ${race.race_number}`}
+                >
+                  {t("regate.raceAbbr", { n: race.race_number })}
+                </th>
+              ))}
+              <th className={styles.totalCol}>{t("regate.total")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.standings.map((row) => (
+              <StandingsRow
+                key={row.boat.id}
+                row={row}
+                raceIds={data.races.map((r) => r.id)}
+                mine={!!highlightBoatId && row.boat.id === highlightBoatId}
+              />
             ))}
-            <th className={styles.totalCol}>{t("regate.total")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.standings.map((row) => (
-            <StandingsRow
-              key={row.boat.id}
-              row={row}
-              raceIds={data.races.map((r) => r.id)}
-              mine={!!highlightBoatId && row.boat.id === highlightBoatId}
-            />
-          ))}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

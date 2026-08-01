@@ -14,6 +14,7 @@
 
 .boatChip {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   padding: 0.45rem 0.6rem;
@@ -67,6 +68,14 @@
 .addForm {
   align-items: flex-end;
   margin-top: 1rem;
+}
+
+/* Inline, under the chip it applies to, rather than a modal — linking is a
+   quick one-off action the organizer does right where the manual entry is. */
+.linkForm {
+  flex-basis: 100%;
+  align-items: flex-end;
+  margin-top: 0.5rem;
 }
 
 .share {

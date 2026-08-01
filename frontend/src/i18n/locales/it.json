@@ -851,7 +851,18 @@
     "joinAction": "Iscrivi la barca",
     "joined": "Barca iscritta",
     "joinFailed": "Codice non valido o revocato",
-    "joinNeedsBoat": "Aggiungi prima una barca al tuo profilo"
+    "joinNeedsBoat": "Aggiungi prima una barca al tuo profilo",
+    "manualEntry": "Manuale",
+    "manualEntryName": "Nome barca",
+    "manualEntrySail": "Numero velico",
+    "linkEntry": "Collega a una barca",
+    "linkEntryFailed": "Impossibile collegare la barca",
+    "officialStandings": "Classifica ufficiale",
+    "manageOfficialStandings": "Gestisci classifica ufficiale",
+    "clearOfficialStandings": "Ripristina classifica calcolata",
+    "officialStandingsCleared": "Classifica ufficiale rimossa",
+    "officialStandingsIntro": "Imposta manualmente posizione e punteggio di ogni barca: sostituisce la classifica calcolata finché non la ripristini.",
+    "publishOfficialStandings": "Pubblica classifica ufficiale"
   },
   "race": {
     "leaderboard": "Classifica live",
