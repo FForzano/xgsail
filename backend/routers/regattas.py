@@ -152,13 +152,17 @@ def get_standings(regatta_id: uuid.UUID):
             for i, os in enumerate(official_standings)
         ]
     else:
-        # Collect boat_ids from results and entries; filter out None (manual entries)
+        all_entries = repos.regattas.list_entries(regatta_id)
+        # Ranked/scored rows need a boat_id (results and standings positions
+        # key on it), so manual entries with none are excluded here — but
+        # entry_count (see total_entered_count) still counts them, for RRS A9.
         boat_ids = list(dict.fromkeys(
             [r.boat_id for race in races for r in results_by_race[race.id]]
-            + [e.boat_id for e in repos.regattas.list_entries(regatta_id) if e.boat_id is not None]
+            + [e.boat_id for e in all_entries if e.boat_id is not None]
         ))
         computed = scoring.compute_standings(
-            races, results_by_race, len(boat_ids),
+            races, results_by_race,
+            scoring.total_entered_count(boat_ids, all_entries),
             regatta.scoring_system, boat_ids=boat_ids,
         )
         standings_rows = computed

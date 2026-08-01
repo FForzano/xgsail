@@ -52,6 +52,17 @@ def _effective_place(position: Optional[int], status: Optional[str],
     return position
 
 
+def total_entered_count(boat_ids, entries) -> int:
+    """Fleet size for RRS A9 penalty scoring: boats with a result or a linked
+    entry (``boat_ids``, already deduplicated), plus manual (unlinked) start-
+    list entries that have no ``boat_id`` and so aren't in ``boat_ids`` at
+    all. A club whose start list is mostly paper entries — the point of
+    manual entries — must still score DNF/DNS against its real fleet size,
+    not just the subset of boats with an XGSail account."""
+    manual = sum(1 for entry in entries if _field(entry, "boat_id") is None)
+    return len(boat_ids) + manual
+
+
 def compute_standings(races, results_by_race, entry_count,
                       scoring_system="low_point", *, boat_ids=None) -> list[dict]:
     """Rank boats over ``races`` (already in official chronological order).

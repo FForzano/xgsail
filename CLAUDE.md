@@ -449,9 +449,12 @@ Capacitor plugin changes, which still require a store release.
   must not match it.** `boat_id == None` renders as `IS NULL` in SQL, so
   without the guard in `SqlRegattaRepo.get_entry` a caller passing a null
   boat would be authorized against an arbitrary manual entry. The same
-  reason `GET /standings` filters `None` out of its `boat_ids` union —
-  a null would become a phantom ranked row and inflate the RRS A9 entry
-  count.
+  reason `GET /standings` filters `None` out of its `boat_ids` union — a
+  null would become a phantom ranked row (no boat to display). That filter
+  is only about the *ranked rows*, though: the RRS A9 penalty's fleet size
+  (`scoring.total_entered_count`) deliberately counts manual entries back
+  in, or a club whose start list is mostly paper entries would score every
+  DNF/DNS against a fleet far smaller than the one that actually started.
 - **Official standings win over computed ones.** If any
   `official_standings` row exists for a regatta, `GET /standings` serves
   those instead of running the scoring algorithm, and flags the response

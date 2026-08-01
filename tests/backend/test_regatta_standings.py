@@ -2,7 +2,7 @@
 custom, RRS A9 penalties and the RRS A8 tie-breaks — all on the pure
 function, no DB involved."""
 
-from backend.services.scoring import compute_standings
+from backend.services.scoring import compute_standings, total_entered_count
 
 
 def _races(count):
@@ -132,3 +132,50 @@ def test_entered_boats_without_any_results_all_appear():
     assert all(row["total"] == 0.0 and row["races"] == {} for row in standings)
     # Perfectly tied and unresolvable: same rank.
     assert [row["rank"] for row in standings] == [1, 1]
+
+
+def _manual_entry():
+    """A start-list entry with no boat account — ``boat_id`` absent
+    entirely, as ``_field`` reads via ``.get``/``getattr`` fallback to None."""
+    return {"boat_id": None}
+
+
+def _linked_entry(boat_id):
+    return {"boat_id": boat_id}
+
+
+def test_total_entered_count_adds_manual_entries_to_linked_boats():
+    """Regression: a club whose start list is mostly paper (manual) entries
+    must still score DNF/DNS against its real fleet size, not just the
+    subset of boats with an XGSail account. Before this fix, entry_count was
+    derived from ``len(boat_ids)`` alone, understating every penalty."""
+    boat_ids = ["a", "b"]  # 2 boats have a result or a linked entry
+    entries = [_linked_entry("a"), _linked_entry("b"),
+               _manual_entry(), _manual_entry(), _manual_entry()]  # +3 manual
+    assert total_entered_count(boat_ids, entries) == 5
+
+
+def test_total_entered_count_with_no_manual_entries():
+    boat_ids = ["a", "b"]
+    entries = [_linked_entry("a"), _linked_entry("b")]
+    assert total_entered_count(boat_ids, entries) == 2
+
+
+def test_total_entered_count_with_only_manual_entries():
+    """A regatta entirely composed of paper entries: no boat_ids at all, but
+    the fleet size (and hence the DNF/DNS penalty) is still the full count."""
+    assert total_entered_count([], [_manual_entry(), _manual_entry()]) == 2
+
+
+def test_dnf_penalty_reflects_manual_entries_end_to_end():
+    """The fix wired end-to-end: entry_count from total_entered_count feeds
+    compute_standings, so a DNF's score is (real fleet size) + 1, not just
+    (linked boats) + 1."""
+    races = _races(1)
+    results = {"r1": [_res("a", status="dnf"), _res("b", 1)]}
+    boat_ids = ["a", "b"]
+    entries = [_linked_entry("a"), _linked_entry("b"),
+               _manual_entry(), _manual_entry(), _manual_entry()]  # 5 boats total
+    entry_count = total_entered_count(boat_ids, entries)
+    standings = _by_boat(compute_standings(races, results, entry_count, "low_point"))
+    assert standings["a"]["total"] == 6.0  # 5 entered + 1, not 2 (linked) + 1
