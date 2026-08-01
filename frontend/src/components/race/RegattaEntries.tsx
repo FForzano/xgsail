@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Link2, RefreshCw, Trash2, UserPlus, X } from "lucide-react";
 import { regattasService, raceKeys } from "@/services/races";
+import { publicWebOrigin } from "@/config/platform";
 import { useToast } from "@/hooks/useToast";
 import { BoatPicker } from "@/components/common/BoatPicker";
 import { Button } from "@/components/ui/Button";
@@ -89,7 +90,7 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
 
   const rows = entries.data ?? [];
   const code = joinCode.data?.join_code ?? null;
-  const joinUrl = code ? `${window.location.origin}/regate/${regattaId}/join?code=${code}` : null;
+  const joinUrl = code ? `${publicWebOrigin}/regate/${regattaId}/join?code=${code}` : null;
 
   const copyLink = async () => {
     if (!joinUrl) return;

@@ -64,6 +64,10 @@ def _boat_summary(boat_id) -> Optional[dict]:
 
 
 def _entry_payload(entry) -> dict:
+    # An entry can vanish between the write and the read-back (e.g. its boat is
+    # deleted concurrently, cascading the entry away), leaving nothing to serialize.
+    if entry is None:
+        raise HTTPException(404, "Entry not found")
     d = entry.to_dict()
     # Resolve boat info: if linked, read from boat record; if manual, use stored fields
     if entry.boat_id is not None:

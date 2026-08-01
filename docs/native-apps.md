@@ -63,6 +63,13 @@ dev over a LAN IP) — if login/API calls fail from the native app with a
 generic network error, check the `Origin` header on the failed request in
 Safari Web Inspector against this list first.
 
+That virtual hostname is also why native builds must set
+`VITE_PUBLIC_WEB_ORIGIN=https://xgsail.com`: `app.xgsail.com` resolves
+nowhere off-device, so any link the app generates for sharing (e.g. a regatta
+join link) has to be built from `publicWebOrigin`
+(`frontend/src/config/platform.ts`), never `window.location.origin`. The web
+SPA leaves it unset and falls back to its own origin.
+
 Minimum OS targets: Android 8 (`minSdkVersion 26` in
 `android/variables.gradle`, set after `cap add android`) and iOS 14 (Xcode
 deployment target, set after `cap add ios`).

@@ -19,3 +19,15 @@ export const isStoreDistribution = import.meta.env.VITE_APP_DISTRIBUTION === "st
 
 /** Whether in-app Buy Me a Coffee links/pages should be shown. */
 export const canShowSupportLinks = !isStoreDistribution;
+
+/**
+ * Origin to build shareable links with (join links, etc.).
+ *
+ * `window.location.origin` is wrong on native: Capacitor serves the app from
+ * the purely virtual `app.xgsail.com` (see capacitor.config.ts), so a link
+ * built from it is dead the moment it leaves the app. Native builds must set
+ * `VITE_PUBLIC_WEB_ORIGIN` to the real web origin; the web SPA has no such
+ * problem and falls back to its own origin.
+ */
+export const publicWebOrigin =
+  import.meta.env.VITE_PUBLIC_WEB_ORIGIN?.replace(/\/+$/, "") || window.location.origin;

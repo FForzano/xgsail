@@ -30,6 +30,9 @@ const config: CapacitorConfig = {
   // confirmed via Safari Web Inspector's Network tab on a real iOS build).
   // Requires SAILFRAMES_CORS_ORIGINS on the backend to include both (see
   // deploy/docker-compose.prod.yml / docs/native-apps.md).
+  // Because this origin is virtual, never build a shareable link from
+  // window.location.origin — it would resolve nowhere outside the app. Use
+  // `publicWebOrigin` (src/config/platform.ts), fed by VITE_PUBLIC_WEB_ORIGIN.
   server: {
     hostname: "app.xgsail.com",
     androidScheme: "https",
