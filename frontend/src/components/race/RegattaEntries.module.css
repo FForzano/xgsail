@@ -78,6 +78,29 @@
   margin-top: 0.5rem;
 }
 
+/* Disclosure for the manual (no-account) entry form — kept collapsed by
+   default so it doesn't compete visually with the BoatPicker form above,
+   which covers the common case. */
+.manualSection {
+  margin-top: 0.75rem;
+}
+
+.manualPanel {
+  padding: 0.75rem;
+  border: 1px dashed var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-bg-2);
+}
+
+.manualHint {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+}
+
+.manualPanel .addForm {
+  margin-top: 0;
+}
+
 .share {
   margin-top: 1.25rem;
   padding-top: 1rem;

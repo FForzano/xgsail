@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Link2, RefreshCw, Trash2, X } from "lucide-react";
+import { Copy, Link2, RefreshCw, Trash2, UserPlus, X } from "lucide-react";
 import { regattasService, raceKeys } from "@/services/races";
 import { useToast } from "@/hooks/useToast";
 import { BoatPicker } from "@/components/common/BoatPicker";
@@ -27,6 +27,7 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
   const [manualSail, setManualSail] = useState("");
   const [linkingEntryId, setLinkingEntryId] = useState<UUID | null>(null);
   const [linkBoatId, setLinkBoatId] = useState<UUID | "">("");
+  const [manualFormOpen, setManualFormOpen] = useState(false);
 
   const entries = useQuery({
     queryKey: raceKeys.entries(regattaId),
@@ -55,6 +56,7 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
     onSuccess: async () => {
       setManualName("");
       setManualSail("");
+      setManualFormOpen(false);
       await invalidate();
     },
     onError: () => notify(t("errors.generic"), "error"),
@@ -179,31 +181,58 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
           </form>
 
           {/* For a boat with no record on the instance yet — a visitor entered
-              by name until they register (or get linked to) a real boat. */}
-          <form
-            className={`sf-form__row ${styles.addForm}`}
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              if (manualName.trim()) addManual.mutate();
-            }}
-          >
-            <InputField
-              id="entry-manual-name"
-              label={t("regate.manualEntryName")}
-              value={manualName}
-              onChange={(e) => setManualName(e.target.value)}
-              required
-            />
-            <InputField
-              id="entry-manual-sail"
-              label={t("regate.manualEntrySail")}
-              value={manualSail}
-              onChange={(e) => setManualSail(e.target.value)}
-            />
-            <Button type="submit" disabled={!manualName.trim() || addManual.isPending}>
-              {t("common.add")}
-            </Button>
-          </form>
+              by name until they register (or get linked to) a real boat. Kept
+              behind a disclosure so the common case (BoatPicker above) isn't
+              visually confused with this fallback for occasional visitors. */}
+          <div className={styles.manualSection}>
+            {!manualFormOpen ? (
+              <Button
+                variant="ghost"
+                onClick={() => setManualFormOpen(true)}
+              >
+                <UserPlus size={16} /> {t("regate.manualEntryToggle")}
+              </Button>
+            ) : (
+              <div className={styles.manualPanel}>
+                <p className={`sf-muted ${styles.manualHint}`}>{t("regate.manualEntryHint")}</p>
+                <form
+                  className={`sf-form__row ${styles.addForm}`}
+                  onSubmit={(e: FormEvent) => {
+                    e.preventDefault();
+                    if (manualName.trim()) addManual.mutate();
+                  }}
+                >
+                  <InputField
+                    id="entry-manual-name"
+                    label={t("regate.manualEntryName")}
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    required
+                  />
+                  <InputField
+                    id="entry-manual-sail"
+                    label={t("regate.manualEntrySail")}
+                    value={manualSail}
+                    onChange={(e) => setManualSail(e.target.value)}
+                  />
+                  <Button type="submit" disabled={!manualName.trim() || addManual.isPending}>
+                    {t("regate.manualEntryAdd")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setManualFormOpen(false);
+                      setManualName("");
+                      setManualSail("");
+                    }}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                </form>
+              </div>
+            )}
+          </div>
 
           {/* The link, not the bare code, is what actually gets pasted into the
               fleet's chat — so it is shown in full and copying it is the one
