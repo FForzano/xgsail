@@ -113,6 +113,17 @@ def list_regattas(request: Request, club_id: Optional[uuid.UUID] = None,
     return [_regatta_payload(r) for r in regattas]
 
 
+@router.get("/upcoming")
+def list_upcoming_regattas(request: Request, limit: int = 5):
+    """Not-yet-completed regattas from the caller's own clubs, soonest first —
+    the regatta half of the "in arrivo" banner in the personal diary (see
+    ``GET /activities/upcoming`` for the activity half). Registered before
+    ``/{regatta_id}`` so FastAPI doesn't try to parse "upcoming" as a UUID."""
+    user = require_user(request)
+    regattas = repos.regattas.list_upcoming_for_user(user.id, limit=limit)
+    return [_regatta_payload(r) for r in regattas]
+
+
 @router.get("/{regatta_id}")
 def get_regatta(regatta_id: uuid.UUID):
     regatta = _require_regatta(regatta_id)

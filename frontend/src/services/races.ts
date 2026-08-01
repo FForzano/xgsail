@@ -22,6 +22,7 @@ export interface OfficialStandingInput {
 
 export const raceKeys = {
   regattas: ["regattas"] as const,
+  upcoming: ["regattas", "upcoming"] as const,
   regatta: (id: UUID) => ["regattas", id] as const,
   entries: (id: UUID) => ["regattas", id, "entries"] as const,
   joinCode: (id: UUID) => ["regattas", id, "join-code"] as const,
@@ -41,6 +42,8 @@ export const regattasService = {
     return api.get<Regatta[]>(`/regattas${qs ? `?${qs}` : ""}`);
   },
   get: (id: UUID) => api.get<Regatta>(`/regattas/${id}`), // embeds race_days, each with its races
+  upcoming: (limit?: number) =>
+    api.get<Regatta[]>(`/regattas/upcoming${limit ? `?limit=${limit}` : ""}`),
   create: (body: Partial<Regatta>) => api.post<Regatta>("/regattas", body),
   update: (id: UUID, body: Partial<Regatta>) => api.patch<Regatta>(`/regattas/${id}`, body),
   remove: (id: UUID) => api.del(`/regattas/${id}`),

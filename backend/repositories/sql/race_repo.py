@@ -86,6 +86,29 @@ class SqlRegattaRepo:
                 q = q.where(RegattaORM.status == status)
             return list(s.scalars(q).all())
 
+    def list_upcoming_for_user(self, user_id: uuid.UUID, *, limit: int = 5) -> "list[RegattaORM]":
+        """Not-yet-completed regattas with a future start date, belonging to a
+        club the user actively belongs to — the regatta half of the "in
+        arrivo" feed (see ``SqlActivityRepo.list_upcoming_for_user`` for the
+        activity half; club regattas auto-create a ``type=="race"`` activity
+        per race that the activity-side query deliberately excludes, since
+        this method is what surfaces the event instead)."""
+        with self.Session() as s:
+            member_club_ids = select(UserClubORM.club_id).where(
+                UserClubORM.user_id == user_id,
+                UserClubORM.status == "active",
+            )
+            q = (
+                select(RegattaORM)
+                .where(RegattaORM.club_id.in_(member_club_ids))
+                .where(RegattaORM.status != "completed")
+                .where(RegattaORM.start_date.isnot(None))
+                .where(RegattaORM.start_date >= date_t.today())
+                .order_by(RegattaORM.start_date.asc())
+                .limit(limit)
+            )
+            return list(s.scalars(q).all())
+
     def get(self, regatta_id: uuid.UUID) -> Optional[RegattaORM]:
         with self.Session() as s:
             return s.get(RegattaORM, regatta_id)

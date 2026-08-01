@@ -148,7 +148,12 @@ class SqlActivityRepo:
 
     def list_upcoming_for_user(self, user_id: uuid.UUID, *, limit: int = 5) -> "list[ActivityORM]":
         """Announced (``planned``) events with a future date, belonging to a
-        club/group the user actively belongs to — the "in arrivo" feed."""
+        club/group the user actively belongs to — the "in arrivo" feed.
+
+        Excludes ``type == "race"``: those are auto-created bookkeeping for a
+        scheduled race's GPS data (see ``routers/races.py::_create_race_activity``)
+        and are already represented by the regatta itself — same exclusion
+        `useDiaryFeed.ts`/`ClubEvents.tsx` apply on the frontend feeds."""
         with self.Session() as s:
             club_ids = select(UserClubORM.club_id).where(
                 UserClubORM.user_id == user_id,
@@ -163,6 +168,7 @@ class SqlActivityRepo:
             q = (
                 select(ActivityORM)
                 .where(ActivityORM.status == "planned")
+                .where(ActivityORM.type != "race")
                 .where(ActivityORM.started_at.isnot(None))
                 .where(ActivityORM.started_at >= datetime.now(timezone.utc))
                 .where(or_(
