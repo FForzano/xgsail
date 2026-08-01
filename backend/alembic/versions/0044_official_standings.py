@@ -57,7 +57,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_official_standings')),
         sa.UniqueConstraint('regatta_id', 'boat_id',
-                            name=op.f('uq_official_standings_regatta_boat')),
+                            name=op.f('uq_official_standings_regatta_id_boat_id')),
     )
     op.create_index(op.f('ix_official_standings_regatta_id'), 'official_standings',
                     ['regatta_id'])
