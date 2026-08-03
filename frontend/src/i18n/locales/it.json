@@ -929,6 +929,7 @@
     "corrected": "Compensato",
     "score": "Punti",
     "resultStatus": "Stato",
+    "raceStatus": "Stato gara",
     "status": {
       "scheduled": "In programma",
       "started": "Partita",

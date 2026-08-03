@@ -16,6 +16,8 @@ import type { MapMark } from "./MapView";
 import type { Race, UUID } from "@/types";
 import styles from "./RaceManagePanel.module.css";
 
+const RACE_STATUSES = ["scheduled", "started", "finished", "abandoned"];
+
 /** Management actions on the race dashboard, gated per scoped permission:
  * race.manage → start time / match-sessions / boat GPX; mark.manage →
  * auto-start-line + suggest-marks with preview-then-apply; result.manage →
@@ -82,6 +84,15 @@ export function RaceManagePanel({
       notify(t("common.saved"), "success");
       await invalidateAll();
     },
+    onError,
+  });
+
+  // Purely manual — nothing else in the app ever writes race.status (not
+  // match-sessions, not a result being entered), so the organizer is the
+  // only thing that moves a race off "scheduled".
+  const setStatus = useMutation({
+    mutationFn: (status: string) => racesService.update(race.id, { status }),
+    onSuccess: invalidateAll,
     onError,
   });
 
@@ -168,6 +179,21 @@ export function RaceManagePanel({
           {canRace && (
             <section className={styles.group}>
               <h3 className={styles.groupTitle}>{t("race.manageRace")}</h3>
+              <div className={`sf-form__row ${styles.row}`}>
+                <Select
+                  label={t("race.raceStatus")}
+                  id="race-status"
+                  value={race.status}
+                  disabled={setStatus.isPending}
+                  onChange={(e) => setStatus.mutate(e.target.value)}
+                >
+                  {RACE_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {t(`race.status.${s}`)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
               <form
                 className={`sf-form__row ${styles.row}`}
                 onSubmit={(e) => {
