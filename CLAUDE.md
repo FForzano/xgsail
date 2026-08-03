@@ -295,7 +295,7 @@ pages/`pages/**` → global.css. Combine both with a template string:
 │   └── support.py              # Support-prompt cadence (copy lives in frontend)
 ├── frontend/                   # Vite + React + TS SPA, wrapped via Capacitor
 │   ├── src/                    # pages/, components/, hooks/, styles/ (see below)
-│   └── ios/App/XGSailWatch     # Native watchOS companion (hand-added Xcode target)
+│   └── ios/App/XGSailWatch Watch App/   # Native watchOS companion (hand-added Xcode target)
 ├── ota-service/                # Standalone Node/Express OTA update server (native app)
 ├── libs/
 │   └── xgsail_windfusion/      # Shared Python wind-fusion/calibration package
@@ -384,12 +384,15 @@ docker compose up --build
 Services (see `docker-compose.yml`): `postgres` (metadata), `minio`
 (S3-compatible blob storage, console on :9001), `backend` (FastAPI,
 :8000), `frontend` (nginx serving the SPA build + proxying `/api` →
-backend, same-origin), plus the `process_upload`/`video`/`train_maneuver`
-workers invoked by the backend on MinIO upload events. `ota-service`
-(Express, :8081) is not part of this base stack — bring it up
-separately if serving native-app OTA updates. See `deploy/README.md`
-for the full request-flow diagram and how the self-hosted (MinIO) path
-differs from the AWS (S3/Lambda) path — same code, env-gated.
+backend, same-origin), `ota-service` (Express, :8081, native-app OTA
+updates — talks only to MinIO, no backend/DB dependency), `wind-scheduler`
+(a `curl` loop that periodically triggers the backend's weather-provider
+fetch), plus the `process_upload`/`video` workers invoked by the backend
+on MinIO upload events. `train_maneuver` is defined in the same file but
+sits behind the `training` Compose profile, so a plain `docker compose up`
+does **not** start it — see `deploy/README.md` for the full request-flow
+diagram and how the self-hosted (MinIO) path differs from the AWS
+(S3/Lambda) path — same code, env-gated.
 
 ---
 
@@ -448,8 +451,8 @@ Capacitor plugin changes, which still require a store release.
 ## Gotchas
 
 - **The native watchOS app doesn't rebuild from the React frontend.**
-  It's a hand-added Xcode target at `frontend/ios/App/XGSailWatch`,
-  maintained separately — editing `frontend/src` has no effect on it.
+  It's a hand-added Xcode target at `frontend/ios/App/XGSailWatch Watch
+  App/`, maintained separately — editing `frontend/src` has no effect on it.
 - **Devices have no separate upload path in the router layer.** All
   device data flows through the same presigned-upload + webhook
   pipeline as manual imports; don't add a device-specific endpoint,
@@ -533,10 +536,24 @@ Capacitor plugin changes, which still require a store release.
   through `current_user()`) silently breaks it for the native apps —
   see "Native apps" above.
 - **`ota-service/` is a separate deployable with its own env vars and
-  no backend/DB dependency.** It reuses the backend's MinIO credential
-  var names by convention (see "Environment variables"), but running
-  `docker compose up` alone does not start it — a missing OTA update
-  is not a backend bug.
+  no backend/DB dependency**, even though the base `docker-compose.yml`
+  does start it alongside everything else. It reuses the backend's
+  MinIO credential var names by convention (see "Environment
+  variables"), but never talks to Postgres or the FastAPI backend, so a
+  missing OTA update is never a backend bug — check `ota-service`'s own
+  logs/env, not the backend's.
+- **`scripts/deploy-ota.sh` rebuilds the frontend independently of the
+  native shell build, so it needs its own copy of every native-only env
+  var — a full native release setting one in `.env.native` does NOT
+  carry over.** `VITE_PUBLIC_WEB_ORIGIN` (see "Native apps") is required
+  there for exactly this reason: an OTA bundle built without it silently
+  reintroduces broken shareable links (join links, etc.) in every
+  already-installed app, even though the original store/sideload build
+  was correct. When adding a new native-only `VITE_*` env var, add it to
+  `scripts/deploy-ota.sh` and its CI invocation
+  (`.github/workflows/docker-publish.yml`'s `deploy-ota` job) at the same
+  time as `.env.native.example`, or it silently drops out of every OTA
+  update after the first.
 - **Repo-root `pyproject.toml` only configures pytest.** It is not a
   package manifest for the backend, a worker, or `libs/
   xgsail_windfusion` — each of those has its own build setup; don't

@@ -101,11 +101,18 @@ at the deploy-script level:
 
 ```bash
 OTA_API_BASE=https://api.xgsail.com/api \
+VITE_PUBLIC_WEB_ORIGIN=https://xgsail.com \
 SAILFRAMES_S3_ENDPOINT=http://localhost:9000 \
 MINIO_ROOT_USER=... MINIO_ROOT_PASSWORD=... \
 SAILFRAMES_BUCKET=sailframes-fleet-data-prod \
 scripts/deploy-ota.sh [VERSION]
 ```
+
+`VITE_PUBLIC_WEB_ORIGIN` must be set here for the same reason it must be set
+for a full native build (`.env.native.example`): the WebView's own origin is
+the virtual `app.xgsail.com`, so a bundle built without it ships shareable
+links (e.g. a regatta join link, `config/platform.ts`'s `publicWebOrigin`)
+that resolve nowhere the moment the OTA update reaches an installed app.
 
 **Retention**: after each publish, the script prunes MinIO down to the
 `OTA_KEEP_VERSIONS` (default 5) most recently uploaded bundles — old

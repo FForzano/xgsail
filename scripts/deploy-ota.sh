@@ -9,6 +9,7 @@
 #
 # Usage:
 #   OTA_API_BASE=https://api.xgsail.com/api \
+#   VITE_PUBLIC_WEB_ORIGIN=https://xgsail.com \
 #   SAILFRAMES_S3_ENDPOINT=http://localhost:9000 \
 #   MINIO_ROOT_USER=sailframes MINIO_ROOT_PASSWORD=... \
 #   SAILFRAMES_BUCKET=sailframes-fleet-data-prod \
@@ -26,6 +27,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${OTA_API_BASE:?set OTA_API_BASE to the deployed backend origin, e.g. https://api.xgsail.com/api}"
+# Same purpose as .env.native.example's VITE_PUBLIC_WEB_ORIGIN (see
+# config/platform.ts): the WebView's own origin is the virtual app.xgsail.com,
+# so any shareable link (e.g. a regatta join link) built without this env
+# resolves to nothing outside the app. Required, not defaulted, so a missing
+# value fails the deploy instead of silently shipping broken links to every
+# already-installed app on its next OTA update.
+: "${VITE_PUBLIC_WEB_ORIGIN:?set VITE_PUBLIC_WEB_ORIGIN to the public web origin, e.g. https://xgsail.com}"
 : "${SAILFRAMES_S3_ENDPOINT:?set SAILFRAMES_S3_ENDPOINT, e.g. http://localhost:9000}"
 : "${MINIO_ROOT_USER:?set MINIO_ROOT_USER}"
 : "${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}"
@@ -41,7 +49,8 @@ echo "==> building frontend (native target, VITE_API_BASE=$OTA_API_BASE) for ver
 # VITE_APP_MODE=native is required here, not just VITE_API_BASE — without it
 # this ships a *web* bundle (marketing landing page, no native-only gating)
 # as the native app's OTA update. See config/platform.ts / .env.native.example.
-( cd "$ROOT/frontend" && VITE_API_BASE="$OTA_API_BASE" VITE_APP_MODE=native npm run build )
+( cd "$ROOT/frontend" && VITE_API_BASE="$OTA_API_BASE" VITE_APP_MODE=native \
+  VITE_PUBLIC_WEB_ORIGIN="$VITE_PUBLIC_WEB_ORIGIN" npm run build )
 
 echo "==> zipping dist/"
 ( cd "$ROOT/frontend/dist" && zip -qr "$WORKDIR/bundle.zip" . )

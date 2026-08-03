@@ -192,6 +192,10 @@ jobs:
       - name: Publish OTA update
         env:
           OTA_API_BASE: ${{ secrets.OTA_API_BASE }}
+          # Public URL, not a secret — same value as docker-compose.prod.yml's
+          # SAILFRAMES_PUBLIC_ORIGIN. See scripts/deploy-ota.sh's comment on
+          # why an OTA bundle built without this ships broken shareable links.
+          VITE_PUBLIC_WEB_ORIGIN: https://xgsail.com
           SAILFRAMES_S3_ENDPOINT: ${{ secrets.SAILFRAMES_S3_PUBLIC_ENDPOINT }}
           MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
