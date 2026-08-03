@@ -240,16 +240,21 @@ def get_standings(regatta_id: uuid.UUID):
     if official_standings:
         standings_rows = [
             {
-                "rank": i + 1,
+                # The organizer's entered position IS the published rank —
+                # not re-derived from array order. A real result sheet is
+                # routinely sparse from this app's point of view (paper
+                # entries, boats never claimed here), so "10th" can be
+                # correct even when only one boat in this division was
+                # actually published through this editor.
+                "rank": os.position,
                 "boat_id": os.boat_id,
-                "position": os.position,
                 # _standings_payload reads "total" — the organizer's published
                 # score is exactly that, just sourced from a different table.
                 "total": os.score,
                 "status": os.status,
                 "division_id": _division_of(os),
             }
-            for i, os in enumerate(official_standings)
+            for os in official_standings
         ]
     else:
         # Ranked/scored rows need a boat_id (results and standings positions
@@ -314,9 +319,11 @@ def _division_standings(regatta, divisions, entry_rows, race_rows, results_by_ra
         if official_standings:
             ordered = sorted(official_by_division.get(key, []),
                              key=lambda row: row.position)
-            rows = [{"rank": i + 1, "boat_id": row.boat_id, "division_id": key,
+            # Same rule as the top-level list: the entered position is the
+            # rank, not the row's index within this division's group.
+            rows = [{"rank": row.position, "boat_id": row.boat_id, "division_id": key,
                     "total": row.score}
-                    for i, row in enumerate(ordered)]
+                    for row in ordered]
         else:
             rows = [{**row, "division_id": key} for row in scoring.compute_standings(
                 bundle["races"], bundle["results_by_race"], bundle["entry_count"],

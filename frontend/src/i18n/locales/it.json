@@ -876,6 +876,7 @@
     "confirmDeleteDivision": "Eliminare la categoria? Gli iscritti e le prove assegnate torneranno senza categoria.",
     "divisionDuplicate": "Esiste già una categoria con questo nome.",
     "officialStandings": "Classifica ufficiale",
+    "manageRegatta": "Gestisci regata",
     "manageOfficialStandings": "Gestisci classifica ufficiale",
     "clearOfficialStandings": "Ripristina classifica calcolata",
     "officialStandingsCleared": "Classifica ufficiale rimossa",

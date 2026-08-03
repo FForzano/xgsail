@@ -17,8 +17,20 @@ import styles from "./RegattaDivisions.module.css";
 /** Organizer-only management panel for a regatta's scoring divisions
  * (e.g. "Catamarani"/"Derive") — each divisions independently ranks its own
  * entries in the regatta's standings. Renders nothing when the caller can't
- * manage the regatta; the read-only list lives elsewhere (entries/standings). */
-export function RegattaDivisions({ regattaId, canManage }: { regattaId: UUID; canManage: boolean }) {
+ * manage the regatta; the read-only list lives elsewhere (entries/standings).
+ *
+ * `embedded`: skip the panel's own `Card` chrome when a caller (the regatta
+ * page's collapsible "manage" section) already provides a heading and a card
+ * around it — two nested `sf-card`s would double up padding/borders. */
+export function RegattaDivisions({
+  regattaId,
+  canManage,
+  embedded = false,
+}: {
+  regattaId: UUID;
+  canManage: boolean;
+  embedded?: boolean;
+}) {
   const { t } = useTranslation();
   const { notify } = useToast();
   const queryClient = useQueryClient();
@@ -125,8 +137,8 @@ export function RegattaDivisions({ regattaId, canManage }: { regattaId: UUID; ca
 
   const pendingDelete = rows.find((d) => d.id === pendingDeleteId) ?? null;
 
-  return (
-    <Card title={t("regate.divisions")} className={styles.card}>
+  const content = (
+    <>
       {divisions.isLoading ? (
         <Spinner />
       ) : rows.length === 0 ? (
@@ -258,6 +270,14 @@ export function RegattaDivisions({ regattaId, canManage }: { regattaId: UUID; ca
           onConfirm={() => remove.mutate(pendingDelete.id)}
         />
       )}
+    </>
+  );
+
+  return embedded ? (
+    content
+  ) : (
+    <Card title={t("regate.divisions")} className={styles.card}>
+      {content}
     </Card>
   );
 }

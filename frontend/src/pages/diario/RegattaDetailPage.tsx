@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Pencil } from "lucide-react";
+import { ChevronDown, ChevronUp, ImagePlus, Pencil } from "lucide-react";
 import { regattasService, raceKeys, type OfficialStandingInput } from "@/services/races";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useCapabilities } from "@/hooks/useCapabilities";
@@ -24,6 +24,7 @@ import { RegattaHero } from "@/components/race/RegattaHero";
 import { RegattaStandings } from "@/components/race/RegattaStandings";
 import { MyRegattaCard } from "@/components/race/MyRegattaCard";
 import type { UUID } from "@/types";
+import styles from "./RegattaDetailPage.module.css";
 
 /** Regatta detail page (name, poster, standings, race days/races, start list)
  * — reachable from a race's dashboard (`RacePage`'s back link) or from the
@@ -59,6 +60,7 @@ export function RegattaDetailPage() {
   const { clubName, boatClassName, raceCount } = useRegattaMeta(regatta.data);
 
   const [editing, setEditing] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
   const [officialEditing, setOfficialEditing] = useState(false);
@@ -160,27 +162,6 @@ export function RegattaDetailPage() {
         boatClassName={boatClassName}
         raceCount={raceCount}
         onOpenImage={r.image ? () => setLightboxOpen(true) : undefined}
-        actions={
-          manage && (
-            <>
-              <ImageUploader
-                create={() => regattasService.uploadImage(regattaId)}
-                confirm={(id) => regattasService.confirmImage(regattaId, id)}
-                onDone={invalidate}
-                icon={<ImagePlus size={16} />}
-                label={t("common.upload")}
-              />
-              <Button
-                variant="ghost"
-                className="sf-btn--icon-sm"
-                aria-label={t("regate.editRegatta")}
-                onClick={() => setEditing(true)}
-              >
-                <Pencil size={16} />
-              </Button>
-            </>
-          )
-        }
       />
 
       <StatTiles>
@@ -192,27 +173,7 @@ export function RegattaDetailPage() {
 
       <MyRegattaCard regattaId={regattaId} boatId={myBoatId} />
 
-      <Card
-        title={t("regate.standings")}
-        actions={
-          manage && (
-            <>
-              <Button variant="ghost" onClick={openOfficialEditor}>
-                {t("regate.manageOfficialStandings")}
-              </Button>
-              {standings.data?.is_official && (
-                <Button
-                  variant="ghost"
-                  onClick={() => clearOfficial.mutate()}
-                  disabled={clearOfficial.isPending}
-                >
-                  {t("regate.clearOfficialStandings")}
-                </Button>
-              )}
-            </>
-          )
-        }
-      >
+      <Card title={t("regate.standings")}>
         <RegattaStandings regattaId={regattaId} highlightBoatId={myBoatId} />
       </Card>
 
@@ -220,7 +181,65 @@ export function RegattaDetailPage() {
         <RegattaRaceDays regattaId={regattaId} manage={manage} />
       </Card>
 
-      <RegattaDivisions regattaId={regattaId} canManage={manage} />
+      {manage && (
+        <Card
+          title={t("regate.manageRegatta")}
+          actions={
+            <Button
+              variant="ghost"
+              className="sf-btn--icon-sm"
+              aria-expanded={manageOpen}
+              aria-label={t(manageOpen ? "common.collapse" : "common.expand")}
+              onClick={() => setManageOpen((v) => !v)}
+            >
+              {manageOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </Button>
+          }
+        >
+          {manageOpen && (
+            <div className={styles.groups}>
+              <section className={styles.group}>
+                <h3 className={styles.groupTitle}>{t("regate.editRegatta")}</h3>
+                <div className={`sf-form__row ${styles.row}`}>
+                  <ImageUploader
+                    create={() => regattasService.uploadImage(regattaId)}
+                    confirm={(id) => regattasService.confirmImage(regattaId, id)}
+                    onDone={invalidate}
+                    icon={<ImagePlus size={16} />}
+                    label={t("common.upload")}
+                  />
+                  <Button variant="ghost" onClick={() => setEditing(true)}>
+                    <Pencil size={16} /> {t("regate.editRegatta")}
+                  </Button>
+                </div>
+              </section>
+
+              <section className={styles.group}>
+                <h3 className={styles.groupTitle}>{t("regate.officialStandings")}</h3>
+                <div className={`sf-form__row ${styles.row}`}>
+                  <Button variant="ghost" onClick={openOfficialEditor}>
+                    {t("regate.manageOfficialStandings")}
+                  </Button>
+                  {standings.data?.is_official && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => clearOfficial.mutate()}
+                      disabled={clearOfficial.isPending}
+                    >
+                      {t("regate.clearOfficialStandings")}
+                    </Button>
+                  )}
+                </div>
+              </section>
+
+              <section className={styles.group}>
+                <h3 className={styles.groupTitle}>{t("regate.divisions")}</h3>
+                <RegattaDivisions regattaId={regattaId} canManage={manage} embedded />
+              </section>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card title={t("regate.entries")}>
         <RegattaEntries regattaId={regattaId} manage={manage} />

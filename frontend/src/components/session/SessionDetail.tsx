@@ -1080,7 +1080,7 @@ export function SessionDetail({
           <TextAreaField
             label={t("sessions.notes")}
             id="session-notes"
-            rows={5}
+            rows={10}
             placeholder={t("sessions.notesPlaceholder")}
             value={notesForm.notes}
             onChange={(e) => setNotesForm((f) => ({ ...f, notes: e.target.value }))}

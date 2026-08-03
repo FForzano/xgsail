@@ -876,6 +876,7 @@
     "confirmDeleteDivision": "Delete this division? Its entered boats and races will become unassigned.",
     "divisionDuplicate": "A division with this name already exists.",
     "officialStandings": "Official standings",
+    "manageRegatta": "Manage regatta",
     "manageOfficialStandings": "Manage official standings",
     "clearOfficialStandings": "Revert to computed standings",
     "officialStandingsCleared": "Official standings cleared",
