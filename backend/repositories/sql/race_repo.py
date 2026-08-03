@@ -19,6 +19,7 @@ from ...db.models import (
     OfficialStandingsORM,
     RaceDayORM,
     RaceORM,
+    RegattaDivisionORM,
     RegattaEntryORM,
     RegattaORM,
     ResultORM,
@@ -32,9 +33,10 @@ from ...db.models import (
 _REGATTA_FIELDS = ("name", "description", "image_id", "club_id", "class_id",
                    "scoring_system", "start_date", "end_date", "status")
 _RACEDAY_FIELDS = ("regatta_id", "date", "notes")
-_RACE_FIELDS = ("race_day_id", "race_number", "status", "start_time")
+_RACE_FIELDS = ("race_day_id", "race_number", "status", "start_time", "division_id")
 _RESULT_FIELDS = ("session_id", "finish_time", "elapsed_time", "corrected_time",
                   "position", "score", "status")
+_DIVISION_FIELDS = ("name", "sort_order", "laps")
 
 
 class SqlRegattaRepo:
@@ -141,6 +143,81 @@ class SqlRegattaRepo:
             s.commit()
             return True
 
+    # --- divisions (free-form per-regatta scoring categories) -------------
+
+    def list_divisions(self, regatta_id: uuid.UUID) -> "list[RegattaDivisionORM]":
+        with self.Session() as s:
+            return list(s.scalars(
+                select(RegattaDivisionORM)
+                .where(RegattaDivisionORM.regatta_id == regatta_id)
+                .order_by(RegattaDivisionORM.sort_order.asc(), RegattaDivisionORM.name.asc())
+            ).all())
+
+    def get_division(self, regatta_id: uuid.UUID,
+                     division_id: uuid.UUID) -> Optional[RegattaDivisionORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(RegattaDivisionORM).where(
+                    RegattaDivisionORM.regatta_id == regatta_id,
+                    RegattaDivisionORM.id == division_id,
+                )
+            ).first()
+
+    def create_division(self, regatta_id: uuid.UUID, data: dict) -> RegattaDivisionORM:
+        # No IntegrityError handling here (none exists elsewhere in this
+        # file either): the ``(regatta_id, name)`` unique violation is left
+        # to propagate out of ``s.commit()`` as-is, for the router to catch
+        # and turn into a 409.
+        with self.Session() as s:
+            orm = RegattaDivisionORM(
+                regatta_id=regatta_id,
+                **{k: data.get(k) for k in _DIVISION_FIELDS if k in data},
+            )
+            s.add(orm)
+            s.commit()
+            new_id = orm.id
+        return self.get_division(regatta_id, new_id)
+
+    def update_division(self, division_id: uuid.UUID,
+                        changes: dict) -> Optional[RegattaDivisionORM]:
+        with self.Session() as s:
+            orm = s.get(RegattaDivisionORM, division_id)
+            if orm is None:
+                return None
+            for k, v in changes.items():
+                if k in _DIVISION_FIELDS:
+                    setattr(orm, k, v)
+            s.commit()
+            regatta_id = orm.regatta_id
+        return self.get_division(regatta_id, division_id)
+
+    def delete_division(self, division_id: uuid.UUID) -> bool:
+        with self.Session() as s:
+            orm = s.get(RegattaDivisionORM, division_id)
+            if orm is None:
+                return False
+            s.delete(orm)
+            s.commit()
+            return True
+
+    def set_entry_division(self, regatta_id: uuid.UUID, entry_id: uuid.UUID,
+                           division_id: Optional[uuid.UUID]) -> Optional[RegattaEntryORM]:
+        """Assign (or clear, with ``None``) which division an entry scores
+        in. Keys on ``entry_id`` — never on ``boat_id``, which is NULL for
+        manual entries (see ``get_entry``'s guard)."""
+        with self.Session() as s:
+            orm = s.scalars(
+                select(RegattaEntryORM).where(
+                    RegattaEntryORM.regatta_id == regatta_id,
+                    RegattaEntryORM.id == entry_id,
+                )
+            ).first()
+            if orm is None:
+                return None
+            orm.division_id = division_id
+            s.commit()
+        return self.get_entry_by_id(regatta_id, entry_id)
+
     # --- share code -------------------------------------------------------
 
     def get_by_join_code(self, code: str) -> Optional[RegattaORM]:
@@ -217,12 +294,15 @@ class SqlRegattaRepo:
     def add_entry(self, regatta_id: uuid.UUID, boat_id: Optional[uuid.UUID], *,
                   boat_name: Optional[str] = None,
                   sail_number: Optional[str] = None,
-                  source: str, created_by: Optional[uuid.UUID]) -> RegattaEntryORM:
+                  source: str, created_by: Optional[uuid.UUID],
+                  division_id: Optional[uuid.UUID] = None) -> RegattaEntryORM:
         """Idempotent: re-entering an already-listed boat (by ``boat_id``, or
         by normalized name+sail number for a manual entry with no boat yet)
         returns the existing row rather than tripping the unique constraint —
         a sailor opening the share link twice, or an organizer re-submitting
-        the same paper entry, is not an error."""
+        the same paper entry, is not an error. ``division_id`` is applied
+        only when a new entry is created; it is not retroactively applied to
+        an existing one (use ``set_entry_division`` for that)."""
         if boat_id is not None:
             existing = self.get_entry(regatta_id, boat_id)
             if existing is not None:
@@ -231,6 +311,7 @@ class SqlRegattaRepo:
                 orm = RegattaEntryORM(
                     regatta_id=regatta_id, boat_id=boat_id,
                     source=source, created_by=created_by,
+                    division_id=division_id,
                 )
                 s.add(orm)
                 s.commit()
@@ -246,6 +327,7 @@ class SqlRegattaRepo:
                 boat_name=boat_name.strip(), sail_number=sail_number,
                 boat_name_normalized=normalized,
                 source=source, created_by=created_by,
+                division_id=division_id,
             )
             s.add(orm)
             s.commit()
@@ -317,8 +399,8 @@ class SqlRegattaRepo:
         """Replace the official standings for a regatta with a new list.
 
         Each item in standings should have: boat_id, position, score (optional),
-        status (optional). This clears any existing official standings and
-        creates new rows.
+        status (optional), division_id (optional). This clears any existing
+        official standings and creates new rows.
         """
         with self.Session() as s:
             # Delete existing official standings
@@ -334,6 +416,7 @@ class SqlRegattaRepo:
                     position=item["position"],
                     score=item.get("score"),
                     status=item.get("status"),
+                    division_id=item.get("division_id"),
                     created_by=user_id,
                 )
                 s.add(orm)

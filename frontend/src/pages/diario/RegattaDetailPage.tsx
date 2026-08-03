@@ -18,6 +18,7 @@ import { ImageUploader } from "@/components/common/ImageUploader";
 import { BackLink } from "@/components/ui/BackLink";
 import { StatTile, StatTiles } from "@/components/session/StatTile";
 import { RegattaRaceDays } from "@/components/gruppi/RegattaRaceDays";
+import { RegattaDivisions } from "@/components/race/RegattaDivisions";
 import { RegattaEntries } from "@/components/race/RegattaEntries";
 import { RegattaHero } from "@/components/race/RegattaHero";
 import { RegattaStandings } from "@/components/race/RegattaStandings";
@@ -61,9 +62,9 @@ export function RegattaDetailPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
   const [officialEditing, setOfficialEditing] = useState(false);
-  const [officialRows, setOfficialRows] = useState<Record<UUID, { position: string; score: string }>>(
-    {},
-  );
+  const [officialRows, setOfficialRows] = useState<
+    Record<UUID, { position: string; score: string; division_id?: UUID | null }>
+  >({});
 
   useEffect(() => {
     if (regatta.data) {
@@ -98,9 +99,13 @@ export function RegattaDetailPage() {
     queryClient.invalidateQueries({ queryKey: raceKeys.standings(regattaId!) });
 
   const openOfficialEditor = () => {
-    const initial: Record<UUID, { position: string; score: string }> = {};
+    const initial: Record<UUID, { position: string; score: string; division_id?: UUID | null }> = {};
     (standings.data?.standings ?? []).forEach((row) => {
-      initial[row.boat.id] = { position: String(row.rank), score: row.total ? String(row.total) : "" };
+      initial[row.boat.id] = {
+        position: String(row.rank),
+        score: row.total ? String(row.total) : "",
+        division_id: row.division_id,
+      };
     });
     setOfficialRows(initial);
     setOfficialEditing(true);
@@ -114,6 +119,7 @@ export function RegattaDetailPage() {
           boat_id: boatId as UUID,
           position: Number(v.position),
           ...(v.score.trim() ? { score: Number(v.score) } : {}),
+          ...(v.division_id !== undefined ? { division_id: v.division_id } : {}),
         }));
       return regattasService.setOfficialStandings(regattaId!, payload);
     },
@@ -214,6 +220,8 @@ export function RegattaDetailPage() {
         <RegattaRaceDays regattaId={regattaId} manage={manage} />
       </Card>
 
+      <RegattaDivisions regattaId={regattaId} canManage={manage} />
+
       <Card title={t("regate.entries")}>
         <RegattaEntries regattaId={regattaId} manage={manage} />
       </Card>
@@ -261,40 +269,58 @@ export function RegattaDetailPage() {
             }}
           >
             <p className="sf-muted">{t("regate.officialStandingsIntro")}</p>
-            {(standings.data?.standings ?? []).map((row) => (
-              <div key={row.boat.id} className="sf-form__row">
-                <span>
-                  {row.boat.name}
-                  {row.boat.sail_number ? ` — ${row.boat.sail_number}` : ""}
-                </span>
-                <InputField
-                  id={`official-pos-${row.boat.id}`}
-                  label={t("race.position")}
-                  type="number"
-                  min={1}
-                  value={officialRows[row.boat.id]?.position ?? ""}
-                  onChange={(e) =>
-                    setOfficialRows((r) => ({
-                      ...r,
-                      [row.boat.id]: { score: r[row.boat.id]?.score ?? "", position: e.target.value },
-                    }))
-                  }
-                />
-                <InputField
-                  id={`official-score-${row.boat.id}`}
-                  label={t("regate.total")}
-                  type="number"
-                  value={officialRows[row.boat.id]?.score ?? ""}
-                  onChange={(e) =>
-                    setOfficialRows((r) => ({
-                      ...r,
-                      [row.boat.id]: {
-                        position: r[row.boat.id]?.position ?? "",
-                        score: e.target.value,
-                      },
-                    }))
-                  }
-                />
+            {/* Group rows by division so a published ranking stays grouped — with
+                no divisions, this is a single unlabeled group, same as before. */}
+            {(standings.data?.divisions.length
+              ? standings.data.divisions.map((d) => ({
+                  label: d.division?.name ?? t("regate.noDivision"),
+                  rows: d.standings,
+                }))
+              : [{ label: null, rows: standings.data?.standings ?? [] }]
+            ).map((group, i) => (
+              <div key={group.label ?? i}>
+                {group.label && <h4>{group.label}</h4>}
+                {group.rows.map((row) => (
+                  <div key={row.boat.id} className="sf-form__row">
+                    <span>
+                      {row.boat.name}
+                      {row.boat.sail_number ? ` — ${row.boat.sail_number}` : ""}
+                    </span>
+                    <InputField
+                      id={`official-pos-${row.boat.id}`}
+                      label={t("race.position")}
+                      type="number"
+                      min={1}
+                      value={officialRows[row.boat.id]?.position ?? ""}
+                      onChange={(e) =>
+                        setOfficialRows((r) => ({
+                          ...r,
+                          [row.boat.id]: {
+                            score: r[row.boat.id]?.score ?? "",
+                            division_id: r[row.boat.id]?.division_id ?? row.division_id,
+                            position: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                    <InputField
+                      id={`official-score-${row.boat.id}`}
+                      label={t("regate.total")}
+                      type="number"
+                      value={officialRows[row.boat.id]?.score ?? ""}
+                      onChange={(e) =>
+                        setOfficialRows((r) => ({
+                          ...r,
+                          [row.boat.id]: {
+                            position: r[row.boat.id]?.position ?? "",
+                            division_id: r[row.boat.id]?.division_id ?? row.division_id,
+                            score: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
               </div>
             ))}
             <div className="sf-form__actions">

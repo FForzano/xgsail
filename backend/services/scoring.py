@@ -63,6 +63,73 @@ def total_entered_count(boat_ids, entries) -> int:
     return len(boat_ids) + manual
 
 
+def _division_sort_key(division):
+    """Order divisions by ``sort_order`` then ``name``; a null sort_order
+    sorts after every explicit one instead of blowing up the comparison."""
+    order = _field(division, "sort_order")
+    return (order is None, order or 0, _field(division, "name") or "")
+
+
+def division_slices(divisions, entries, races, results_by_race) -> list[dict]:
+    """Split a regatta into one independently scorable bundle per division.
+
+    Each returned slice is exactly the argument bundle ``compute_standings``
+    takes, plus the ``division_id`` it belongs to::
+
+        {"division_id", "races", "results_by_race", "boat_ids", "entry_count"}
+
+    The start list is the single source of truth for membership: a boat is in
+    the division its ``regatta_entries`` row names. A race with a null
+    ``division_id`` counts for every division; a race reserved to one division
+    appears only in that slice — so a result filed for a boat of another
+    division is dropped from every slice rather than scoring in the wrong one.
+
+    ``entry_count`` is computed per slice, which is what makes the RRS A9
+    penalty reflect the size of the division's fleet rather than the whole
+    regatta's.
+    """
+    division_of = {
+        _field(e, "boat_id"): _field(e, "division_id")
+        for e in entries if _field(e, "boat_id") is not None
+    }
+
+    keys = [_field(d, "id") for d in sorted(divisions, key=_division_sort_key)]
+
+    slices: list[dict] = []
+    for key in keys + [None]:
+        slice_entries = [e for e in entries if _field(e, "division_id") == key]
+        slice_races = [r for r in races
+                       if _field(r, "division_id") in (None, key)]
+        slice_results = {}
+        for race in slice_races:
+            race_id = _field(race, "id")
+            slice_results[race_id] = [
+                res for res in (results_by_race.get(race_id) or [])
+                if division_of.get(_field(res, "boat_id")) == key
+            ]
+        # Same ordering the whole-regatta standings use: boats seen in results
+        # first (race order), then start-list entries that haven't raced.
+        boat_ids = list(dict.fromkeys(
+            [_field(res, "boat_id") for race in slice_races
+             for res in slice_results[_field(race, "id")]]
+            + [_field(e, "boat_id") for e in slice_entries
+               if _field(e, "boat_id") is not None]
+        ))
+        # The catch-all slice is only worth showing when something is actually
+        # unassigned — except in a regatta with no divisions at all, where it
+        # *is* the standings and must exist even when empty.
+        if key is None and divisions and not boat_ids and not slice_entries:
+            continue
+        slices.append({
+            "division_id": key,
+            "races": slice_races,
+            "results_by_race": slice_results,
+            "boat_ids": boat_ids,
+            "entry_count": total_entered_count(boat_ids, slice_entries),
+        })
+    return slices
+
+
 def compute_standings(races, results_by_race, entry_count,
                       scoring_system="low_point", *, boat_ids=None) -> list[dict]:
     """Rank boats over ``races`` (already in official chronological order).

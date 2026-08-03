@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
 import { Network } from "@capacitor/network";
+import { App as CapacitorApp } from "@capacitor/app";
 import { Disc, Gauge, Pause, Play, Square } from "lucide-react";
-import { boatsService, boatKeys } from "@/services/boats";
+import { boatsService, boatKeys, cachedMyBoats, lastBoatId, rememberLastBoatId } from "@/services/boats";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { sessionsService } from "@/services/sessions";
 import { useImportUpload } from "@/hooks/useImportUpload";
@@ -216,7 +217,13 @@ function RecordingRow({
   const [error, setError] = useState<string | null>(null);
   const upload = useImportUpload();
 
-  const boats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
+  const boats = useQuery({
+    queryKey: boatKeys.mine,
+    queryFn: () => boatsService.list(true),
+    initialData: () => cachedMyBoats() ?? undefined,
+    // The cache is a fallback, not fresh data: refetch immediately when online.
+    initialDataUpdatedAt: 0,
+  });
   const boatName = boats.data?.find((b) => b.id === recording.boatId)?.name ?? recording.boatId;
 
   const doUpload = async () => {
@@ -378,7 +385,7 @@ function E1RecordingControl({
 
 export function RegistraPage() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, identityStale } = useAuth();
   // Recording needs a background-geolocation foreground service, which only
   // exists in the native builds (see services/nativeRecording.ts). The web
   // build still gets this page for the exploration map, with the recording
@@ -396,7 +403,25 @@ export function RegistraPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const upload = useImportUpload();
 
-  const boats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
+  // initialData falls back to the last successfully cached "my boats" list
+  // (written by boatsService.list on every online fetch) so the boat picker
+  // still has options after an app restart in airplane mode — a plain fetch
+  // failure otherwise clears TanStack's in-memory cache back to nothing.
+  const boats = useQuery({
+    queryKey: boatKeys.mine,
+    queryFn: () => boatsService.list(true),
+    initialData: () => cachedMyBoats() ?? undefined,
+    // The cache is a fallback, not fresh data: refetch immediately when online.
+    initialDataUpdatedAt: 0,
+  });
+
+  // Preselect the last boat used to record, once the (possibly cached)
+  // boat list is available and nothing has been chosen yet.
+  useEffect(() => {
+    if (boatId || !boats.data?.length) return;
+    const last = lastBoatId();
+    if (last && boats.data.some((b) => b.id === last)) setBoatId(last);
+  }, [boats.data, boatId]);
 
   // XGSail E1 devices claimed by this user, available as a recording
   // source alongside the phone's own GPS — native only (BLE), same
@@ -476,6 +501,18 @@ export function RegistraPage() {
     };
   }, [retryPending, navMode]);
 
+  // Reopening the app (e.g. after airplane mode was turned off while it sat
+  // in the background) is another moment connectivity may have come back
+  // that the network-status event can miss — nudge the same retry, no new
+  // upload logic here.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || navMode) return;
+    const sub = CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+      if (isActive) retryPending();
+    });
+    return () => void sub.then((h) => h.remove());
+  }, [retryPending, navMode]);
+
   // Live-updating elapsed-time display while a recording is running.
   useEffect(() => {
     if (!activeId) return;
@@ -505,6 +542,7 @@ export function RegistraPage() {
     setError(null);
     try {
       const id = await nativeRecording.start(boatId as UUID, activityId ? (activityId as UUID) : null);
+      rememberLastBoatId(boatId as UUID);
       setActiveId(id);
       setSheetOpen(false);
       refresh();
@@ -640,6 +678,9 @@ export function RegistraPage() {
           onChange={setActivityId}
           disabled={!native}
         />
+        {native && (!online || identityStale) && (
+          <p className="sf-badge sf-badge--warning">{t("registra.offlineWarning")}</p>
+        )}
         {selectedE1Device ? (
           <E1RecordingControl device={selectedE1Device} boatId={boatId} activityId={activityId} />
         ) : (

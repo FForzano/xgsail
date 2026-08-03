@@ -1,0 +1,102 @@
+.card {
+  margin-top: 1rem;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: var(--sf-bg-2);
+}
+
+.order {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.moveButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.1rem;
+  border: none;
+  border-radius: var(--sf-radius);
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+}
+.moveButton:hover:not(:disabled) {
+  background: var(--sf-surface-2);
+  color: var(--sf-text);
+}
+.moveButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0.15rem 0.3rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--sf-text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--sf-radius);
+}
+.name:hover {
+  background: var(--sf-surface-2);
+}
+
+.count {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.deleteButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+}
+.deleteButton:hover {
+  background: var(--sf-surface-2);
+  color: var(--sf-danger);
+}
+
+.editForm {
+  flex: 1;
+  align-items: flex-end;
+}
+
+.addForm {
+  align-items: flex-end;
+}

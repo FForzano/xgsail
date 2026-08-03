@@ -17,8 +17,8 @@ from .device import DeviceTypeORM, DeviceORM
 from .integration import IntegrationConnectionORM
 from .note_template import NoteTemplateORM
 from .race import (
-    OfficialStandingsORM, RegattaORM, RegattaEntryORM, RaceDayORM, RaceORM,
-    ResultORM,
+    OfficialStandingsORM, RegattaORM, RegattaDivisionORM, RegattaEntryORM,
+    RaceDayORM, RaceORM, ResultORM,
 )
 from .activity import ActivityORM, MarkORM
 from .session import (
@@ -61,6 +61,7 @@ __all__ = [
     "IntegrationConnectionORM",
     "NoteTemplateORM",
     "RegattaORM",
+    "RegattaDivisionORM",
     "RegattaEntryORM",
     "OfficialStandingsORM",
     "RaceDayORM",

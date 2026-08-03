@@ -678,6 +678,20 @@ export interface RegattaEntry {
   created_by: UUID | null;
   created_at: string;
   boat: { id: UUID; name: string; sail_number: string | null; boat_class_id: UUID | null } | null;
+  /** Scoring division (category, e.g. "Catamarani"/"Derive"); null = unassigned. */
+  division_id: UUID | null;
+}
+
+/** A per-regatta scoring division/category — each ranks independently
+ * (see `RegattaStandings.divisions`). */
+export interface RegattaDivision {
+  id: UUID;
+  regatta_id: UUID;
+  name: string;
+  sort_order: number;
+  laps: number | null;
+  created_at: string;
+  entry_count?: number;
 }
 
 export interface RaceDay {
@@ -699,6 +713,8 @@ export interface Race {
   start_time: string | null;
   activity_id?: UUID | null;
   results?: RaceResult[];
+  /** Scoring division this race belongs to; null = not division-scoped. */
+  division_id: UUID | null;
 }
 
 export interface RaceResult {
@@ -721,6 +737,35 @@ export interface StandingRow {
   total: number;
   boat: { id: UUID; name: string; sail_number: string | null };
   races: Record<UUID, { position: number | null; score: number | null; status: string }>;
+  /** Present when the regatta scores by division; the division this row ranks within. */
+  division_id?: UUID | null;
+}
+
+/** A paper (manual) start-list entry: on the fleet list but with no boat
+ * record, so it can never be ranked or scored. Keyed by entry id — it has no
+ * boat id, and inventing a null one would put a phantom row in `standings`. */
+export interface UnrankedStandingRow {
+  entry_id: UUID;
+  display_name: string | null;
+  display_sail_number: string | null;
+}
+
+/** One division's own standings block within `RegattaStandings.divisions` —
+ * same shape as the top-level series, scoped to one division (or the
+ * `division: null` "no division" group). */
+export interface DivisionStandings {
+  division: { id: UUID; name: string; sort_order: number; laps: number | null } | null;
+  entry_count: number;
+  races: Array<{
+    id: UUID;
+    race_number: number;
+    division_race_number: number;
+    date: string | null;
+    status: string;
+    division_id: UUID | null;
+  }>;
+  standings: StandingRow[];
+  unranked: UnrankedStandingRow[];
 }
 
 /** `GET /regattas/{id}/standings` — series standings computed server-side
@@ -728,10 +773,20 @@ export interface StandingRow {
  * the column order: every row's `races` map is keyed by these ids. */
 export interface RegattaStandings {
   scoring_system: string;
-  races: Array<{ id: UUID; race_number: number; date: string | null; status: string }>;
+  races: Array<{
+    id: UUID;
+    race_number: number;
+    date: string | null;
+    status: string;
+    division_id: UUID | null;
+  }>;
   standings: StandingRow[];
+  /** Paper entries, shown after the ranked rows and never mixed into them. */
+  unranked: UnrankedStandingRow[];
   /** True when the organizer has published a manual override (`PUT .../official-standings`). */
   is_official: boolean;
+  /** Per-division breakdown; empty when the regatta has no divisions. */
+  divisions: DivisionStandings[];
 }
 
 export type ActivitySessionData = Record<

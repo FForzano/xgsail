@@ -21,6 +21,12 @@ manual fields. Uniqueness is therefore two partial indexes rather than one
 plain constraint: ``(regatta_id, boat_id)`` where ``boat_id`` is set, and
 ``(regatta_id, boat_name_normalized)`` where it isn't — plus a CHECK that at
 least one of ``boat_id``/``boat_name`` is present.
+
+``regatta_divisions`` are the regatta's own scoring categories ("Catamarani",
+"Derive", ...), each ranked separately. An entry's ``division_id`` is the
+single source of truth for which ranking a boat is in — ``results`` therefore
+carries no division of its own, and ``races.division_id`` only marks the rarer
+case of a race reserved to one division (NULL = counts for all of them).
 """
 
 import uuid
@@ -78,6 +84,33 @@ class RegattaORM(UUIDPKMixin, Base):
     join_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
+class RegattaDivisionORM(UUIDPKMixin, CreatedAtMixin, Base):
+    """A scoring division ("categoria") within one regatta — e.g. "Catamarani",
+    "Catamarani veloci", "Derive" — each ranked separately.
+
+    Deliberately a free-form, regatta-owned label rather than a reference to the
+    global ``boat_classes`` catalog: divisions are how *this* organizer chose to
+    split *this* fleet, and the same boat class can land in different divisions
+    at different events.
+    """
+    __tablename__ = "regatta_divisions"
+    __table_args__ = (
+        UniqueConstraint("regatta_id", "name"),
+        CheckConstraint("laps IS NULL OR laps > 0", name="laps_positive"),
+    )
+
+    regatta_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("regattas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0"), default=0
+    )
+    # Display-only: divisions routinely sail a different number of laps of the
+    # same course (catamarans 3, dinghies 2). Nothing scores off this.
+    laps: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+
 class RegattaEntryORM(UUIDPKMixin, CreatedAtMixin, Base):
     __tablename__ = "regatta_entries"
     __table_args__ = (
@@ -122,6 +155,12 @@ class RegattaEntryORM(UUIDPKMixin, CreatedAtMixin, Base):
     # "name|sail_number" used by the partial unique index above and by
     # add_entry's idempotency check. Never read directly by callers.
     boat_name_normalized: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # The authoritative "which ranking is this boat in". NULL = the regatta has
+    # no divisions (or this boat isn't assigned to one yet). SET NULL so
+    # deleting a division never takes a start list with it.
+    division_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("regatta_divisions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     source: Mapped[str] = mapped_column(String, nullable=False, default="organizer")
     # Who put the boat on the list — the organizer, or the sailor themselves.
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
@@ -155,6 +194,11 @@ class RaceORM(UUIDPKMixin, Base):
     race_number: Mapped[int] = mapped_column(Integer, nullable=False)  # race 1, 2, 3 of the day
     status: Mapped[str] = mapped_column(String, nullable=False, default="scheduled")
     start_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # NULL = the race counts for every division (the normal case: separate
+    # starts, one race). Non-null = the race is reserved to that division.
+    division_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("regatta_divisions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
 
 class ResultORM(UUIDPKMixin, Base):
@@ -197,6 +241,11 @@ class OfficialStandingsORM(UUIDPKMixin, CreatedAtMixin, Base):
     )
     boat_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("boats.id", ondelete="RESTRICT"), nullable=False
+    )
+    # Which division ranking this row belongs to; the (regatta_id, boat_id)
+    # uniqueness above is unaffected — a boat has one entry, hence one division.
+    division_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("regatta_divisions.id", ondelete="SET NULL"), nullable=True, index=True
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

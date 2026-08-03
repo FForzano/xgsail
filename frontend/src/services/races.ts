@@ -7,6 +7,7 @@ import type {
   RaceDay,
   RaceResult,
   Regatta,
+  RegattaDivision,
   RegattaEntry,
   RegattaStandings,
   Session,
@@ -18,6 +19,7 @@ export interface OfficialStandingInput {
   position: number;
   score?: number;
   status?: string;
+  division_id?: UUID | null;
 }
 
 export const raceKeys = {
@@ -25,6 +27,7 @@ export const raceKeys = {
   upcoming: ["regattas", "upcoming"] as const,
   regatta: (id: UUID) => ["regattas", id] as const,
   entries: (id: UUID) => ["regattas", id, "entries"] as const,
+  divisions: (id: UUID) => ["regattas", id, "divisions"] as const,
   joinCode: (id: UUID) => ["regattas", id, "join-code"] as const,
   standings: (id: UUID) => ["regattas", id, "standings"] as const,
   raceday: (id: UUID) => ["racedays", id] as const,
@@ -55,14 +58,18 @@ export const regattasService = {
   // this regatta's races, so it is not organizer-only: `join` is the
   // self-service path for boats the organizer hasn't entered by hand.
   entries: (id: UUID) => api.get<RegattaEntry[]>(`/regattas/${id}/entries`),
-  addEntry: (id: UUID, boatId: UUID) =>
-    api.post<RegattaEntry>(`/regattas/${id}/entries`, { boat_id: boatId }),
+  addEntry: (id: UUID, boatId: UUID, divisionId?: UUID | null) =>
+    api.post<RegattaEntry>(`/regattas/${id}/entries`, {
+      boat_id: boatId,
+      ...(divisionId !== undefined ? { division_id: divisionId } : {}),
+    }),
   // Manual entry for a boat with no record on the instance yet (e.g. a visitor
   // the organizer wants on the start list before they've registered a boat).
-  addManualEntry: (id: UUID, boatName: string, sailNumber: string | null) =>
+  addManualEntry: (id: UUID, boatName: string, sailNumber: string | null, divisionId?: UUID | null) =>
     api.post<RegattaEntry>(`/regattas/${id}/entries`, {
       boat_name: boatName,
       sail_number: sailNumber,
+      ...(divisionId !== undefined ? { division_id: divisionId } : {}),
     }),
   removeEntry: (id: UUID, entryId: UUID) => api.del(`/regattas/${id}/entries/${entryId}`),
   // Links a manual entry to a real boat record once one exists.
@@ -70,6 +77,23 @@ export const regattasService = {
     api.patch<RegattaEntry>(`/regattas/${id}/entries/${entryId}`, { boat_id: boatId }),
   join: (id: UUID, body: { code: string; boat_id: UUID }) =>
     api.post<RegattaEntry>(`/regattas/${id}/join`, body),
+
+  // Scoring divisions (categories, e.g. "Catamarani"/"Derive"): each ranks
+  // independently within a regatta's standings.
+  divisions: (id: UUID) => api.get<RegattaDivision[]>(`/regattas/${id}/divisions`),
+  createDivision: (id: UUID, body: { name: string; sort_order?: number; laps?: number | null }) =>
+    api.post<RegattaDivision>(`/regattas/${id}/divisions`, body),
+  updateDivision: (
+    id: UUID,
+    divisionId: UUID,
+    body: { name?: string; sort_order?: number; laps?: number | null },
+  ) => api.patch<RegattaDivision>(`/regattas/${id}/divisions/${divisionId}`, body),
+  removeDivision: (id: UUID, divisionId: UUID) =>
+    api.del(`/regattas/${id}/divisions/${divisionId}`),
+  setEntryDivision: (id: UUID, entryId: UUID, divisionId: UUID | null) =>
+    api.put<RegattaEntry>(`/regattas/${id}/entries/${entryId}/division`, {
+      division_id: divisionId,
+    }),
 
   // Series standings, computed server-side. Public like the rest of a
   // regatta's read surface — no manage permission needed.

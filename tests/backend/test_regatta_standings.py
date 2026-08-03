@@ -167,6 +167,54 @@ def test_total_entered_count_with_only_manual_entries():
     assert total_entered_count([], [_manual_entry(), _manual_entry()]) == 2
 
 
+def _ranked_boat_ids(results_by_race, entries):
+    """The ranked-row key set the standings endpoint builds: boats with a
+    result, plus entered boats — manual (paper) entries dropped, since a null
+    boat id would become a phantom ranked row."""
+    return list(dict.fromkeys(
+        [r["boat_id"] for results in results_by_race.values() for r in results]
+        + [e["boat_id"] for e in entries if e["boat_id"] is not None]
+    ))
+
+
+def test_start_list_without_results_lists_every_entered_boat():
+    """Regression: a regatta with a full start list and no results at all must
+    still produce a row per entered boat — the standings table is the fleet,
+    not only its scored part."""
+    entries = [_linked_entry("a"), _linked_entry("b"), _linked_entry("c")]
+    boat_ids = _ranked_boat_ids({}, entries)
+    standings = compute_standings(_races(2), {}, total_entered_count(boat_ids, entries),
+                                  "low_point", boat_ids=boat_ids)
+    assert [row["boat_id"] for row in standings] == ["a", "b", "c"]
+    assert all(row["races"] == {} and row["total"] == 0.0 for row in standings)
+
+
+def test_entered_but_unraced_boats_sort_after_scored_ones():
+    races = _races(1)
+    results = {"r1": [_res("a", 1)]}
+    entries = [_linked_entry("a"), _linked_entry("b"), _linked_entry("c")]
+    boat_ids = _ranked_boat_ids(results, entries)
+    standings = compute_standings(races, results, total_entered_count(boat_ids, entries),
+                                  "low_point", boat_ids=boat_ids)
+    assert standings[0]["boat_id"] == "a"
+    assert {row["boat_id"] for row in standings[1:]} == {"b", "c"}
+
+
+def test_manual_entries_never_become_ranked_rows():
+    """Paper entries belong in the payload's separate ``unranked`` list, never
+    in the ranked rows: a null boat id there is a phantom row and would also
+    let ``get_entry(regatta_id, None)`` match an arbitrary manual entry."""
+    entries = [_linked_entry("a"), _manual_entry(), _manual_entry()]
+    boat_ids = _ranked_boat_ids({}, entries)
+    assert boat_ids == ["a"]
+    standings = compute_standings(_races(1), {}, total_entered_count(boat_ids, entries),
+                                  "low_point", boat_ids=boat_ids)
+    assert [row["boat_id"] for row in standings] == ["a"]
+    assert all(row["boat_id"] is not None for row in standings)
+    # …while the fleet size behind the RRS A9 penalty still counts all three.
+    assert total_entered_count(boat_ids, entries) == 3
+
+
 def test_dnf_penalty_reflects_manual_entries_end_to_end():
     """The fix wired end-to-end: entry_count from total_entered_count feeds
     compute_standings, so a DNF's score is (real fleet size) + 1, not just
@@ -179,3 +227,22 @@ def test_dnf_penalty_reflects_manual_entries_end_to_end():
     entry_count = total_entered_count(boat_ids, entries)
     standings = _by_boat(compute_standings(races, results, entry_count, "low_point"))
     assert standings["a"]["total"] == 6.0  # 5 entered + 1, not 2 (linked) + 1
+
+
+def test_compute_standings_stays_division_agnostic():
+    """Divisions are applied by slicing the inputs (``division_slices``), never
+    by teaching the scorer about them: this signature must not grow a
+    ``division`` parameter, or every caller's fleet size becomes ambiguous."""
+    import inspect
+
+    params = inspect.signature(compute_standings).parameters
+    assert list(params) == ["races", "results_by_race", "entry_count",
+                            "scoring_system", "boat_ids"]
+    assert params["scoring_system"].default == "low_point"
+    assert params["boat_ids"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert params["boat_ids"].default is None
+    # A division_id riding along on the rows is simply ignored.
+    races = [{"id": "r1", "race_number": 1, "division_id": "cat"}]
+    results = {"r1": [_res("a", 1), _res("b", 2)]}
+    assert [row["boat_id"] for row in
+            compute_standings(races, results, 2, "low_point")] == ["a", "b"]

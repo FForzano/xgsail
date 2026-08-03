@@ -1,4 +1,5 @@
 import { api } from "@/api/client";
+import { readCache, writeCache } from "@/services/offlineCache";
 import type {
   Boat,
   BoatClass,
@@ -28,8 +29,21 @@ export const boatKeys = {
   ) => ["boat-classes", page, search, hullType, sort, order] as const,
 };
 
+const BOATS_MINE_KEY = "boats_mine";
+const LAST_BOAT_ID_KEY = "last_boat_id";
+
+/** Last-known "my boats" list, for the recording page in airplane mode. */
+export const cachedMyBoats = (): Boat[] | null => readCache<Boat[]>(BOATS_MINE_KEY);
+
+export const rememberLastBoatId = (id: UUID): void => writeCache(LAST_BOAT_ID_KEY, id);
+export const lastBoatId = (): UUID | null => readCache<UUID>(LAST_BOAT_ID_KEY);
+
 export const boatsService = {
-  list: (mine = false) => api.get<Boat[]>(`/boats${mine ? "?mine=true" : ""}`),
+  list: (mine = false) =>
+    api.get<Boat[]>(`/boats${mine ? "?mine=true" : ""}`).then((boats) => {
+      if (mine) writeCache(BOATS_MINE_KEY, boats);
+      return boats;
+    }),
   /** Server-side search for pickers — never pull every boat on the instance. */
   search: (q: string, limit = 20) =>
     api.get<Boat[]>(`/boats?q=${encodeURIComponent(q)}&limit=${limit}`),

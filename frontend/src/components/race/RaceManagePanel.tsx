@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { racesService, raceKeys } from "@/services/races";
+import { racesService, raceKeys, regattasService, racedaysService } from "@/services/races";
 import { activityKeys } from "@/services/activities";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useToast } from "@/hooks/useToast";
@@ -44,10 +44,22 @@ export function RaceManagePanel({
   const [startTime, setStartTime] = useState(
     race.start_time ? race.start_time.slice(0, 16) : "",
   );
+  const [division_id, setDivision_id] = useState<UUID | null>(race.division_id);
   const [preview, setPreview] = useState<"start" | "marks" | null>(null);
   const [open, setOpen] = useState(false);
 
   const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
+
+  const raceday = useQuery({
+    queryKey: raceKeys.raceday(race.race_day_id),
+    queryFn: () => racedaysService.get(race.race_day_id),
+  });
+
+  const divisions = useQuery({
+    queryKey: raceKeys.divisions(raceday.data?.regatta_id ?? ""),
+    queryFn: () => regattasService.divisions(raceday.data?.regatta_id ?? ""),
+    enabled: !!raceday.data?.regatta_id,
+  });
 
   const onError = (err: unknown) =>
     notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error");
@@ -64,6 +76,7 @@ export function RaceManagePanel({
     mutationFn: () =>
       racesService.update(race.id, {
         start_time: new Date(startTime).toISOString(),
+        division_id: division_id,
       }),
     onSuccess: async () => {
       notify(t("common.saved"), "success");
@@ -169,6 +182,23 @@ export function RaceManagePanel({
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
                 />
+                {divisions.data && divisions.data.length > 0 && (
+                  <Select
+                    label={t("regate.raceDivision")}
+                    id="race-division"
+                    value={division_id || ""}
+                    onChange={(e) =>
+                      setDivision_id(e.target.value ? (e.target.value as UUID) : null)
+                    }
+                  >
+                    <option value="">{t("regate.allDivisions")}</option>
+                    {divisions.data.map((div) => (
+                      <option key={div.id} value={div.id}>
+                        {div.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
                 <div className="sf-field">
                   <Button type="submit" disabled={saveStart.isPending || !startTime}>
                     {t("common.save")}

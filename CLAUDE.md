@@ -174,7 +174,12 @@ Two authorization models:
    `join_code`. An entry's `boat_id` is **nullable**: an organizer can
    also enter a boat that has no XGSail record at all (a paper entry),
    captured as `boat_name`/`sail_number` instead, and link it to a real
-   boat later (`PATCH /regattas/{id}/entries/{entry_id}`).
+   boat later (`PATCH /regattas/{id}/entries/{entry_id}`). The same
+   entry also carries the boat's scoring **division** (`division_id`,
+   e.g. "Catamarani" vs. "Derive") — a per-regatta label
+   (`regatta_divisions`), not a reference to the global `boat_classes`
+   catalog; see the Gotchas bullet below before touching scoring or
+   standings for a divided regatta.
 
 **Workers** (`workers/`) — heavy processing (GPS/CSV/GPX analysis,
 video transcoding, maneuver-detector training). Invoked by the backend
@@ -406,6 +411,18 @@ tokens come back in the `/auth/login`/`/auth/refresh` response body and
 are persisted via `@aparajita/capacitor-secure-storage` — never
 `@capacitor/preferences` (unencrypted) or `localStorage`.
 
+**Offline-tolerant cold start (native only)**: if fetching capabilities
+fails with a network error (not a 401/403) and a native refresh token
+exists, `AuthContext` restores the last-known `Capabilities` snapshot
+from `localStorage` (`services/offlineCache.ts`, key `sf_caps_cache`)
+instead of bouncing to `/login`, and flags this via `identityStale`
+until the app is back online and re-verifies. Only the capabilities
+object goes into `localStorage` this way — never a token, which stays
+in secure storage/memory as above. `RegistraPage.tsx` similarly caches
+the "my boats" list and last-used boat id (`services/boats.ts`) so the
+recording flow's boat picker still works with no connectivity, and
+retries deferred uploads both on network recovery and on app foreground.
+
 **OTA updates** for the native shell's JS bundle are served by
 `ota-service/` (see "Data Flow" and `docs/ota-updates.md`), not through
 app-store review — only the bundle updates this way, not native
@@ -457,15 +474,49 @@ Capacitor plugin changes, which still require a store release.
   boat would be authorized against an arbitrary manual entry. The same
   reason `GET /standings` filters `None` out of its `boat_ids` union — a
   null would become a phantom ranked row (no boat to display). That filter
-  is only about the *ranked rows*, though: the RRS A9 penalty's fleet size
-  (`scoring.total_entered_count`) deliberately counts manual entries back
-  in, or a club whose start list is mostly paper entries would score every
-  DNF/DNS against a fleet far smaller than the one that actually started.
+  is only about the *ranked rows*, though — manual entries are still visible
+  and still counted, by two separate routes:
+  - `GET /standings` returns them in a sibling `unranked` list, keyed by
+    `entry_id` (never `boat_id`) and carrying only `display_name`/
+    `display_sail_number`, which the frontend renders as muted, medal-less
+    rows after the ranked ones. Never move them into `standings`.
+  - the RRS A9 penalty's fleet size (`scoring.total_entered_count`)
+    deliberately counts manual entries back in, or a club whose start list is
+    mostly paper entries would score every DNF/DNS against a fleet far
+    smaller than the one that actually started.
+  Ranked rows whose boat no longer resolves (`_boat_summary` → `None`) are
+  dropped from the payload, so `standings[].boat` is never null — several
+  frontend consumers read `row.boat.id` directly.
 - **Official standings win over computed ones.** If any
   `official_standings` row exists for a regatta, `GET /standings` serves
   those instead of running the scoring algorithm, and flags the response
   with `is_official`. Deleting the rows reverts to computed. Don't add
   scoring logic assuming the computed path always runs.
+- **A boat's scoring division comes from its `regatta_entries` row, never
+  from `results` or from the boat's own class.** `results` deliberately has
+  no `division_id` — it derives from the entry so there is one source of
+  truth (`backend/db/models/race.py`, `RegattaEntryORM.division_id`).
+  `regattas.class_id` is unrelated display metadata; don't wire it into
+  scoring as if it grouped boats.
+- **A race's `division_id IS NULL` means it counts for every division, not
+  "no division."** That's the normal case — one start, all divisions racing
+  together — versus the rarer race reserved to a single division. Treating
+  NULL as "unassigned" in `scoring.division_slices` or `GET /standings`
+  would silently drop that race from every division's ranking.
+- **`GET /standings`'s top-level `races`/`standings`/`unranked` keep
+  meaning "every race, one regatta-wide ranking," even for a regatta with
+  divisions.** `divisions` is an additive array alongside them, empty when
+  a regatta has none. Don't "simplify" by moving everything under
+  `divisions` — older native OTA bundles read the top-level lists and
+  don't know the key exists.
+- **A restored offline capabilities snapshot is a UI hint, not an
+  authorization decision.** `AuthContext`'s `identityStale`/cached `caps`
+  (see "Native apps") only steer what the native app *shows* while
+  offline; every mutation is still checked server-side via
+  `current_user()` once the request actually reaches the backend. Don't
+  add a client-only check that trusts stale `caps` to gate something the
+  server doesn't also enforce, and never extend `offlineCache.ts` to hold
+  anything token-shaped — only `localStorage`-safe, non-secret data.
 - **A deployed database can only be repaired by a new revision.** Deploys
   are unattended (Watchtower pulls `*-latest` on the VM) and the backend
   runs `alembic upgrade head` at startup, so an environment already

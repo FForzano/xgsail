@@ -17,12 +17,14 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 
 from ..auth import current_user, require_permission, require_user, verify_csrf
 from ..auth.throttle import code_matches, new_code, throttle
 from ..schemas import (
-    OfficialStandingsUploadModel, RegattaEntryLinkModel, RegattaEntryWriteModel,
-    RegattaJoinModel, RegattaWriteModel,
+    OfficialStandingsUploadModel, RegattaDivisionPatchModel,
+    RegattaDivisionWriteModel, RegattaEntryDivisionModel, RegattaEntryLinkModel,
+    RegattaEntryWriteModel, RegattaJoinModel, RegattaWriteModel,
 )
 from ..services import media, scoring
 from ._common import repos
@@ -63,24 +65,59 @@ def _boat_summary(boat_id) -> Optional[dict]:
     }
 
 
+def _entry_display(entry, boat: Optional[dict] = None) -> dict:
+    """Name/sail number to show for a start-list entry: the linked boat's when
+    it has one, the paper entry's own fields otherwise. Shared by the start
+    list and the standings so both label a boat the same way."""
+    if entry.boat_id is None:
+        return {"display_name": entry.boat_name,
+                "display_sail_number": entry.sail_number}
+    return {"display_name": boat["name"] if boat else None,
+            "display_sail_number": boat["sail_number"] if boat else None}
+
+
 def _entry_payload(entry) -> dict:
     # An entry can vanish between the write and the read-back (e.g. its boat is
     # deleted concurrently, cascading the entry away), leaving nothing to serialize.
     if entry is None:
         raise HTTPException(404, "Entry not found")
     d = entry.to_dict()
-    # Resolve boat info: if linked, read from boat record; if manual, use stored fields
-    if entry.boat_id is not None:
-        d["boat"] = _boat_summary(entry.boat_id)
-        d["display_name"] = d["boat"]["name"] if d["boat"] else None
-        d["display_sail_number"] = d["boat"]["sail_number"] if d["boat"] else None
-    else:
-        d["boat"] = None
-        d["display_name"] = entry.boat_name
-        d["display_sail_number"] = entry.sail_number
+    d["boat"] = _boat_summary(entry.boat_id) if entry.boat_id is not None else None
+    d.update(_entry_display(entry, d["boat"]))
     # Exclude internal normalized field from API
     d.pop("boat_name_normalized", None)
     return d
+
+
+def _division_summary(division) -> dict:
+    """The division as it is inlined in a standings group — enough to label
+    and order the ranking, without repeating the regatta it belongs to."""
+    return {"id": division.id, "name": division.name,
+            "sort_order": division.sort_order, "laps": division.laps}
+
+
+def _unranked_payload(entries) -> list[dict]:
+    """Paper entries of a fleet: no boat record, so never rankable."""
+    return [{"entry_id": e.id, **_entry_display(e)}
+            for e in entries if e.boat_id is None]
+
+
+def _standings_payload(rows, boat_lookup) -> list[dict]:
+    """Serialize scored rows (computed or official) into ranking rows.
+
+    A boat deleted after it raced leaves nothing to label its row with;
+    dropping the row keeps the rest of the table usable instead of serving a
+    boat-less row every client would have to special-case.
+    """
+    out = []
+    for row in rows:
+        boat = boat_lookup(row["boat_id"])
+        if boat is None:
+            continue
+        out.append({"rank": row["rank"], "total": row.get("total"), "boat": boat,
+                    "races": {str(rid): v for rid, v in row.get("races", {}).items()},
+                    "division_id": row.get("division_id")})
+    return out
 
 
 def _regatta_races(regatta_id: uuid.UUID):
@@ -143,6 +180,17 @@ def get_standings(regatta_id: uuid.UUID):
     computed ones. Otherwise, standings are calculated from results:
     boats ranked = those with at least one result, plus the start list,
     so an entered boat that hasn't raced yet still shows up.
+
+    Paper (manual) start-list entries have no boat record and therefore cannot
+    be ranked at all; they come back in a separate ``unranked`` list, keyed by
+    entry id, so the fleet is complete on screen without a boat-less row ever
+    entering ``standings``.
+
+    ``divisions`` carries one independently scored ranking per division
+    ("categoria"), of the same shape. It is empty for a regatta without
+    divisions, where the top-level lists are the whole answer — and the
+    top-level lists keep meaning "every race, one regatta-wide ranking" in
+    either case, so clients that predate divisions keep working.
     """
     regatta = _require_regatta(regatta_id)
     days, races_by_day = _regatta_races(regatta_id)
@@ -152,6 +200,40 @@ def get_standings(regatta_id: uuid.UUID):
     results_by_race: dict = {race.id: [] for race in races}
     for result in repos.races.list_results_for_races([race.id for race in races]):
         results_by_race[result.race_id].append(result)
+
+    all_entries = repos.regattas.list_entries(regatta_id)
+    divisions = repos.regattas.list_divisions(regatta_id)
+    known_divisions = {d.id for d in divisions}
+
+    def _division_of(row) -> Optional[uuid.UUID]:
+        """A division deleted between two of the reads above leaves rows
+        pointing at it until the SET NULL settles; reading such an id as
+        "unassigned" keeps the boat in the catch-all ranking instead of
+        dropping it out of every one of them."""
+        division_id = getattr(row, "division_id", None)
+        return division_id if division_id in known_divisions else None
+
+    # Plain rows for the scoring layer (and for the wire): the same shape feeds
+    # ``division_slices``, the top-level ``races`` list and each group's.
+    race_rows = [{"id": race.id, "race_number": race.race_number,
+                  "date": date_by_day[race.race_day_id], "status": race.status,
+                  "division_id": _division_of(race)}
+                 for race in races]
+    entry_rows = [{"id": e.id, "boat_id": e.boat_id, "division_id": _division_of(e)}
+                  for e in all_entries]
+
+    entries_by_division: dict = {}
+    for entry in all_entries:
+        entries_by_division.setdefault(_division_of(entry), []).append(entry)
+    division_of_boat = {e.boat_id: _division_of(e)
+                        for e in all_entries if e.boat_id is not None}
+
+    boat_cache: dict = {}
+
+    def _boat(boat_id):
+        if boat_id not in boat_cache:
+            boat_cache[boat_id] = _boat_summary(boat_id)
+        return boat_cache[boat_id]
 
     # Check for official standings first; use them if present
     official_standings = repos.regattas.list_official_standings(regatta_id)
@@ -163,11 +245,11 @@ def get_standings(regatta_id: uuid.UUID):
                 "position": os.position,
                 "score": os.score,
                 "status": os.status,
+                "division_id": _division_of(os),
             }
             for i, os in enumerate(official_standings)
         ]
     else:
-        all_entries = repos.regattas.list_entries(regatta_id)
         # Ranked/scored rows need a boat_id (results and standings positions
         # key on it), so manual entries with none are excluded here — but
         # entry_count (see total_entered_count) still counts them, for RRS A9.
@@ -176,23 +258,75 @@ def get_standings(regatta_id: uuid.UUID):
             + [e.boat_id for e in all_entries if e.boat_id is not None]
         ))
         computed = scoring.compute_standings(
-            races, results_by_race,
+            race_rows, results_by_race,
             scoring.total_entered_count(boat_ids, all_entries),
             regatta.scoring_system, boat_ids=boat_ids,
         )
-        standings_rows = computed
+        standings_rows = [{**row, "division_id": division_of_boat.get(row["boat_id"])}
+                          for row in computed]
 
     return {
         "scoring_system": regatta.scoring_system,
         "is_official": bool(official_standings),
-        "races": [{"id": race.id, "race_number": race.race_number,
-                   "date": date_by_day[race.race_day_id], "status": race.status}
-                  for race in races],
-        "standings": [{"rank": row["rank"], "total": row.get("total"),
-                       "boat": _boat_summary(row["boat_id"]),
-                       "races": {str(rid): v for rid, v in row.get("races", {}).items()}}
-                      for row in standings_rows],
+        "races": race_rows,
+        "standings": _standings_payload(standings_rows, _boat),
+        "unranked": _unranked_payload(all_entries),
+        "divisions": _division_standings(
+            regatta, divisions, entry_rows, race_rows, results_by_race,
+            entries_by_division, official_standings, known_divisions, _boat,
+        ),
     }
+
+
+def _division_standings(regatta, divisions, entry_rows, race_rows, results_by_race,
+                        entries_by_division, official_standings, known_divisions,
+                        boat_lookup) -> list[dict]:
+    """One ranking per division, each scored as if it were its own regatta.
+
+    The partition itself is ``scoring.division_slices`` — this only turns each
+    slice into a payload. Empty for a regatta with no divisions, where the
+    top-level lists already are the (single) ranking.
+    """
+    if not divisions:
+        return []
+
+    bundles = {s["division_id"]: s for s in scoring.division_slices(
+        divisions, entry_rows, race_rows, results_by_race)}
+
+    official_by_division: dict = {}
+    for row in official_standings:
+        key = row.division_id if row.division_id in known_divisions else None
+        official_by_division.setdefault(key, []).append(row)
+    # ``division_slices`` drops the catch-all slice when every entry is
+    # assigned; unassigned official rows still need a group to live in, and
+    # "no division" means every race counts for it.
+    if None in official_by_division and None not in bundles:
+        bundles[None] = {"races": race_rows, "entry_count": 0}
+
+    groups = []
+    for division in list(divisions) + [None]:
+        key = division.id if division is not None else None
+        bundle = bundles.get(key)
+        if bundle is None:
+            continue
+        if official_standings:
+            ordered = sorted(official_by_division.get(key, []),
+                             key=lambda row: row.position)
+            rows = [{"rank": i + 1, "boat_id": row.boat_id, "division_id": key}
+                    for i, row in enumerate(ordered)]
+        else:
+            rows = [{**row, "division_id": key} for row in scoring.compute_standings(
+                bundle["races"], bundle["results_by_race"], bundle["entry_count"],
+                regatta.scoring_system, boat_ids=bundle["boat_ids"])]
+        groups.append({
+            "division": _division_summary(division) if division is not None else None,
+            "entry_count": bundle["entry_count"],
+            "races": [{**race, "division_race_number": i + 1}
+                      for i, race in enumerate(bundle["races"])],
+            "standings": _standings_payload(rows, boat_lookup),
+            "unranked": _unranked_payload(entries_by_division.get(key, [])),
+        })
+    return groups
 
 
 @router.post("")
@@ -222,6 +356,85 @@ def delete_regatta(regatta_id: uuid.UUID, request: Request):
     regatta = _require_regatta(regatta_id)
     _require_manage(request, regatta)
     repos.regattas.delete(regatta_id)
+    return {"ok": True}
+
+
+# --- divisions ----------------------------------------------------------------
+
+def _require_division(regatta_id: uuid.UUID, division_id: uuid.UUID):
+    division = repos.regattas.get_division(regatta_id, division_id)
+    if division is None:
+        raise HTTPException(404, "Division not found")
+    return division
+
+
+def _check_entry_division(regatta_id: uuid.UUID,
+                          division_id: Optional[uuid.UUID]) -> None:
+    """A division only ever scores boats of its own regatta."""
+    if division_id is not None:
+        _require_division(regatta_id, division_id)
+
+
+def _entry_counts(regatta_id: uuid.UUID) -> dict:
+    counts: dict = {}
+    for entry in repos.regattas.list_entries(regatta_id):
+        counts[entry.division_id] = counts.get(entry.division_id, 0) + 1
+    return counts
+
+
+def _division_payload(division, entry_count: int) -> dict:
+    return {**division.to_dict(), "entry_count": entry_count}
+
+
+@router.get("/{regatta_id}/divisions")
+def list_divisions(regatta_id: uuid.UUID):
+    """Public, like the start list and the standings that build on it."""
+    _require_regatta(regatta_id)
+    counts = _entry_counts(regatta_id)
+    return [_division_payload(d, counts.get(d.id, 0))
+            for d in repos.regattas.list_divisions(regatta_id)]
+
+
+@router.post("/{regatta_id}/divisions")
+def create_division(regatta_id: uuid.UUID, body: RegattaDivisionWriteModel,
+                    request: Request):
+    verify_csrf(request)
+    regatta = _require_regatta(regatta_id)
+    _require_manage(request, regatta)
+    try:
+        division = repos.regattas.create_division(regatta_id, body.model_dump())
+    except IntegrityError:
+        raise HTTPException(409, "A division with this name already exists")
+    return _division_payload(division, 0)
+
+
+@router.patch("/{regatta_id}/divisions/{division_id}")
+def update_division(regatta_id: uuid.UUID, division_id: uuid.UUID,
+                    body: RegattaDivisionPatchModel, request: Request):
+    verify_csrf(request)
+    regatta = _require_regatta(regatta_id)
+    _require_manage(request, regatta)
+    _require_division(regatta_id, division_id)
+    try:
+        updated = repos.regattas.update_division(
+            division_id, body.model_dump(exclude_unset=True))
+    except IntegrityError:
+        raise HTTPException(409, "A division with this name already exists")
+    if updated is None:
+        raise HTTPException(404, "Division not found")
+    return _division_payload(updated, _entry_counts(regatta_id).get(division_id, 0))
+
+
+@router.delete("/{regatta_id}/divisions/{division_id}")
+def delete_division(regatta_id: uuid.UUID, division_id: uuid.UUID, request: Request):
+    """Entries, races and official rows pointing at it are left in place with
+    their ``division_id`` set to NULL (the FK's ON DELETE SET NULL), i.e. they
+    fall back into the regatta-wide ranking rather than disappearing."""
+    verify_csrf(request)
+    regatta = _require_regatta(regatta_id)
+    _require_manage(request, regatta)
+    _require_division(regatta_id, division_id)
+    repos.regattas.delete_division(division_id)
     return {"ok": True}
 
 
@@ -256,11 +469,12 @@ def add_entry(regatta_id: uuid.UUID, body: RegattaEntryWriteModel, request: Requ
     if body.boat_id is not None:
         if repos.boats.get(body.boat_id) is None:
             raise HTTPException(404, "Boat not found")
+    _check_entry_division(regatta_id, body.division_id)
 
     entry = repos.regattas.add_entry(
         regatta_id, body.boat_id,
         boat_name=body.boat_name, sail_number=body.sail_number,
-        source="organizer", created_by=user.id
+        source="organizer", created_by=user.id, division_id=body.division_id
     )
     return _entry_payload(entry)
 
@@ -319,6 +533,23 @@ def link_entry(regatta_id: uuid.UUID, entry_id: uuid.UUID,
     return _entry_payload(updated)
 
 
+@router.put("/{regatta_id}/entries/{entry_id}/division")
+def set_entry_division(regatta_id: uuid.UUID, entry_id: uuid.UUID,
+                       body: RegattaEntryDivisionModel, request: Request):
+    """Move a start-list entry into a division — or, with an explicit null,
+    back out of any. The organizer's call: divisions are how this event chose
+    to split its fleet, not a property of the boat."""
+    verify_csrf(request)
+    regatta = _require_regatta(regatta_id)
+    _require_manage(request, regatta)
+    _check_entry_division(regatta_id, body.division_id)
+
+    updated = repos.regattas.set_entry_division(regatta_id, entry_id, body.division_id)
+    if updated is None:
+        raise HTTPException(404, "Entry not found")
+    return _entry_payload(updated)
+
+
 # --- official standings -------------------------------------------------------
 
 @router.put("/{regatta_id}/official-standings")
@@ -337,6 +568,7 @@ def set_official_standings(regatta_id: uuid.UUID, body: OfficialStandingsUploadM
         # Verify each boat exists
         if repos.boats.get(row.boat_id) is None:
             raise HTTPException(404, f"Boat {row.boat_id} not found")
+        _check_entry_division(regatta_id, row.division_id)
         standings_data.append(row.model_dump())
 
     repos.regattas.set_official_standings(regatta_id, standings_data, user.id)
@@ -370,9 +602,14 @@ def join_regatta(regatta_id: uuid.UUID, body: RegattaJoinModel, request: Request
     # code for another regatta can't enter a boat here.
     if not code_matches(body.code, regatta.join_code):
         raise HTTPException(403, "Invalid or revoked code")
+    # Honoured only for a boat not already on the start list — ``add_entry`` is
+    # idempotent, and a sailor re-joining must not be able to move themselves
+    # out of the division the organizer put them in.
+    _check_entry_division(regatta_id, body.division_id)
     entry = repos.regattas.add_entry(regatta_id, body.boat_id,
                                      boat_name=None, sail_number=None,
-                                     source="code", created_by=user.id)
+                                     source="code", created_by=user.id,
+                                     division_id=body.division_id)
     return _entry_payload(entry)
 
 

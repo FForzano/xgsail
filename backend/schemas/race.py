@@ -11,6 +11,7 @@ class RaceWriteModel(BaseModel):
     race_number: Optional[int] = None  # required on create
     status: Optional[str] = None  # scheduled | started | finished | abandoned
     start_time: Optional[AwareDatetime] = None
+    division_id: Optional[uuid.UUID] = None
 
 
 class ResultWriteModel(BaseModel):

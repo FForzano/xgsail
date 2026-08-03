@@ -40,6 +40,15 @@ def _require_manage(request: Request, race_id: uuid.UUID, key: str = "race.manag
     require_permission(request, key, club_id=repos.races.club_id_for_race(race_id))
 
 
+def _validate_division(raceday, division_id: uuid.UUID) -> None:
+    """A race's division must belong to the regatta that owns its race day —
+    a "free" (non-regatta) race day has no divisions to assign."""
+    if raceday is None or raceday.regatta_id is None:
+        raise HTTPException(422, "division_id requires a race day linked to a regatta")
+    if repos.regattas.get_division(raceday.regatta_id, division_id) is None:
+        raise HTTPException(422, "division_id does not belong to this regatta")
+
+
 def _race_window(race) -> tuple:
     """When the race's activity spans. Falls back to the race day's date when
     no start time is set yet, so a scheduled race is still reachable in
@@ -139,6 +148,8 @@ def create_race(body: RaceWriteModel, request: Request):
         raise HTTPException(404, "Race day not found")
     require_permission(request, "race.manage",
                        club_id=repos.racedays.club_id_for_raceday(body.race_day_id))
+    if body.division_id is not None:
+        _validate_division(raceday, body.division_id)
     race = repos.races.create(body.model_dump(exclude_unset=True))
     _create_race_activity(race)
     return race.to_dict()
@@ -147,10 +158,13 @@ def create_race(body: RaceWriteModel, request: Request):
 @router.patch("/{race_id}")
 def update_race(race_id: uuid.UUID, body: RaceWriteModel, request: Request):
     verify_csrf(request)
-    _require_race(race_id)
+    existing = _require_race(race_id)
     _require_manage(request, race_id)
     changes = body.model_dump(exclude_unset=True)
     changes.pop("race_day_id", None)  # a race doesn't move between days
+    if changes.get("division_id") is not None:
+        raceday = repos.racedays.get(existing.race_day_id)
+        _validate_division(raceday, changes["division_id"])
     race = repos.races.update(race_id, changes)
     # Keep the activity's window on the race it tracks: a postponed start that
     # only moved the race would leave the activity advertising the old time.
