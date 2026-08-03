@@ -142,7 +142,6 @@ export function SpeedChart({
           </Popover>
         )}
       </div>
-      <div className="sf-bleed">
       <ResponsiveContainer width="100%" height={H}>
         <AreaChart
           data={data}
@@ -218,7 +217,6 @@ export function SpeedChart({
           )}
         </AreaChart>
       </ResponsiveContainer>
-      </div>
     </div>
   );
 }

@@ -110,18 +110,15 @@
   gap: 0.35rem;
 }
 
-/* The trigger (`sf-btn--icon-sm`, same circular shape as every other ⋮ menu
-   in the app) sits over a poster we don't control here, so it needs its own
-   backdrop instead of relying on the ghost button's transparency — and a
-   bigger thumb target than the toolbar-sized default. */
+/* Same plain ghost `sf-btn--icon-sm` look as the session detail page's ⋮
+   trigger — no filled backdrop, just a bigger thumb target than the toolbar
+   default (it sits over a poster we don't control) and a drop-shadow on the
+   icon itself so it stays legible without needing a filled circle behind it. */
 .actions button {
   min-width: 2.5rem;
   min-height: 2.5rem;
-  background: color-mix(in srgb, var(--sf-bg) 78%, transparent);
   color: var(--sf-text);
-}
-.actions button:hover {
-  background: color-mix(in srgb, var(--sf-bg) 92%, transparent);
+  filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--sf-bg) 80%, transparent));
 }
 
 .description {

@@ -275,15 +275,30 @@ body.sf-nav-mode .sf-shell {
        flush against the very top edge once stuck. */
     padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
     background: var(--sf-bg);
+    /* Full viewport width once stuck, or its background (same color as the
+       page, but a solid box) reads as a narrower bar floating over whatever
+       wider full-bleed content (a map) scrolls underneath it — matching
+       padding keeps the tabs themselves at the same x position as before. */
+    margin-left: calc(-1 * var(--sf-page-pad));
+    margin-right: calc(-1 * var(--sf-page-pad));
+    padding-left: var(--sf-page-pad);
+    padding-right: var(--sf-page-pad);
   }
   /* Nested tab bar (e.g. club sub-pages inside the already-sticky
      Gruppi/Circoli tabs) — sticky `top: 0` doesn't stack between siblings,
      so a second sticky bar would overlap the outer one instead of sitting
-     below it. Opt out of sticky for the inner level. */
+     below it. Opt out of sticky for the inner level. Also opts out of the
+     bleed above: it's nested in a normal-inset container, not pinned over
+     the viewport, so bleeding it would run it past the surrounding page's
+     own edge instead of matching it. */
   .sf-tabs--static {
     position: static;
     margin-top: 0;
+    margin-left: 0;
+    margin-right: 0;
     padding-top: 0.5rem;
+    padding-left: 0;
+    padding-right: 0;
     z-index: auto;
   }
   .sf-actionbar {
