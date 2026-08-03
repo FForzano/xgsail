@@ -904,6 +904,7 @@
     "openSession": "Open your analysis",
     "results": "Results",
     "speed": "Speed (kn)",
+    "speedRange": "Speed",
     "course": "Course",
     "starboard": "starboard",
     "port": "port",

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MoreVertical } from "lucide-react";
 import { Popover } from "@/components/ui/Popover";
 import styles from "./Menu.module.css";
 
@@ -91,13 +92,13 @@ export function Menu({ sections }: { sections: MenuSection[] }) {
       panelClassName={styles.panel}
       trigger={({ open, toggle }) => (
         <button
-          className="sf-btn sf-btn--ghost sf-btn--sm"
+          className="sf-btn sf-btn--ghost sf-btn--icon-sm"
           aria-label="Options"
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={toggle}
         >
-          ⋮
+          <MoreVertical size={16} />
         </button>
       )}
     >

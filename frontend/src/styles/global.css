@@ -521,6 +521,15 @@ body.sf-nav-mode .sf-shell {
   gap: 1rem;
   margin-bottom: 0.75rem;
 }
+/* A page's own name/identity row (activity/session detail header), for when
+   `Card` chrome would just box the page's own title — reuses `.sf-toolbar`'s
+   row shape, with a bigger title than `.sf-card__title` since here it *is*
+   the page heading, not a card's label. */
+.sf-page-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
 /* Click-to-rename title text (ActivityDetailPage) — a dashed underline hints
    it's editable; the input that replaces it on click matches the title size. */
 .sf-card__title--editable {
@@ -538,6 +547,11 @@ body.sf-nav-mode .sf-shell {
   border-radius: 6px;
   padding: 0.1rem 0.4rem;
   color: var(--sf-text);
+}
+/* Same input, sized to match `.sf-page-title` instead of `.sf-card__title`. */
+.sf-page-title-input {
+  font-size: 1.3rem;
+  font-weight: 800;
 }
 /* A <select> styled to look like the badges around it (visibility editor). */
 .sf-badge--select {
@@ -582,7 +596,7 @@ body.sf-nav-mode .sf-shell {
    Only between adjacent blocks — the first one sits under the page header,
    which already separates it. */
 .sf-block + .sf-block {
-  padding-top: 1.25rem;
+  padding-top: 1.5rem;
   border-top: 1px solid var(--sf-border);
 }
 .sf-block__head {
@@ -590,16 +604,20 @@ body.sf-nav-mode .sf-shell {
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
+  /* Beyond the block's own gap, so the label reads as heading *for* the
+     content below rather than just another stacked line. */
+  margin-bottom: 0.15rem;
 }
-/* A quiet uppercase label, not a card title: it names the block without
-   competing with the content's own headings for weight. */
+/* A quiet label, not a card title — but still needs to read as a heading:
+   tinted with the app's accent color rather than plain muted gray, which
+   otherwise blent into every other small caption on the page. */
 .sf-block__title {
   margin: 0;
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 800;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--sf-muted);
+  color: var(--sf-primary);
 }
 .sf-block__actions {
   display: flex;
@@ -614,6 +632,14 @@ body.sf-nav-mode .sf-shell {
     margin-left: calc(-1 * var(--sf-page-pad));
     margin-right: calc(-1 * var(--sf-page-pad));
   }
+}
+
+/* Speed chart panel (components/race/SpeedChart.tsx): its head row (speed
+   range legend, VMG toggle) sits at the normal page inset even when the
+   chart itself is a sibling of a full-bleed map — undefined before, so the
+   legend text had no top space and read as glued to the map above it. */
+.sf-chartpanel {
+  margin-top: 0.5rem;
 }
 
 .sf-field {
@@ -1111,6 +1137,10 @@ body.sf-nav-mode .sf-shell {
   font: inherit;
   font-size: 0.9rem;
   cursor: pointer;
+  /* Same fix as .item in Menu.module.css — a transparent-background <button>
+     otherwise shows WebKit's own rounded pushbutton chrome underneath. */
+  appearance: none;
+  -webkit-appearance: none;
 }
 .sf-optionsmenu__item:hover:not(:disabled) {
   background: var(--sf-bg-2);

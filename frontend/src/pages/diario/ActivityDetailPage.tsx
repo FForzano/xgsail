@@ -15,7 +15,6 @@ import { BoatSessionCarousel, type BoatSessionCarouselItem } from "@/components/
 import { SessionDetail, type QuickAction } from "@/components/session/SessionDetail";
 import { Timeline } from "@/components/race/Timeline";
 import { SpeedChart } from "@/components/race/SpeedChart";
-import { Card } from "@/components/ui/Card";
 import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
@@ -275,63 +274,65 @@ export function ActivityDetailPage() {
   return (
     <div className="sf-section__body">
       <BackLink fallback="/diario/personale" label={t("activities.backToActivities")} />
-      <Card
-        title={
-          editingName ? (
-            <input
-              className="sf-card__title-input"
-              autoFocus
-              defaultValue={nameDraft}
-              onFocus={(e) => e.currentTarget.select()}
-              onBlur={(e) => {
-                const v = e.target.value.trim();
-                if (v === (a.name ?? "")) {
-                  setEditingName(false);
-                  return;
-                }
-                renameActivity.mutate(v);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-                if (e.key === "Escape") setEditingName(false);
-              }}
-            />
-          ) : (
-            <>
-              <span
-                className={canEdit ? "sf-card__title--editable" : undefined}
-                role={canEdit ? "button" : undefined}
-                tabIndex={canEdit ? 0 : undefined}
-                onClick={() => {
-                  if (!canEdit) return;
-                  setNameDraft(a.name ?? "");
-                  setEditingName(true);
+      {/* Plain header row, not a `Card` — it's the page's own name, and boxing
+          it just repeats the chrome of every `Section` below it. */}
+      <div className="sf-block">
+        <div className="sf-toolbar">
+          <h1 className="sf-page-title">
+            {editingName ? (
+              <input
+                className="sf-page-title-input"
+                autoFocus
+                defaultValue={nameDraft}
+                onFocus={(e) => e.currentTarget.select()}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v === (a.name ?? "")) {
+                    setEditingName(false);
+                    return;
+                  }
+                  renameActivity.mutate(v);
                 }}
-              >
-                {activityDisplayName(a, t)}
-              </span>{" "}
-              <span className="sf-badge">{t(`activities.types.${a.type}`)}</span>{" "}
-              {canChangeVisibility ? (
-                <select
-                  className="sf-badge sf-badge--select"
-                  value={a.visibility}
-                  disabled={updateVisibility.isPending}
-                  onChange={(e) => updateVisibility.mutate(e.target.value as Visibility)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+              />
+            ) : (
+              <>
+                <span
+                  className={canEdit ? "sf-card__title--editable" : undefined}
+                  role={canEdit ? "button" : undefined}
+                  tabIndex={canEdit ? 0 : undefined}
+                  onClick={() => {
+                    if (!canEdit) return;
+                    setNameDraft(a.name ?? "");
+                    setEditingName(true);
+                  }}
                 >
-                  {VISIBILITIES.map((v) => (
-                    <option key={v} value={v}>
-                      {t(`activities.visibility.${v}`)}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="sf-badge">{t(`activities.visibility.${a.visibility}`)}</span>
-              )}
-            </>
-          )
-        }
-        actions={
-          soloSession ? (
+                  {activityDisplayName(a, t)}
+                </span>{" "}
+                <span className="sf-badge">{t(`activities.types.${a.type}`)}</span>{" "}
+                {canChangeVisibility ? (
+                  <select
+                    className="sf-badge sf-badge--select"
+                    value={a.visibility}
+                    disabled={updateVisibility.isPending}
+                    onChange={(e) => updateVisibility.mutate(e.target.value as Visibility)}
+                  >
+                    {VISIBILITIES.map((v) => (
+                      <option key={v} value={v}>
+                        {t(`activities.visibility.${v}`)}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="sf-badge">{t(`activities.visibility.${a.visibility}`)}</span>
+                )}
+              </>
+            )}
+          </h1>
+          {soloSession ? (
             // Single merged menu for solo activities — combines this page's
             // own actions (Import, Delete) with the ones handed up by the
             // embedded SessionDetail (see soloMenuSections/onMenuSections),
@@ -374,9 +375,8 @@ export function ActivityDetailPage() {
                   : []),
               ]}
             />
-          )
-        }
-      >
+          )}
+        </div>
         <p className="sf-muted">
           {fmtDateTime(a.started_at)} — {fmtDateTime(a.ended_at)}
         </p>
@@ -420,7 +420,7 @@ export function ActivityDetailPage() {
             <Link to={`/diario/regate/race/${a.race_id}`}>{t("regate.open")}</Link>
           </p>
         )}
-      </Card>
+      </div>
 
       {soloSession ? (
         <div ref={mapCardRef}>

@@ -18,7 +18,6 @@ import { MapView, type MapMark } from "@/components/race/MapView";
 import { Timeline } from "@/components/race/Timeline";
 import { SpeedChart } from "@/components/race/SpeedChart";
 import { PlaybackIndicators } from "@/components/session/PlaybackIndicators";
-import { Card } from "@/components/ui/Card";
 import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
 import { Menu, type MenuSection } from "@/components/ui/Menu";
@@ -739,9 +738,11 @@ export function SessionDetail({
         }}
       />
       {variant === "page" && (
-        <Card
-          title={
-            <>
+        // Plain header row, not a `Card` — it's the page's own name, and
+        // boxing it just repeats the chrome of every `Section` below it.
+        <div className="sf-block">
+          <div className="sf-toolbar">
+            <h1 className="sf-page-title">
               {boat?.name ?? t("sessions.boat")} — {fmtDateTime(s.started_at)}{" "}
               {reanalysisPolling ? (
                 <span className="sf-badge sf-badge--pending">
@@ -750,10 +751,9 @@ export function SessionDetail({
               ) : (
                 <span className={sessionStatusBadge(s.status)}>{s.status}</span>
               )}
-            </>
-          }
-          actions={menuSections.length > 0 && <Menu sections={menuSections} />}
-        >
+            </h1>
+            {menuSections.length > 0 && <Menu sections={menuSections} />}
+          </div>
           {quickActions.length > 0 && (
             <div className={styles.quickActions}>
               {quickActions.map((a) => (
@@ -770,7 +770,7 @@ export function SessionDetail({
               ))}
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {streams.isLoading || gps === null ? (
@@ -840,17 +840,15 @@ export function SessionDetail({
             </div>
           )}
           <div className="sf-section__body">
-            <div className="sf-bleed">
-              <SpeedChart
-                tracks={tracks}
-                vmg={analysis.data?.vmg_series}
-                trimMode={trimMode}
-                trimStartMs={trimDraftStartMs}
-                trimEndMs={trimDraftEndMs}
-                onTrimStartChange={setTrimDraftStartMs}
-                onTrimEndChange={setTrimDraftEndMs}
-              />
-            </div>
+            <SpeedChart
+              tracks={tracks}
+              vmg={analysis.data?.vmg_series}
+              trimMode={trimMode}
+              trimStartMs={trimDraftStartMs}
+              trimEndMs={trimDraftEndMs}
+              onTrimStartChange={setTrimDraftStartMs}
+              onTrimEndChange={setTrimDraftEndMs}
+            />
             <PlaybackIndicators track={tracks[0]} vmg={analysis.data?.vmg_series} />
           </div>
         </div>

@@ -123,7 +123,7 @@ export function SpeedChart({
     <div className="sf-chartpanel">
       <div className={styles.head}>
         <span className="sf-muted" style={{ fontSize: "0.8rem" }}>
-          0–{fmtKnots(maxSog)}
+          {t("race.speedRange")} 0–{fmtKnots(maxSog)}
         </span>
         {!!vmg?.length && (
           <Popover
@@ -142,6 +142,7 @@ export function SpeedChart({
           </Popover>
         )}
       </div>
+      <div className="sf-bleed">
       <ResponsiveContainer width="100%" height={H}>
         <AreaChart
           data={data}
@@ -217,6 +218,7 @@ export function SpeedChart({
           )}
         </AreaChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

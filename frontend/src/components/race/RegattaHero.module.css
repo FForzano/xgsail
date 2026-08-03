@@ -110,17 +110,15 @@
   gap: 0.35rem;
 }
 
-/* The trigger sits over a poster we don't control, so it brings its own
-   backdrop instead of relying on the ghost button's transparency — and is
-   sized as a thumb target, not as a small toolbar button. */
+/* The trigger (`sf-btn--icon-sm`, same circular shape as every other ⋮ menu
+   in the app) sits over a poster we don't control here, so it needs its own
+   backdrop instead of relying on the ghost button's transparency — and a
+   bigger thumb target than the toolbar-sized default. */
 .actions button {
   min-width: 2.5rem;
   min-height: 2.5rem;
-  border-radius: 50%;
   background: color-mix(in srgb, var(--sf-bg) 78%, transparent);
   color: var(--sf-text);
-  font-size: 1.15rem;
-  line-height: 1;
 }
 .actions button:hover {
   background: color-mix(in srgb, var(--sf-bg) 92%, transparent);

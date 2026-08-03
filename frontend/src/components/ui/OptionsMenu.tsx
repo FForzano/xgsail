@@ -1,3 +1,4 @@
+import { MoreVertical } from "lucide-react";
 import { Popover } from "@/components/ui/Popover";
 
 export interface OptionsMenuItem {
@@ -24,13 +25,13 @@ export function OptionsMenu({
       trigger={({ open, toggle }) => (
         <button
           data-tour={triggerDataTour}
-          className="sf-btn sf-btn--ghost sf-btn--sm"
+          className="sf-btn sf-btn--ghost sf-btn--icon-sm"
           aria-label="Options"
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={toggle}
         >
-          ⋮
+          <MoreVertical size={16} />
         </button>
       )}
     >

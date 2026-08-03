@@ -37,6 +37,11 @@
   font: inherit;
   font-size: 0.9rem;
   cursor: pointer;
+  /* Without this, WebKit (native iOS shell) paints its own rounded pushbutton
+     chrome under the transparent background — the "elliptical halo" around
+     each row. */
+  appearance: none;
+  -webkit-appearance: none;
 }
 .item:hover:not(:disabled) {
   background: var(--sf-bg-2);
