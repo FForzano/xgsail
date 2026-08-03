@@ -243,7 +243,9 @@ def get_standings(regatta_id: uuid.UUID):
                 "rank": i + 1,
                 "boat_id": os.boat_id,
                 "position": os.position,
-                "score": os.score,
+                # _standings_payload reads "total" — the organizer's published
+                # score is exactly that, just sourced from a different table.
+                "total": os.score,
                 "status": os.status,
                 "division_id": _division_of(os),
             }
@@ -312,7 +314,8 @@ def _division_standings(regatta, divisions, entry_rows, race_rows, results_by_ra
         if official_standings:
             ordered = sorted(official_by_division.get(key, []),
                              key=lambda row: row.position)
-            rows = [{"rank": i + 1, "boat_id": row.boat_id, "division_id": key}
+            rows = [{"rank": i + 1, "boat_id": row.boat_id, "division_id": key,
+                    "total": row.score}
                     for i, row in enumerate(ordered)]
         else:
             rows = [{**row, "division_id": key} for row in scoring.compute_standings(

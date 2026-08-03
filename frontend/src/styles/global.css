@@ -368,9 +368,25 @@ body.sf-nav-mode .sf-shell {
   font-weight: 600;
   border-bottom: 2px solid transparent;
   white-space: nowrap;
+  /* .sf-tab is usually a NavLink, which browsers render unstyled by default.
+     Reset button chrome too, so an in-page tab switcher (no route of its
+     own, e.g. regatta division tabs) looks identical to a routed one. */
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  font: inherit;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
 }
 .sf-tab:hover {
   color: var(--sf-text);
+}
+.sf-tab:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: -2px;
 }
 .sf-tab.active {
   color: var(--sf-text);

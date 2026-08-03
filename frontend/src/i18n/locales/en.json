@@ -879,8 +879,10 @@
     "manageOfficialStandings": "Manage official standings",
     "clearOfficialStandings": "Revert to computed standings",
     "officialStandingsCleared": "Official standings cleared",
-    "officialStandingsIntro": "Manually set each boat's position and score: this overrides the computed standings until you revert it.",
-    "publishOfficialStandings": "Publish official standings"
+    "officialStandingsIntro": "Manually set each boat's position and total score: this overrides the computed standings until you revert it.",
+    "publishOfficialStandings": "Publish official standings",
+    "officialTotalScore": "Total score",
+    "officialTotalScoreHint": "Sum of points across every race for this boat — the value shown in the \"Total\" column."
   },
   "race": {
     "leaderboard": "Leaderboard",

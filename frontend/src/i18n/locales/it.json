@@ -879,8 +879,10 @@
     "manageOfficialStandings": "Gestisci classifica ufficiale",
     "clearOfficialStandings": "Ripristina classifica calcolata",
     "officialStandingsCleared": "Classifica ufficiale rimossa",
-    "officialStandingsIntro": "Imposta manualmente posizione e punteggio di ogni barca: sostituisce la classifica calcolata finché non la ripristini.",
-    "publishOfficialStandings": "Pubblica classifica ufficiale"
+    "officialStandingsIntro": "Imposta manualmente posizione e punteggio totale di ogni barca: sostituisce la classifica calcolata finché non la ripristini.",
+    "publishOfficialStandings": "Pubblica classifica ufficiale",
+    "officialTotalScore": "Punteggio totale",
+    "officialTotalScoreHint": "Somma dei punti di tutte le prove per questa barca — è il valore mostrato in colonna \"Tot\"."
   },
   "race": {
     "leaderboard": "Classifica live",

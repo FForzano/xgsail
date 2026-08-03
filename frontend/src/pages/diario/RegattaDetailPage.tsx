@@ -303,22 +303,25 @@ export function RegattaDetailPage() {
                         }))
                       }
                     />
-                    <InputField
-                      id={`official-score-${row.boat.id}`}
-                      label={t("regate.total")}
-                      type="number"
-                      value={officialRows[row.boat.id]?.score ?? ""}
-                      onChange={(e) =>
-                        setOfficialRows((r) => ({
-                          ...r,
-                          [row.boat.id]: {
-                            position: r[row.boat.id]?.position ?? "",
-                            division_id: r[row.boat.id]?.division_id ?? row.division_id,
-                            score: e.target.value,
-                          },
-                        }))
-                      }
-                    />
+                    <div>
+                      <InputField
+                        id={`official-score-${row.boat.id}`}
+                        label={t("regate.officialTotalScore")}
+                        type="number"
+                        value={officialRows[row.boat.id]?.score ?? ""}
+                        onChange={(e) =>
+                          setOfficialRows((r) => ({
+                            ...r,
+                            [row.boat.id]: {
+                              position: r[row.boat.id]?.position ?? "",
+                              division_id: r[row.boat.id]?.division_id ?? row.division_id,
+                              score: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <p className="sf-muted">{t("regate.officialTotalScoreHint")}</p>
+                    </div>
                   </div>
                 ))}
               </div>
