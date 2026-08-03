@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { polarsService, polarKeys } from "@/services/polars";
-import { Card } from "@/components/ui/Card";
+import { Section } from "@/components/ui/Section";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -68,29 +68,29 @@ export function SessionAnalysis({ sessionId, editMode = false }: { sessionId: UU
     },
   });
 
-  if (analysis.isLoading) return <Card title={t("sessions.analysis")}><Spinner /></Card>;
+  if (analysis.isLoading) return <Section title={t("sessions.analysis")}><Spinner /></Section>;
   if (!analysis.data) return null; // no analysis yet — hide the section entirely
   const a = analysis.data;
   const visibleManeuvers = editMode ? a.maneuvers : a.maneuvers.filter((m) => !m.rejected);
 
   return (
-    <Card title={t("sessions.analysis")}>
+    <Section title={t("sessions.analysis")}>
       <div className="sf-section__body">
         {a.maneuver_summary && <ManeuverSummary summary={a.maneuver_summary} />}
         {!!polar.data?.length && (
-          <Section title={t("sessions.polar")}>
+          <AnalysisBlock title={t("sessions.polar")}>
             <PolarChart points={polar.data} targetPoints={a.polar_target} />
             <OptimalAngles points={polar.data} targetPoints={a.polar_target} />
-          </Section>
+          </AnalysisBlock>
         )}
         {!!a.legs.length && (
-          <Section title={t("sessions.legs")}>
+          <AnalysisBlock title={t("sessions.legs")}>
             <LegsTable legs={a.legs} />
             <TackBreakdown legs={a.legs} />
-          </Section>
+          </AnalysisBlock>
         )}
         {!!visibleManeuvers.length && (
-          <Section title={t("sessions.maneuvers")}>
+          <AnalysisBlock title={t("sessions.maneuvers")}>
             <ManeuversTable
               maneuvers={visibleManeuvers}
               editMode={editMode}
@@ -98,12 +98,12 @@ export function SessionAnalysis({ sessionId, editMode = false }: { sessionId: UU
               onReject={(maneuverId, rejected) => rejectManeuver.mutate({ maneuverId, rejected })}
               onDelete={setDeletingManeuverId}
             />
-          </Section>
+          </AnalysisBlock>
         )}
         {a.violin && (
-          <Section title={t("sessions.maneuverCompare")}>
+          <AnalysisBlock title={t("sessions.maneuverCompare")}>
             <ViolinBars violin={a.violin} />
-          </Section>
+          </AnalysisBlock>
         )}
       </div>
       {deletingManeuverId && (
@@ -115,11 +115,11 @@ export function SessionAnalysis({ sessionId, editMode = false }: { sessionId: UU
           onClose={() => setDeletingManeuverId(null)}
         />
       )}
-    </Card>
+    </Section>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function AnalysisBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className={styles.analysisBlock}>
       <h4 className={styles.analysisTitle}>{title}</h4>

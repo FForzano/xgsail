@@ -1,30 +1,15 @@
-/* "Gestisci regata" collapsible section — same pattern as
-   RaceManagePanel.module.css: collapsed by default, organizer-only tools
-   grouped into labelled blocks instead of scattered across the page (hero
-   actions, standings card actions, a standalone divisions card). */
+/* The regatta page itself is a bare stack of `Section`s (global `sf-block`),
+   so the only thing left needing local styling is the poster field inside the
+   "Modifica regata" modal, where the current image is shown next to the
+   upload control. */
 
-.groups {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+.posterField {
+  align-items: flex-start;
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.groupTitle {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--sf-muted);
-}
-
-.row {
-  align-items: flex-end;
-  flex-wrap: wrap;
+.posterPreview {
+  width: 100%;
+  max-height: 9rem;
+  object-fit: cover;
+  border-radius: var(--sf-radius);
 }

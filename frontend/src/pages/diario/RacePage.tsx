@@ -17,7 +17,7 @@ import { RaceManagePanel } from "@/components/race/RaceManagePanel";
 import { RegattaHero } from "@/components/race/RegattaHero";
 import { WindCard } from "@/components/common/WindCard";
 import { StatTile, StatTiles } from "@/components/session/StatTile";
-import { Card } from "@/components/ui/Card";
+import { Section } from "@/components/ui/Section";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BackLink } from "@/components/ui/BackLink";
@@ -180,35 +180,37 @@ export function RacePage() {
       )}
 
       {tracks.length === 0 ? (
-        <Card title={t("race.replay")}>
+        <Section title={t("race.replay")}>
           <EmptyState>{t("race.noData")}</EmptyState>
-          {mapMarks.length > 0 && <MapView tracks={[]} marks={mapMarks} />}
-        </Card>
+          {mapMarks.length > 0 && (
+            <div className="sf-bleed">
+              <MapView tracks={[]} marks={mapMarks} />
+            </div>
+          )}
+        </Section>
       ) : (
         <div className={styles.race}>
-          <Card className="sf-card--flush sf-card--flush-top">
-            <div className="sf-section__body">
+          <div>
+            <div className="sf-bleed">
               <MapView
                 tracks={tracks}
                 marks={mapMarks}
                 nautical
                 controls={<Timeline overlay stepMs={medianIntervalMs(tracks[0]) * 5} />}
               />
-              <div className="sf-card__pad">
-                <SpeedChart tracks={tracks} />
-              </div>
             </div>
-          </Card>
+            <SpeedChart tracks={tracks} />
+          </div>
           <div className="sf-section__body">
-            <Card title={t("race.leaderboard")}>
+            <Section title={t("race.leaderboard")}>
               <Leaderboard tracks={tracks} />
-            </Card>
+            </Section>
           </div>
         </div>
       )}
 
       {mine && (
-        <Card title={t("race.yourRace")}>
+        <Section title={t("race.yourRace")}>
           <div className={styles.yourRace}>
             {mine.result?.position != null && (
               <span className={`${podium.medal} ${podiumRankClass(mine.result.position)}`}>
@@ -229,11 +231,11 @@ export function RacePage() {
               </Link>
             )}
           </div>
-        </Card>
+        </Section>
       )}
 
       {results.length > 0 && (
-        <Card title={t("race.results")}>
+        <Section title={t("race.results")}>
           {podiumRows.length > 0 && (
             <div className={styles.podium}>
               {podiumRows.map((r) => (
@@ -274,7 +276,7 @@ export function RacePage() {
               </tbody>
             </table>
           </div>
-        </Card>
+        </Section>
       )}
 
       {(canRace || canMarks || canResults) && (

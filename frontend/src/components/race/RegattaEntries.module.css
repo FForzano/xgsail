@@ -1,26 +1,15 @@
-/* Start list. A table was the wrong shape for it: the rows carry two short
-   fields and no sortable numbers, so they read better as a wrapping grid of
-   boat chips that fits a whole fleet on one screen instead of scrolling.
+/* Start list: the generic `sf-strip` rows from global.css (a boat carries two
+   short fields and no sortable numbers, so a table was the wrong shape), with
+   paper entries muted via `sf-strip__item--muted`. Only the bits `sf-strip`
+   doesn't cover live here — chiefly letting a row wrap, since the organizer's
+   per-entry controls (division select, link form) drop onto their own line.
 
    The share block below is the organizer's actual job here — getting a link
    into the fleet's chat — so the full URL is visible and selectable, with
    copying as the only filled button on the block. */
 
-.boatGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
-  gap: 0.5rem;
-}
-
 .boatChip {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--sf-border);
-  border-radius: var(--sf-radius);
-  background: var(--sf-bg-2);
 }
 
 .boatIdentity {

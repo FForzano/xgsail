@@ -16,6 +16,7 @@ import { SessionDetail, type QuickAction } from "@/components/session/SessionDet
 import { Timeline } from "@/components/race/Timeline";
 import { SpeedChart } from "@/components/race/SpeedChart";
 import { Card } from "@/components/ui/Card";
+import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
 import { Select } from "@/components/ui/Select";
@@ -440,47 +441,45 @@ export function ActivityDetailPage() {
       ) : (
         <>
           <div ref={mapCardRef}>
-          <Card className="sf-card--flush" title={t("activities.map")}>
+          <Section title={t("activities.map")}>
             {activityData.isLoading ? (
-              <div className="sf-card__pad">
-                <Spinner />
-              </div>
+              <Spinner />
             ) : activityData.isError ? (
-              <p className="sf-muted sf-card__pad">{t("errors.generic")}</p>
+              <p className="sf-muted">{t("errors.generic")}</p>
             ) : tracks.length === 0 ? (
-              <p className="sf-muted sf-card__pad">{t("activities.noGps")}</p>
+              <p className="sf-muted">{t("activities.noGps")}</p>
             ) : (
-              <div className="sf-section__body">
-                {pickingMarkOnMap && <p className="sf-muted sf-card__pad">{t("activities.pickOnMapHint")}</p>}
-                <MapView
-                  nautical
-                  tracks={tracks}
-                  marks={mapMarksWithPreview}
-                  wind={
-                    tracks[0]?.pts[0]
-                      ? { lat: tracks[0].pts[0].lat, lng: tracks[0].pts[0].lon, at: a.started_at }
-                      : undefined
-                  }
-                  controls={
-                    <Timeline overlay stepMs={medianIntervalMs(tracks[0]) * 5} />
-                  }
-                  onOpenSession={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
-                  showBoatInfo
-                  pickMode={pickingMarkOnMap}
-                  onMapClick={(lat, lng) => {
-                    setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
-                    setPickingMarkOnMap(false);
-                  }}
-                />
-                <div className="sf-section__body sf-card__pad">
-                  <SpeedChart tracks={tracks} />
+              <>
+                {pickingMarkOnMap && <p className="sf-muted">{t("activities.pickOnMapHint")}</p>}
+                <div className="sf-bleed">
+                  <MapView
+                    nautical
+                    tracks={tracks}
+                    marks={mapMarksWithPreview}
+                    wind={
+                      tracks[0]?.pts[0]
+                        ? { lat: tracks[0].pts[0].lat, lng: tracks[0].pts[0].lon, at: a.started_at }
+                        : undefined
+                    }
+                    controls={
+                      <Timeline overlay stepMs={medianIntervalMs(tracks[0]) * 5} />
+                    }
+                    onOpenSession={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
+                    showBoatInfo
+                    pickMode={pickingMarkOnMap}
+                    onMapClick={(lat, lng) => {
+                      setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
+                      setPickingMarkOnMap(false);
+                    }}
+                  />
                 </div>
-              </div>
+                <SpeedChart tracks={tracks} />
+              </>
             )}
-          </Card>
+          </Section>
           </div>
 
-          <Card title={t("activities.boats")}>
+          <Section title={t("activities.boats")}>
             {sessions.data?.length ? (
               <>
                 <p className="sf-muted">{t("activities.boatsHint")}</p>
@@ -552,11 +551,11 @@ export function ActivityDetailPage() {
             ) : (
               <p className="sf-muted">{t("common.none")}</p>
             )}
-          </Card>
+          </Section>
         </>
       )}
 
-      <Card title={t("activities.marks")}>
+      <Section title={t("activities.marks")}>
         {marks.data?.length ? (
           <div className="sf-strip">
             {marks.data.map((m) => (
@@ -731,7 +730,7 @@ export function ActivityDetailPage() {
             )}
           </form>
         )}
-      </Card>
+      </Section>
 
       {deleting && (
         <ConfirmDialog

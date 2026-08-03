@@ -876,14 +876,21 @@
     "confirmDeleteDivision": "Eliminare la categoria? Gli iscritti e le prove assegnate torneranno senza categoria.",
     "divisionDuplicate": "Esiste già una categoria con questo nome.",
     "officialStandings": "Classifica ufficiale",
-    "manageRegatta": "Gestisci regata",
     "manageOfficialStandings": "Gestisci classifica ufficiale",
     "clearOfficialStandings": "Ripristina classifica calcolata",
     "officialStandingsCleared": "Classifica ufficiale rimossa",
     "officialStandingsIntro": "Imposta manualmente posizione e punteggio totale di ogni barca: sostituisce la classifica calcolata finché non la ripristini.",
     "publishOfficialStandings": "Pubblica classifica ufficiale",
     "officialTotalScore": "Punteggio totale",
-    "officialTotalScoreHint": "Somma dei punti di tutte le prove per questa barca — è il valore mostrato in colonna \"Tot\"."
+    "officialTotalScoreHint": "Somma dei punti di tutte le prove per questa barca — è il valore mostrato in colonna \"Tot\".",
+    "organization": "Organizzazione",
+    "manageRaceDays": "Gestisci giornate e prove",
+    "manageDivisions": "Gestisci categorie",
+    "manageEntries": "Gestisci iscritti e link",
+    "raceDaysEmpty": "Nessuna giornata di prove in programma.",
+    "racesEmpty": "Nessuna prova in programma.",
+    "posterImage": "Locandina",
+    "uploadPoster": "Carica locandina"
   },
   "race": {
     "leaderboard": "Classifica live",
@@ -931,7 +938,12 @@
     "noData": "Nessuna traccia — associa sessioni o carica file GPX."
   },
   "wind": {
-    "title": "Vento"
+    "title": "Vento",
+    "stationHint": {
+      "text": "Conosci una stazione meteo locale — un anemometro del circolo, una stazione Cumulus, una boa vicina? Segnalacela e la aggiungeremo, migliorando i dati del vento per tutto il tuo circolo.",
+      "cta": "Segnala una stazione",
+      "subject": "Segnalazione stazione meteo locale"
+    }
   },
   "admin": {
     "title": "Amministrazione",

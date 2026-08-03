@@ -12,8 +12,10 @@
    the race dashboard: there the regatta is context, not the subject, so it
    gets one row instead of a poster. */
 
+/* The poster does its own clipping; the card must not, or it would also clip
+   the options menu's dropdown panel anchored to its top-right corner. */
 .hero {
-  overflow: hidden;
+  position: relative;
 }
 
 .poster {
@@ -22,6 +24,9 @@
   aspect-ratio: 21 / 9;
   background: var(--sf-bg-2);
   overflow: hidden;
+  /* Rounds the poster itself, since the card can no longer clip it. */
+  border-top-left-radius: var(--sf-radius);
+  border-top-right-radius: var(--sf-radius);
 }
 @media (max-width: 700px) {
   .poster {
@@ -103,6 +108,22 @@
   right: 0.75rem;
   display: flex;
   gap: 0.35rem;
+}
+
+/* The trigger sits over a poster we don't control, so it brings its own
+   backdrop instead of relying on the ghost button's transparency — and is
+   sized as a thumb target, not as a small toolbar button. */
+.actions button {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sf-bg) 78%, transparent);
+  color: var(--sf-text);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.actions button:hover {
+  background: color-mix(in srgb, var(--sf-bg) 92%, transparent);
 }
 
 .description {

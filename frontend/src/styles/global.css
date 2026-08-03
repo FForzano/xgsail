@@ -25,6 +25,8 @@
   --sf-leg-upwind: #9b6fe0;
   --sf-leg-reach: #0e93a8;
   --sf-leg-downwind: #a5760a;
+  /* Horizontal page inset (.sf-main); .sf-bleed cancels exactly this much. */
+  --sf-page-pad: 1.25rem;
   --sf-radius: 10px;
   --sf-navbar-h: 58px;
   --sf-actionbar-h: 60px;
@@ -102,7 +104,7 @@ body.sf-nav-mode .sf-shell {
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 1.25rem 1.25rem 3rem;
+  padding: var(--sf-page-pad) var(--sf-page-pad) 3rem;
   /* Deliberately NO touch-action: pan-y here. With pan-y, WebKit classifies
      the gesture axis from its very first pixels — a fast thumb-flick often
      starts on an arc (horizontal-dominant for an instant, more so lower on
@@ -247,7 +249,7 @@ body.sf-nav-mode .sf-shell {
      is the fallback that keeps content clear of a notch/punch-hole camera —
      a no-op on browsers/devices without a status bar inset. */
   .sf-main {
-    padding-top: calc(1.25rem + env(safe-area-inset-top, 0px));
+    padding-top: calc(var(--sf-page-pad) + env(safe-area-inset-top, 0px));
   }
   /* Sticky (not just top-of-page) notch/status-bar coverage: once scrolled,
      the section's own tab bar pins to the real viewport top and its padding
@@ -564,6 +566,54 @@ body.sf-nav-mode .sf-shell {
 }
 .sf-card__pad {
   padding: 0 1.25rem;
+}
+
+/* ---------- Flat page block (components/ui/Section.tsx) ---------- */
+/* The chrome-less counterpart of .sf-card: a heading and its content, no
+   border/surface/inset. Named `sf-block` because `.sf-section` above is the
+   macro-page layout. */
+.sf-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+/* With no border or surface, spacing alone has to say "new section": a hairline
+   plus extra air, on top of the 1rem the page body's flex gap already gives.
+   Only between adjacent blocks — the first one sits under the page header,
+   which already separates it. */
+.sf-block + .sf-block {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--sf-border);
+}
+.sf-block__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+/* A quiet uppercase label, not a card title: it names the block without
+   competing with the content's own headings for weight. */
+.sf-block__title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--sf-muted);
+}
+.sf-block__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* Opt-in full-bleed for a map/chart/media child: cancels .sf-main's inset so
+   it runs to the screen edge on a phone, where 2.5rem of side padding is a
+   real chunk of the width. Desktop keeps the inset. */
+@media (max-width: 700px) {
+  .sf-bleed {
+    margin-left: calc(-1 * var(--sf-page-pad));
+    margin-right: calc(-1 * var(--sf-page-pad));
+  }
 }
 
 .sf-field {

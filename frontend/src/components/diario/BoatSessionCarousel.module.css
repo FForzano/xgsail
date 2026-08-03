@@ -7,10 +7,11 @@
      edge. */
   scroll-padding-inline: 8%;
   padding: 0.25rem 8% 0.5rem;
-  /* Cancels out the parent .sf-card's own 1.25rem side padding so this 8%
-     scroll padding is the only inset — otherwise the two stack and leave
-     too little width per card on narrow phones. */
-  margin-inline: -1.25rem;
+  /* This lives inside a chrome-less Section (no side padding of its own), so
+     the only inset around it is the page's own (--sf-page-pad, same 1.25rem
+     value the old wrapping Card used to have) — cancel that so the 8% scroll
+     padding above is the only inset, same as before. */
+  margin-inline: calc(-1 * var(--sf-page-pad));
   -webkit-overflow-scrolling: touch;
 }
 .card {

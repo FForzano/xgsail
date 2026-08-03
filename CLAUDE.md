@@ -266,6 +266,26 @@ handful in one feature area → CSS Module. Spread across most
 pages/`pages/**` → global.css. Combine both with a template string:
 `` className={`sf-muted ${styles.hint}`} ``.
 
+#### `Section` vs. `Card`
+
+Two page-block primitives in `components/ui/`, and picking the wrong one
+is what made the detail pages nest a box inside a box:
+
+- **`Section`** (`sf-block*` in global.css — the name `sf-section` was
+  already taken by the macro-page layout) is the default for a
+  *page-level region*: heading + optional actions + content, no border,
+  surface, radius or inset. Stacked `Section`s read apart via a hairline
+  + spacing, not boxes.
+- **`Card`** (`sf-card*`) is reserved for an *innermost discrete
+  entity* — one boat, one mark, one entry — typically tappable. A region
+  that lists card-shaped items is a `Section` containing those items (or
+  flat `sf-strip` rows), never a `Card` of `Card`s.
+
+`.sf-bleed` (global, mobile-only) cancels `.sf-main`'s `--sf-page-pad`
+inset so a map/chart child of a `Section` runs edge-to-edge on a phone —
+the replacement for the old `sf-card--flush` / `sf-card--flush-top` map
+wrappers.
+
 ---
 
 ## Repository Structure

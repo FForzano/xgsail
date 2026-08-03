@@ -1,0 +1,21 @@
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: color-mix(in srgb, var(--sf-primary) 8%, var(--sf-surface-2));
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius, 0.5rem);
+}
+
+.icon {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--sf-primary);
+}
+
+.text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--sf-text);
+}

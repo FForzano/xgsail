@@ -1,7 +1,13 @@
+import { WindStationHintCard } from "@/components/common/WindStationHintCard";
 import { useGroupContext } from "./GroupDetailLayout";
 
 export function GroupOverview() {
-  const { group } = useGroupContext();
+  const { group, manages } = useGroupContext();
 
-  return <p className="sf-muted">{group.description}</p>;
+  return (
+    <>
+      {manages && <WindStationHintCard />}
+      <p className="sf-muted">{group.description}</p>
+    </>
+  );
 }

@@ -21,7 +21,12 @@ const NO_DIVISION = "__none__";
  * Being on this list is what allows a competitor to tag a recording with one
  * of the regatta's races (see backend `can_attach_session_to_activity`), so it
  * has to cover visiting boats too — hence the code, since the organizer can't
- * pre-enter every boat that will turn up. It is not the official race entry. */
+ * pre-enter every boat that will turn up. It is not the official race entry.
+ *
+ * `manage` adds the organizer's editing controls (add/remove/link an entry,
+ * assign a division, share the join link). The regatta page renders the plain
+ * list in its start-list section and the editable one inside the "Iscritti"
+ * modal reached from the page's options menu. */
 export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage: boolean }) {
   const { t } = useTranslation();
   const { notify } = useToast();
@@ -151,7 +156,10 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
         ];
 
   const renderChip = (e: RegattaEntry) => (
-    <div key={e.id} className={styles.boatChip}>
+    <div
+      key={e.id}
+      className={`sf-strip__item ${e.boat_id ? "" : "sf-strip__item--muted"} ${styles.boatChip}`}
+    >
       <span className={styles.boatIdentity}>
         <span className={styles.boatName}>{e.display_name}</span>
         {e.display_sail_number && (
@@ -230,7 +238,7 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
       {rows.length === 0 ? (
         <EmptyState>{t("regate.noEntries")}</EmptyState>
       ) : divs.length === 0 ? (
-        <div className={styles.boatGrid}>{rows.map(renderChip)}</div>
+        <div className="sf-strip">{rows.map(renderChip)}</div>
       ) : (
         groups.map(
           (g) =>
@@ -242,7 +250,7 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
                     {t("regate.divisionEntryCount", { count: g.rows.length })}
                   </span>
                 </h4>
-                <div className={styles.boatGrid}>{g.rows.map(renderChip)}</div>
+                <div className="sf-strip">{g.rows.map(renderChip)}</div>
               </div>
             ),
         )

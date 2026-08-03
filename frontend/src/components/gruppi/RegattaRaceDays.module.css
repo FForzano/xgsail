@@ -1,13 +1,13 @@
-/* Race days (RegattaRaceDays.tsx) — one card per day, its races as a grid of
-   small cards inside it, rather than the previous single-line strip where the
-   date, race buttons, delete icons and "add" button all fought for the same
-   row with no hierarchy. A race card carries three lines (number + status,
-   start time, outcome) because "which races have actually been sailed" is the
-   first thing anyone asks of a regatta's schedule, and an anonymous "Prova 2"
-   chip answered none of it. Deliberately its own module rather than reusing
-   the generic `sf-strip` primitive (global.css): the day/race structure here
-   is specific to this component, not the general list-of-items look
-   `sf-strip` serves in a dozen other places.
+/* Race days (RegattaRaceDays.tsx) — the schedule is a flat list of race rows
+   (the generic `sf-strip` primitive from global.css), grouped under a plain
+   date heading only when the regatta actually runs over several days. Nothing
+   here draws a box of its own: the caller already provides the page section,
+   and a card per day around a card per race cost most of a phone's width
+   while adding no information.
+
+   A race row carries number, outcome, start time and status because "which
+   races have actually been sailed" is the first thing anyone asks of a
+   regatta's schedule.
 
    Variants are switched from React, never with `:has()` — iOS 14 is this
    app's declared minimum (see capacitor.config.ts) and doesn't support it. */
@@ -15,26 +15,31 @@
 .days {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
-.dayCard {
-  background: var(--sf-surface);
-  border: 1px solid var(--sf-border);
-  border-radius: var(--sf-radius);
-  padding: 0.85rem 1rem;
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.dayCardHead {
+.dayHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.65rem;
+  gap: 0.5rem;
 }
 
-.dayCardDate {
+.dayDate {
   font-weight: 700;
-  font-size: 0.98rem;
+  font-size: 0.95rem;
+}
+
+.races {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .iconBtn {
@@ -54,50 +59,22 @@
   color: var(--sf-danger);
 }
 
-/* Auto-fill rather than a fixed column count: a day holds anywhere from one
-   race to half a dozen, and the cards should fill the row they're given. */
-.raceGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
-  gap: 0.5rem;
-}
-
-/* The remove control is a sibling of the Link, not nested inside it —
-   positioned over the card's corner so the whole card stays one click
-   target without putting a button inside a link. */
-.raceCard {
-  position: relative;
-  border: 1px solid var(--sf-border);
-  border-radius: var(--sf-radius);
-  background: var(--sf-bg-2);
-  transition: border-color 0.15s ease;
-}
-.raceCard:hover {
-  border-color: var(--sf-primary);
-}
-
+/* The link takes the row's free width so the whole row is one tap target on a
+   phone; the status/time/remove cluster stays at the end (sf-strip__actions). */
 .raceLink {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.6rem 0.7rem;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.15rem 0;
   color: var(--sf-text);
   text-decoration: none;
 }
 
-.raceHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-  /* Room for the remove button's corner, so the badge never sits under it. */
-  padding-right: 1.1rem;
-}
-
 .raceNumber {
   font-weight: 700;
-  font-size: 0.9rem;
-  white-space: nowrap;
+  font-size: 0.92rem;
 }
 
 .raceTime {
@@ -114,35 +91,20 @@
   white-space: nowrap;
 }
 
-.raceRemove {
-  position: absolute;
-  top: 0.3rem;
-  right: 0.3rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.3rem;
-  height: 1.3rem;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
+.chevron {
   color: var(--sf-muted);
-  cursor: pointer;
-}
-.raceRemove:hover {
-  background: var(--sf-surface-2);
-  color: var(--sf-danger);
+  flex: none;
 }
 
-/* Same footprint as a race card, dashed instead of solid — reads as "one more
-   of these" rather than a competing call-to-action. */
-.addCard {
+/* Dashed, quiet: reads as "one more of these" rather than a call-to-action
+   competing with the races already scheduled. */
+.addRace {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
-  min-height: 4.5rem;
-  padding: 0.6rem 0.7rem;
+  width: 100%;
+  padding: 0.55rem 1rem;
   border-radius: var(--sf-radius);
   border: 1px dashed var(--sf-border);
   background: transparent;
@@ -154,18 +116,17 @@
     border-color 0.15s ease,
     color 0.15s ease;
 }
-.addCard:hover:not(:disabled) {
+.addRace:hover:not(:disabled) {
   border-color: var(--sf-primary);
   color: var(--sf-text);
 }
-.addCard:disabled {
+.addRace:disabled {
   opacity: 0.6;
   cursor: default;
 }
 
-/* The "add day" form gets the same dashed-outline treatment as .addChip,
-   just sized for a form instead of a single control — reads as the next
-   item in the day-card list rather than a form dropped below it. */
+/* Same dashed treatment as the "add race" row, sized for a form — reads as
+   the next item in the schedule rather than a form dropped below it. */
 .addDayForm {
   display: flex;
   gap: 0.5rem;

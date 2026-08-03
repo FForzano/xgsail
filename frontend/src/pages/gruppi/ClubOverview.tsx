@@ -2,11 +2,12 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
 import { ExplorerMap } from "@/components/map/ExplorerMap";
+import { WindStationHintCard } from "@/components/common/WindStationHintCard";
 import { useClubContext } from "./ClubDetailLayout";
 
 export function ClubOverview() {
   const { t } = useTranslation();
-  const { club, stationedBoats } = useClubContext();
+  const { club, stationedBoats, manages } = useClubContext();
   // Stable identity: ExplorerMap re-centers whenever `center` changes, and a
   // fresh object every render would fight the user's own panning/zooming.
   const position = useMemo(
@@ -16,6 +17,8 @@ export function ClubOverview() {
 
   return (
     <>
+      {manages && <WindStationHintCard />}
+
       <Card>
         <p className="sf-muted">{club.description}</p>
         <p className="sf-muted">

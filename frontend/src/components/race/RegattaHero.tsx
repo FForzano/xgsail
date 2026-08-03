@@ -29,8 +29,8 @@ export interface RegattaHeroProps {
   /** Boat-class name, likewise caller-resolved. */
   boatClassName?: string | null;
   raceCount?: number;
-  /** Manage controls (image uploader, edit), rendered over the poster's top
-   * right. Omit for read-only viewers. */
+  /** The organizer's options menu, rendered over the poster's top right. Omit
+   * for read-only viewers. */
   actions?: ReactNode;
   /** Makes the poster clickable; the caller owns the lightbox. */
   onOpenImage?: () => void;
@@ -113,8 +113,10 @@ export function RegattaHero({
           <h1 className={styles.name}>{regatta.name}</h1>
           <p className={styles.meta}>{meta.join(" · ")}</p>
         </div>
-        {actions && <div className={styles.actions}>{actions}</div>}
       </div>
+      {/* Outside the poster: its `overflow: hidden` (which clips the image to
+          the card) would also clip the menu's dropdown panel. */}
+      {actions && <div className={styles.actions}>{actions}</div>}
       {regatta.description && <p className={styles.description}>{regatta.description}</p>}
     </Card>
   );

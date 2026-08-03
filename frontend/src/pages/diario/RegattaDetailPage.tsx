@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ImagePlus, Pencil } from "lucide-react";
+import { ImagePlus, Pencil } from "lucide-react";
 import { regattasService, raceKeys, type OfficialStandingInput } from "@/services/races";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useRegattaMeta } from "@/hooks/useRegattaMeta";
 import { useToast } from "@/hooks/useToast";
-import { Card } from "@/components/ui/Card";
+import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
+import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Modal } from "@/components/ui/Modal";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { InputField, TextAreaField } from "@/components/ui/InputField";
@@ -26,11 +27,18 @@ import { MyRegattaCard } from "@/components/race/MyRegattaCard";
 import type { UUID } from "@/types";
 import styles from "./RegattaDetailPage.module.css";
 
-/** Regatta detail page (name, poster, standings, race days/races, start list)
- * — reachable from a race's dashboard (`RacePage`'s back link) or from the
- * club's Eventi tab. Ordered for the competitor first (hero, totals, their own
- * standing, the standings table) and the organizer last (race-day and start
- * list management), rather than putting the admin blocks up top. */
+/** Which organizer task the ⋮ menu currently has open. */
+type ManagePanel = "edit" | "days" | "divisions" | "entries" | "official";
+
+/** Regatta detail page: hero, totals, the viewer's own standing, the
+ * standings, the schedule and the start list — one flat stack of `Section`s,
+ * read top to bottom by a competitor.
+ *
+ * Everything an organizer can change lives behind the single ⋮ menu on the
+ * hero (gated on `regatta.manage`), each item opening one modal, instead of
+ * management controls interleaved with the content a competitor came for. The
+ * one deliberate exception is the pencil on the schedule section, which opens
+ * the same race-days modal from where the schedule is shown. */
 export function RegattaDetailPage() {
   const { regattaId } = useParams<{ regattaId: UUID }>();
   const { t } = useTranslation();
@@ -59,18 +67,19 @@ export function RegattaDetailPage() {
   });
   const { clubName, boatClassName, raceCount } = useRegattaMeta(regatta.data);
 
-  const [editing, setEditing] = useState(false);
-  const [manageOpen, setManageOpen] = useState(false);
+  const [panel, setPanel] = useState<ManagePanel | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
-  const [officialEditing, setOfficialEditing] = useState(false);
   const [officialRows, setOfficialRows] = useState<
     Record<UUID, { position: string; score: string; division_id?: UUID | null }>
   >({});
 
   useEffect(() => {
     if (regatta.data) {
-      setForm({ name: regatta.data.name ?? "", description: regatta.data.description ?? "" });
+      setForm({
+        name: regatta.data.name ?? "",
+        description: regatta.data.description ?? "",
+      });
     }
   }, [regatta.data]);
 
@@ -81,7 +90,8 @@ export function RegattaDetailPage() {
     return entries.data?.find((e) => e.boat_id && mine.has(e.boat_id))?.boat_id ?? null;
   }, [entries.data, myBoats.data]);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: raceKeys.regatta(regattaId!) });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: raceKeys.regatta(regattaId!) });
 
   const save = useMutation({
     mutationFn: () =>
@@ -90,7 +100,7 @@ export function RegattaDetailPage() {
         description: form.description || null,
       }),
     onSuccess: async () => {
-      setEditing(false);
+      setPanel(null);
       notify(t("common.saved"), "success");
       await invalidate();
     },
@@ -101,7 +111,8 @@ export function RegattaDetailPage() {
     queryClient.invalidateQueries({ queryKey: raceKeys.standings(regattaId!) });
 
   const openOfficialEditor = () => {
-    const initial: Record<UUID, { position: string; score: string; division_id?: UUID | null }> = {};
+    const initial: Record<UUID, { position: string; score: string; division_id?: UUID | null }> =
+      {};
     (standings.data?.standings ?? []).forEach((row) => {
       initial[row.boat.id] = {
         position: String(row.rank),
@@ -110,7 +121,7 @@ export function RegattaDetailPage() {
       };
     });
     setOfficialRows(initial);
-    setOfficialEditing(true);
+    setPanel("official");
   };
 
   const setOfficial = useMutation({
@@ -126,7 +137,7 @@ export function RegattaDetailPage() {
       return regattasService.setOfficialStandings(regattaId!, payload);
     },
     onSuccess: async () => {
-      setOfficialEditing(false);
+      setPanel(null);
       notify(t("common.saved"), "success");
       await invalidateStandings();
     },
@@ -152,6 +163,47 @@ export function RegattaDetailPage() {
     0,
   );
 
+  const menuSections: MenuSection[] = [
+    {
+      items: [{ label: t("regate.editRegatta"), onClick: () => setPanel("edit") }],
+    },
+    {
+      heading: t("regate.organization"),
+      items: [
+        { label: t("regate.manageRaceDays"), onClick: () => setPanel("days") },
+        {
+          label: t("regate.manageDivisions"),
+          onClick: () => setPanel("divisions"),
+        },
+        {
+          label: t("regate.manageEntries"),
+          onClick: () => setPanel("entries"),
+        },
+      ],
+    },
+    {
+      heading: t("regate.standings"),
+      items: [
+        {
+          label: t("regate.manageOfficialStandings"),
+          onClick: openOfficialEditor,
+        },
+        // Only meaningful while a published ranking is actually overriding the
+        // computed one.
+        ...(standings.data?.is_official
+          ? [
+              {
+                label: t("regate.clearOfficialStandings"),
+                danger: true,
+                disabled: clearOfficial.isPending,
+                onClick: () => clearOfficial.mutate(),
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
+
   return (
     <div className="sf-section__body">
       <BackLink fallback={`/gruppi/clubs/${r.club_id}/eventi`} label={t("regate.backToEvents")} />
@@ -162,6 +214,7 @@ export function RegattaDetailPage() {
         boatClassName={boatClassName}
         raceCount={raceCount}
         onOpenImage={r.image ? () => setLightboxOpen(true) : undefined}
+        actions={manage ? <Menu sections={menuSections} /> : undefined}
       />
 
       <StatTiles>
@@ -173,84 +226,51 @@ export function RegattaDetailPage() {
 
       <MyRegattaCard regattaId={regattaId} boatId={myBoatId} />
 
-      <Card title={t("regate.standings")}>
+      <Section title={t("regate.standings")}>
         <RegattaStandings regattaId={regattaId} highlightBoatId={myBoatId} />
-      </Card>
+      </Section>
 
-      <Card title={t("regate.raceDays")}>
-        <RegattaRaceDays regattaId={regattaId} manage={manage} />
-      </Card>
-
-      {manage && (
-        <Card
-          title={t("regate.manageRegatta")}
-          actions={
+      <Section
+        // A one-day regatta has no days to speak of, only races.
+        title={t(days.length === 1 ? "regate.races" : "regate.raceDays")}
+        actions={
+          manage ? (
             <Button
               variant="ghost"
               className="sf-btn--icon-sm"
-              aria-expanded={manageOpen}
-              aria-label={t(manageOpen ? "common.collapse" : "common.expand")}
-              onClick={() => setManageOpen((v) => !v)}
+              aria-label={t("regate.manageRaceDays")}
+              title={t("regate.manageRaceDays")}
+              onClick={() => setPanel("days")}
             >
-              {manageOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              <Pencil size={16} />
             </Button>
-          }
-        >
-          {manageOpen && (
-            <div className={styles.groups}>
-              <section className={styles.group}>
-                <h3 className={styles.groupTitle}>{t("regate.editRegatta")}</h3>
-                <div className={`sf-form__row ${styles.row}`}>
-                  <ImageUploader
-                    create={() => regattasService.uploadImage(regattaId)}
-                    confirm={(id) => regattasService.confirmImage(regattaId, id)}
-                    onDone={invalidate}
-                    icon={<ImagePlus size={16} />}
-                    label={t("common.upload")}
-                  />
-                  <Button variant="ghost" onClick={() => setEditing(true)}>
-                    <Pencil size={16} /> {t("regate.editRegatta")}
-                  </Button>
-                </div>
-              </section>
+          ) : undefined
+        }
+      >
+        <RegattaRaceDays regattaId={regattaId} manage={false} />
+      </Section>
 
-              <section className={styles.group}>
-                <h3 className={styles.groupTitle}>{t("regate.officialStandings")}</h3>
-                <div className={`sf-form__row ${styles.row}`}>
-                  <Button variant="ghost" onClick={openOfficialEditor}>
-                    {t("regate.manageOfficialStandings")}
-                  </Button>
-                  {standings.data?.is_official && (
-                    <Button
-                      variant="ghost"
-                      onClick={() => clearOfficial.mutate()}
-                      disabled={clearOfficial.isPending}
-                    >
-                      {t("regate.clearOfficialStandings")}
-                    </Button>
-                  )}
-                </div>
-              </section>
-
-              <section className={styles.group}>
-                <h3 className={styles.groupTitle}>{t("regate.divisions")}</h3>
-                <RegattaDivisions regattaId={regattaId} canManage={manage} embedded />
-              </section>
-            </div>
-          )}
-        </Card>
-      )}
-
-      <Card title={t("regate.entries")}>
-        <RegattaEntries regattaId={regattaId} manage={manage} />
-      </Card>
+      <Section title={t("regate.entries")}>
+        <RegattaEntries regattaId={regattaId} manage={false} />
+      </Section>
 
       {lightboxOpen && r.image && (
         <ImageLightbox src={r.image.url} alt="" onClose={() => setLightboxOpen(false)} />
       )}
 
-      {editing && (
-        <Modal title={t("regate.editRegatta")} onClose={() => setEditing(false)}>
+      {panel === "edit" && (
+        <Modal title={t("regate.editRegatta")} onClose={() => setPanel(null)}>
+          <div className={`sf-field ${styles.posterField}`}>
+            <span className="sf-field__label">{t("regate.posterImage")}</span>
+            {r.image && <img className={styles.posterPreview} src={r.image.url} alt="" />}
+            <ImageUploader
+              create={() => regattasService.uploadImage(regattaId)}
+              confirm={(id) => regattasService.confirmImage(regattaId, id)}
+              onDone={invalidate}
+              icon={<ImagePlus size={16} />}
+              label={t("regate.uploadPoster")}
+            />
+          </div>
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
@@ -279,8 +299,26 @@ export function RegattaDetailPage() {
         </Modal>
       )}
 
-      {officialEditing && (
-        <Modal title={t("regate.manageOfficialStandings")} onClose={() => setOfficialEditing(false)}>
+      {panel === "days" && (
+        <Modal title={t("regate.manageRaceDays")} onClose={() => setPanel(null)}>
+          <RegattaRaceDays regattaId={regattaId} manage />
+        </Modal>
+      )}
+
+      {panel === "divisions" && (
+        <Modal title={t("regate.manageDivisions")} onClose={() => setPanel(null)}>
+          <RegattaDivisions regattaId={regattaId} canManage={manage} />
+        </Modal>
+      )}
+
+      {panel === "entries" && (
+        <Modal title={t("regate.manageEntries")} onClose={() => setPanel(null)}>
+          <RegattaEntries regattaId={regattaId} manage />
+        </Modal>
+      )}
+
+      {panel === "official" && (
+        <Modal title={t("regate.manageOfficialStandings")} onClose={() => setPanel(null)}>
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();

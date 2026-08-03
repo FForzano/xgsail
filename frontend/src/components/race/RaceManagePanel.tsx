@@ -7,7 +7,7 @@ import { activityKeys } from "@/services/activities";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/api/client";
-import { Card } from "@/components/ui/Card";
+import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { InputField } from "@/components/ui/InputField";
@@ -149,7 +149,7 @@ export function RaceManagePanel({
   });
 
   return (
-    <Card
+    <Section
       title={t("race.manage")}
       actions={
         <Button
@@ -291,6 +291,6 @@ export function RaceManagePanel({
           )}
         </div>
       )}
-    </Card>
+    </Section>
   );
 }

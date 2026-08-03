@@ -5,7 +5,6 @@ import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { regattasService, raceKeys } from "@/services/races";
 import { useToast } from "@/hooks/useToast";
-import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -15,22 +14,13 @@ import type { RegattaDivision, UUID } from "@/types";
 import styles from "./RegattaDivisions.module.css";
 
 /** Organizer-only management panel for a regatta's scoring divisions
- * (e.g. "Catamarani"/"Derive") — each divisions independently ranks its own
+ * (e.g. "Catamarani"/"Derive") — each division independently ranks its own
  * entries in the regatta's standings. Renders nothing when the caller can't
  * manage the regatta; the read-only list lives elsewhere (entries/standings).
  *
- * `embedded`: skip the panel's own `Card` chrome when a caller (the regatta
- * page's collapsible "manage" section) already provides a heading and a card
- * around it — two nested `sf-card`s would double up padding/borders. */
-export function RegattaDivisions({
-  regattaId,
-  canManage,
-  embedded = false,
-}: {
-  regattaId: UUID;
-  canManage: boolean;
-  embedded?: boolean;
-}) {
+ * Bare content: the caller owns the surrounding chrome (a `Modal` on the
+ * regatta page), so this never draws a heading or a box of its own. */
+export function RegattaDivisions({ regattaId, canManage }: { regattaId: UUID; canManage: boolean }) {
   const { t } = useTranslation();
   const { notify } = useToast();
   const queryClient = useQueryClient();
@@ -137,7 +127,7 @@ export function RegattaDivisions({
 
   const pendingDelete = rows.find((d) => d.id === pendingDeleteId) ?? null;
 
-  const content = (
+  return (
     <>
       {divisions.isLoading ? (
         <Spinner />
@@ -271,13 +261,5 @@ export function RegattaDivisions({
         />
       )}
     </>
-  );
-
-  return embedded ? (
-    content
-  ) : (
-    <Card title={t("regate.divisions")} className={styles.card}>
-      {content}
-    </Card>
   );
 }

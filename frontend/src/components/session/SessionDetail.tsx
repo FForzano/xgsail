@@ -19,6 +19,7 @@ import { Timeline } from "@/components/race/Timeline";
 import { SpeedChart } from "@/components/race/SpeedChart";
 import { PlaybackIndicators } from "@/components/session/PlaybackIndicators";
 import { Card } from "@/components/ui/Card";
+import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
 import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Modal } from "@/components/ui/Modal";
@@ -141,8 +142,8 @@ export function SessionDetail({
   const [movingActivity, setMovingActivity] = useState(false);
   const [moveTargetId, setMoveTargetId] = useState("");
   const reanalysisPolling = reanalysisToastId !== null;
-  // Owned here (not inside the photo/video Cards) so the same file picker
-  // can be triggered either from the Card's own icon button (once there's
+  // Owned here (not inside the photo/video Sections) so the same file picker
+  // can be triggered either from the Section's own icon button (once there's
   // content) or from the "Aggiungi" menu item (while the section is empty
   // and hidden) — see the ⋮ menu section built below.
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -546,9 +547,9 @@ export function SessionDetail({
   // edit-only _can_edit the other actions use).
   const menuSections: MenuSection[] = [];
   // Whatever hasn't been added yet (and the viewer may add) gets a visible
-  // icon button instead of its own empty Card or a buried menu entry — see
-  // the Foto/Video/Annotazioni Cards below (each hidden while empty) and
-  // the quickActions row rendered in the title Card / handed up via
+  // icon button instead of its own empty Section or a buried menu entry —
+  // see the Foto/Video/Annotazioni Sections below (each hidden while empty)
+  // and the quickActions row rendered in the title Card / handed up via
   // `onQuickActions` further down.
   const quickActions: QuickAction[] = [];
   if (crewOrManager) {
@@ -772,15 +773,13 @@ export function SessionDetail({
         </Card>
       )}
 
-      <Card className="sf-card--flush sf-card--flush-top">
-        {streams.isLoading || gps === null ? (
-          <div className="sf-card__pad">
-            <Spinner />
-          </div>
-        ) : tracks.length === 0 ? (
-          <p className="sf-muted sf-card__pad">{t("sessions.noGps")}</p>
-        ) : (
-          <div className="sf-section__body">
+      {streams.isLoading || gps === null ? (
+        <Spinner />
+      ) : tracks.length === 0 ? (
+        <p className="sf-muted">{t("sessions.noGps")}</p>
+      ) : (
+        <div className="sf-section__body">
+          <div className="sf-bleed">
             <MapView
               nautical
               tracks={tracks}
@@ -808,38 +807,40 @@ export function SessionDetail({
                 document.getElementById("session-analysis")?.scrollIntoView({ behavior: "smooth" })
               }
             />
-            {maneuverEditMode && (
-              <p className="sf-muted sf-card__pad">
-                {maneuverDraftStart ? t("sessions.maneuverPickEnd") : t("sessions.maneuverPickStart")}
-              </p>
-            )}
-            {trimMode && (
-              <div className={`${styles.trimBar} sf-card__pad`}>
-                <p className="sf-muted">{t("sessions.trimHint")}</p>
-                <div className={styles.trimBarActions}>
-                  <Button
-                    onClick={applyTrim}
-                    disabled={setTrim.isPending || trimDraftStartMs == null || trimDraftEndMs == null}
-                  >
-                    {t("sessions.applyTrim")}
-                  </Button>
-                  <Button variant="ghost" onClick={exitTrimMode} disabled={setTrim.isPending}>
-                    {t("common.cancel")}
-                  </Button>
-                </div>
+          </div>
+          {maneuverEditMode && (
+            <p className="sf-muted">
+              {maneuverDraftStart ? t("sessions.maneuverPickEnd") : t("sessions.maneuverPickStart")}
+            </p>
+          )}
+          {trimMode && (
+            <div className={styles.trimBar}>
+              <p className="sf-muted">{t("sessions.trimHint")}</p>
+              <div className={styles.trimBarActions}>
+                <Button
+                  onClick={applyTrim}
+                  disabled={setTrim.isPending || trimDraftStartMs == null || trimDraftEndMs == null}
+                >
+                  {t("sessions.applyTrim")}
+                </Button>
+                <Button variant="ghost" onClick={exitTrimMode} disabled={setTrim.isPending}>
+                  {t("common.cancel")}
+                </Button>
               </div>
-            )}
-            {mapLegend.length > 0 && (
-              <div className={`${legendStyles.mapLegend} sf-card__pad`}>
-                {mapLegend.map(([key, label]) => (
-                  <span key={key} className={legendStyles.mapLegendItem}>
-                    <span className={`${legendStyles.dot} ${MAP_LEGEND_DOT_CLASS[key]}`} />
-                    {label}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="sf-section__body sf-card__pad">
+            </div>
+          )}
+          {mapLegend.length > 0 && (
+            <div className={legendStyles.mapLegend}>
+              {mapLegend.map(([key, label]) => (
+                <span key={key} className={legendStyles.mapLegendItem}>
+                  <span className={`${legendStyles.dot} ${MAP_LEGEND_DOT_CLASS[key]}`} />
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="sf-section__body">
+            <div className="sf-bleed">
               <SpeedChart
                 tracks={tracks}
                 vmg={analysis.data?.vmg_series}
@@ -849,14 +850,14 @@ export function SessionDetail({
                 onTrimStartChange={setTrimDraftStartMs}
                 onTrimEndChange={setTrimDraftEndMs}
               />
-              <PlaybackIndicators track={tracks[0]} vmg={analysis.data?.vmg_series} />
             </div>
+            <PlaybackIndicators track={tracks[0]} vmg={analysis.data?.vmg_series} />
           </div>
-        )}
-      </Card>
+        </div>
+      )}
 
       {stats.data && (
-        <Card title={t("sessions.stats")}>
+        <Section title={t("sessions.stats")}>
           <div className="sf-tablewrap">
             <table className="sf-table">
               <tbody>
@@ -875,7 +876,7 @@ export function SessionDetail({
               </tbody>
             </table>
           </div>
-        </Card>
+        </Section>
       )}
 
       {/* Renders nothing unless this viewer may see someone's health data —
@@ -886,7 +887,7 @@ export function SessionDetail({
         <WindCard lat={tracks[0].pts[0].lat} lng={tracks[0].pts[0].lon} at={s.started_at} />
       )}
 
-      <Card
+      <Section
         title={t("sessions.crew")}
         actions={
           manager && (
@@ -928,10 +929,10 @@ export function SessionDetail({
         ) : (
           <p className="sf-muted">{t("common.none")}</p>
         )}
-      </Card>
+      </Section>
 
       {s.notes && (
-        <Card
+        <Section
           title={
             <>
               {t("sessions.notes")}{" "}
@@ -953,11 +954,11 @@ export function SessionDetail({
           }
         >
           <p className={styles.notes}>{s.notes}</p>
-        </Card>
+        </Section>
       )}
 
       {photos.data?.length ? (
-        <Card
+        <Section
           title={t("sessions.photos")}
           actions={
             crewOrManager && (
@@ -988,11 +989,11 @@ export function SessionDetail({
               </figure>
             ))}
           </div>
-        </Card>
+        </Section>
       ) : null}
 
       {videos.data?.length ? (
-        <Card
+        <Section
           title={t("sessions.videos")}
           actions={
             crewOrManager && (
@@ -1014,7 +1015,7 @@ export function SessionDetail({
               <video key={v.file_id} src={v.url} controls style={{ width: "100%" }} />
             ))}
           </div>
-        </Card>
+        </Section>
       ) : null}
 
       <div id="session-analysis">

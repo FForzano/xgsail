@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/api/client";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { Avatar } from "@/components/ui/Avatar";
-import { Card } from "@/components/ui/Card";
+import { Section } from "@/components/ui/Section";
 import { StatTile, StatTiles } from "./StatTile";
 import {
   energyRate,
@@ -83,11 +83,11 @@ export function HealthCard({ sessionId }: { sessionId: UUID }) {
   if (!physio.data?.length) return null;
 
   return (
-    <Card title={<HealthTitle />}>
+    <Section title={<HealthTitle />}>
       {physio.data.map((entry) => (
         <MemberHealth key={entry.session_upload_id} sessionId={sessionId} entry={entry} />
       ))}
-    </Card>
+    </Section>
   );
 }
 

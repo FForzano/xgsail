@@ -876,14 +876,21 @@
     "confirmDeleteDivision": "Delete this division? Its entered boats and races will become unassigned.",
     "divisionDuplicate": "A division with this name already exists.",
     "officialStandings": "Official standings",
-    "manageRegatta": "Manage regatta",
     "manageOfficialStandings": "Manage official standings",
     "clearOfficialStandings": "Revert to computed standings",
     "officialStandingsCleared": "Official standings cleared",
     "officialStandingsIntro": "Manually set each boat's position and total score: this overrides the computed standings until you revert it.",
     "publishOfficialStandings": "Publish official standings",
     "officialTotalScore": "Total score",
-    "officialTotalScoreHint": "Sum of points across every race for this boat — the value shown in the \"Total\" column."
+    "officialTotalScoreHint": "Sum of points across every race for this boat — the value shown in the \"Total\" column.",
+    "organization": "Organization",
+    "manageRaceDays": "Manage race days and races",
+    "manageDivisions": "Manage divisions",
+    "manageEntries": "Manage entries and join link",
+    "raceDaysEmpty": "No race days scheduled yet.",
+    "racesEmpty": "No races scheduled yet.",
+    "posterImage": "Poster",
+    "uploadPoster": "Upload poster"
   },
   "race": {
     "leaderboard": "Leaderboard",
@@ -931,7 +938,12 @@
     "noData": "No track data yet — match sessions or upload GPX files."
   },
   "wind": {
-    "title": "Wind"
+    "title": "Wind",
+    "stationHint": {
+      "text": "Know a local weather station — a club anemometer, a Cumulus PWS, a nearby buoy? Tell us and we'll add it, improving wind data for everyone at your club.",
+      "cta": "Report a station",
+      "subject": "Local weather station report"
+    }
   },
   "admin": {
     "title": "Administration",
