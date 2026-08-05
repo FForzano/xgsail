@@ -80,6 +80,12 @@ def search_users(
     anti-enumeration measures (a 1-character query would return a huge
     slice of the instance); the "shared" ranking below is a UX convenience,
     not a permission boundary.
+
+    Deliberately does NOT exclude the caller: this endpoint backs every
+    "add a person" picker, including session crew, and nothing auto-adds a
+    session's creator as its own crew — excluding self here made it
+    impossible to add yourself. The other pickers (boat/club/group members)
+    already 409 gracefully on "already a member" if picked anyway.
     """
     user = require_user(request)
     q = q.strip()
@@ -87,11 +93,7 @@ def search_users(
         return []
     found = repos.users.search(q, limit=limit)
     related = repos.users.related_user_ids(user.id)
-    results = [
-        {**user_summary(u.id), "shared": u.id in related}
-        for u in found
-        if u.id != user.id
-    ]
+    results = [{**user_summary(u.id), "shared": u.id in related} for u in found]
     results.sort(key=lambda r: not r["shared"])
     return results
 

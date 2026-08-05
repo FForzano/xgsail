@@ -119,6 +119,10 @@ def create_session(body: SessionWriteModel, request: Request):
     if repos.boats.get(body.boat_id) is None:
         raise HTTPException(404, "Boat not found")
     session = repos.sessions.create(body.model_dump(exclude_unset=True))
+    # The caller is who's actually creating this session row (not always the
+    # activity creator — a superadmin may act on someone else's behalf), so
+    # they're who was aboard for it. See ingestion.add_recorder_as_crew.
+    ingestion.add_recorder_as_crew(repos, body.boat_id, session.id, user.id)
     return _session_payload(session, user)
 
 

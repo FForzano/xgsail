@@ -46,6 +46,21 @@ def processed_prefix(session_upload_id: uuid.UUID) -> str:
     return f"processed/uploads/{session_upload_id}/"
 
 
+def add_recorder_as_crew(repos, boat_id: uuid.UUID, session_id: uuid.UUID,
+                         user_id: uuid.UUID) -> None:
+    """Whoever recorded a session was aboard it, and crew is otherwise 100%
+    manual — without this, uploading your own track would never actually put
+    you on the crew list. Uses the boat member's ``default_sailing_role``
+    when set; a non-member, or a member with no stated default, gets
+    ``add_crew``'s own neutral default ("crew") — the closest thing to "no
+    specific role" ``session_crew.sailing_role`` allows, since that column is
+    NOT NULL. Safe to call on a reused session too: ``add_crew`` no-ops on an
+    existing ``(session_id, user_id)`` pair instead of raising."""
+    member = repos.boats.get_member(boat_id, user_id)
+    role = member.default_sailing_role if member and member.default_sailing_role else "crew"
+    repos.sessions.add_crew(session_id, user_id=user_id, sailing_role=role)
+
+
 def find_or_create_session(*, boat_id: uuid.UUID, started_at: datetime,
                            ended_at: Optional[datetime] = None,
                            activity_id: Optional[uuid.UUID] = None,
@@ -56,6 +71,11 @@ def find_or_create_session(*, boat_id: uuid.UUID, started_at: datetime,
     create it). Otherwise match an existing session of the boat within the
     merge gap and extend its window, else create a private solo activity +
     session (docs/er-project.md, ``activities`` note).
+
+    ``created_by``, when known, is seeded as the returned session's crew
+    (``add_recorder_as_crew``) — including on a *reused* session, since a
+    second device merging into the same window means a second person was
+    genuinely aboard too.
     """
     repos = get_repos()
     if activity_id is not None:
@@ -64,29 +84,36 @@ def find_or_create_session(*, boat_id: uuid.UUID, started_at: datetime,
         # (GET /activities/{id}/data) filter GPS points by the *activity's*
         # started_at/ended_at, not each session's.
         repos.activities.extend_window(activity_id, started_at, ended_at)
+        session = None
         for sess in repos.sessions.list(activity_id=activity_id, boat_id=boat_id):
             repos.sessions.extend_window(sess.id, started_at, ended_at)
-            return repos.sessions.get(sess.id)
-        return repos.sessions.create({
-            "activity_id": activity_id, "boat_id": boat_id,
-            "started_at": started_at, "ended_at": ended_at, "status": "pending",
-        })
+            session = repos.sessions.get(sess.id)
+            break
+        if session is None:
+            session = repos.sessions.create({
+                "activity_id": activity_id, "boat_id": boat_id,
+                "started_at": started_at, "ended_at": ended_at, "status": "pending",
+            })
+    else:
+        sess = repos.sessions.find_for_boat_window(
+            boat_id, started_at, ended_at, gap_minutes=SESSION_MERGE_GAP_MINUTES
+        )
+        if sess is not None:
+            repos.sessions.extend_window(sess.id, started_at, ended_at)
+            session = repos.sessions.get(sess.id)
+        else:
+            activity = repos.activities.create({
+                "type": "solo", "visibility": "private", "created_by": created_by,
+                "started_at": started_at, "ended_at": ended_at,
+            })
+            session = repos.sessions.create({
+                "activity_id": activity.id, "boat_id": boat_id,
+                "started_at": started_at, "ended_at": ended_at, "status": "pending",
+            })
 
-    sess = repos.sessions.find_for_boat_window(
-        boat_id, started_at, ended_at, gap_minutes=SESSION_MERGE_GAP_MINUTES
-    )
-    if sess is not None:
-        repos.sessions.extend_window(sess.id, started_at, ended_at)
-        return repos.sessions.get(sess.id)
-
-    activity = repos.activities.create({
-        "type": "solo", "visibility": "private", "created_by": created_by,
-        "started_at": started_at, "ended_at": ended_at,
-    })
-    return repos.sessions.create({
-        "activity_id": activity.id, "boat_id": boat_id,
-        "started_at": started_at, "ended_at": ended_at, "status": "pending",
-    })
+    if created_by is not None:
+        add_recorder_as_crew(repos, boat_id, session.id, created_by)
+    return session
 
 
 # --- worker dispatch ---------------------------------------------------------
