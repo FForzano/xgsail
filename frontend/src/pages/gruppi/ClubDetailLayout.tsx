@@ -97,6 +97,16 @@ export function ClubDetailLayout() {
   });
 
   if (club.isLoading || !clubId) return <Spinner />;
+  if (club.isError) {
+    // Clubs have no visibility gate (always readable), so unlike a group's
+    // 404 this only means a bad link or a genuinely missing club.
+    return (
+      <div className="sf-section__body">
+        <BackLink to="/gruppi/clubs" label={t("gruppi.backToClubs")} />
+        <p className="sf-muted">{t("errors.notFound")}</p>
+      </div>
+    );
+  }
   if (!club.data) return null;
   const c = club.data;
   const memberCount = c.members?.filter((m) => m.status === "active").length ?? 0;

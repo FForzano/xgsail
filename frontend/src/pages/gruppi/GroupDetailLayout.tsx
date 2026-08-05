@@ -56,6 +56,18 @@ export function GroupDetailLayout() {
   });
 
   if (group.isLoading || !groupId) return <Spinner />;
+  if (group.isError) {
+    // A private group a non-member can't read 404s the same as one that
+    // genuinely doesn't exist (backend deliberately doesn't distinguish —
+    // see can_read_group), so this stays equally generic rather than
+    // claiming "private" for what might just be a bad link.
+    return (
+      <div className="sf-section__body">
+        <BackLink to="/gruppi/gruppi" label={t("gruppi.backToGroups")} />
+        <p className="sf-muted">{t("errors.notFound")}</p>
+      </div>
+    );
+  }
   if (!group.data) return null;
   const g = group.data;
 

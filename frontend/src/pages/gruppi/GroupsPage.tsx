@@ -89,10 +89,10 @@ export function GroupsPage() {
           <div className="sf-strip">
             {discover.map((g) => (
               <div key={g.id} className="sf-strip__item sf-strip__item--muted">
-                <span>
+                <Link to={`/gruppi/gruppi/${g.id}`}>
                   <strong>{g.name}</strong>{" "}
                   <span className="sf-muted">{g.description}</span>
-                </span>
+                </Link>
                 <Button
                   className="sf-btn--sm"
                   disabled={join.isPending}
