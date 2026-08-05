@@ -613,7 +613,10 @@ export function SessionDetail({
       key: "notebook",
       icon: <NotebookText size={16} />,
       label: t("sessions.openBoatNotebook"),
-      onClick: () => navigate(`/profilo/barche/${session.data?.boat_id}/quaderno`),
+      onClick: () =>
+        navigate(`/profilo/barche/${session.data?.boat_id}/quaderno`, {
+          state: { backLabel: t("boatNotes.backToSession") },
+        }),
     });
   }
   if (manager) {

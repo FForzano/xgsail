@@ -79,29 +79,35 @@ class SqlSessionRepo:
             return list(s.scalars(q).all())
 
     def list_with_notes_for_boat(self, boat_id: uuid.UUID, *, limit: int = 50,
-                                 offset: int = 0) -> "list[SessionORM]":
-        """This boat's sessions that actually carry a crew note, newest first.
+                                 offset: int = 0, q: Optional[str] = None) -> "list[SessionORM]":
+        """This boat's sessions that actually carry a crew note, newest first,
+        optionally narrowed to notes containing ``q`` (case-insensitive).
 
         Paginated because it backs an open-ended logbook view; the caller still
         has to filter each row through ``session_notes_visible_to`` — a note
-        being present is not a note being readable."""
+        being present is not a note being readable. ``q`` is applied in SQL
+        (unlike that visibility check) so it composes correctly with
+        ``limit``/``offset`` instead of narrowing an already-paginated slice."""
         with self.Session() as s:
-            q = (
+            conditions = [
+                SessionORM.boat_id == boat_id,
+                SessionORM.notes.is_not(None),
+                # Characters spelled out because one-arg trim()/btrim()
+                # strips spaces only, letting a note of bare newlines
+                # through as a blank logbook row. Two-arg trim() behaves
+                # the same on Postgres and on the suite's SQLite.
+                func.trim(SessionORM.notes, " \t\n\r") != "",
+            ]
+            if q:
+                conditions.append(SessionORM.notes.ilike(f"%{q}%"))
+            q_stmt = (
                 select(SessionORM)
-                .where(
-                    SessionORM.boat_id == boat_id,
-                    SessionORM.notes.is_not(None),
-                    # Characters spelled out because one-arg trim()/btrim()
-                    # strips spaces only, letting a note of bare newlines
-                    # through as a blank logbook row. Two-arg trim() behaves
-                    # the same on Postgres and on the suite's SQLite.
-                    func.trim(SessionORM.notes, " \t\n\r") != "",
-                )
+                .where(*conditions)
                 .order_by(SessionORM.started_at.desc().nulls_last())
                 .offset(offset)
                 .limit(limit)
             )
-            return list(s.scalars(q).all())
+            return list(s.scalars(q_stmt).all())
 
     def get(self, session_id: uuid.UUID) -> Optional[SessionORM]:
         with self.Session() as s:

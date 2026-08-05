@@ -88,6 +88,36 @@
   font-size: 0.85rem;
 }
 
+.logSearch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--sf-bg-2);
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  color: var(--sf-muted);
+}
+.logSearchInput {
+  flex: 1;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--sf-text);
+}
+.logSearchInput:focus {
+  outline: none;
+}
+.logSearchInput::placeholder {
+  color: var(--sf-muted);
+}
+
+.logSentinel {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 0;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -168,6 +198,15 @@
   -webkit-line-clamp: 9;
   line-clamp: 9;
   overflow: hidden;
+}
+
+.tappable {
+  cursor: pointer;
+}
+.tappable:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .toggle {

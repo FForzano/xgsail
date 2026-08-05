@@ -230,7 +230,8 @@
     "moveUp": "Move up",
     "moveDown": "Move down",
     "backToBoat": "Back to boat",
-    "tabShort": "Notebook"
+    "tabShort": "Notebook",
+    "backToSession": "Back to session"
   },
   "boatLog": {
     "hint": "Notes written during this boat's sessions.",
@@ -240,7 +241,9 @@
     "promote": "Save to notebook",
     "promotedTitle": "From the logbook",
     "noDate": "Undated",
-    "tabShort": "Logbook"
+    "tabShort": "Logbook",
+    "searchPlaceholder": "Search logbook notes…",
+    "noSearchResults": "No matching notes."
   },
   "devices": {
     "title": "My devices",

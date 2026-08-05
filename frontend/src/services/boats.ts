@@ -23,7 +23,7 @@ export const boatKeys = {
   detail: (id: UUID) => ["boats", id] as const,
   members: (id: UUID) => ["boats", id, "members"] as const,
   notes: (id: UUID) => ["boats", id, "notes"] as const,
-  sessionNotes: (id: UUID) => ["boats", id, "session-notes"] as const,
+  sessionNotes: (id: UUID, q = "") => ["boats", id, "session-notes", q] as const,
   classes: (
     page = 0,
     search = "",
@@ -74,7 +74,14 @@ export const boatsService = {
     api.patch<BoatNote[]>(`/boats/${id}/notes/order`, { note_ids: noteIds }),
   removeNote: (id: UUID, noteId: UUID) => api.del(`/boats/${id}/notes/${noteId}`),
 
-  sessionNotes: (id: UUID) => api.get<BoatSessionNote[]>(`/boats/${id}/session-notes`),
+  sessionNotes: (id: UUID, opts: { limit?: number; offset?: number; q?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.limit) p.set("limit", String(opts.limit));
+    if (opts.offset) p.set("offset", String(opts.offset));
+    if (opts.q) p.set("q", opts.q);
+    const s = p.toString();
+    return api.get<BoatSessionNote[]>(`/boats/${id}/session-notes${s ? `?${s}` : ""}`);
+  },
 
   createPhoto: (id: UUID) => api.post<ImageUploadTicket>(`/boats/${id}/photos`),
   confirmPhoto: (id: UUID, imageId: UUID) => api.post(`/boats/${id}/photos/${imageId}/confirm`),

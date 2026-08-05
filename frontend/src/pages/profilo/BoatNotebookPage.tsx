@@ -1,7 +1,7 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
   ChevronUp,
@@ -10,11 +10,13 @@ import {
   NotebookText,
   Pencil,
   ScrollText,
+  Search,
   Trash2,
 } from "lucide-react";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useToast } from "@/hooks/useToast";
+import { useInfiniteScrollSentinel } from "@/hooks/useInfiniteScrollSentinel";
 import { ApiError } from "@/api/client";
 import { BackLink } from "@/components/ui/BackLink";
 import { Section } from "@/components/ui/Section";
@@ -28,6 +30,8 @@ import type { BoatNote, BoatSessionNote, UUID } from "@/types";
 import styles from "./BoatNotebook.module.css";
 
 type Tab = "notebook" | "log";
+const LOG_PAGE_SIZE = 20;
+const LOG_SEARCH_DEBOUNCE_MS = 300;
 
 const ICON_BTN = "sf-btn sf-btn--ghost sf-btn--icon-sm";
 
@@ -54,19 +58,30 @@ function NoteBody({ text }: { text: string }) {
     setOverflows(el.scrollHeight > el.clientHeight + 1);
   }, [text, expanded]);
 
+  const toggle = () => overflows && setExpanded((v) => !v);
+
   return (
     <>
       <div className={`${styles.bodyWrap} ${overflows && !expanded ? styles.faded : ""}`}>
-        <p ref={ref} className={`${styles.body} ${expanded ? "" : styles.clamped}`}>
+        <p
+          ref={ref}
+          className={`${styles.body} ${expanded ? "" : styles.clamped} ${overflows ? styles.tappable : ""}`}
+          role={overflows ? "button" : undefined}
+          tabIndex={overflows ? 0 : undefined}
+          aria-expanded={overflows ? expanded : undefined}
+          onClick={toggle}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggle();
+            }
+          }}
+        >
           {text}
         </p>
       </div>
       {overflows && (
-        <Button
-          variant="ghost"
-          className={`sf-btn--sm ${styles.toggle}`}
-          onClick={() => setExpanded((v) => !v)}
-        >
+        <Button variant="ghost" className={`sf-btn--sm ${styles.toggle}`} onClick={toggle}>
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           {expanded ? t("common.collapse") : t("common.expand")}
         </Button>
@@ -77,6 +92,12 @@ function NoteBody({ text }: { text: string }) {
 
 export function BoatNotebookPage() {
   const { boatId } = useParams<{ boatId: UUID }>();
+  const location = useLocation();
+  // `fallback` below falls back to the boat page only when there's no
+  // history to unwind — the same case where "Torna alla barca" is accurate.
+  // When we arrived from elsewhere (a session's quick action), that caller
+  // hands us the right label via router state instead of guessing here.
+  const backLabel = (location.state as { backLabel?: string } | null)?.backLabel;
   const { t } = useTranslation();
   const { isBoatManager } = useCapabilities();
   const { notify } = useToast();
@@ -89,12 +110,41 @@ export function BoatNotebookPage() {
     retry: false,
   });
 
-  const sessionNotes = useQuery({
-    queryKey: boatKeys.sessionNotes(boatId!),
-    queryFn: () => boatsService.sessionNotes(boatId!),
+  const [logQuery, setLogQuery] = useState("");
+  const [logQueryDebounced, setLogQueryDebounced] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setLogQueryDebounced(logQuery.trim()), LOG_SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [logQuery]);
+
+  const sessionNotes = useInfiniteQuery({
+    queryKey: boatKeys.sessionNotes(boatId!, logQueryDebounced),
+    queryFn: ({ pageParam }) =>
+      boatsService.sessionNotes(boatId!, {
+        limit: LOG_PAGE_SIZE,
+        offset: pageParam,
+        q: logQueryDebounced || undefined,
+      }),
+    initialPageParam: 0,
+    // The endpoint doesn't return a total count — a page shorter than
+    // LOG_PAGE_SIZE means we've reached the end. Same convention as
+    // useDiaryFeed's activities pagination (see its own comment): the
+    // per-row visibility filter runs server-side after the SQL limit, so
+    // this is a slight over-simplification there too, accepted for
+    // consistency rather than inventing a different contract here.
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < LOG_PAGE_SIZE ? undefined : allPages.length * LOG_PAGE_SIZE,
     enabled: !!boatId,
     retry: false,
   });
+  const sessionNoteList = useMemo(
+    () => sessionNotes.data?.pages.flat() ?? [],
+    [sessionNotes.data],
+  );
+  const sessionNotesSentinelRef = useInfiniteScrollSentinel<HTMLDivElement>(
+    () => sessionNotes.fetchNextPage(),
+    sessionNotes.hasNextPage === true && !sessionNotes.isFetchingNextPage,
+  );
 
   const [tab, setTab] = useState<Tab>("notebook");
   const [editing, setEditing] = useState<BoatNote | null>(null);
@@ -164,12 +214,15 @@ export function BoatNotebookPage() {
 
   const tabs = [
     { id: "notebook" as const, label: t("boatNotes.tabShort"), Icon: NotebookText, count: notes.data?.length },
-    { id: "log" as const, label: t("boatLog.tabShort"), Icon: ScrollText, count: sessionNotes.data?.length },
+    // No count badge here: with pagination, `sessionNoteList.length` is only
+    // "loaded so far," not the true total, and showing it as if it were the
+    // total would misrepresent it (unlike the notebook tab, which has none).
+    { id: "log" as const, label: t("boatLog.tabShort"), Icon: ScrollText, count: undefined },
   ];
 
   return (
     <div className="sf-section__body">
-      <BackLink fallback={`/profilo/barche/${boatId}`} label={t("boatNotes.backToBoat")} />
+      <BackLink fallback={`/profilo/barche/${boatId}`} label={backLabel ?? t("boatNotes.backToBoat")} />
 
       <div className={styles.switch} role="tablist" aria-label={t("boatNotes.title")}>
         <span
@@ -286,17 +339,30 @@ export function BoatNotebookPage() {
             aria-labelledby="boat-nb-tab-log"
           >
             <p className={`sf-muted ${styles.hint}`}>{t("boatLog.hint")}</p>
+            <div className={styles.logSearch}>
+              <Search size={15} aria-hidden />
+              <input
+                type="text"
+                className={styles.logSearchInput}
+                placeholder={t("boatLog.searchPlaceholder")}
+                value={logQuery}
+                onChange={(e) => setLogQuery(e.target.value)}
+                aria-label={t("boatLog.searchPlaceholder")}
+              />
+            </div>
             {sessionNotes.isLoading ? (
               <Spinner />
             ) : sessionNotes.error ? (
               <p className="sf-muted">
                 {queryErrorMessage(sessionNotes.error, "boatLog.membersOnly", t)}
               </p>
-            ) : !sessionNotes.data?.length ? (
-              <p className="sf-muted">{t("boatLog.empty")}</p>
+            ) : !sessionNoteList.length ? (
+              <p className="sf-muted">
+                {logQueryDebounced ? t("boatLog.noSearchResults") : t("boatLog.empty")}
+              </p>
             ) : (
               <ul className={styles.stack}>
-                {sessionNotes.data.map((note) => (
+                {sessionNoteList.map((note) => (
                   <li key={note.session_id} className={`${styles.note} ${styles.noteLog}`}>
                     <div className={styles.noteHead}>
                       <span className={styles.noteDate}>
@@ -328,6 +394,11 @@ export function BoatNotebookPage() {
                   </li>
                 ))}
               </ul>
+            )}
+            {sessionNotes.hasNextPage && (
+              <div ref={sessionNotesSentinelRef} className={styles.logSentinel}>
+                <Spinner inline />
+              </div>
             )}
           </div>
         </Section>

@@ -230,7 +230,8 @@
     "moveUp": "Sposta su",
     "moveDown": "Sposta giù",
     "backToBoat": "Torna alla barca",
-    "tabShort": "Quaderno"
+    "tabShort": "Quaderno",
+    "backToSession": "Torna alla sessione"
   },
   "boatLog": {
     "hint": "Note scritte durante le uscite di questa barca.",
@@ -240,7 +241,9 @@
     "promote": "Salva nel quaderno",
     "promotedTitle": "Dal diario di bordo",
     "noDate": "Senza data",
-    "tabShort": "Diario"
+    "tabShort": "Diario",
+    "searchPlaceholder": "Cerca nel diario…",
+    "noSearchResults": "Nessuna nota corrispondente."
   },
   "devices": {
     "title": "I miei dispositivi",

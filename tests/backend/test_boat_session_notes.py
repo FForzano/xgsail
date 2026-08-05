@@ -152,6 +152,35 @@ def test_ordered_newest_first_nulls_last(repo, activity_id, boat_id):
     assert [s.id for s in result] == [newest, middle, oldest, no_start]
 
 
+def test_q_filters_case_insensitively_on_note_content(repo, activity_id, boat_id):
+    r, Session = repo
+    vang = _make_session(
+        Session, activity_id=activity_id, boat_id=boat_id, notes="eased the VANG", started_at=_dt(1)
+    )
+    _make_session(
+        Session, activity_id=activity_id, boat_id=boat_id, notes="trimmed the jib", started_at=_dt(0)
+    )
+
+    result = r.list_with_notes_for_boat(boat_id, q="vang")
+    assert [s.id for s in result] == [vang]
+
+
+def test_q_composes_with_limit_and_offset(repo, activity_id, boat_id):
+    """``q`` narrows in SQL before ``limit``/``offset`` apply, so pagination
+    walks only the matching rows — not a limited slice of everything."""
+    r, Session = repo
+    matches = [
+        _make_session(
+            Session, activity_id=activity_id, boat_id=boat_id, notes=f"reef #{i}", started_at=_dt(i)
+        )
+        for i in range(3)
+    ]
+    _make_session(Session, activity_id=activity_id, boat_id=boat_id, notes="calm day", started_at=_dt(3))
+
+    page = r.list_with_notes_for_boat(boat_id, q="reef", limit=2, offset=1)
+    assert [s.id for s in page] == [matches[1], matches[0]]
+
+
 def test_boat_scoped(repo, activity_id, boat_id, other_boat_id):
     r, Session = repo
     mine = _make_session(

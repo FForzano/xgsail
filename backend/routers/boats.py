@@ -335,9 +335,11 @@ def delete_note(boat_id: uuid.UUID, note_id: uuid.UUID, request: Request):
 @router.get("/boats/{boat_id}/session-notes")
 def list_session_notes(boat_id: uuid.UUID, request: Request,
                        limit: int = Query(50, le=200, gt=0),
-                       offset: int = Query(0, ge=0)):
+                       offset: int = Query(0, ge=0),
+                       q: Optional[str] = None):
     """The boat's per-outing crew notes, newest first — the logbook companion
-    to the notebook above, and a different audience from it.
+    to the notebook above, and a different audience from it. ``q``, if given,
+    narrows to notes containing it (case-insensitive).
 
     Two gates, both required: boat membership to enumerate at all, then
     ``session_notes_visible_to`` per session for the content — a boat visitor
@@ -345,7 +347,9 @@ def list_session_notes(boat_id: uuid.UUID, request: Request,
 
     That per-item filter runs after the SQL ``limit``, so a page may hold fewer
     than ``limit`` items without meaning the list ended; topping it back up
-    would leak how many rows the caller cannot see.
+    would leak how many rows the caller cannot see. The frontend's infinite
+    scroll follows the same "short page = end" convention as the diario feed
+    (``useDiaryFeed``), accepting that same imprecision for consistency.
     """
     user = require_user(request)
     _require_boat(boat_id)
@@ -359,7 +363,7 @@ def list_session_notes(boat_id: uuid.UUID, request: Request,
             "notes": s.notes,
             "notes_shared": s.notes_shared,
         }
-        for s in repos.sessions.list_with_notes_for_boat(boat_id, limit=limit, offset=offset)
+        for s in repos.sessions.list_with_notes_for_boat(boat_id, limit=limit, offset=offset, q=q)
         if session_notes_visible_to(s, user)
     ]
 
