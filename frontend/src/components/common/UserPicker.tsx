@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
 import { userLabel } from "@/utils/format";
-import type { UserSearchResult, UserSummary } from "@/types";
+import type { UserSearchResult } from "@/types";
 import styles from "./UserPicker.module.css";
 
 const DEBOUNCE_MS = 300;
@@ -25,7 +25,7 @@ export function UserPicker({
   busy = false,
   pickLabel,
 }: {
-  onPick: (user: UserSummary) => void;
+  onPick: (user: UserSearchResult) => void;
   busy?: boolean;
   pickLabel?: string;
 }) {
@@ -76,10 +76,10 @@ export function UserPicker({
                 </Button>
               </li>
             ) : (
-              <li key={user.id}>
+              <li key={user.id} className="sf-strip__item">
                 <button
                   type="button"
-                  className={`sf-strip__item ${styles.rowButton}`}
+                  className={styles.rowButton}
                   disabled={busy}
                   onClick={() => pick(user)}
                 >
@@ -100,7 +100,7 @@ function UserRow({ user }: { user: UserSearchResult }) {
     <span className="sf-crew-row">
       <Avatar profileImage={user.profile_image} firstName={user.first_name} lastName={user.last_name} size="sm" />
       <span>
-        <strong>{userLabel(user)}</strong> <span className="sf-muted">{user.email}</span>
+        <strong>{userLabel(user)}</strong>
         {user.shared && <span className="sf-muted"> · {t("users.shared")}</span>}
       </span>
     </span>

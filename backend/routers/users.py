@@ -86,6 +86,14 @@ def search_users(
     session's creator as its own crew — excluding self here made it
     impossible to add yourself. The other pickers (boat/club/group members)
     already 409 gracefully on "already a member" if picked anyway.
+
+    ``q`` may still match on email (a caller who knows someone's email but
+    not their exact name spelling can find them that way), but the response
+    never carries it: unlike the other ``user_summary`` consumers (crew/
+    member rosters, already scoped to people who share a club/group/boat),
+    this endpoint deliberately surfaces *any* active user to *any*
+    authenticated caller — showing email there would hand out an address
+    the searcher has no existing relationship to that person to justify.
     """
     user = require_user(request)
     q = q.strip()
@@ -93,7 +101,12 @@ def search_users(
         return []
     found = repos.users.search(q, limit=limit)
     related = repos.users.related_user_ids(user.id)
-    results = [{**user_summary(u.id), "shared": u.id in related} for u in found]
+    results = []
+    for u in found:
+        row = user_summary(u.id)
+        row.pop("email", None)
+        row["shared"] = u.id in related
+        results.append(row)
     results.sort(key=lambda r: not r["shared"])
     return results
 

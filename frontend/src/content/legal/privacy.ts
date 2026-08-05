@@ -12,7 +12,7 @@ import type { LegalDocByLang } from "./types";
  *
  * Keep PRIVACY_VERSION in sync with CURRENT_PRIVACY_VERSION in backend/legal.py.
  */
-export const PRIVACY_VERSION = "2026-07-29";
+export const PRIVACY_VERSION = "2026-08-05";
 
 const CONTROLLER = "Federico Forzano";
 const EMAIL = "f.forzano@ieee.org";
@@ -109,6 +109,11 @@ export const privacy: LegalDocByLang = {
             type: "p",
             text:
               "Allo stato, l'applicazione e i dati sono ospitati su un server gestito direttamente dal Titolare: non sono coinvolti fornitori di hosting o di archiviazione terzi in qualità di responsabili del trattamento. Restano fermi i servizi cartografici di terze parti descritti al successivo punto 7, che il browser dell'Utente contatta direttamente e che agiscono come titolari autonomi. I dati possono essere comunicati esclusivamente:",
+          },
+          {
+            type: "p",
+            text:
+              "Nome, cognome (se forniti) e immagine del profilo, se caricati, sono inoltre visibili agli altri utenti del Servizio: nei contesti collaborativi dell'applicazione (equipaggi, membri di barche, club e gruppi) e tramite la funzione di ricerca persone, che consente a qualunque utente autenticato di trovare qualunque altro utente attivo digitandone nome o email, allo scopo di invitarlo. La ricerca persone non mostra mai l'indirizzo email dei risultati; l'indirizzo email di un membro dell'equipaggio resta invece visibile, nell'elenco dell'equipaggio di una sessione, a chiunque possa vedere quella sessione secondo le impostazioni di visibilità scelte per l'attività (v. punto 4).",
           },
           {
             type: "ul",
@@ -333,6 +338,11 @@ export const privacy: LegalDocByLang = {
             type: "p",
             text:
               "At present, the application and the data are hosted on a server operated directly by the controller: no third-party hosting or storage providers are involved as data processors. This is without prejudice to the third-party mapping services described in section 7 below, which the User's browser contacts directly and which act as independent controllers. Data may be disclosed only:",
+          },
+          {
+            type: "p",
+            text:
+              "First name, last name (if provided) and profile picture, if uploaded, are also visible to other users of the Service: in the application's collaborative contexts (crews, boat/club/group members) and through the people-search feature, which lets any authenticated user find any other active user by typing their name or email, for the purpose of inviting them. People search never shows a result's email address; a crew member's email address remains visible, as with other crew data, in a session's crew list, to anyone who can view that session according to the visibility settings chosen for the activity (see section 4).",
           },
           {
             type: "ul",

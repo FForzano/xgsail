@@ -21,13 +21,13 @@ LEGACY_VERSION = "legacy"
 # changed in a way that requires users to accept again. Keep in sync with the
 # `version` exported by the frontend content files.
 CURRENT_TERMS_VERSION = "2026-07-22"
-CURRENT_PRIVACY_VERSION = "2026-07-29"
+CURRENT_PRIVACY_VERSION = "2026-08-05"
 
 # Effective date shown to users alongside each document. Usually the same as
 # the version, but kept separate so a purely editorial fix can update the
 # displayed date without forcing re-acceptance.
 TERMS_EFFECTIVE_DATE = "2026-07-22"
-PRIVACY_EFFECTIVE_DATE = "2026-07-29"
+PRIVACY_EFFECTIVE_DATE = "2026-08-05"
 
 
 def legal_metadata() -> dict:

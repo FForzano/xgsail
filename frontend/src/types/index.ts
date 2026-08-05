@@ -57,9 +57,10 @@ export interface UserSummary {
   profile_image: ImageRef | null;
 }
 
-// GET /users/search row: a UserSummary plus the ranking cue (shared
-// club/group/boat with the caller) used to sort them first.
-export interface UserSearchResult extends UserSummary {
+// GET /users/search row: a UserSummary minus email (not shown/sent for this
+// endpoint — see backend/routers/users.py::search_users) plus the ranking
+// cue (shared club/group/boat with the caller) used to sort them first.
+export interface UserSearchResult extends Omit<UserSummary, "email"> {
   shared: boolean;
 }
 

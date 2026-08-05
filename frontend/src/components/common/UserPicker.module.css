@@ -1,8 +1,13 @@
-/* Reset native <button> chrome so a clickable result row still reads as an
- * sf-strip__item — global.css has no such reset since sf-strip__item is
- * normally a <div>/<a>, never a <button>. */
+/* sf-strip__item's box (background/border/padding) lives on the <li> — this
+ * is what actually sits inside it, so it must shed every native <button>
+ * default rather than layer its own chrome on top. */
 .rowButton {
+  display: flex;
+  align-items: center;
   width: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
   text-align: left;
   font: inherit;
   color: inherit;
