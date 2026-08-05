@@ -46,3 +46,11 @@
   flex-wrap: wrap;
   margin-bottom: 0.85rem;
 }
+/* lucide's Share2 glyph has two nodes on the right and one on the left, so
+   its visual "ink" sits right of the 24x24 box's true center — centering the
+   box in the round button still reads as off-center. Nudge left to
+   compensate. */
+.shareIcon {
+  display: inline-flex;
+  transform: translateX(-1px);
+}

@@ -579,7 +579,12 @@ export function SessionDetail({
   // (here for variant="page", by the caller for "embedded"). Share stays in
   // this component because ShareImageModal needs its tracks/stats/crew.
   const headerActions: QuickAction[] = [
-    { key: "share", icon: <Share2 size={16} />, label: t("sessions.share"), onClick: () => setSharing(true) },
+    {
+      key: "share",
+      icon: <span className={styles.shareIcon}><Share2 size={16} /></span>,
+      label: t("sessions.share"),
+      onClick: () => setSharing(true),
+    },
   ];
   if (crewOrManager) {
     if (!photos.data?.length) {

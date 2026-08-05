@@ -3,10 +3,10 @@ import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  BookmarkPlus,
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  NotebookPen,
   NotebookText,
   Pencil,
   ScrollText,
@@ -169,7 +169,7 @@ export function BoatNotebookPage() {
 
   return (
     <div className="sf-section__body">
-      <BackLink to={`/profilo/barche/${boatId}`} label={t("boatNotes.backToBoat")} />
+      <BackLink fallback={`/profilo/barche/${boatId}`} label={t("boatNotes.backToBoat")} />
 
       <div className={styles.switch} role="tablist" aria-label={t("boatNotes.title")}>
         <span
@@ -311,7 +311,7 @@ export function BoatNotebookPage() {
                             title={t("boatLog.promote")}
                             onClick={() => openPromote(note)}
                           >
-                            <BookmarkPlus size={15} />
+                            <NotebookPen size={15} />
                           </Button>
                         )}
                         <Link
