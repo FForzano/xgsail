@@ -11,7 +11,7 @@ from .rbac import RoleORM, PermissionORM, RolePermissionORM, UserRoleORM
 from .club import ClubORM, UserClubORM
 from .group import GroupORM, UserGroupORM
 from .post import PostORM, PostImageORM
-from .boat import BoatClassORM, BoatORM, UserBoatORM, BoatPhotoORM
+from .boat import BoatClassORM, BoatORM, UserBoatORM, BoatPhotoORM, BoatNoteORM
 from .polar import PolarPointORM
 from .device import DeviceTypeORM, DeviceORM
 from .integration import IntegrationConnectionORM
@@ -55,6 +55,7 @@ __all__ = [
     "BoatORM",
     "UserBoatORM",
     "BoatPhotoORM",
+    "BoatNoteORM",
     "PolarPointORM",
     "DeviceTypeORM",
     "DeviceORM",

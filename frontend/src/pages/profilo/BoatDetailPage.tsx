@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
+import { Section } from "@/components/ui/Section";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
@@ -107,7 +108,7 @@ function DocumentUpload({
 export function BoatDetailPage() {
   const { boatId } = useParams<{ boatId: UUID }>();
   const { t } = useTranslation();
-  const { refreshCaps } = useAuth();
+  const { user, refreshCaps } = useAuth();
   const { isBoatManager, isBoatOwner } = useCapabilities();
   const { notify } = useToast();
   const queryClient = useQueryClient();
@@ -128,7 +129,7 @@ export function BoatDetailPage() {
     queryKey: boatKeys.classes(),
     queryFn: () => boatsService.listClasses({ limit: 1000, sort: "name" }),
   });
-  const [form, setForm] = useState({ name: "", sail_number: "", boat_class_id: "", notes: "" });
+  const [form, setForm] = useState({ name: "", sail_number: "", boat_class_id: "" });
   const [inviting, setInviting] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -139,7 +140,6 @@ export function BoatDetailPage() {
         name: boat.data.name ?? "",
         sail_number: boat.data.sail_number ?? "",
         boat_class_id: boat.data.boat_class_id ?? "",
-        notes: boat.data.notes ?? "",
       });
     }
   }, [boat.data]);
@@ -152,7 +152,6 @@ export function BoatDetailPage() {
         name: form.name,
         sail_number: form.sail_number || null,
         boat_class_id: form.boat_class_id || null,
-        notes: form.notes || null,
       }),
     onSuccess: async () => {
       notify(t("common.saved"), "success");
@@ -211,6 +210,7 @@ export function BoatDetailPage() {
   const manager = isBoatManager(boatId);
   const owner = isBoatOwner(boatId);
   const ownerCount = members.data?.filter((m) => m.role === "owner").length ?? 0;
+  const isMember = manager || (boat.data.members?.some((m) => m.user_id === user?.id) ?? false);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -253,12 +253,6 @@ export function BoatDetailPage() {
                 onChange={(id) => setForm((f) => ({ ...f, boat_class_id: id }))}
               />
             </div>
-            <InputField
-              label={t("boats.notes")}
-              id="b-notes"
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-            />
             <div className="sf-form__actions">
               <Button type="submit" disabled={save.isPending}>
                 {t("common.save")}
@@ -301,6 +295,19 @@ export function BoatDetailPage() {
           </div>
         )}
       </Card>
+
+      {isMember && (
+        <Section
+          title={t("boatNotes.title")}
+          actions={
+            <Link to={`/profilo/barche/${boatId}/quaderno`} className="sf-btn sf-btn--ghost sf-btn--sm">
+              {t("boatNotes.open")}
+            </Link>
+          }
+        >
+          <p className="sf-muted">{t("boatNotes.hint")}</p>
+        </Section>
+      )}
 
       <Card
         title={t("boats.photos")}

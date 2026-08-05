@@ -200,7 +200,6 @@
     "sailNumber": "Sail number",
     "boatClass": "Class",
     "loa": "LOA (m)",
-    "notes": "Notes",
     "members": "Crew & members",
     "addMember": "Add member",
     "sailingRole": "Sailing role",
@@ -216,6 +215,21 @@
     "searchHint": "Type at least 2 characters",
     "searchPlaceholder": "Name, sail number or class",
     "noBoatMatch": "No boat found"
+  },
+  "boatNotes": {
+    "title": "Setup notebook",
+    "open": "Open notebook",
+    "hint": "Rig tuning and setup notes for this boat.",
+    "new": "New entry",
+    "edit": "Edit entry",
+    "entryTitle": "Title",
+    "body": "Text",
+    "empty": "No entries yet.",
+    "membersOnly": "Only this boat's crew can see the notebook.",
+    "deleteConfirm": "Delete this entry?",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "backToBoat": "Back to boat"
   },
   "devices": {
     "title": "My devices",
@@ -544,6 +558,8 @@
     "reanalyzeDone": "Update complete",
     "refreshWind": "Refresh wind data",
     "menuSectionSession": "Edit session",
+    "menuSectionBoat": "Boat",
+    "openBoatNotebook": "Boat setup notebook",
     "share": "Share",
     "shareImage": {
       "title": "Share as image",

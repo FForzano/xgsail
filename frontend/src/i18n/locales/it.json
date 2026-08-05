@@ -200,7 +200,6 @@
     "sailNumber": "Numero velico",
     "boatClass": "Classe",
     "loa": "LOA (m)",
-    "notes": "Note",
     "members": "Equipaggio e membri",
     "addMember": "Aggiungi membro",
     "sailingRole": "Ruolo a bordo",
@@ -216,6 +215,21 @@
     "searchHint": "Digita almeno 2 caratteri",
     "searchPlaceholder": "Nome, numero velico o classe",
     "noBoatMatch": "Nessuna barca trovata"
+  },
+  "boatNotes": {
+    "title": "Quaderno regolazioni",
+    "open": "Apri il quaderno",
+    "hint": "Note di assetto e regolazione per questa barca.",
+    "new": "Nuova scheda",
+    "edit": "Modifica scheda",
+    "entryTitle": "Titolo",
+    "body": "Testo",
+    "empty": "Nessuna scheda.",
+    "membersOnly": "Solo l'equipaggio di questa barca può vedere il quaderno.",
+    "deleteConfirm": "Eliminare questa scheda?",
+    "moveUp": "Sposta su",
+    "moveDown": "Sposta giù",
+    "backToBoat": "Torna alla barca"
   },
   "devices": {
     "title": "I miei dispositivi",
@@ -544,6 +558,8 @@
     "reanalyzeDone": "Aggiornamento completato",
     "refreshWind": "Aggiorna dati vento",
     "menuSectionSession": "Modifica sessione",
+    "menuSectionBoat": "Barca",
+    "openBoatNotebook": "Quaderno regolazioni barca",
     "share": "Condividi",
     "shareImage": {
       "title": "Condividi come immagine",

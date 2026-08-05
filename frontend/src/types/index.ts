@@ -163,12 +163,23 @@ export interface Boat {
   boat_class_id: UUID | null;
   sail_number: string | null;
   loa_m: number | null;
-  notes: string | null;
   club_id: UUID | null;
   members?: BoatMember[];
   photos: Array<ImageRef | null>;
   cert?: FileRef | null;
   mbsa?: FileRef | null;
+}
+
+/** Free-text rig-tuning entry in a boat's setup notebook (title + body +
+ * explicit ordering) — see BoatNotebookPage. */
+export interface BoatNote {
+  id: UUID;
+  boat_id: UUID;
+  title: string;
+  body: string;
+  position: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // --- clubs / groups ---------------------------------------------------------------

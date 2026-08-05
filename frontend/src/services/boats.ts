@@ -4,6 +4,7 @@ import type {
   Boat,
   BoatClass,
   BoatMember,
+  BoatNote,
   BoatRole,
   FileUploadTicket,
   HullType,
@@ -20,6 +21,7 @@ export const boatKeys = {
   search: (q: string) => ["boats", "search", q] as const,
   detail: (id: UUID) => ["boats", id] as const,
   members: (id: UUID) => ["boats", id, "members"] as const,
+  notes: (id: UUID) => ["boats", id, "notes"] as const,
   classes: (
     page = 0,
     search = "",
@@ -60,6 +62,15 @@ export const boatsService = {
   setMemberSailingRole: (id: UUID, userId: UUID, sailingRole: string) =>
     api.patch(`/boats/${id}/members/${userId}`, { default_sailing_role: sailingRole }),
   removeMember: (id: UUID, userId: UUID) => api.del(`/boats/${id}/members/${userId}`),
+
+  notes: (id: UUID) => api.get<BoatNote[]>(`/boats/${id}/notes`),
+  createNote: (id: UUID, body: { title: string; body: string }) =>
+    api.post<BoatNote>(`/boats/${id}/notes`, body),
+  updateNote: (id: UUID, noteId: UUID, body: { title?: string; body?: string }) =>
+    api.patch<BoatNote>(`/boats/${id}/notes/${noteId}`, body),
+  reorderNotes: (id: UUID, noteIds: UUID[]) =>
+    api.patch<BoatNote[]>(`/boats/${id}/notes/order`, { note_ids: noteIds }),
+  removeNote: (id: UUID, noteId: UUID) => api.del(`/boats/${id}/notes/${noteId}`),
 
   createPhoto: (id: UUID) => api.post<ImageUploadTicket>(`/boats/${id}/photos`),
   confirmPhoto: (id: UUID, imageId: UUID) => api.post(`/boats/${id}/photos/${imageId}/confirm`),

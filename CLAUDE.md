@@ -579,6 +579,15 @@ Capacitor plugin changes, which still require a store release.
   xgsail_windfusion` — each of those has its own build setup; don't
   add dependencies to the root file expecting them to reach any
   deployable.
+- **A boat's notebook (`boat_notes`) is member-only even though
+  boats are pub-readable.** `_boat_payload` serves boats to
+  anonymous callers, so the notebook is deliberately *not*
+  embedded in it — it has its own `GET /boats/{id}/notes` behind
+  the same member gate as `/members`, with writes restricted to
+  `_is_manager`. Don't "simplify" it into the boat payload.
+  `boats.notes` (a single public Text column) was replaced by this
+  table in revision `0047`, which migrated existing values into
+  a first entry.
 
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.

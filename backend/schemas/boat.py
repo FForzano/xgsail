@@ -11,7 +11,6 @@ class BoatWriteModel(BaseModel):
     boat_class_id: Optional[uuid.UUID] = None
     sail_number: Optional[str] = None
     loa_m: Optional[float] = None
-    notes: Optional[str] = None
     club_id: Optional[uuid.UUID] = None
 
 
@@ -24,6 +23,20 @@ class BoatMemberModel(BaseModel):
 class BoatMemberRoleModel(BaseModel):
     role: Optional[str] = None  # owner | admin | visitor
     default_sailing_role: Optional[str] = None  # skipper | crew
+
+
+class BoatNoteCreateModel(BaseModel):
+    title: str
+    body: str
+
+
+class BoatNoteUpdateModel(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+
+
+class BoatNoteOrderModel(BaseModel):
+    note_ids: list[uuid.UUID]
 
 
 class BoatClassWriteModel(BaseModel):

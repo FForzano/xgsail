@@ -602,6 +602,17 @@ export function SessionDetail({
   menuSections.push({
     items: [{ label: t("sessions.share"), onClick: () => setSharing(true) }],
   });
+  if (manager) {
+    menuSections.push({
+      heading: t("sessions.menuSectionBoat"),
+      items: [
+        {
+          label: t("sessions.openBoatNotebook"),
+          onClick: () => navigate(`/profilo/barche/${session.data?.boat_id}/quaderno`),
+        },
+      ],
+    });
+  }
   menuSections.push({
     heading: t("sessions.menuSectionTrack"),
     items: [

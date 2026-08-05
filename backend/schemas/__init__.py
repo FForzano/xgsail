@@ -14,6 +14,9 @@ from .boat import (
     BoatMemberModel,
     BoatMemberRoleModel,
     BoatClassWriteModel,
+    BoatNoteCreateModel,
+    BoatNoteUpdateModel,
+    BoatNoteOrderModel,
 )
 from .club import ClubWriteModel, ClubMemberModel, ClubMemberStatusModel
 from .group import GroupWriteModel, GroupMemberModel, GroupMemberUpdateModel
@@ -73,6 +76,9 @@ __all__ = [
     "BoatMemberModel",
     "BoatMemberRoleModel",
     "BoatClassWriteModel",
+    "BoatNoteCreateModel",
+    "BoatNoteUpdateModel",
+    "BoatNoteOrderModel",
     "ClubWriteModel",
     "ClubMemberModel",
     "ClubMemberStatusModel",

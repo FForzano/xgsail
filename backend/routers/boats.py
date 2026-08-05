@@ -4,7 +4,9 @@ Matrix: boats are pub-readable (sensitive docs cert/mbsa only for members),
 creation makes the caller ``user_boats.role=owner``, writes follow the
 per-resource ownership roles (owner = full, admin = write-no-delete).
 Boat classes are a superadmin-managed catalog. Photos/documents are
-parent-mediated media (presign + confirm).
+parent-mediated media (presign + confirm). The notebook (``boat_notes``,
+free-text rig-tuning entries) follows the same ownership roles: member-read,
+owner/admin-write.
 """
 
 import uuid
@@ -17,6 +19,9 @@ from ..schemas import (
     BoatClassWriteModel,
     BoatMemberModel,
     BoatMemberRoleModel,
+    BoatNoteCreateModel,
+    BoatNoteOrderModel,
+    BoatNoteUpdateModel,
     BoatWriteModel,
 )
 from ..services import media
@@ -253,6 +258,69 @@ def remove_member(boat_id: uuid.UUID, user_id: uuid.UUID, request: Request):
         raise HTTPException(409, "Cannot remove the boat's only owner")
     if not repos.boats.remove_member(boat_id, user_id):
         raise HTTPException(404, "Member not found")
+    return {"ok": True}
+
+
+# --- notebook (boat_notes) --------------------------------------------------
+
+@router.get("/boats/{boat_id}/notes")
+def list_notes(boat_id: uuid.UUID, request: Request):
+    user = require_user(request)
+    _require_boat(boat_id)
+    if not (user.is_superadmin or repos.boats.is_member(boat_id, user.id)):
+        raise HTTPException(403, "Boat members only")
+    return [n.to_dict() for n in repos.boats.list_notes(boat_id)]
+
+
+@router.post("/boats/{boat_id}/notes")
+def create_note(boat_id: uuid.UUID, body: BoatNoteCreateModel, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    _require_boat(boat_id)
+    if not _is_manager(user, boat_id):
+        raise HTTPException(403, "Boat owner/admin required")
+    if not body.title.strip() or not body.body.strip():
+        raise HTTPException(422, "title and body are required")
+    return repos.boats.add_note(boat_id, body.title, body.body).to_dict()
+
+
+@router.patch("/boats/{boat_id}/notes/order")
+def reorder_notes(boat_id: uuid.UUID, body: BoatNoteOrderModel, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    _require_boat(boat_id)
+    if not _is_manager(user, boat_id):
+        raise HTTPException(403, "Boat owner/admin required")
+    if not repos.boats.reorder_notes(boat_id, body.note_ids):
+        raise HTTPException(422, "note_ids must list exactly this boat's notes")
+    return [n.to_dict() for n in repos.boats.list_notes(boat_id)]
+
+
+@router.patch("/boats/{boat_id}/notes/{note_id}")
+def update_note(boat_id: uuid.UUID, note_id: uuid.UUID, body: BoatNoteUpdateModel, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    _require_boat(boat_id)
+    if not _is_manager(user, boat_id):
+        raise HTTPException(403, "Boat owner/admin required")
+    if repos.boats.get_note(boat_id, note_id) is None:
+        raise HTTPException(404, "Note not found")
+    changes = body.model_dump(exclude_unset=True)
+    # Both columns are NOT NULL, so an explicit null is as invalid as a blank.
+    if any(not (changes[f] or "").strip() for f in ("title", "body") if f in changes):
+        raise HTTPException(422, "title and body are required")
+    return repos.boats.update_note(note_id, changes).to_dict()
+
+
+@router.delete("/boats/{boat_id}/notes/{note_id}")
+def delete_note(boat_id: uuid.UUID, note_id: uuid.UUID, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    _require_boat(boat_id)
+    if not _is_manager(user, boat_id):
+        raise HTTPException(403, "Boat owner/admin required")
+    if not repos.boats.remove_note(boat_id, note_id):
+        raise HTTPException(404, "Note not found")
     return {"ok": True}
 
 

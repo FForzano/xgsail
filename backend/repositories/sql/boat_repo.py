@@ -1,16 +1,17 @@
 """SQL boat repository: boats + ``user_boats`` membership + ``boat_classes``
-catalog + ``boat_photos`` links. Reads return ORM rows; ``create``/``update``
-take dicts (membership is managed via the dedicated member methods so a boat
-edit never clobbers the roster)."""
+catalog + ``boat_photos`` links + ``boat_notes`` (rig-tuning notebook). Reads
+return ORM rows; ``create``/``update`` take dicts (membership is managed via
+the dedicated member methods so a boat edit never clobbers the roster)."""
 
 import uuid
 from typing import Optional
 
 from sqlalchemy import func, or_, select, update
 
-from ...db.models import BoatClassORM, BoatORM, BoatPhotoORM, UserBoatORM
+from ...db.models import BoatClassORM, BoatNoteORM, BoatORM, BoatPhotoORM, UserBoatORM
 
-_FIELDS = ("name", "boat_class_id", "sail_number", "loa_m", "cert_id", "mbsa_id", "notes", "club_id")
+_FIELDS = ("name", "boat_class_id", "sail_number", "loa_m", "cert_id", "mbsa_id", "club_id")
+_NOTE_FIELDS = ("title", "body")
 _CLASS_FIELDS = (
     "name", "description", "logo_id",
     "loa_m", "beam_m", "sail_area_sqm", "crew_size", "hull_type",
@@ -263,6 +264,79 @@ class SqlBoatRepo:
             orm = s.scalars(
                 select(BoatPhotoORM).where(
                     BoatPhotoORM.boat_id == boat_id, BoatPhotoORM.image_id == image_id
+                )
+            ).first()
+            if orm is None:
+                return False
+            s.delete(orm)
+            s.commit()
+            return True
+
+    # --- boat_notes (rig-tuning notebook) ---
+
+    def list_notes(self, boat_id: uuid.UUID) -> "list[BoatNoteORM]":
+        with self.Session() as s:
+            return list(s.scalars(
+                select(BoatNoteORM)
+                .where(BoatNoteORM.boat_id == boat_id)
+                .order_by(BoatNoteORM.position, BoatNoteORM.created_at)
+            ).all())
+
+    def get_note(self, boat_id: uuid.UUID, note_id: uuid.UUID) -> Optional[BoatNoteORM]:
+        with self.Session() as s:
+            return s.scalars(
+                select(BoatNoteORM).where(
+                    BoatNoteORM.id == note_id, BoatNoteORM.boat_id == boat_id
+                )
+            ).first()
+
+    def add_note(self, boat_id: uuid.UUID, title: str, body: str) -> BoatNoteORM:
+        with self.Session() as s:
+            max_position = s.scalar(
+                select(func.max(BoatNoteORM.position)).where(BoatNoteORM.boat_id == boat_id)
+            )
+            position = 0 if max_position is None else max_position + 1
+            orm = BoatNoteORM(boat_id=boat_id, title=title, body=body, position=position)
+            s.add(orm)
+            s.commit()
+            new_id = orm.id
+        return self.get_note(boat_id, new_id)
+
+    def update_note(self, note_id: uuid.UUID, changes: dict) -> Optional[BoatNoteORM]:
+        with self.Session() as s:
+            orm = s.get(BoatNoteORM, note_id)
+            if orm is None:
+                return None
+            for k, v in changes.items():
+                if k in _NOTE_FIELDS:
+                    setattr(orm, k, v)
+            s.commit()
+            boat_id = orm.boat_id
+        return self.get_note(boat_id, note_id)
+
+    def reorder_notes(self, boat_id: uuid.UUID, note_ids: "list[uuid.UUID]") -> bool:
+        """Whole-list reorder: succeeds only if ``note_ids`` is exactly the
+        boat's current note ids (no missing, no extra, none from another
+        boat), assigning position 0..n-1 in submitted order."""
+        with self.Session() as s:
+            current = list(s.scalars(
+                select(BoatNoteORM).where(BoatNoteORM.boat_id == boat_id)
+            ).all())
+            # Length check too: a duplicated id would pass the set comparison
+            # and then leave the list with gaps.
+            if len(note_ids) != len(current) or {n.id for n in current} != set(note_ids):
+                return False
+            by_id = {n.id: n for n in current}
+            for position, note_id in enumerate(note_ids):
+                by_id[note_id].position = position
+            s.commit()
+            return True
+
+    def remove_note(self, boat_id: uuid.UUID, note_id: uuid.UUID) -> bool:
+        with self.Session() as s:
+            orm = s.scalars(
+                select(BoatNoteORM).where(
+                    BoatNoteORM.id == note_id, BoatNoteORM.boat_id == boat_id
                 )
             ).first()
             if orm is None:

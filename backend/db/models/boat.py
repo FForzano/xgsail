@@ -1,9 +1,11 @@
-"""Boat tables: ``boat_classes``, ``boats``, ``user_boats``, ``boat_photos``.
+"""Boat tables: ``boat_classes``, ``boats``, ``user_boats``, ``boat_photos``,
+``boat_notes``.
 
 ``user_boats`` is the per-resource ownership layer (owner|admin|visitor — no
 centralized RBAC check, the relationship itself grants access) plus the
 default sailing role used to prefill ``session_crew``. Documents (cert/mbsa)
-point at ``files``; photos at ``images`` via ``boat_photos``.
+point at ``files``; photos at ``images`` via ``boat_photos``; free-text
+rig-tuning entries live in ``boat_notes``, ordered by an explicit ``position``.
 """
 
 import uuid
@@ -69,7 +71,6 @@ class BoatORM(UUIDPKMixin, TimestampMixin, Base):
     mbsa_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("files.id", ondelete="SET NULL"), nullable=True
     )
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Optional: the club where the boat is stationed.
     club_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("clubs.id", ondelete="SET NULL"), nullable=True
@@ -106,3 +107,16 @@ class BoatPhotoORM(UUIDPKMixin, Base):
 
     boat_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("boats.id", ondelete="CASCADE"))
     image_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("images.id", ondelete="CASCADE"))
+
+
+class BoatNoteORM(UUIDPKMixin, TimestampMixin, Base):
+    __tablename__ = "boat_notes"
+
+    boat_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("boats.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    # No uniqueness on (boat_id, position): enforcing it would turn every
+    # reorder into a multi-statement dance around collisions for no benefit.
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
