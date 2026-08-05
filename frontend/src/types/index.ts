@@ -182,6 +182,16 @@ export interface BoatNote {
   updated_at: string;
 }
 
+/** Read-only crew note written on an individual session, surfaced on the
+ * boat's notebook page as the "logbook" — see BoatNotebookPage. */
+export interface BoatSessionNote {
+  session_id: UUID;
+  activity_id: UUID;
+  started_at: string | null;
+  notes: string;
+  notes_shared: boolean;
+}
+
 // --- clubs / groups ---------------------------------------------------------------
 
 export interface Club {

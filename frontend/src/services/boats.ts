@@ -6,6 +6,7 @@ import type {
   BoatMember,
   BoatNote,
   BoatRole,
+  BoatSessionNote,
   FileUploadTicket,
   HullType,
   ImageUploadTicket,
@@ -22,6 +23,7 @@ export const boatKeys = {
   detail: (id: UUID) => ["boats", id] as const,
   members: (id: UUID) => ["boats", id, "members"] as const,
   notes: (id: UUID) => ["boats", id, "notes"] as const,
+  sessionNotes: (id: UUID) => ["boats", id, "session-notes"] as const,
   classes: (
     page = 0,
     search = "",
@@ -71,6 +73,8 @@ export const boatsService = {
   reorderNotes: (id: UUID, noteIds: UUID[]) =>
     api.patch<BoatNote[]>(`/boats/${id}/notes/order`, { note_ids: noteIds }),
   removeNote: (id: UUID, noteId: UUID) => api.del(`/boats/${id}/notes/${noteId}`),
+
+  sessionNotes: (id: UUID) => api.get<BoatSessionNote[]>(`/boats/${id}/session-notes`),
 
   createPhoto: (id: UUID) => api.post<ImageUploadTicket>(`/boats/${id}/photos`),
   confirmPhoto: (id: UUID, imageId: UUID) => api.post(`/boats/${id}/photos/${imageId}/confirm`),

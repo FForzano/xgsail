@@ -231,6 +231,16 @@
     "moveDown": "Sposta giù",
     "backToBoat": "Torna alla barca"
   },
+  "boatLog": {
+    "title": "Diario di bordo",
+    "hint": "Note scritte durante le uscite di questa barca.",
+    "empty": "Nessuna nota dalle uscite.",
+    "membersOnly": "Solo l'equipaggio di questa barca può vedere il diario.",
+    "openSession": "Apri la sessione",
+    "promote": "Salva nel quaderno",
+    "promotedTitle": "Dal diario di bordo",
+    "noDate": "Senza data"
+  },
   "devices": {
     "title": "I miei dispositivi",
     "claim": "Registra un dispositivo",

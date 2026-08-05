@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ...db.models import (
     SessionAnalysisORM,
@@ -76,6 +76,31 @@ class SqlSessionRepo:
             q = select(SessionORM).where(
                 SessionORM.boat_id.in_(boat_ids) | SessionORM.id.in_(crew_ids)
             ).order_by(SessionORM.started_at.desc().nulls_last())
+            return list(s.scalars(q).all())
+
+    def list_with_notes_for_boat(self, boat_id: uuid.UUID, *, limit: int = 50,
+                                 offset: int = 0) -> "list[SessionORM]":
+        """This boat's sessions that actually carry a crew note, newest first.
+
+        Paginated because it backs an open-ended logbook view; the caller still
+        has to filter each row through ``session_notes_visible_to`` — a note
+        being present is not a note being readable."""
+        with self.Session() as s:
+            q = (
+                select(SessionORM)
+                .where(
+                    SessionORM.boat_id == boat_id,
+                    SessionORM.notes.is_not(None),
+                    # Characters spelled out because one-arg trim()/btrim()
+                    # strips spaces only, letting a note of bare newlines
+                    # through as a blank logbook row. Two-arg trim() behaves
+                    # the same on Postgres and on the suite's SQLite.
+                    func.trim(SessionORM.notes, " \t\n\r") != "",
+                )
+                .order_by(SessionORM.started_at.desc().nulls_last())
+                .offset(offset)
+                .limit(limit)
+            )
             return list(s.scalars(q).all())
 
     def get(self, session_id: uuid.UUID) -> Optional[SessionORM]:

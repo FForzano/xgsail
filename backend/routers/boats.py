@@ -6,7 +6,9 @@ per-resource ownership roles (owner = full, admin = write-no-delete).
 Boat classes are a superadmin-managed catalog. Photos/documents are
 parent-mediated media (presign + confirm). The notebook (``boat_notes``,
 free-text rig-tuning entries) follows the same ownership roles: member-read,
-owner/admin-write.
+owner/admin-write. A boat also exposes a read-only logbook view of its
+sessions' crew notes, gated per session (``session_notes_visible_to``) rather
+than by boat membership alone.
 """
 
 import uuid
@@ -14,7 +16,13 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from ..auth import current_user, require_superadmin, require_user, verify_csrf
+from ..auth import (
+    current_user,
+    require_superadmin,
+    require_user,
+    session_notes_visible_to,
+    verify_csrf,
+)
 from ..schemas import (
     BoatClassWriteModel,
     BoatMemberModel,
@@ -322,6 +330,38 @@ def delete_note(boat_id: uuid.UUID, note_id: uuid.UUID, request: Request):
     if not repos.boats.remove_note(boat_id, note_id):
         raise HTTPException(404, "Note not found")
     return {"ok": True}
+
+
+@router.get("/boats/{boat_id}/session-notes")
+def list_session_notes(boat_id: uuid.UUID, request: Request,
+                       limit: int = Query(50, le=200, gt=0),
+                       offset: int = Query(0, ge=0)):
+    """The boat's per-outing crew notes, newest first — the logbook companion
+    to the notebook above, and a different audience from it.
+
+    Two gates, both required: boat membership to enumerate at all, then
+    ``session_notes_visible_to`` per session for the content — a boat visitor
+    who did not sail an outing must not read its notes unless ``notes_shared``.
+
+    That per-item filter runs after the SQL ``limit``, so a page may hold fewer
+    than ``limit`` items without meaning the list ended; topping it back up
+    would leak how many rows the caller cannot see.
+    """
+    user = require_user(request)
+    _require_boat(boat_id)
+    if not (user.is_superadmin or repos.boats.is_member(boat_id, user.id)):
+        raise HTTPException(403, "Boat members only")
+    return [
+        {
+            "session_id": s.id,
+            "activity_id": s.activity_id,
+            "started_at": s.started_at,
+            "notes": s.notes,
+            "notes_shared": s.notes_shared,
+        }
+        for s in repos.sessions.list_with_notes_for_boat(boat_id, limit=limit, offset=offset)
+        if session_notes_visible_to(s, user)
+    ]
 
 
 # --- media: photos + documents ------------------------------------------------

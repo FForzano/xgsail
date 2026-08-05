@@ -588,6 +588,19 @@ Capacitor plugin changes, which still require a store release.
   `boats.notes` (a single public Text column) was replaced by this
   table in revision `0047`, which migrated existing values into
   a first entry.
+- **A boat has two kinds of notes with two different audiences —
+  don't gate one like the other.** `boat_notes` (the setup
+  notebook) is readable by **any** boat member, `visitor` included.
+  `sessions.notes` (the per-outing crew log) is readable only per
+  `session_notes_visible_to`: the crew of *that* session or the
+  boat's owner/admin, widening to the session's normal audience only
+  when `notes_shared` is set. So `GET /boats/{id}/session-notes`
+  gates twice — boat membership to enumerate, then per-session
+  visibility for the content — and a list endpoint that filtered only
+  on boat membership would hand every private crew note to every boat
+  visitor. The per-item filter runs after the SQL `LIMIT`, so a short
+  page does not mean the list ended; topping it up would leak how many
+  rows the caller can't see.
 
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.

@@ -231,6 +231,16 @@
     "moveDown": "Move down",
     "backToBoat": "Back to boat"
   },
+  "boatLog": {
+    "title": "Logbook",
+    "hint": "Notes written during this boat's sessions.",
+    "empty": "No session notes yet.",
+    "membersOnly": "Only this boat's crew can see the logbook.",
+    "openSession": "Open session",
+    "promote": "Save to notebook",
+    "promotedTitle": "From the logbook",
+    "noDate": "Undated"
+  },
   "devices": {
     "title": "My devices",
     "claim": "Claim a device",

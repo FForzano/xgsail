@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -15,8 +15,16 @@ import { InputField, TextAreaField } from "@/components/ui/InputField";
 import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import type { BoatNote, UUID } from "@/types";
+import { fmtDateTime } from "@/utils/format";
+import type { BoatNote, BoatSessionNote, UUID } from "@/types";
 import styles from "./BoatNotebook.module.css";
+
+/** Shared 403-vs-generic error message for both the notebook and logbook
+ * queries — both hit boat-membership-gated endpoints the same way, only the
+ * "members only" copy differs per section. */
+function queryErrorMessage(error: unknown, membersOnlyKey: string, t: (key: string) => string): string {
+  return error instanceof ApiError && error.status === 403 ? t(membersOnlyKey) : t("errors.generic");
+}
 
 export function BoatNotebookPage() {
   const { boatId } = useParams<{ boatId: UUID }>();
@@ -28,6 +36,13 @@ export function BoatNotebookPage() {
   const notes = useQuery({
     queryKey: boatKeys.notes(boatId!),
     queryFn: () => boatsService.notes(boatId!),
+    enabled: !!boatId,
+    retry: false,
+  });
+
+  const sessionNotes = useQuery({
+    queryKey: boatKeys.sessionNotes(boatId!),
+    queryFn: () => boatsService.sessionNotes(boatId!),
     enabled: !!boatId,
     retry: false,
   });
@@ -69,15 +84,20 @@ export function BoatNotebookPage() {
     onError: () => notify(t("errors.generic"), "error"),
   });
 
-  const openNew = () => {
+  const openPrefilled = (title: string, body: string) => {
     setEditing(null);
-    setForm({ title: "", body: "" });
+    setForm({ title, body });
     setCreating(true);
   };
+  const openNew = () => openPrefilled("", "");
   const openEdit = (note: BoatNote) => {
     setEditing(note);
     setForm({ title: note.title, body: note.body });
     setCreating(true);
+  };
+  const openPromote = (note: BoatSessionNote) => {
+    const title = note.started_at ? fmtDateTime(note.started_at) : t("boatLog.promotedTitle");
+    openPrefilled(title, note.notes);
   };
 
   const move = (index: number, direction: -1 | 1) => {
@@ -109,11 +129,7 @@ export function BoatNotebookPage() {
         {notes.isLoading ? (
           <Spinner />
         ) : notes.error ? (
-          <p className="sf-muted">
-            {notes.error instanceof ApiError && notes.error.status === 403
-              ? t("boatNotes.membersOnly")
-              : t("errors.generic")}
-          </p>
+          <p className="sf-muted">{queryErrorMessage(notes.error, "boatNotes.membersOnly", t)}</p>
         ) : !notes.data?.length ? (
           <p className="sf-muted">{t("boatNotes.empty")}</p>
         ) : (
@@ -152,6 +168,47 @@ export function BoatNotebookPage() {
               )}
             </Card>
           ))
+        )}
+      </Section>
+
+      <Section title={t("boatLog.title")}>
+        <p className="sf-muted">{t("boatLog.hint")}</p>
+        {sessionNotes.isLoading ? (
+          <Spinner />
+        ) : sessionNotes.error ? (
+          <p className="sf-muted">
+            {queryErrorMessage(sessionNotes.error, "boatLog.membersOnly", t)}
+          </p>
+        ) : !sessionNotes.data?.length ? (
+          <p className="sf-muted">{t("boatLog.empty")}</p>
+        ) : (
+          <ul className="sf-strip">
+            {sessionNotes.data.map((note) => (
+              <li key={note.session_id} className={`sf-strip__item ${styles.logRow}`}>
+                <div className={styles.logMeta}>
+                  <strong>{note.started_at ? fmtDateTime(note.started_at) : t("boatLog.noDate")}</strong>
+                  <Link
+                    className="sf-btn sf-btn--sm sf-btn--ghost"
+                    to={`/diario/activities/${note.activity_id}/barche/${note.session_id}`}
+                  >
+                    {t("boatLog.openSession")}
+                  </Link>
+                </div>
+                <p className={styles.body}>{note.notes}</p>
+                {manager && (
+                  <div className="sf-strip__actions">
+                    <Button
+                      variant="ghost"
+                      className="sf-btn--sm"
+                      onClick={() => openPromote(note)}
+                    >
+                      {t("boatLog.promote")}
+                    </Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </Section>
 
