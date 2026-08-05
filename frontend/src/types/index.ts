@@ -57,6 +57,12 @@ export interface UserSummary {
   profile_image: ImageRef | null;
 }
 
+// GET /users/search row: a UserSummary plus the ranking cue (shared
+// club/group/boat with the caller) used to sort them first.
+export interface UserSearchResult extends UserSummary {
+  shared: boolean;
+}
+
 /** Per-document acceptance status in the capabilities payload. */
 export interface LegalDocStatus {
   acceptedVersion: string | null;

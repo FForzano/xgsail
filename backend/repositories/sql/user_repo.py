@@ -6,9 +6,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from ...db.models import UserORM
+from ...db.models.boat import UserBoatORM
+from ...db.models.club import UserClubORM
+from ...db.models.group import UserGroupORM
 from ...support import DONATED_DELAY, SNOOZE_DELAY
 
 
@@ -32,6 +35,67 @@ class SqlUserRepo:
         with self.Session() as s:
             orm = self._by_email(s, email)
             return orm.password_hash if orm else None
+
+    def search(self, q: str, *, limit: int = 20) -> "list[UserORM]":
+        """Case-insensitive partial (``%q%``, not prefix-only) match on first
+        name, last name, email, and the "first last" full-name concatenation
+        — so "mario rossi" finds first_name="Mario"/last_name="Rossi" even
+        though neither column alone contains the full string. Uses ``+``
+        rather than ``func.concat`` because the test suite runs against
+        SQLite, which lacks ``concat``. Only live users (active, not soft-
+        deleted) are eligible. Caller is responsible for any minimum-length
+        guard on ``q``."""
+        pattern = f"%{q}%"
+        full_name = func.coalesce(UserORM.first_name, "") + " " + func.coalesce(UserORM.last_name, "")
+        with self.Session() as s:
+            stmt = (
+                select(UserORM)
+                .where(
+                    UserORM.is_active.is_(True),
+                    UserORM.deleted_at.is_(None),
+                    or_(
+                        UserORM.first_name.ilike(pattern),
+                        UserORM.last_name.ilike(pattern),
+                        UserORM.email.ilike(pattern),
+                        full_name.ilike(pattern),
+                    ),
+                )
+                .order_by(UserORM.last_name, UserORM.first_name)
+                .limit(limit)
+            )
+            return list(s.scalars(stmt).all())
+
+    def related_user_ids(self, user_id: uuid.UUID) -> "set[uuid.UUID]":
+        """Every other user sharing at least one club, group, or boat with
+        ``user_id`` — one simple query per membership table rather than a
+        single clever join, for readability."""
+        with self.Session() as s:
+            club_ids = s.scalars(
+                select(UserClubORM.club_id).where(UserClubORM.user_id == user_id)
+            ).all()
+            group_ids = s.scalars(
+                select(UserGroupORM.group_id).where(UserGroupORM.user_id == user_id)
+            ).all()
+            boat_ids = s.scalars(
+                select(UserBoatORM.boat_id).where(UserBoatORM.user_id == user_id)
+            ).all()
+
+            related: set[uuid.UUID] = set()
+            if club_ids:
+                related.update(s.scalars(
+                    select(UserClubORM.user_id).where(UserClubORM.club_id.in_(club_ids))
+                ).all())
+            if group_ids:
+                related.update(s.scalars(
+                    select(UserGroupORM.user_id).where(UserGroupORM.group_id.in_(group_ids))
+                ).all())
+            if boat_ids:
+                related.update(s.scalars(
+                    select(UserBoatORM.user_id).where(UserBoatORM.boat_id.in_(boat_ids))
+                ).all())
+
+            related.discard(user_id)
+            return related
 
     def create(self, *, email: str, password_hash: Optional[str],
                first_name: Optional[str] = None, last_name: Optional[str] = None,

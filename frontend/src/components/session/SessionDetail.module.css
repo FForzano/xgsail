@@ -25,6 +25,15 @@
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
+/* Right-hand group of `sf-toolbar` (which is space-between, so its two
+   children are the title and this): toolbar icon buttons + the ⋮ trigger.
+   Shared with ActivityDetailPage for the embedded (solo-activity) header. */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
 /* One-shot template picker (applies a note-template's body, then resets to
    its placeholder) + a small "manage" link — kept to a single compact row
    above the notes textarea so it doesn't compete with the checkbox/hint/

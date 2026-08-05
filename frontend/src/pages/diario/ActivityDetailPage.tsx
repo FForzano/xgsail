@@ -12,7 +12,7 @@ import { timeController } from "@/stores/timeController";
 import { buildTracks, medianIntervalMs, timeBounds } from "@/components/race/raceModel";
 import { MapView, type MapMark } from "@/components/race/MapView";
 import { BoatSessionCarousel, type BoatSessionCarouselItem } from "@/components/diario/BoatSessionCarousel";
-import { SessionDetail, type QuickAction } from "@/components/session/SessionDetail";
+import { SessionDetail, QuickActionButtons, type QuickAction } from "@/components/session/SessionDetail";
 import { Timeline } from "@/components/race/Timeline";
 import { SpeedChart } from "@/components/race/SpeedChart";
 import { Section } from "@/components/ui/Section";
@@ -58,6 +58,9 @@ export function ActivityDetailPage() {
   // SessionDetail's `onQuickActions` and the QuickAction row rendered below,
   // next to the solo session's boat name.
   const [soloQuickActions, setSoloQuickActions] = useState<QuickAction[]>([]);
+  // Toolbar icon buttons (Share) handed up the same way — see
+  // SessionDetail's `onHeaderActions`; rendered left of this page's own ⋮.
+  const [soloHeaderActions, setSoloHeaderActions] = useState<QuickAction[]>([]);
   // Set while editing an already-placed mark — the same form is reused for
   // both add and edit, submitting to `updateMark` instead of `addMark`.
   const [editingMarkId, setEditingMarkId] = useState<UUID | null>(null);
@@ -311,70 +314,75 @@ export function ActivityDetailPage() {
                   }}
                 >
                   {activityDisplayName(a, t)}
-                </span>{" "}
-                <span className="sf-badge">{t(`activities.types.${a.type}`)}</span>{" "}
-                {canChangeVisibility ? (
-                  <select
-                    className="sf-badge sf-badge--select"
-                    value={a.visibility}
-                    disabled={updateVisibility.isPending}
-                    onChange={(e) => updateVisibility.mutate(e.target.value as Visibility)}
-                  >
-                    {VISIBILITIES.map((v) => (
-                      <option key={v} value={v}>
-                        {t(`activities.visibility.${v}`)}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="sf-badge">{t(`activities.visibility.${a.visibility}`)}</span>
-                )}
+                </span>
               </>
             )}
           </h1>
-          {soloSession ? (
-            // Single merged menu for solo activities — combines this page's
-            // own actions (Import, Delete) with the ones handed up by the
-            // embedded SessionDetail (see soloMenuSections/onMenuSections),
-            // instead of showing a second ⋮ menu on the map card below.
-            <Menu
-              sections={[
-                {
-                  items: [
-                    {
-                      label: t("sessions.import"),
-                      onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`),
-                    },
-                  ],
-                },
-                ...soloMenuSections,
-                ...(canEdit
-                  ? [
+          <div className={sessionStyles.headerActions}>
+            <QuickActionButtons actions={soloHeaderActions} />
+            {soloSession ? (
+              // Single merged menu for solo activities — combines this page's
+              // own actions (Import, Delete) with the ones handed up by the
+              // embedded SessionDetail (see soloMenuSections/onMenuSections),
+              // instead of showing a second ⋮ menu on the map card below.
+              <Menu
+                sections={[
+                  {
+                    items: [
                       {
-                        items: [{ label: t("common.delete"), danger: true, onClick: () => setDeleting(true) }],
+                        label: t("sessions.import"),
+                        onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`),
                       },
-                    ]
-                  : []),
-              ]}
-            />
+                    ],
+                  },
+                  ...soloMenuSections,
+                  ...(canEdit
+                    ? [
+                        {
+                          items: [{ label: t("common.delete"), danger: true, onClick: () => setDeleting(true) }],
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            ) : (
+              <OptionsMenu
+                items={[
+                  {
+                    label: t("sessions.import"),
+                    onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`),
+                  },
+                  ...(canEdit
+                    ? [
+                        {
+                          label: t("common.delete"),
+                          danger: true,
+                          onClick: () => setDeleting(true),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            )}
+          </div>
+        </div>
+        <div className={pageStyles.badgeRow}>
+          <span className="sf-badge">{t(`activities.types.${a.type}`)}</span>
+          {canChangeVisibility ? (
+            <select
+              className="sf-badge sf-badge--select"
+              value={a.visibility}
+              disabled={updateVisibility.isPending}
+              onChange={(e) => updateVisibility.mutate(e.target.value as Visibility)}
+            >
+              {VISIBILITIES.map((v) => (
+                <option key={v} value={v}>
+                  {t(`activities.visibility.${v}`)}
+                </option>
+              ))}
+            </select>
           ) : (
-            <OptionsMenu
-              items={[
-                {
-                  label: t("sessions.import"),
-                  onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`),
-                },
-                ...(canEdit
-                  ? [
-                      {
-                        label: t("common.delete"),
-                        danger: true,
-                        onClick: () => setDeleting(true),
-                      },
-                    ]
-                  : []),
-              ]}
-            />
+            <span className="sf-badge">{t(`activities.visibility.${a.visibility}`)}</span>
           )}
         </div>
         <p className="sf-muted">
@@ -401,18 +409,7 @@ export function ActivityDetailPage() {
           })()}
         {soloQuickActions.length > 0 && (
           <div className={sessionStyles.quickActions}>
-            {soloQuickActions.map((qa) => (
-              <Button
-                key={qa.key}
-                type="button"
-                variant="ghost"
-                className="sf-btn--icon-sm"
-                aria-label={qa.label}
-                onClick={qa.onClick}
-              >
-                {qa.icon}
-              </Button>
-            ))}
+            <QuickActionButtons actions={soloQuickActions} />
           </div>
         )}
         {a.race_id && (
@@ -436,6 +433,7 @@ export function ActivityDetailPage() {
             }}
             onMenuSections={setSoloMenuSections}
             onQuickActions={setSoloQuickActions}
+            onHeaderActions={setSoloHeaderActions}
           />
         </div>
       ) : (

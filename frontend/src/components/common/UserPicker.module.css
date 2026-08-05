@@ -1,0 +1,14 @@
+/* Reset native <button> chrome so a clickable result row still reads as an
+ * sf-strip__item — global.css has no such reset since sf-strip__item is
+ * normally a <div>/<a>, never a <button>. */
+.rowButton {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.rowButton:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

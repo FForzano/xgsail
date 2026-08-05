@@ -7,7 +7,7 @@ auth router. Profile image is parent-mediated media (presign + confirm).
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..auth import hash_password, require_superadmin, require_user, verify_csrf
 from ..schemas import UserUpdateModel
@@ -51,13 +51,49 @@ def my_memberships(request: Request):
 
 @router.get("/lookup")
 def lookup_user(email: str, request: Request):
-    """Exact-match user lookup for invite flows (club/group/boat/crew) — any
-    authenticated user, minimal fields only."""
+    """Exact-match user lookup by email — any authenticated user, minimal
+    fields only.
+
+    Compatibility surface, not the current path: the web app now finds people
+    through ``/users/search``. This stays because already-installed native
+    apps run whatever OTA bundle they last pulled, and the older ones still
+    call this to invite someone — deleting it 404s their invite flow until
+    they update. Removable once no shipped bundle references it."""
     require_user(request)
     found = repos.users.get_by_email(email.strip())
     if found is None or not found.is_active:
         raise HTTPException(404, "User not found")
     return user_summary(found.id)
+
+
+@router.get("/search")
+def search_users(
+    request: Request,
+    q: str = Query(..., min_length=2),
+    limit: int = Query(20, gt=0, le=50),
+):
+    """Name/email partial-match search for a Facebook-style "pick a person"
+    picker — any authenticated user. Deliberately searches *all* active
+    users, not just people the caller already shares a club/group/boat
+    with: the point is finding someone to invite you don't yet share
+    anything with. The ``min_length`` and ``limit`` cap are the only
+    anti-enumeration measures (a 1-character query would return a huge
+    slice of the instance); the "shared" ranking below is a UX convenience,
+    not a permission boundary.
+    """
+    user = require_user(request)
+    q = q.strip()
+    if not q:
+        return []
+    found = repos.users.search(q, limit=limit)
+    related = repos.users.related_user_ids(user.id)
+    results = [
+        {**user_summary(u.id), "shared": u.id in related}
+        for u in found
+        if u.id != user.id
+    ]
+    results.sort(key=lambda r: not r["shared"])
+    return results
 
 
 @router.get("/{user_id}")

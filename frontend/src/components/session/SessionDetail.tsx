@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, NotebookPen, Pencil, Video } from "lucide-react";
+import { ImagePlus, NotebookPen, NotebookText, Pencil, Share2, Video } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
@@ -67,6 +67,28 @@ export interface QuickAction {
   onClick: () => void;
 }
 
+/** Renders a QuickAction list as circular ghost icon buttons. Shared so the
+ * standalone session page and ActivityDetailPage (which receives the same
+ * arrays via `onQuickActions`/`onHeaderActions`) render them identically. */
+export function QuickActionButtons({ actions }: { actions: QuickAction[] }) {
+  return (
+    <>
+      {actions.map((a) => (
+        <Button
+          key={a.key}
+          type="button"
+          variant="ghost"
+          className="sf-btn--icon-sm"
+          aria-label={a.label}
+          onClick={a.onClick}
+        >
+          {a.icon}
+        </Button>
+      ))}
+    </>
+  );
+}
+
 /** Full session analysis view (rich map, trim, maneuver-edit, stats, wind,
  * crew, photos, videos, SessionAnalysis) — shared between the standalone
  * `/barche/:sessionId` route (`variant="page"`) and inline embedding on the
@@ -76,9 +98,9 @@ export interface QuickAction {
  * marks/boe) overlay additional pins on this session's map; `pickMode`/
  * `onMapClick` let it drive the same map's "pick a point" mode (e.g. placing
  * a race mark) instead of duplicating a second map just for that.
- * `onMenuSections`/`onQuickActions` are how "embedded" hands its ⋮ menu
- * sections and "Aggiungi" icon row up to the caller instead of rendering its
- * own — see the effect below. */
+ * `onMenuSections`/`onQuickActions`/`onHeaderActions` are how "embedded" hands
+ * its ⋮ menu sections, "Aggiungi" icon row and toolbar icon buttons (Share)
+ * up to the caller instead of rendering its own — see the effect below. */
 export function SessionDetail({
   sessionId,
   variant = "page",
@@ -87,6 +109,7 @@ export function SessionDetail({
   onMapClick,
   onMenuSections,
   onQuickActions,
+  onHeaderActions,
 }: {
   sessionId: UUID;
   variant?: "page" | "embedded";
@@ -95,6 +118,7 @@ export function SessionDetail({
   onMapClick?: (lat: number, lng: number) => void;
   onMenuSections?: (sections: MenuSection[]) => void;
   onQuickActions?: (actions: QuickAction[]) => void;
+  onHeaderActions?: (actions: QuickAction[]) => void;
 }) {
   const { t } = useTranslation();
   const { isBoatManager } = useCapabilities();
@@ -551,6 +575,12 @@ export function SessionDetail({
   // and the quickActions row rendered in the title Card / handed up via
   // `onQuickActions` further down.
   const quickActions: QuickAction[] = [];
+  // Toolbar-level icon buttons, rendered immediately left of the ⋮ trigger
+  // (here for variant="page", by the caller for "embedded"). Share stays in
+  // this component because ShareImageModal needs its tracks/stats/crew.
+  const headerActions: QuickAction[] = [
+    { key: "share", icon: <Share2 size={16} />, label: t("sessions.share"), onClick: () => setSharing(true) },
+  ];
   if (crewOrManager) {
     if (!photos.data?.length) {
       quickActions.push({
@@ -570,6 +600,16 @@ export function SessionDetail({
         onClick: () => setNotesEditing(true),
       });
     }
+  }
+  // Not gated on "missing content" like the ones above — the boat's setup
+  // notebook is always relevant to whoever manages the boat.
+  if (manager) {
+    quickActions.push({
+      key: "notebook",
+      icon: <NotebookText size={16} />,
+      label: t("sessions.openBoatNotebook"),
+      onClick: () => navigate(`/profilo/barche/${session.data?.boat_id}/quaderno`),
+    });
   }
   if (manager) {
     menuSections.push({
@@ -596,20 +636,6 @@ export function SessionDetail({
         ...(currentActivity.data?.type === "solo"
           ? [{ label: t("sessions.moveToActivity"), onClick: () => setMovingActivity(true) }]
           : []),
-      ],
-    });
-  }
-  menuSections.push({
-    items: [{ label: t("sessions.share"), onClick: () => setSharing(true) }],
-  });
-  if (manager) {
-    menuSections.push({
-      heading: t("sessions.menuSectionBoat"),
-      items: [
-        {
-          label: t("sessions.openBoatNotebook"),
-          onClick: () => navigate(`/profilo/barche/${session.data?.boat_id}/quaderno`),
-        },
       ],
     });
   }
@@ -709,15 +735,19 @@ export function SessionDetail({
     navSources.data?.length ?? 0,
     mapShow,
     variant,
+    // `headerActions` needs no entry of its own: Share is unconditional, so
+    // the array's contents never vary — anything added there that *is*
+    // conditional must contribute its inputs here, or the parent goes stale.
   ]);
   useEffect(() => {
     if (variant === "embedded") {
       onMenuSections?.(menuSections);
       onQuickActions?.(quickActions);
+      onHeaderActions?.(headerActions);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- gated on
-    // `menuSignature`, not `menuSections`/`onMenuSections`/`quickActions`/
-    // `onQuickActions`, see comment above.
+    // `menuSignature`, not the arrays or callbacks themselves, see comment
+    // above.
   }, [menuSignature]);
 
   if (session.isLoading) return <Spinner />;
@@ -763,22 +793,14 @@ export function SessionDetail({
                 <span className={sessionStatusBadge(s.status)}>{s.status}</span>
               )}
             </h1>
-            {menuSections.length > 0 && <Menu sections={menuSections} />}
+            <div className={styles.headerActions}>
+              <QuickActionButtons actions={headerActions} />
+              {menuSections.length > 0 && <Menu sections={menuSections} />}
+            </div>
           </div>
           {quickActions.length > 0 && (
             <div className={styles.quickActions}>
-              {quickActions.map((a) => (
-                <Button
-                  key={a.key}
-                  type="button"
-                  variant="ghost"
-                  className="sf-btn--icon-sm"
-                  aria-label={a.label}
-                  onClick={a.onClick}
-                >
-                  {a.icon}
-                </Button>
-              ))}
+              <QuickActionButtons actions={quickActions} />
             </div>
           )}
         </div>

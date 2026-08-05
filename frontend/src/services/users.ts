@@ -1,10 +1,18 @@
 import { api } from "@/api/client";
-import type { ImageRef, ImageUploadTicket, User, UserRole, UserSummary, UUID } from "@/types";
+import type {
+  ImageRef,
+  ImageUploadTicket,
+  User,
+  UserRole,
+  UserSearchResult,
+  UUID,
+} from "@/types";
 
 export const userKeys = {
   all: ["users"] as const,
   me: ["users", "me"] as const,
   roles: (id: UUID) => ["users", id, "roles"] as const,
+  search: (q: string) => ["users", "search", q] as const,
 };
 
 export const usersService = {
@@ -25,8 +33,8 @@ export const usersService = {
     >,
   ) => api.patch<User>(`/users/${id}`, changes),
   remove: (id: UUID) => api.del(`/users/${id}`),
-  lookup: (email: string) =>
-    api.get<UserSummary>(`/users/lookup?email=${encodeURIComponent(email)}`),
+  search: (q: string, limit = 20) =>
+    api.get<UserSearchResult[]>(`/users/search?q=${encodeURIComponent(q)}&limit=${limit}`),
 
   createProfileImage: () => api.post<ImageUploadTicket>("/users/me/profile-image"),
   confirmProfileImage: (imageId: UUID) =>

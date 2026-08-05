@@ -1,3 +1,13 @@
+/* Type + visibility badges, on their own line under the activity title —
+   inline inside the <h1> they wrapped awkwardly on a phone. */
+.badgeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
+
 /* Boe (race marks) list row — allowed to wrap on narrow screens so the icon
    actions never squeeze the (often two-line) mark name; see .markInfo/
    .markText below for the info side, .sf-strip__actions (global.css) for the

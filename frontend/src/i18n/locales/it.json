@@ -229,17 +229,18 @@
     "deleteConfirm": "Eliminare questa scheda?",
     "moveUp": "Sposta su",
     "moveDown": "Sposta giù",
-    "backToBoat": "Torna alla barca"
+    "backToBoat": "Torna alla barca",
+    "tabShort": "Quaderno"
   },
   "boatLog": {
-    "title": "Diario di bordo",
     "hint": "Note scritte durante le uscite di questa barca.",
     "empty": "Nessuna nota dalle uscite.",
     "membersOnly": "Solo l'equipaggio di questa barca può vedere il diario.",
     "openSession": "Apri la sessione",
     "promote": "Salva nel quaderno",
     "promotedTitle": "Dal diario di bordo",
-    "noDate": "Senza data"
+    "noDate": "Senza data",
+    "tabShort": "Diario"
   },
   "devices": {
     "title": "I miei dispositivi",
@@ -402,8 +403,6 @@
     "private": "Privato",
     "members": "Membri",
     "invite": "Invita",
-    "inviteByEmail": "Invita via email",
-    "userNotFound": "Nessun utente con questa email",
     "join": "Richiedi adesione",
     "joinRequested": "Richiesta inviata",
     "leave": "Esci",
@@ -433,12 +432,9 @@
     "clubDevices": "Dispositivi del circolo",
     "fleetHealth": "Stato flotta",
     "roleGrants": "Ruoli ufficiali",
-    "grantRole": "Assegna ruolo",
     "city": "Città",
     "website": "Sito web",
-    "contactEmail": "Email di contatto",
     "deleteGroupConfirm": "Eliminare questo gruppo?",
-    "deactivateClubConfirm": "Disattivare questo circolo? Lo storico è preservato.",
     "emptyGroups": "Non fai ancora parte di nessun gruppo.",
     "emptyClubs": "Non fai ancora parte di nessun circolo.",
     "searchPlaceholder": "Cerca circoli e gruppi…",
@@ -568,7 +564,6 @@
     "reanalyzeDone": "Aggiornamento completato",
     "refreshWind": "Aggiorna dati vento",
     "menuSectionSession": "Modifica sessione",
-    "menuSectionBoat": "Barca",
     "openBoatNotebook": "Quaderno regolazioni barca",
     "share": "Condividi",
     "shareImage": {
@@ -1124,5 +1119,11 @@
     "help": {
       "button": "Guida"
     }
+  },
+  "users": {
+    "searchPlaceholder": "Cerca per nome o email…",
+    "noResults": "Nessuno trovato.",
+    "minChars": "Scrivi almeno 2 caratteri.",
+    "shared": "in comune"
   }
 }
