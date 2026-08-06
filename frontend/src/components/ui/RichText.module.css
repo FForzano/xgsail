@@ -112,9 +112,14 @@
    restating any typography: what the user types must look exactly like what
    `RichText` renders back. Everything below is chrome only. */
 
-/* Applied alongside the global `sf-field__input`, whose padding is dropped so
-   the toolbar can sit flush against the border. */
-.editor {
+/* Compound selector (both classes required), not just `.editor` — `.editor`
+   and the global `sf-field__input` land on the same div with equal (single
+   class) specificity, so whichever stylesheet happens to load/inject later
+   would otherwise win ties on any property both declare (width, border,
+   border-radius, padding). Compounding forces this rule to win regardless of
+   load order, which plain source order could not guarantee once the editor's
+   own CSS module ships in a lazily-loaded chunk. */
+.editor:global(.sf-field__input) {
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -278,7 +283,13 @@
      scrolled past keeps getting painted above the stuck toolbar instead of
      being cleared. Making `.editor` its own small, statically-behaved
      scrollport sidesteps the trap instead of working around its symptom. */
-  .editor {
+  /* `:global(.sf-field__input)` compounded again, same reason as the base
+     rule above — without it, this whole block loses width/border/radius to
+     the global class on any load order where global.css's stylesheet ends up
+     injected after this (lazily-loaded) chunk's, which is exactly what was
+     happening: only the properties with no competing global declaration
+     (max-height, overflow-y) were taking effect. */
+  .editor:global(.sf-field__input) {
     min-height: max(12rem, calc(var(--sf-vvh, 100dvh) * 0.45));
     max-height: max(12rem, calc(var(--sf-vvh, 100dvh) * 0.45));
     overflow-y: auto;
@@ -293,13 +304,17 @@
     border-right: none;
     border-radius: 0;
   }
+  /* A smaller inset than `--sf-page-pad` on purpose: this is a dense text
+     column, not page-level content, and the full page padding on both sides
+     was eating too much of an already-narrow phone width. Just enough to
+     keep text/icons off the true screen edge. */
   .toolbar {
-    padding-left: var(--sf-page-pad, 1.25rem);
-    padding-right: var(--sf-page-pad, 1.25rem);
+    padding-left: 1rem;
+    padding-right: 1rem;
     border-radius: 0;
   }
   .content {
-    padding-left: var(--sf-page-pad, 1.25rem);
-    padding-right: var(--sf-page-pad, 1.25rem);
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 }
