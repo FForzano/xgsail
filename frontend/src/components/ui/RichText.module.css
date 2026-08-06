@@ -133,6 +133,57 @@
   opacity: 0.6;
 }
 
+/* Pairs with Modal's `fillBody`: the field stretches to the modal's
+   remaining height instead of just its own content's height, for a modal
+   whose one job is this editor (session/boat notes, once the title and
+   template/share controls stopped needing space of their own). */
+.fieldFill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 0;
+}
+.editorFill {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Visible only to assistive tech: the field still needs *a* name, but a
+   second visible caption above what already reads as a title is redundant. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Notion-style merged title: no border/background of its own, so it reads as
+   the first line of the same card the toolbar/body share. Matches `.prose
+   h1` rather than restating it, so a saved title and a body h1 look the same. */
+.titleInput {
+  width: 100%;
+  padding: 0.7rem 0.7rem 0;
+  border: none;
+  background: transparent;
+  color: var(--sf-text);
+  font: inherit;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.titleInput:focus {
+  outline: none;
+}
+.titleInput::placeholder {
+  color: var(--sf-muted);
+  font-weight: 700;
+}
+
 .content {
   display: flex;
   flex-direction: column;
@@ -181,12 +232,45 @@
      mid-scroll (seen on Android WebView). */
   isolation: isolate;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.15rem 0.35rem;
+  align-items: center;
+  gap: 0.15rem;
   padding: 0.25rem 0.35rem;
   background: var(--sf-bg-2);
   border-bottom: 1px solid var(--sf-border);
   border-radius: var(--sf-radius) var(--sf-radius) 0 0;
+}
+/* One non-wrapping scrollable row (was two wrapped rows) — a hidden native
+   scrollbar plus the `.toolbarNav` chevrons (shown only when there's really
+   something to scroll to) replace the wrap, so nothing is ever permanently
+   hidden and the row still reads as one toolbar rather than a scrollbar. */
+.toolbarScroll {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.toolbarScroll::-webkit-scrollbar {
+  display: none;
+}
+.toolbarNav {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 38px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--sf-muted);
+  cursor: pointer;
+}
+.toolbarNav:hover {
+  color: var(--sf-text);
 }
 /* Neutralises `.sf-options`' own `position: relative` so the dropdowns anchor
    to the toolbar (which is positioned, being sticky) instead of to a 38px
@@ -198,6 +282,7 @@
   display: flex;
   align-items: center;
   gap: 0.15rem;
+  flex-shrink: 0;
 }
 
 .toolBtn {
@@ -229,6 +314,16 @@
   background: color-mix(in srgb, var(--sf-primary) 22%, transparent);
   border-color: var(--sf-primary);
   color: var(--sf-primary);
+}
+/* A `.toolBtn` with visible text next to its icon (the share toggle) instead
+   of the icon-only square shape — same chrome, natural width. */
+.toolBtnLabeled {
+  width: auto;
+  min-width: auto;
+  padding: 0 0.6rem;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .menuItemActive {
@@ -303,6 +398,16 @@
     border-left: none;
     border-right: none;
     border-radius: 0;
+  }
+  /* `fill` mode (a modal whose one job is this editor, title-editing modals
+     included) has no sibling fields left competing for room below it, so the
+     ~45vh cap above — sized to leave room for those siblings — would just
+     waste the rest of the sheet as dead space. Same compound-selector
+     specificity trick, so this reliably overrides rather than losing the
+     cascade tie to the rule above. */
+  .editorFill:global(.sf-field__input) {
+    max-height: none;
+    min-height: 0;
   }
   /* A smaller inset than `--sf-page-pad` on purpose: this is a dense text
      column, not page-level content, and the full page padding on both sides

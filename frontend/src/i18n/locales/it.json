@@ -60,6 +60,7 @@
     "date": "Data",
     "role": "Ruolo",
     "saved": "Salvato",
+    "saveError": "Salvataggio non riuscito. Riprova.",
     "retry": "Riprova",
     "loadError": "Errore di caricamento",
     "sortBy": "Ordina per",
@@ -1144,6 +1145,11 @@
     "addColumn": "Inserisci colonna",
     "deleteColumn": "Elimina colonna",
     "deleteTable": "Elimina tabella",
-    "mentionSuggestions": "Suggerimenti di menzione"
+    "mentionSuggestions": "Suggerimenti di menzione",
+    "scrollLeft": "Scorri a sinistra",
+    "scrollRight": "Scorri a destra",
+    "templates": "Applica un modello",
+    "shared": "Condiviso",
+    "private": "Privato"
   }
 }

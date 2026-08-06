@@ -1,7 +1,8 @@
-import { useState, type MouseEvent, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Bold,
+  ChevronLeft,
+  ChevronRight,
   Heading1,
   Heading2,
   Heading3,
@@ -17,55 +18,44 @@ import {
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { Popover } from "@/components/ui/Popover";
+import { keepEditorFocus, MenuPopover, ToolButton, useLabels } from "@/components/ui/richTextToolbarControls";
 import { normalizeLinkHref } from "./richTextSchema";
 import type { RichTextTier } from "./RichText";
 import styles from "./RichText.module.css";
 
-/** Toolbar labels live under a single `richText.*` namespace; every lookup
- * carries an English default so the component stays usable before (or if) a
- * locale file misses a key. */
-function useLabels() {
-  const { t } = useTranslation();
-  return (key: string, fallback: string) => t(`richText.${key}`, { defaultValue: fallback });
-}
+/** The toolbar is one non-wrapping scrollable row now (was two wrapped rows);
+ * this tracks whether there's more content off-screen on either side so the
+ * nav chevrons only show up when they'd actually do something. */
+function useToolbarScroll() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
-/** Toolbar buttons must never take focus from ProseMirror: the browser blurs
- * the editor on mousedown, and a blurred editor has no selection left for the
- * command to act on. */
-function keepEditorFocus(event: MouseEvent) {
-  event.preventDefault();
-}
+  const update = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 1);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
 
-function ToolButton({
-  label,
-  icon,
-  active,
-  disabled,
-  onClick,
-  expanded,
-}: {
-  label: string;
-  icon: ReactNode;
-  active?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  expanded?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className={`${styles.toolBtn} ${active ? styles.toolBtnActive : ""}`}
-      aria-label={label}
-      title={label}
-      aria-pressed={expanded === undefined ? active : undefined}
-      aria-expanded={expanded}
-      disabled={disabled}
-      onMouseDown={keepEditorFocus}
-      onClick={onClick}
-    >
-      {icon}
-    </button>
-  );
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const resizeObserver = new ResizeObserver(update);
+    resizeObserver.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      resizeObserver.disconnect();
+    };
+    // `update` is stable (empty deps), so this only needs to run once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const scrollBy = (delta: number) => ref.current?.scrollBy({ left: delta, behavior: "smooth" });
+
+  return { ref, canScrollLeft, canScrollRight, scrollBy };
 }
 
 function LinkForm({ editor, close }: { editor: Editor; close: () => void }) {
@@ -132,46 +122,24 @@ function LinkForm({ editor, close }: { editor: Editor; close: () => void }) {
   );
 }
 
-/** Reuses the global `sf-optionsmenu__*` chrome that `OptionsMenu` uses, so the
- * dropdowns here need no stylesheet of their own. `OptionsMenu` itself isn't
- * reused because its trigger is a hard-coded "⋮" with a non-translated label,
- * and these menus have to say what they open. */
-function MenuPopover({
-  trigger,
-  items,
-}: {
-  trigger: (state: { open: boolean; toggle: () => void }) => ReactNode;
-  items: { label: string; onClick: () => void; active?: boolean; danger?: boolean }[];
-}) {
-  return (
-    <Popover panelClassName="sf-optionsmenu__panel" trigger={trigger}>
-      {({ close }) =>
-        items.map((item, i) => (
-          <button
-            key={i}
-            type="button"
-            role="menuitem"
-            aria-current={item.active || undefined}
-            className={`sf-optionsmenu__item ${item.danger ? "sf-optionsmenu__item--danger" : ""} ${
-              item.active ? styles.menuItemActive : ""
-            }`}
-            onMouseDown={keepEditorFocus}
-            onClick={() => {
-              close();
-              item.onClick();
-            }}
-          >
-            {item.label}
-          </button>
-        ))
-      }
-    </Popover>
-  );
-}
 
-export function RichTextToolbar({ editor, tier }: { editor: Editor; tier: RichTextTier }) {
+export function RichTextToolbar({
+  editor,
+  tier,
+  leadingItems,
+  trailingItems,
+}: {
+  editor: Editor;
+  tier: RichTextTier;
+  /** Extra buttons rendered inside the same scrollable row, before/after the
+   * built-in groups — how session notes add a template picker and a share
+   * toggle without the generic toolbar knowing what either of those is. */
+  leadingItems?: ReactNode;
+  trailingItems?: ReactNode;
+}) {
   const label = useLabels();
   const full = tier === "full";
+  const { ref: scrollRef, canScrollLeft, canScrollRight, scrollBy } = useToolbarScroll();
 
   // Tiptap 3 does not re-render on every transaction, so active states have to
   // be pulled through `useEditorState` or the toolbar goes stale.
@@ -201,7 +169,20 @@ export function RichTextToolbar({ editor, tier }: { editor: Editor; tier: RichTe
 
   return (
     <div className={styles.toolbar} role="toolbar" aria-label={label("toolbar", "Formatting")}>
-      <div className={styles.toolGroup}>
+      {canScrollLeft && (
+        <button
+          type="button"
+          className={styles.toolbarNav}
+          aria-label={label("scrollLeft", "Scroll left")}
+          onMouseDown={keepEditorFocus}
+          onClick={() => scrollBy(-120)}
+        >
+          <ChevronLeft size={16} />
+        </button>
+      )}
+      <div className={styles.toolbarScroll} ref={scrollRef}>
+        {leadingItems}
+        <div className={styles.toolGroup}>
         <ToolButton
           label={label("bold", "Bold")}
           icon={<Bold size={17} />}
@@ -344,6 +325,19 @@ export function RichTextToolbar({ editor, tier }: { editor: Editor; tier: RichTe
             />
           )}
         </div>
+      )}
+        {trailingItems}
+      </div>
+      {canScrollRight && (
+        <button
+          type="button"
+          className={styles.toolbarNav}
+          aria-label={label("scrollRight", "Scroll right")}
+          onMouseDown={keepEditorFocus}
+          onClick={() => scrollBy(120)}
+        >
+          <ChevronRight size={16} />
+        </button>
       )}
     </div>
   );

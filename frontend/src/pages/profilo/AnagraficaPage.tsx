@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersService, userKeys } from "@/services/users";
 import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
+import { useAutoSaveOnClose } from "@/hooks/useAutoSaveOnClose";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
@@ -44,15 +45,20 @@ export function AnagraficaPage() {
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<UUID | null>(null);
   const [templateForm, setTemplateForm] = useState({ name: "", body: "" });
+  const originalTemplateFormRef = useRef(templateForm);
 
   const openNewTemplate = () => {
     setEditingTemplateId(null);
-    setTemplateForm({ name: "", body: "" });
+    const next = { name: "", body: "" };
+    setTemplateForm(next);
+    originalTemplateFormRef.current = next;
     setTemplateModalOpen(true);
   };
   const openEditTemplate = (tpl: NoteTemplate) => {
     setEditingTemplateId(tpl.id);
-    setTemplateForm({ name: tpl.name, body: tpl.body });
+    const next = { name: tpl.name, body: tpl.body };
+    setTemplateForm(next);
+    originalTemplateFormRef.current = next;
     setTemplateModalOpen(true);
   };
 
@@ -61,11 +67,21 @@ export function AnagraficaPage() {
       editingTemplateId
         ? noteTemplatesService.update(editingTemplateId, templateForm)
         : noteTemplatesService.create(templateForm),
-    onSuccess: async () => {
-      setTemplateModalOpen(false);
+    onSuccess: async (result) => {
+      if (!editingTemplateId) setEditingTemplateId(result.id);
+      originalTemplateFormRef.current = templateForm;
       await queryClient.invalidateQueries({ queryKey: noteTemplateKeys.mine });
     },
-    onError: () => notify(t("errors.generic"), "error"),
+    // No onError here: `useAutoSaveOnClose` below owns surfacing a save
+    // failure (on close) or retrying silently (periodic).
+  });
+  const { requestClose: requestCloseTemplate } = useAutoSaveOnClose({
+    canSave: () => templateForm.name.trim() !== "" && richTextExcerpt(templateForm.body, 1) !== "",
+    isDirty: () =>
+      templateForm.name !== originalTemplateFormRef.current.name ||
+      templateForm.body !== originalTemplateFormRef.current.body,
+    save: () => saveTemplate.mutateAsync(),
+    onClosed: () => setTemplateModalOpen(false),
   });
   const removeTemplate = useMutation({
     mutationFn: (id: UUID) => noteTemplatesService.remove(id),
@@ -247,31 +263,18 @@ export function AnagraficaPage() {
       {templateModalOpen && (
         <Modal
           title={editingTemplateId ? t("noteTemplates.edit") : t("noteTemplates.new")}
-          onClose={() => setTemplateModalOpen(false)}
+          onClose={requestCloseTemplate}
           size="wide"
-          footer={
-            <div className="sf-form__actions">
-              <Button
-                onClick={() => saveTemplate.mutate()}
-                disabled={
-                  saveTemplate.isPending || !templateForm.name.trim() || !richTextExcerpt(templateForm.body, 1)
-                }
-              >
-                {t("common.save")}
-              </Button>
-            </div>
-          }
+          fillBody
         >
-          <InputField
-            label={t("noteTemplates.name")}
-            id="template-name"
-            value={templateForm.name}
-            onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
-          />
           <RichTextField
-            label={t("noteTemplates.body")}
+            label={t("noteTemplates.name")}
             id="template-body"
             tier="full"
+            fill
+            title={templateForm.name}
+            onTitleChange={(name) => setTemplateForm((f) => ({ ...f, name }))}
+            titlePlaceholder={t("noteTemplates.name")}
             value={templateForm.body}
             onChange={(html) => setTemplateForm((f) => ({ ...f, body: html }))}
           />

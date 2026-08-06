@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, NotebookPen, NotebookText, Pencil, Share2, Video } from "lucide-react";
 import { ApiError } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
-import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { boatsService, boatKeys } from "@/services/boats";
 import { useAuth } from "@/hooks/useAuth";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useStreamJson } from "@/hooks/useStreamJson";
 import { useToast } from "@/hooks/useToast";
+import { useAutoSaveOnClose } from "@/hooks/useAutoSaveOnClose";
 import { timeController } from "@/stores/timeController";
 import { buildTrack, medianIntervalMs, timeBounds, trackColor } from "@/components/race/raceModel";
 import { MapView, type MapMark } from "@/components/race/MapView";
@@ -23,8 +23,8 @@ import { Button } from "@/components/ui/Button";
 import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
-import { RichTextField } from "@/components/ui/RichTextField";
 import { RichText } from "@/components/ui/RichText";
+import { SessionNotesEditor } from "@/components/session/SessionNotesEditor";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Avatar } from "@/components/ui/Avatar";
@@ -131,6 +131,7 @@ export function SessionDetail({
   const [addingCrew, setAddingCrew] = useState(false);
   const [crewRole, setCrewRole] = useState<SailingRole>("crew");
   const [notesForm, setNotesForm] = useState({ notes: "", notes_shared: false });
+  const originalNotesFormRef = useRef(notesForm);
   const [notesEditing, setNotesEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -183,13 +184,19 @@ export function SessionDetail({
   // boat manager, or shared — see backend `_session_payload`), so this stays
   // empty for a viewer with read-only access to someone else's shared note.
   useEffect(() => {
+    // Skipped while the modal is open: a periodic autosave invalidates this
+    // same query, and if the refetch landed while the user kept typing, this
+    // would roll the field back to the just-saved (now stale) text.
+    if (notesEditing) return;
     if (session.data?.notes !== undefined) {
-      setNotesForm({
+      const next = {
         notes: session.data.notes ?? "",
         notes_shared: session.data.notes_shared ?? false,
-      });
+      };
+      setNotesForm(next);
+      originalNotesFormRef.current = next;
     }
-  }, [session.data?.notes, session.data?.notes_shared]);
+  }, [session.data?.notes, session.data?.notes_shared, notesEditing]);
   // Only a standalone ("solo") recording can be moved into a real activity
   // (backend/routers/sessions.py::attach_to_activity) — fetched to gate the
   // "move to activity" menu item, not shown anywhere in the page itself.
@@ -255,13 +262,6 @@ export function SessionDetail({
     enabled: !!sessionId,
   });
   const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
-  // Only fetched while the notes modal is open — see the template picker
-  // there (frontend/src/pages/profilo/AnagraficaPage.tsx manages the list).
-  const noteTemplates = useQuery({
-    queryKey: noteTemplateKeys.mine,
-    queryFn: noteTemplatesService.listMine,
-    enabled: notesEditing,
-  });
   // Same query key/fn as SessionAnalysis — TanStack Query dedupes, no extra
   // network round-trip — just so the map can plot leg/maneuver markers.
   const analysis = useQuery({
@@ -424,11 +424,20 @@ export function SessionDetail({
         notes_shared: notesForm.notes_shared,
       }),
     onSuccess: async () => {
-      notify(t("common.saved"), "success");
-      setNotesEditing(false);
+      originalNotesFormRef.current = notesForm;
       await queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
     },
-    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
+    // No onError here: `useAutoSaveOnClose` below is the single place that
+    // surfaces a save failure (on close) or retries silently (periodic) —
+    // an onError here too would double the toast on every close-time failure.
+  });
+  const { requestClose: requestCloseNotes } = useAutoSaveOnClose({
+    canSave: () => true, // an emptied note is a valid, save-worthy state
+    isDirty: () =>
+      notesForm.notes !== originalNotesFormRef.current.notes ||
+      notesForm.notes_shared !== originalNotesFormRef.current.notes_shared,
+    save: () => saveNotes.mutateAsync(),
+    onClosed: () => setNotesEditing(false),
   });
   const removeSession = useMutation({
     mutationFn: () => sessionsService.remove(sessionId),
@@ -1087,66 +1096,18 @@ export function SessionDetail({
         </Modal>
       )}
       {notesEditing && (
-        <Modal
-          title={t("sessions.notes")}
-          onClose={() => setNotesEditing(false)}
-          size="wide"
-          footer={
-            <div className="sf-form__actions">
-              <Button onClick={() => saveNotes.mutate()} disabled={saveNotes.isPending}>
-                {t("common.save")}
-              </Button>
-            </div>
-          }
-        >
-          {noteTemplates.data && noteTemplates.data.length > 0 && (
-            <div className={styles.templatePicker}>
-              <select
-                className="sf-field__input sf-select"
-                value=""
-                onChange={(e) => {
-                  const tpl = noteTemplates.data?.find((x) => x.id === e.target.value);
-                  if (tpl) setNotesForm((f) => ({ ...f, notes: tpl.body }));
-                }}
-              >
-                <option value="" disabled>
-                  {t("noteTemplates.pickPlaceholder")}
-                </option>
-                {noteTemplates.data.map((tpl) => (
-                  <option key={tpl.id} value={tpl.id}>
-                    {tpl.name}
-                  </option>
-                ))}
-              </select>
-              <Link to="/profilo/anagrafica" className="sf-muted" onClick={() => setNotesEditing(false)}>
-                {t("noteTemplates.manage")}
-              </Link>
-            </div>
-          )}
-          {noteTemplates.data && noteTemplates.data.length === 0 && (
-            <p className="sf-muted">
-              <Link to="/profilo/anagrafica" onClick={() => setNotesEditing(false)}>
-                {t("noteTemplates.manage")}
-              </Link>
-            </p>
-          )}
-          <RichTextField
-            label={t("sessions.notes")}
+        <Modal title={t("sessions.notes")} onClose={requestCloseNotes} size="wide" fillBody>
+          <SessionNotesEditor
             id="session-notes"
-            tier="full"
-            placeholder={t("sessions.notesPlaceholder")}
             value={notesForm.notes}
             onChange={(html) => setNotesForm((f) => ({ ...f, notes: html }))}
+            shared={notesForm.notes_shared}
+            onSharedChange={(notes_shared) => setNotesForm((f) => ({ ...f, notes_shared }))}
+            onManageTemplates={() => {
+              requestCloseNotes();
+              navigate("/profilo/anagrafica");
+            }}
           />
-          <label className="sf-check">
-            <input
-              type="checkbox"
-              checked={notesForm.notes_shared}
-              onChange={(e) => setNotesForm((f) => ({ ...f, notes_shared: e.target.checked }))}
-            />
-            {t("sessions.notesShared")}
-          </label>
-          <p className="sf-muted">{t("sessions.notesSharedHint")}</p>
         </Modal>
       )}
       {maneuverDraftStart && maneuverDraftEnd && (

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,14 +17,15 @@ import { sessionsService, sessionKeys } from "@/services/sessions";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useToast } from "@/hooks/useToast";
 import { useInfiniteScrollSentinel } from "@/hooks/useInfiniteScrollSentinel";
+import { useAutoSaveOnClose } from "@/hooks/useAutoSaveOnClose";
 import { ApiError } from "@/api/client";
 import { BackLink } from "@/components/ui/BackLink";
 import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
-import { InputField } from "@/components/ui/InputField";
 import { RichTextField } from "@/components/ui/RichTextField";
 import { RichText } from "@/components/ui/RichText";
 import { Modal } from "@/components/ui/Modal";
+import { SessionNotesEditor } from "@/components/session/SessionNotesEditor";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { fmtDateTime } from "@/utils/format";
@@ -159,13 +160,20 @@ export function BoatNotebookPage() {
     sessionNotes.hasNextPage === true && !sessionNotes.isFetchingNextPage,
   );
 
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("notebook");
   const [editing, setEditing] = useState<BoatNote | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ title: "", body: "" });
+  // Snapshot taken whenever the modal opens (and refreshed after every
+  // successful save) — auto-save-on-close compares against this rather than
+  // re-fetching, since it's cheaper and the form is the source of truth
+  // while the modal is open anyway.
+  const originalFormRef = useRef(form);
   const [deleting, setDeleting] = useState<BoatNote | null>(null);
   const [editingSessionNote, setEditingSessionNote] = useState<BoatSessionNote | null>(null);
   const [sessionNoteForm, setSessionNoteForm] = useState({ notes: "", notes_shared: false });
+  const originalSessionNoteFormRef = useRef(sessionNoteForm);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: boatKeys.notes(boatId!) });
   // Prefix match: boatKeys.sessionNotes(id, q) varies by search text, so this
@@ -178,12 +186,23 @@ export function BoatNotebookPage() {
       editing
         ? boatsService.updateNote(boatId!, editing.id, form)
         : boatsService.createNote(boatId!, form),
-    onSuccess: async () => {
-      setCreating(false);
-      setEditing(null);
+    onSuccess: async (result) => {
+      // First save of a new note: switch to the "editing" branch so the next
+      // save (on-close or periodic) PATCHes it instead of creating a duplicate.
+      if (!editing) setEditing(result);
+      originalFormRef.current = form;
       await invalidate();
     },
     onError: () => notify(t("errors.generic"), "error"),
+  });
+  const { requestClose: requestCloseNote } = useAutoSaveOnClose({
+    canSave: () => form.title.trim() !== "" && richTextExcerpt(form.body, 1) !== "",
+    isDirty: () => form.title !== originalFormRef.current.title || form.body !== originalFormRef.current.body,
+    save: () => save.mutateAsync(),
+    onClosed: () => {
+      setCreating(false);
+      setEditing(null);
+    },
   });
 
   const remove = useMutation({
@@ -209,27 +228,41 @@ export function BoatNotebookPage() {
     mutationFn: () =>
       sessionsService.updateNotes(editingSessionNote!.session_id, sessionNoteForm),
     onSuccess: async () => {
+      originalSessionNoteFormRef.current = sessionNoteForm;
       const sessionId = editingSessionNote!.session_id;
-      setEditingSessionNote(null);
       await invalidateSessionNotes();
       await queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
     },
     onError: () => notify(t("errors.generic"), "error"),
   });
+  const { requestClose: requestCloseSessionNote } = useAutoSaveOnClose({
+    canSave: () => true, // an emptied session note is a valid, save-worthy state
+    isDirty: () =>
+      sessionNoteForm.notes !== originalSessionNoteFormRef.current.notes ||
+      sessionNoteForm.notes_shared !== originalSessionNoteFormRef.current.notes_shared,
+    save: () => saveSessionNote.mutateAsync(),
+    onClosed: () => setEditingSessionNote(null),
+  });
 
   const openPrefilled = (title: string, body: string) => {
     setEditing(null);
-    setForm({ title, body });
+    const next = { title, body };
+    setForm(next);
+    originalFormRef.current = next;
     setCreating(true);
   };
   const openNew = () => openPrefilled("", "");
   const openEdit = (note: BoatNote) => {
     setEditing(note);
-    setForm({ title: note.title, body: note.body });
+    const next = { title: note.title, body: note.body };
+    setForm(next);
+    originalFormRef.current = next;
     setCreating(true);
   };
   const openEditSessionNote = (note: BoatSessionNote) => {
-    setSessionNoteForm({ notes: note.notes, notes_shared: note.notes_shared });
+    const next = { notes: note.notes, notes_shared: note.notes_shared };
+    setSessionNoteForm(next);
+    originalSessionNoteFormRef.current = next;
     setEditingSessionNote(note);
   };
 
@@ -440,29 +473,18 @@ export function BoatNotebookPage() {
       {creating && (
         <Modal
           title={editing ? t("boatNotes.edit") : t("boatNotes.new")}
-          onClose={() => setCreating(false)}
+          onClose={requestCloseNote}
           size="wide"
-          footer={
-            <div className="sf-form__actions">
-              <Button
-                onClick={() => save.mutate()}
-                disabled={save.isPending || !form.title.trim() || !richTextExcerpt(form.body, 1)}
-              >
-                {t("common.save")}
-              </Button>
-            </div>
-          }
+          fillBody
         >
-          <InputField
-            label={t("boatNotes.entryTitle")}
-            id="note-title"
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-          />
           <RichTextField
-            label={t("boatNotes.body")}
+            label={t("boatNotes.entryTitle")}
             id="note-body"
             tier="full"
+            fill
+            title={form.title}
+            onTitleChange={(title) => setForm((f) => ({ ...f, title }))}
+            titlePlaceholder={t("boatNotes.entryTitle")}
             value={form.body}
             onChange={(html) => setForm((f) => ({ ...f, body: html }))}
           />
@@ -480,34 +502,18 @@ export function BoatNotebookPage() {
       )}
 
       {editingSessionNote && (
-        <Modal
-          title={t("sessions.notes")}
-          onClose={() => setEditingSessionNote(null)}
-          size="wide"
-          footer={
-            <div className="sf-form__actions">
-              <Button onClick={() => saveSessionNote.mutate()} disabled={saveSessionNote.isPending}>
-                {t("common.save")}
-              </Button>
-            </div>
-          }
-        >
-          <RichTextField
-            label={t("sessions.notes")}
+        <Modal title={t("sessions.notes")} onClose={requestCloseSessionNote} size="wide" fillBody>
+          <SessionNotesEditor
             id="boat-log-notes"
-            tier="full"
             value={sessionNoteForm.notes}
             onChange={(html) => setSessionNoteForm((f) => ({ ...f, notes: html }))}
+            shared={sessionNoteForm.notes_shared}
+            onSharedChange={(notes_shared) => setSessionNoteForm((f) => ({ ...f, notes_shared }))}
+            onManageTemplates={() => {
+              requestCloseSessionNote();
+              navigate("/profilo/anagrafica");
+            }}
           />
-          <label className="sf-check">
-            <input
-              type="checkbox"
-              checked={sessionNoteForm.notes_shared}
-              onChange={(e) => setSessionNoteForm((f) => ({ ...f, notes_shared: e.target.checked }))}
-            />
-            {t("sessions.notesShared")}
-          </label>
-          <p className="sf-muted">{t("sessions.notesSharedHint")}</p>
         </Modal>
       )}
     </div>

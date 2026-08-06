@@ -13,12 +13,17 @@ export function Modal({
   onClose,
   size = "default",
   footer,
+  fillBody,
   children,
 }: {
   title: ReactNode;
   onClose: () => void;
   size?: "default" | "wide";
   footer?: ReactNode;
+  /** Makes `.body` a flex column so a single `flex: 1` child (a `RichTextField`
+   * with `fill`) can stretch to the modal's full remaining height, instead of
+   * every field just taking its own content height. */
+  fillBody?: boolean;
   children: ReactNode;
 }) {
   useEscapeKey(onClose);
@@ -53,7 +58,7 @@ export function Modal({
             ×
           </button>
         </div>
-        <div className={styles.body}>{children}</div>
+        <div className={`${styles.body} ${fillBody ? styles.bodyFill : ""}`}>{children}</div>
         {footer && <div className={styles.foot}>{footer}</div>}
       </div>
     </div>

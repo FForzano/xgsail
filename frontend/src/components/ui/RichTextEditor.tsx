@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useRef } from "react";
+import { useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { RichTextToolbar } from "./RichTextToolbar";
 import { buildRichTextExtensions } from "./richTextSchema";
@@ -15,6 +15,8 @@ export interface RichTextEditorProps {
   mentions: boolean;
   placeholder?: string;
   disabled?: boolean;
+  leadingToolbarItems?: ReactNode;
+  trailingToolbarItems?: ReactNode;
 }
 
 const BLOCK_TAG_RE = /^\s*<(p|h1|h2|h3|ul|ol|blockquote|table)[\s/>]/i;
@@ -49,6 +51,8 @@ export default function RichTextEditor({
   mentions,
   placeholder,
   disabled,
+  leadingToolbarItems,
+  trailingToolbarItems,
 }: RichTextEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -107,7 +111,14 @@ export default function RichTextEditor({
 
   return (
     <>
-      {!disabled && <RichTextToolbar editor={editor} tier={tier} />}
+      {!disabled && (
+        <RichTextToolbar
+          editor={editor}
+          tier={tier}
+          leadingItems={leadingToolbarItems}
+          trailingItems={trailingToolbarItems}
+        />
+      )}
       <EditorContent className={`${styles.content} ${styles.prose}`} editor={editor} />
     </>
   );

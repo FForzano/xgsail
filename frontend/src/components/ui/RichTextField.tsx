@@ -1,4 +1,4 @@
-import { Suspense, lazy, useId, type CSSProperties } from "react";
+import { Suspense, lazy, useId, useRef, type CSSProperties, type ReactNode } from "react";
 import type { RichTextTier } from "./RichText";
 import styles from "./RichText.module.css";
 
@@ -24,6 +24,12 @@ export function RichTextField({
   placeholder,
   minHeight,
   disabled,
+  title,
+  onTitleChange,
+  titlePlaceholder,
+  leadingToolbarItems,
+  trailingToolbarItems,
+  fill,
 }: {
   label: string;
   id: string;
@@ -34,8 +40,26 @@ export function RichTextField({
   placeholder?: string;
   minHeight?: string;
   disabled?: boolean;
+  /** Notion-style merged title: a plain single-line input styled as an H1,
+   * sharing the same bordered surface as the body instead of a separate
+   * field — pass both `title`/`onTitleChange` to turn it on. The value stays
+   * a genuinely separate field end to end (own DB column, own form state);
+   * this only changes where it's *drawn*, not the data model. */
+  title?: string;
+  onTitleChange?: (value: string) => void;
+  titlePlaceholder?: string;
+  /** Extra buttons in the toolbar's single scrollable row, before/after the
+   * built-in formatting groups — e.g. a template picker or a share toggle
+   * that only some call sites need. */
+  leadingToolbarItems?: ReactNode;
+  trailingToolbarItems?: ReactNode;
+  /** Stretches the field to fill its container's remaining height — pair
+   * with `Modal`'s `fillBody`, for a modal whose one job is this editor. */
+  fill?: boolean;
 }) {
   const labelId = useId();
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const hasTitle = onTitleChange !== undefined;
   // A contenteditable is not a labelable element, so the association is
   // `aria-labelledby` rather than the `htmlFor` a textarea would use.
   const style = {
@@ -49,14 +73,38 @@ export function RichTextField({
     // makes the browser replay a synthetic click on the first one (Bold),
     // toggling it on every unrelated click. `aria-labelledby` below is the
     // real association, same reason it's used instead of `htmlFor`.
-    <div className="sf-field">
-      <span className="sf-field__label" id={labelId}>
+    <div className={`sf-field ${fill ? styles.fieldFill : ""}`}>
+      {/* Still in the accessibility tree when the title row replaces it
+          visually — the field needs *a* name, just not a second visible
+          caption floating above what already reads as a title. */}
+      <span className={`sf-field__label ${hasTitle ? styles.srOnly : ""}`} id={labelId}>
         {label}
       </span>
       <div
-        className={`sf-field__input ${styles.editor} ${disabled ? styles.editorDisabled : ""}`}
+        ref={surfaceRef}
+        className={`sf-field__input ${styles.editor} ${fill ? styles.editorFill : ""} ${
+          disabled ? styles.editorDisabled : ""
+        }`}
         style={style}
       >
+        {hasTitle && (
+          <input
+            type="text"
+            className={styles.titleInput}
+            value={title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            placeholder={titlePlaceholder}
+            disabled={disabled}
+            aria-label={titlePlaceholder}
+            onKeyDown={(e) => {
+              // Notion-style: Enter at the title moves straight into the body
+              // instead of doing nothing (it's a single-line input).
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              surfaceRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
+            }}
+          />
+        )}
         <Suspense
           fallback={
             <div className={`${styles.content} ${styles.placeholder}`} aria-hidden="true">
@@ -73,6 +121,8 @@ export function RichTextField({
             mentions={mentions}
             placeholder={placeholder}
             disabled={disabled}
+            leadingToolbarItems={leadingToolbarItems}
+            trailingToolbarItems={trailingToolbarItems}
           />
         </Suspense>
       </div>

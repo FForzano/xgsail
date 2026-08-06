@@ -31,18 +31,6 @@
   gap: 0.25rem;
   flex-shrink: 0;
 }
-/* One-shot template picker (applies a note-template's body, then resets to
-   its placeholder) + a small "manage" link — kept to a single compact row
-   above the notes textarea so it doesn't compete with the checkbox/hint/
-   Save already in that modal. See profilo/AnagraficaPage.tsx for the
-   templates themselves. */
-.templatePicker {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.85rem;
-}
 /* lucide's Share2 glyph has two nodes on the right and one on the left, so
    its visual "ink" sits right of the 24x24 box's true center — centering the
    box in the round button still reads as off-center. Nudge left to

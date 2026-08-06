@@ -60,6 +60,7 @@
     "date": "Date",
     "role": "Role",
     "saved": "Saved",
+    "saveError": "Couldn't save. Try again.",
     "retry": "Retry",
     "loadError": "Failed to load",
     "sortBy": "Sort by",
@@ -1144,6 +1145,11 @@
     "addColumn": "Insert column",
     "deleteColumn": "Delete column",
     "deleteTable": "Delete table",
-    "mentionSuggestions": "Mention suggestions"
+    "mentionSuggestions": "Mention suggestions",
+    "scrollLeft": "Scroll left",
+    "scrollRight": "Scroll right",
+    "templates": "Apply a template",
+    "shared": "Shared",
+    "private": "Private"
   }
 }

@@ -49,6 +49,10 @@
      so this scrollbar never engages and the parent grows past max-height instead */
   min-height: 0;
 }
+.bodyFill {
+  display: flex;
+  flex-direction: column;
+}
 .foot {
   flex-shrink: 0;
   padding: 1.25rem;
