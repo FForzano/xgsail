@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  NotebookPen,
   NotebookText,
   Pencil,
   ScrollText,
@@ -14,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { boatsService, boatKeys } from "@/services/boats";
+import { sessionsService, sessionKeys } from "@/services/sessions";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useToast } from "@/hooks/useToast";
 import { useInfiniteScrollSentinel } from "@/hooks/useInfiniteScrollSentinel";
@@ -151,8 +151,14 @@ export function BoatNotebookPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ title: "", body: "" });
   const [deleting, setDeleting] = useState<BoatNote | null>(null);
+  const [editingSessionNote, setEditingSessionNote] = useState<BoatSessionNote | null>(null);
+  const [sessionNoteForm, setSessionNoteForm] = useState({ notes: "", notes_shared: false });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: boatKeys.notes(boatId!) });
+  // Prefix match: boatKeys.sessionNotes(id, q) varies by search text, so this
+  // invalidates every cached search variant, not just the current one.
+  const invalidateSessionNotes = () =>
+    queryClient.invalidateQueries({ queryKey: ["boats", boatId, "session-notes"] });
 
   const save = useMutation({
     mutationFn: () =>
@@ -184,6 +190,20 @@ export function BoatNotebookPage() {
     onError: () => notify(t("errors.generic"), "error"),
   });
 
+  // Edits the session's own crew note in place (PATCH /sessions/{id}/notes)
+  // — this is NOT boat_notes, so no notebook entry is created or touched.
+  const saveSessionNote = useMutation({
+    mutationFn: () =>
+      sessionsService.updateNotes(editingSessionNote!.session_id, sessionNoteForm),
+    onSuccess: async () => {
+      const sessionId = editingSessionNote!.session_id;
+      setEditingSessionNote(null);
+      await invalidateSessionNotes();
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
+    },
+    onError: () => notify(t("errors.generic"), "error"),
+  });
+
   const openPrefilled = (title: string, body: string) => {
     setEditing(null);
     setForm({ title, body });
@@ -195,9 +215,9 @@ export function BoatNotebookPage() {
     setForm({ title: note.title, body: note.body });
     setCreating(true);
   };
-  const openPromote = (note: BoatSessionNote) => {
-    const title = note.started_at ? fmtDateTime(note.started_at) : t("boatLog.promotedTitle");
-    openPrefilled(title, note.notes);
+  const openEditSessionNote = (note: BoatSessionNote) => {
+    setSessionNoteForm({ notes: note.notes, notes_shared: note.notes_shared });
+    setEditingSessionNote(note);
   };
 
   const move = (index: number, direction: -1 | 1) => {
@@ -373,11 +393,11 @@ export function BoatNotebookPage() {
                           <Button
                             variant="ghost"
                             className="sf-btn--icon-sm"
-                            aria-label={t("boatLog.promote")}
-                            title={t("boatLog.promote")}
-                            onClick={() => openPromote(note)}
+                            aria-label={t("common.edit")}
+                            title={t("common.edit")}
+                            onClick={() => openEditSessionNote(note)}
                           >
-                            <NotebookPen size={15} />
+                            <Pencil size={15} />
                           </Button>
                         )}
                         <Link
@@ -438,6 +458,32 @@ export function BoatNotebookPage() {
           onConfirm={() => remove.mutate(deleting)}
           onClose={() => setDeleting(null)}
         />
+      )}
+
+      {editingSessionNote && (
+        <Modal title={t("sessions.notes")} onClose={() => setEditingSessionNote(null)}>
+          <TextAreaField
+            label={t("sessions.notes")}
+            id="boat-log-notes"
+            rows={10}
+            value={sessionNoteForm.notes}
+            onChange={(e) => setSessionNoteForm((f) => ({ ...f, notes: e.target.value }))}
+          />
+          <label className="sf-check">
+            <input
+              type="checkbox"
+              checked={sessionNoteForm.notes_shared}
+              onChange={(e) => setSessionNoteForm((f) => ({ ...f, notes_shared: e.target.checked }))}
+            />
+            {t("sessions.notesShared")}
+          </label>
+          <p className="sf-muted">{t("sessions.notesSharedHint")}</p>
+          <div className="sf-form__actions">
+            <Button onClick={() => saveSessionNote.mutate()} disabled={saveSessionNote.isPending}>
+              {t("common.save")}
+            </Button>
+          </div>
+        </Modal>
       )}
     </div>
   );
