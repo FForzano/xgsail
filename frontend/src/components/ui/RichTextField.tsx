@@ -43,7 +43,13 @@ export function RichTextField({
   } as CSSProperties;
 
   return (
-    <label className="sf-field">
+    // A plain div, not a `<label>`: `<button>` is itself a labelable element,
+    // so a `<label>` wrapping the toolbar's buttons implicitly associates
+    // with them — clicking anywhere else inside it (the prose text) then
+    // makes the browser replay a synthetic click on the first one (Bold),
+    // toggling it on every unrelated click. `aria-labelledby` below is the
+    // real association, same reason it's used instead of `htmlFor`.
+    <div className="sf-field">
       <span className="sf-field__label" id={labelId}>
         {label}
       </span>
@@ -70,6 +76,6 @@ export function RichTextField({
           />
         </Suspense>
       </div>
-    </label>
+    </div>
   );
 }
