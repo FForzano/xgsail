@@ -265,9 +265,28 @@
      keyboard instead of pushing the footer out of reach. Bleeds edge to edge
      (cancelling Modal `.body`'s inset, same trick as global.css's `.sf-bleed`)
      instead of floating as a bordered card inside the full-screen sheet — a
-     card look here just leaves a dead margin on both sides. */
+     card look here just leaves a dead margin on both sides.
+
+     Height is now capped, not just floored, and scrolls internally
+     (`overflow-y: auto` right here) instead of letting Modal's `.body` scroll
+     the whole form. Previously the sticky toolbar's scrolling ancestor was
+     `.body` — several flex layers up, resized live by `--sf-vvh` as the
+     keyboard opens/closes, with the field's own label and other form fields
+     as siblings in the same scroll flow. That combination (sticky + a
+     dynamically-resized flex ancestor + a contenteditable descendant) is a
+     known repaint-invalidation trap on Android WebView: text already
+     scrolled past keeps getting painted above the stuck toolbar instead of
+     being cleared. Making `.editor` its own small, statically-behaved
+     scrollport sidesteps the trap instead of working around its symptom. */
   .editor {
     min-height: max(12rem, calc(var(--sf-vvh, 100dvh) * 0.45));
+    max-height: max(12rem, calc(var(--sf-vvh, 100dvh) * 0.45));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* `.sf-field__input` sets an explicit `width: 100%`, so negative margins
+       alone would just shift the box left instead of widening it — the width
+       has to grow by the same two page-pads the margins give back. */
+    width: calc(100% + 2 * var(--sf-page-pad, 1.25rem));
     margin-left: calc(-1 * var(--sf-page-pad, 1.25rem));
     margin-right: calc(-1 * var(--sf-page-pad, 1.25rem));
     border-left: none;
