@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,11 +21,14 @@ import { ApiError } from "@/api/client";
 import { BackLink } from "@/components/ui/BackLink";
 import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
-import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { InputField } from "@/components/ui/InputField";
+import { RichTextField } from "@/components/ui/RichTextField";
+import { RichText } from "@/components/ui/RichText";
 import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { fmtDateTime } from "@/utils/format";
+import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import type { BoatNote, BoatSessionNote, UUID } from "@/types";
 import styles from "./BoatNotebook.module.css";
 
@@ -42,12 +45,16 @@ function queryErrorMessage(error: unknown, membersOnlyKey: string, t: (key: stri
   return error instanceof ApiError && error.status === 403 ? t(membersOnlyKey) : t("errors.generic");
 }
 
-/** Note text clamped to a readable height, with the expand toggle shown only
- * when the text really overflows — measured rather than assumed, so a two-line
- * note gets no pointless button. */
+/** Note body (rich text) clamped to a readable height, with the expand toggle
+ * shown only when the content really overflows — measured rather than
+ * assumed, so a two-line note gets no pointless button. The clamp/measure/tap
+ * handling lives on a wrapper `<div>` around `RichText`, not on RichText's own
+ * rendered element: RichText attaches its own click handler there to route
+ * link clicks through react-router, and a second handler on the same node
+ * would either fight it or never see link clicks at all. */
 function NoteBody({ text }: { text: string }) {
   const { t } = useTranslation();
-  const ref = useRef<HTMLParagraphElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
 
@@ -59,17 +66,23 @@ function NoteBody({ text }: { text: string }) {
   }, [text, expanded]);
 
   const toggle = () => overflows && setExpanded((v) => !v);
+  // A click that lands on a link (handled by RichText's own delegated
+  // handler) must not also toggle expand/collapse.
+  const handleClick = (e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest("a")) return;
+    toggle();
+  };
 
   return (
     <>
       <div className={`${styles.bodyWrap} ${overflows && !expanded ? styles.faded : ""}`}>
-        <p
+        <div
           ref={ref}
           className={`${styles.body} ${expanded ? "" : styles.clamped} ${overflows ? styles.tappable : ""}`}
           role={overflows ? "button" : undefined}
           tabIndex={overflows ? 0 : undefined}
           aria-expanded={overflows ? expanded : undefined}
-          onClick={toggle}
+          onClick={handleClick}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
@@ -77,8 +90,8 @@ function NoteBody({ text }: { text: string }) {
             }
           }}
         >
-          {text}
-        </p>
+          <RichText html={text} tier="full" />
+        </div>
       </div>
       {overflows && (
         <Button variant="ghost" className={`sf-btn--sm ${styles.toggle}`} onClick={toggle}>
@@ -425,28 +438,34 @@ export function BoatNotebookPage() {
       )}
 
       {creating && (
-        <Modal title={editing ? t("boatNotes.edit") : t("boatNotes.new")} onClose={() => setCreating(false)}>
+        <Modal
+          title={editing ? t("boatNotes.edit") : t("boatNotes.new")}
+          onClose={() => setCreating(false)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button
+                onClick={() => save.mutate()}
+                disabled={save.isPending || !form.title.trim() || !richTextExcerpt(form.body, 1)}
+              >
+                {t("common.save")}
+              </Button>
+            </div>
+          }
+        >
           <InputField
             label={t("boatNotes.entryTitle")}
             id="note-title"
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
           />
-          <TextAreaField
+          <RichTextField
             label={t("boatNotes.body")}
             id="note-body"
-            rows={6}
+            tier="full"
             value={form.body}
-            onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
+            onChange={(html) => setForm((f) => ({ ...f, body: html }))}
           />
-          <div className="sf-form__actions">
-            <Button
-              onClick={() => save.mutate()}
-              disabled={save.isPending || !form.title.trim() || !form.body.trim()}
-            >
-              {t("common.save")}
-            </Button>
-          </div>
         </Modal>
       )}
 
@@ -461,13 +480,24 @@ export function BoatNotebookPage() {
       )}
 
       {editingSessionNote && (
-        <Modal title={t("sessions.notes")} onClose={() => setEditingSessionNote(null)}>
-          <TextAreaField
+        <Modal
+          title={t("sessions.notes")}
+          onClose={() => setEditingSessionNote(null)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button onClick={() => saveSessionNote.mutate()} disabled={saveSessionNote.isPending}>
+                {t("common.save")}
+              </Button>
+            </div>
+          }
+        >
+          <RichTextField
             label={t("sessions.notes")}
             id="boat-log-notes"
-            rows={10}
+            tier="full"
             value={sessionNoteForm.notes}
-            onChange={(e) => setSessionNoteForm((f) => ({ ...f, notes: e.target.value }))}
+            onChange={(html) => setSessionNoteForm((f) => ({ ...f, notes: html }))}
           />
           <label className="sf-check">
             <input
@@ -478,11 +508,6 @@ export function BoatNotebookPage() {
             {t("sessions.notesShared")}
           </label>
           <p className="sf-muted">{t("sessions.notesSharedHint")}</p>
-          <div className="sf-form__actions">
-            <Button onClick={() => saveSessionNote.mutate()} disabled={saveSessionNote.isPending}>
-              {t("common.save")}
-            </Button>
-          </div>
         </Modal>
       )}
     </div>

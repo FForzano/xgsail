@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { MediaPlaceholder } from "@/components/common/MediaPlaceholder";
 import { RegattaRaceDays } from "@/components/gruppi/RegattaRaceDays";
 import { PostComposer } from "@/components/gruppi/PostComposer";
+import { RichText } from "@/components/ui/RichText";
 import { fmtDateRange, fmtDateTime } from "@/utils/format";
 import type { Activity, Regatta, UUID } from "@/types";
 import styles from "./EventRow.module.css";
@@ -105,7 +106,7 @@ export function EventRow({
         <span className={styles.meta}>
           {item.kind === "regatta" ? fmtDateRange(item.date, item.endDate) : fmtDateTime(item.date)}
         </span>
-        {description && <p className={styles.description}>{description}</p>}
+        <RichText html={description} tier="basic" className={styles.description} />
         {(item.kind === "regatta" || (canAnnounce && clubId)) && (
           <div className={styles.footer}>
             {item.kind === "regatta" && (

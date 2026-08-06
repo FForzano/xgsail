@@ -7,6 +7,7 @@ uvicorn[standard]>=0.29
 boto3>=1.28               # S3 / MinIO blob store
 requests>=2.31           # dispatch ingest events to the worker RIE endpoints
 python-multipart>=0.0.9  # GPX UploadFile endpoint in backend/routers/races.py
+nh3>=0.2.18              # HTML sanitizer for rich-text prose (backend/richtext.py)
 
 # Postgres metadata backend
 sqlalchemy>=2.0

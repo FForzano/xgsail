@@ -143,7 +143,7 @@ def create_post(body: PostCreateModel, request: Request):
     _require_owner(body.owner_type, body.owner_id)
     activity, regatta = _resolve_event(body)
     _can_manage(body.owner_type, body.owner_id, request, activity=activity, regatta=regatta)
-    if not body.body.strip():
+    if not body.body:
         raise HTTPException(422, "body is required")
     post = repos.posts.create({
         "owner_type": body.owner_type,
@@ -167,7 +167,7 @@ def update_post(post_id: uuid.UUID, body: PostUpdateModel, request: Request):
         raise HTTPException(404, "Post not found")
     if post.author_id != user.id:
         raise HTTPException(403, "Only the author can edit this post")
-    if not body.body.strip():
+    if not body.body:
         raise HTTPException(422, "body is required")
     updated = repos.posts.update(post_id, {"body": body.body, "updated_at": datetime.now(timezone.utc)})
     return _post_payload(updated)

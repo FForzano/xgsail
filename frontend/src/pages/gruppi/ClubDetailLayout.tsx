@@ -11,7 +11,8 @@ import { SectionLayout } from "@/components/layout/SectionLayout";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { InputField } from "@/components/ui/InputField";
+import { RichTextField } from "@/components/ui/RichTextField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { LocationPicker } from "@/components/map/LocationPicker";
@@ -191,8 +192,20 @@ export function ClubDetailLayout() {
       />
 
       {editing && (
-        <Modal title={t("gruppi.editClub")} onClose={() => setEditing(false)}>
+        <Modal
+          title={t("gruppi.editClub")}
+          onClose={() => setEditing(false)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button type="submit" form="ce-edit-form" disabled={save.isPending}>
+                {t("common.save")}
+              </Button>
+            </div>
+          }
+        >
           <form
+            id="ce-edit-form"
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
               save.mutate();
@@ -205,11 +218,12 @@ export function ClubDetailLayout() {
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               required
             />
-            <TextAreaField
+            <RichTextField
               label={t("common.description")}
               id="ce-desc"
               value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(html) => setForm((f) => ({ ...f, description: html }))}
+              tier="basic"
             />
             <div className="sf-form__row">
               <InputField
@@ -230,11 +244,6 @@ export function ClubDetailLayout() {
               address={{ city: form.city, country: c.country }}
               onChange={setPosition}
             />
-            <div className="sf-form__actions">
-              <Button type="submit" disabled={save.isPending}>
-                {t("common.save")}
-              </Button>
-            </div>
           </form>
         </Modal>
       )}

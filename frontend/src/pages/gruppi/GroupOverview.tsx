@@ -1,4 +1,5 @@
 import { WindStationHintCard } from "@/components/common/WindStationHintCard";
+import { RichText } from "@/components/ui/RichText";
 import { useGroupContext } from "./GroupDetailLayout";
 
 export function GroupOverview() {
@@ -7,7 +8,7 @@ export function GroupOverview() {
   return (
     <>
       {manages && <WindStationHintCard />}
-      <p className="sf-muted">{group.description}</p>
+      <RichText html={group.description} tier="basic" className="sf-muted" />
     </>
   );
 }

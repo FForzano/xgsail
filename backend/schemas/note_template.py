@@ -4,12 +4,14 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from ..richtext import RichTextFull
+
 
 class NoteTemplateCreateModel(BaseModel):
     name: str
-    body: str
+    body: RichTextFull
 
 
 class NoteTemplateUpdateModel(BaseModel):
     name: Optional[str] = None
-    body: Optional[str] = None
+    body: RichTextFull = None

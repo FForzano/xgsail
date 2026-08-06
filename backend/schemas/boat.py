@@ -5,6 +5,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from ..richtext import RichTextBasic, RichTextFull
+
 
 class BoatWriteModel(BaseModel):
     name: Optional[str] = None  # required on create, enforced by the router
@@ -27,12 +29,12 @@ class BoatMemberRoleModel(BaseModel):
 
 class BoatNoteCreateModel(BaseModel):
     title: str
-    body: str
+    body: RichTextFull
 
 
 class BoatNoteUpdateModel(BaseModel):
     title: Optional[str] = None
-    body: Optional[str] = None
+    body: RichTextFull = None
 
 
 class BoatNoteOrderModel(BaseModel):
@@ -41,7 +43,7 @@ class BoatNoteOrderModel(BaseModel):
 
 class BoatClassWriteModel(BaseModel):
     name: Optional[str] = None  # required on create, enforced by the router
-    description: Optional[str] = None
+    description: RichTextBasic = None
     loa_m: Optional[float] = None
     beam_m: Optional[float] = None
     sail_area_sqm: Optional[float] = None

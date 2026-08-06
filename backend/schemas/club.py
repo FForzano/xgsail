@@ -5,10 +5,12 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from ..richtext import RichTextBasic
+
 
 class ClubWriteModel(BaseModel):
     name: Optional[str] = None  # required on create, enforced by the router
-    description: Optional[str] = None
+    description: RichTextBasic = None
     address_line_1: Optional[str] = None
     address_line_2: Optional[str] = None
     city: Optional[str] = None

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
 import { ExplorerMap } from "@/components/map/ExplorerMap";
 import { WindStationHintCard } from "@/components/common/WindStationHintCard";
+import { RichText } from "@/components/ui/RichText";
 import { useClubContext } from "./ClubDetailLayout";
 
 export function ClubOverview() {
@@ -20,7 +21,7 @@ export function ClubOverview() {
       {manages && <WindStationHintCard />}
 
       <Card>
-        <p className="sf-muted">{club.description}</p>
+        <RichText html={club.description} tier="basic" className="sf-muted" />
         <p className="sf-muted">
           {club.city ?? ""}{" "}
           {club.website && (

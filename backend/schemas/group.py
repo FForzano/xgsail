@@ -5,10 +5,12 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from ..richtext import RichTextBasic
+
 
 class GroupWriteModel(BaseModel):
     name: Optional[str] = None  # required on create, enforced by the router
-    description: Optional[str] = None
+    description: RichTextBasic = None
     visibility: Optional[str] = None  # public | private
 
 

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
+import { RichText } from "@/components/ui/RichText";
 import { MediaPlaceholder } from "@/components/common/MediaPlaceholder";
 import { regattaStatusBadge, raceStatusBadge } from "@/utils/badges";
 import { fmtDate, fmtDateRange, fmtTime } from "@/utils/format";
@@ -117,7 +118,7 @@ export function RegattaHero({
       {/* Outside the poster: its `overflow: hidden` (which clips the image to
           the card) would also clip the menu's dropdown panel. */}
       {actions && <div className={styles.actions}>{actions}</div>}
-      {regatta.description && <p className={styles.description}>{regatta.description}</p>}
+      <RichText html={regatta.description} tier="basic" className={styles.description} />
     </Card>
   );
 }

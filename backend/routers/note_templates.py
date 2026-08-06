@@ -34,7 +34,7 @@ def list_note_templates(request: Request):
 def create_note_template(body: NoteTemplateCreateModel, request: Request):
     verify_csrf(request)
     user = require_user(request)
-    if not body.name.strip() or not body.body.strip():
+    if not body.name.strip() or not body.body:
         raise HTTPException(422, "name and body are required")
     return repos.note_templates.create(user.id, body.name, body.body).to_dict()
 

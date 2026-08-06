@@ -6,8 +6,10 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from ..richtext import RichTextBasic
+
 
 class RaceDayWriteModel(BaseModel):
     regatta_id: Optional[uuid.UUID] = None  # NULL = free race day (superadmin/global only)
     date: Optional[date_t] = None  # required on create
-    notes: Optional[str] = None
+    notes: RichTextBasic = None

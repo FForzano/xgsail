@@ -42,6 +42,9 @@ TACK_SIDES = ("port", "starboard")
 class SessionORM(UUIDPKMixin, Base):
     __tablename__ = "sessions"
     __table_args__ = (enum_check("status", SESSION_STATUSES),)
+    # Search mirror only: `notes` is HTML, and a LIKE over markup would match
+    # tag names and entities. Never served — clients read `notes`.
+    __wire_exclude__ = ("notes_plain",)
 
     activity_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("activities.id", ondelete="CASCADE"), nullable=False, index=True
@@ -67,6 +70,7 @@ class SessionORM(UUIDPKMixin, Base):
     # to the crew/boat managers unless notes_shared is set (see
     # auth.session_notes_visible_to).
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes_plain: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notes_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Which upload's GPS is THE track of this session. A session can receive
     # several gps streams at once (a boat tracker + one Apple Watch per crew

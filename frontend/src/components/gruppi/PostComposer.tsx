@@ -7,6 +7,7 @@ import { postsService, postKeys } from "@/services/posts";
 import { useToast } from "@/hooks/useToast";
 import { Button } from "@/components/ui/Button";
 import { PostBodyField } from "@/components/gruppi/PostBodyField";
+import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import type { PostEventKind, PostOwnerType, UUID } from "@/types";
 import styles from "./EntityFeed.module.css";
 import photoGridStyles from "@/components/common/photoGrid.module.css";
@@ -91,9 +92,13 @@ export function PostComposer({
     onError: () => notify(t("errors.generic"), "error"),
   });
 
+  // `body` is rich-text HTML, so a whitespace-only draft is still `<p>   </p>`
+  // — truthy as a string. Emptiness has to be decided on the rendered text.
+  const hasBody = richTextExcerpt(body, 1) !== "";
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (body.trim()) create.mutate();
+    if (hasBody) create.mutate();
   };
 
   return (
@@ -146,7 +151,7 @@ export function PostComposer({
         >
           <ImagePlus size={16} />
         </Button>
-        <Button type="submit" disabled={create.isPending || uploading || !body.trim()}>
+        <Button type="submit" disabled={create.isPending || uploading || !hasBody}>
           {t("gruppi.publish")}
         </Button>
       </div>

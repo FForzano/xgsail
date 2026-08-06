@@ -10,10 +10,14 @@ import { useToast } from "@/hooks/useToast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { InputField } from "@/components/ui/InputField";
+import { RichTextField } from "@/components/ui/RichTextField";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import type { UUID } from "@/types";
+
+const DESCRIPTION_EXCERPT_LENGTH = 100;
 
 export function ClubsPage() {
   const { t } = useTranslation();
@@ -77,7 +81,7 @@ export function ClubsPage() {
             <Link key={c.id} to={`/gruppi/clubs/${c.id}`} className="sf-card">
               {c.logo && <img className="sf-avatar" src={c.logo.url} alt="" />}
               <h3>{c.name}</h3>
-              <p className="sf-muted">{c.city ?? c.description}</p>
+              <p className="sf-muted">{c.city ?? richTextExcerpt(c.description, DESCRIPTION_EXCERPT_LENGTH)}</p>
               {ownsClub(c.id) && (
                 <span className="sf-badge sf-badge--success">{t("gruppi.manageMode")}</span>
               )}
@@ -111,8 +115,19 @@ export function ClubsPage() {
       )}
 
       {creating && (
-        <Modal title={t("gruppi.createClub")} onClose={() => setCreating(false)}>
-          <form onSubmit={onSubmit}>
+        <Modal
+          title={t("gruppi.createClub")}
+          onClose={() => setCreating(false)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button type="submit" form="c-create-form" disabled={create.isPending || !form.name}>
+                {t("common.create")}
+              </Button>
+            </div>
+          }
+        >
+          <form id="c-create-form" onSubmit={onSubmit}>
             <InputField
               label={t("common.name")}
               id="c-name"
@@ -120,11 +135,12 @@ export function ClubsPage() {
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               required
             />
-            <TextAreaField
+            <RichTextField
               label={t("common.description")}
               id="c-desc"
               value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(html) => setForm((f) => ({ ...f, description: html }))}
+              tier="basic"
             />
             <InputField
               label={t("gruppi.city")}
@@ -132,11 +148,6 @@ export function ClubsPage() {
               value={form.city}
               onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
             />
-            <div className="sf-form__actions">
-              <Button type="submit" disabled={create.isPending || !form.name}>
-                {t("common.create")}
-              </Button>
-            </div>
           </form>
         </Modal>
       )}

@@ -153,6 +153,15 @@ tours.ts`, `frontend/src/components/common/SupportPromptBanner.tsx`
 respectively). Don't duplicate that copy server-side — these modules
 only track versioning/timing.
 
+**`backend/richtext.py`** — the prose-sanitization boundary, not a
+frontend-copy-owner module. Every free-text prose column (activity/
+club/group/regatta descriptions, boat notes, note templates, post
+bodies, session notes, race-day notes) is stored as sanitized HTML;
+this module's `normalize()` (via `nh3`) is what a DTO field type
+(`RichTextBasic`/`RichTextFull`/`RichTextPost` from this same module)
+applies before anything reaches the database. See the Gotchas entry
+below before adding a new prose field.
+
 **Auth** (`backend/auth/`) — passwords, JWT tokens (cookie for web,
 Bearer for native — see "Native apps"), and RBAC seeding
 (`seed_superadmin`, `seed_device_types`, `seed_defaults` in `main.py`).
@@ -312,7 +321,8 @@ wrappers.
 │   ├── alembic/                # DB migrations
 │   ├── legal.py                # Legal-doc version tracking (copy lives in frontend)
 │   ├── onboarding.py           # Guided-tour ID tracking (copy lives in frontend)
-│   └── support.py              # Support-prompt cadence (copy lives in frontend)
+│   ├── support.py              # Support-prompt cadence (copy lives in frontend)
+│   └── richtext.py             # Prose HTML sanitization (nh3), the stored-XSS boundary
 ├── frontend/                   # Vite + React + TS SPA, wrapped via Capacitor
 │   ├── src/                    # pages/, components/, hooks/, styles/ (see below)
 │   └── ios/App/XGSailWatch Watch App/   # Native watchOS companion (hand-added Xcode target)
@@ -601,6 +611,32 @@ Capacitor plugin changes, which still require a store release.
   visitor. The per-item filter runs after the SQL `LIMIT`, so a short
   page does not mean the list ended; topping it up would leak how many
   rows the caller can't see.
+- **Prose fields store sanitized HTML, and the sanitizer lives on the
+  Pydantic DTO type, not in the router.** A new endpoint whose DTO uses
+  a bare `str` for a prose field bypasses it entirely — and since
+  boats/clubs/groups/regattas are pub-readable, that is stored XSS
+  against logged-out visitors, not just a formatting bug. Use
+  `RichTextBasic`/`RichTextFull`/`RichTextPost` from `backend/
+  richtext.py`.
+- **`sessions.notes_plain` is the column that search and the "has
+  notes" check read, never `sessions.notes`.** An emptied note is
+  `<p></p>`, which is not the empty string, so a blank check against
+  `notes` would put every session of the boat in the logbook as an
+  empty row; and an `ILIKE` against `notes` would match markup
+  (`strong`, `li`, `href`) and miss text split by a tag. The mirror is
+  derived in `SqlSessionRepo.create`/`update`, so nothing can write
+  `notes` without it.
+- **`RichText.tsx` is the only place in the frontend allowed to use
+  `dangerouslySetInnerHTML`.** Rendering a prose value any other way
+  either shows raw tags or reintroduces the XSS surface. One-line
+  prose previews (card subtitles, `title=` attributes) use
+  `richTextExcerpt`, never `RichText` — a `<p>`/`<table>` injected
+  into a single-line slot breaks the layout.
+- **The editor's Tiptap extension set (`frontend/src/components/ui/
+  richTextSchema.ts`) and the backend allow-list (`backend/richtext.py`)
+  must stay in lockstep.** A tag the editor can produce but the
+  sanitizer drops is silently eaten on save, and the user watches
+  their content disappear.
 
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.

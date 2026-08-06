@@ -1,0 +1,265 @@
+/* ---------- RichText (U2) — .prose / .plain only ----------
+   U7 (the Tiptap editor) appends .editor/.toolbar classes below this
+   section; keep this block self-contained so the two units don't collide. */
+
+.prose {
+  color: var(--sf-text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.prose > *:first-child {
+  margin-top: 0;
+}
+.prose > *:last-child {
+  margin-bottom: 0;
+}
+
+.prose p {
+  margin: 0.5rem 0;
+}
+
+.prose h1,
+.prose h2,
+.prose h3 {
+  margin: 0.9rem 0 0.4rem;
+  line-height: 1.3;
+  color: var(--sf-text);
+}
+/* Scaled down from global.css's page-heading sizing — this is user prose
+   inside a card, not the page's own heading hierarchy. */
+.prose h1 {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.prose h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.prose h3 {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.prose ul,
+.prose ol {
+  margin: 0.5rem 0;
+  padding-left: 1.4rem;
+}
+.prose li {
+  margin: 0.2rem 0;
+}
+
+.prose blockquote {
+  margin: 0.6rem 0;
+  padding: 0.2rem 0.9rem;
+  border-left: 3px solid var(--sf-border);
+  color: var(--sf-muted);
+}
+
+.prose a {
+  color: var(--sf-primary);
+  text-decoration: underline;
+}
+
+/* Tables are the one block that can overrun a phone's width. `display:
+   block` + `overflow-x: auto` on the table itself scrolls just the table
+   horizontally without an extra wrapper element (which would otherwise
+   have to be threaded through RichText.tsx and could fight the
+   first-child/last-child flush margins above). */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0.6rem 0;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.prose th,
+.prose td {
+  border: 1px solid var(--sf-border);
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+}
+.prose th {
+  background: var(--sf-bg-2);
+  font-weight: 600;
+}
+
+/* The mention chip look, owned here since the feed's own .mention/.mentionLink
+   classes went away with postFormat.tsx. */
+.prose [data-mention] {
+  font-weight: 600;
+  color: var(--sf-primary);
+}
+.prose a[data-mention] {
+  text-decoration: none;
+}
+.prose a[data-mention]:hover {
+  text-decoration: underline;
+}
+
+/* Legacy plain-text fallback (stale cache / offline snapshot handing us
+   bare text instead of sanitized HTML) — preserve line breaks without
+   interpreting the text as HTML. */
+.plain {
+  white-space: pre-wrap;
+}
+
+/* ---------- RichTextField / RichTextToolbar (U7) ----------
+   The editing surface deliberately composes `.prose` above rather than
+   restating any typography: what the user types must look exactly like what
+   `RichText` renders back. Everything below is chrome only. */
+
+/* Applied alongside the global `sf-field__input`, whose padding is dropped so
+   the toolbar can sit flush against the border. */
+.editor {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: var(--rt-min-height, 14rem);
+}
+.editor:focus-within {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: -1px;
+}
+.editorDisabled {
+  opacity: 0.6;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0.55rem 0.7rem;
+}
+.content :global(.ProseMirror) {
+  flex: 1;
+  outline: none;
+}
+.content :global(.ProseMirror-selectednode) {
+  outline: 2px solid var(--sf-primary);
+}
+/* The rendered `.prose table` scrolls itself via `display: block`, which breaks
+   cell layout while editing — here the whole `.content` is the scroll area. */
+.content table {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+.content :global(.selectedCell) {
+  background: color-mix(in srgb, var(--sf-primary) 22%, transparent);
+}
+/* Placeholder text, from the Placeholder extension's data attribute. */
+.content :global(.is-editor-empty:first-child)::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--sf-muted);
+}
+
+/* Same box as `.content` so swapping the lazy editor in doesn't shift layout. */
+.placeholder {
+  color: var(--sf-muted);
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.35rem;
+  padding: 0.25rem 0.35rem;
+  background: var(--sf-bg-2);
+  border-bottom: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius) var(--sf-radius) 0 0;
+}
+/* Neutralises `.sf-options`' own `position: relative` so the dropdowns anchor
+   to the toolbar (which is positioned, being sticky) instead of to a 38px
+   button — the only way a link/table panel stays on screen at 360px. */
+.toolbar :global(.sf-options) {
+  position: static;
+}
+.toolGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.toolBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 0.4rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--sf-muted);
+  cursor: pointer;
+  /* A transparent-background <button> otherwise shows WebKit's own rounded
+     pushbutton chrome underneath (same fix as Menu.module.css's .item). */
+  appearance: none;
+  -webkit-appearance: none;
+}
+.toolBtn:hover:not(:disabled) {
+  background: var(--sf-surface);
+  color: var(--sf-text);
+}
+.toolBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.toolBtnActive {
+  background: color-mix(in srgb, var(--sf-primary) 22%, transparent);
+  border-color: var(--sf-primary);
+  color: var(--sf-primary);
+}
+
+.menuItemActive {
+  color: var(--sf-primary);
+  font-weight: 600;
+}
+
+/* Full-width under the toolbar rather than hanging off the link button. */
+.linkPanel {
+  left: 0;
+  right: 0;
+  max-width: 24rem;
+  white-space: normal;
+}
+.linkForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 14rem;
+}
+.linkError {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--sf-danger);
+}
+.linkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+@media (max-width: 700px) {
+  .toolBtn {
+    min-width: 44px;
+    height: 44px;
+  }
+  /* Inside the full-screen modal sheet the editor should own most of the
+     sheet, but track `--sf-vvh` (set by Modal) so it shrinks with the software
+     keyboard instead of pushing the footer out of reach. */
+  .editor {
+    min-height: max(12rem, calc(var(--sf-vvh, 100dvh) * 0.45));
+  }
+}

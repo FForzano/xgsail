@@ -13,6 +13,7 @@ from typing import Optional
 
 from sqlalchemy import func, select
 
+from ...richtext import to_plain_text
 from ...db.models import (
     SessionAnalysisORM,
     SessionCrewORM,
@@ -85,21 +86,27 @@ class SqlSessionRepo:
 
         Paginated because it backs an open-ended logbook view; the caller still
         has to filter each row through ``session_notes_visible_to`` — a note
-        being present is not a note being readable. ``q`` is applied in SQL
-        (unlike that visibility check) so it composes correctly with
-        ``limit``/``offset`` instead of narrowing an already-paginated slice."""
+        being present is not a note being readable. Both the blank filter and
+        ``q`` run against ``notes_plain`` (the plain-text mirror of the HTML
+        ``notes`` column, kept in sync by ``update``) rather than ``notes``
+        itself — matching raw HTML would both false-positive on markup (``q``
+        matching every row via a tag name like "table") and false-negative on
+        content split across tags (``"vento forte"`` missing a note stored as
+        ``vento <strong>forte</strong>``). ``q`` is applied in SQL (unlike the
+        visibility check) so it composes correctly with ``limit``/``offset``
+        instead of narrowing an already-paginated slice."""
         with self.Session() as s:
             conditions = [
                 SessionORM.boat_id == boat_id,
-                SessionORM.notes.is_not(None),
+                SessionORM.notes_plain.is_not(None),
                 # Characters spelled out because one-arg trim()/btrim()
                 # strips spaces only, letting a note of bare newlines
                 # through as a blank logbook row. Two-arg trim() behaves
                 # the same on Postgres and on the suite's SQLite.
-                func.trim(SessionORM.notes, " \t\n\r") != "",
+                func.trim(SessionORM.notes_plain, " \t\n\r") != "",
             ]
             if q:
-                conditions.append(SessionORM.notes.ilike(f"%{q}%"))
+                conditions.append(SessionORM.notes_plain.ilike(f"%{q}%"))
             q_stmt = (
                 select(SessionORM)
                 .where(*conditions)
@@ -116,18 +123,26 @@ class SqlSessionRepo:
     def create(self, data: dict) -> SessionORM:
         with self.Session() as s:
             orm = SessionORM(**{k: data.get(k) for k in _FIELDS if k in data})
+            if "notes" in data:
+                orm.notes_plain = to_plain_text(data["notes"]) if data["notes"] is not None else None
             s.add(orm)
             s.commit()
             new_id = orm.id
         return self.get(new_id)
 
     def update(self, session_id: uuid.UUID, changes: dict) -> Optional[SessionORM]:
+        if "notes" in changes:
+            # Keep the plain-text search mirror in lockstep with every write
+            # of the HTML column — the only way list_with_notes_for_boat can
+            # rely on notes_plain instead of parsing HTML at read time.
+            changes = {**changes, "notes_plain": to_plain_text(changes["notes"])
+                       if changes["notes"] is not None else None}
         with self.Session() as s:
             orm = s.get(SessionORM, session_id)
             if orm is None:
                 return None
             for k, v in changes.items():
-                if k in _FIELDS:
+                if k in _FIELDS or k == "notes_plain":
                     setattr(orm, k, v)
             s.commit()
         return self.get(session_id)

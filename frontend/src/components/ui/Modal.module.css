@@ -12,10 +12,14 @@
   width: 100%;
   max-width: 460px;
   max-height: 90vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   background: var(--sf-surface);
   border: 1px solid var(--sf-border);
   border-radius: var(--sf-radius);
+}
+.modalWide {
+  max-width: 760px;
 }
 .head {
   display: flex;
@@ -23,6 +27,7 @@
   justify-content: space-between;
   padding: 0.9rem 1.25rem;
   border-bottom: 1px solid var(--sf-border);
+  flex-shrink: 0;
 }
 .title {
   font-size: 1.05rem;
@@ -38,4 +43,33 @@
 }
 .body {
   padding: 1.25rem;
+  overflow-y: auto;
+  flex: 1;
+  /* without min-height: 0 a flex child won't shrink below its content size,
+     so this scrollbar never engages and the parent grows past max-height instead */
+  min-height: 0;
+}
+.foot {
+  flex-shrink: 0;
+  padding: 1.25rem;
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--sf-border);
+}
+
+@media (max-width: 700px) {
+  .modalWide {
+    max-width: none;
+    width: 100%;
+    height: var(--sf-vvh, 100dvh);
+    max-height: none;
+    border-radius: 0;
+  }
+  /* Set from Modal.tsx rather than `:has(> .modalWide)`, which Safari only
+     supports from 15.4 while the native shells target iOS 14+. */
+  .backdropWide {
+    padding: 0;
+  }
+  .modalWide .head {
+    padding-top: calc(0.9rem + env(safe-area-inset-top, 0px));
+  }
 }

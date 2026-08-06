@@ -6,7 +6,8 @@ import { activitiesService, activityKeys } from "@/services/activities";
 import { useToast } from "@/hooks/useToast";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { InputField } from "@/components/ui/InputField";
+import { RichTextField } from "@/components/ui/RichTextField";
 import { EventRow, type EventItem } from "@/components/diario/EventRow";
 import feedStyles from "@/components/diario/EventRow.module.css";
 import type { UUID } from "@/types";
@@ -205,8 +206,24 @@ export function ClubEvents({
       )}
 
       {creatingActivity && (
-        <Modal title={t("gruppi.newEvent")} onClose={() => setCreatingActivity(false)}>
+        <Modal
+          title={t("gruppi.newEvent")}
+          onClose={() => setCreatingActivity(false)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button
+                type="submit"
+                form="a-create-form"
+                disabled={createActivity.isPending || !activityForm.name || !activityForm.started_at}
+              >
+                {t("common.create")}
+              </Button>
+            </div>
+          }
+        >
           <form
+            id="a-create-form"
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
               createActivity.mutate();
@@ -227,20 +244,13 @@ export function ClubEvents({
               onChange={(e) => setActivityForm((f) => ({ ...f, started_at: e.target.value }))}
               required
             />
-            <TextAreaField
+            <RichTextField
               label={t("gruppi.eventDescription")}
               id="a-desc"
               value={activityForm.description}
-              onChange={(e) => setActivityForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(html) => setActivityForm((f) => ({ ...f, description: html }))}
+              tier="basic"
             />
-            <div className="sf-form__actions">
-              <Button
-                type="submit"
-                disabled={createActivity.isPending || !activityForm.name || !activityForm.started_at}
-              >
-                {t("common.create")}
-              </Button>
-            </div>
           </form>
         </Modal>
       )}

@@ -23,7 +23,8 @@ import { Button } from "@/components/ui/Button";
 import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
-import { TextAreaField } from "@/components/ui/InputField";
+import { RichTextField } from "@/components/ui/RichTextField";
+import { RichText } from "@/components/ui/RichText";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Avatar } from "@/components/ui/Avatar";
@@ -36,6 +37,7 @@ import { NavSourceModal } from "@/components/session/NavSourceModal";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { fmtDateTime, fmtDistance, fmtDuration, fmtKnots, userLabel } from "@/utils/format";
 import { legSequence } from "@/utils/legSequence";
+import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import { sessionStatusBadge } from "@/utils/badges";
 import { SAILING_ROLES } from "@/utils/sailingRoles";
 import type { GpsPoint, SailingRole, UUID } from "@/types";
@@ -599,7 +601,7 @@ export function SessionDetail({
         onClick: () => videoInputRef.current?.click(),
       });
     }
-    if (!session.data?.notes) {
+    if (!richTextExcerpt(session.data?.notes, 1)) {
       quickActions.push({
         key: "notes", icon: <NotebookPen size={16} />, label: t("sessions.addNotes"),
         onClick: () => setNotesEditing(true),
@@ -739,7 +741,7 @@ export function SessionDetail({
     analysis.data?.maneuvers.length ?? 0,
     photos.data?.length ?? 0,
     videos.data?.length ?? 0,
-    !!session.data?.notes,
+    !!richTextExcerpt(session.data?.notes, 1),
     navSources.data?.length ?? 0,
     mapShow,
     variant,
@@ -970,7 +972,7 @@ export function SessionDetail({
         )}
       </Section>
 
-      {s.notes && (
+      {richTextExcerpt(s.notes, 1) && (
         <Section
           title={
             <>
@@ -992,7 +994,7 @@ export function SessionDetail({
             )
           }
         >
-          <p className={styles.notes}>{s.notes}</p>
+          <RichText html={s.notes} tier="full" />
         </Section>
       )}
 
@@ -1085,7 +1087,18 @@ export function SessionDetail({
         </Modal>
       )}
       {notesEditing && (
-        <Modal title={t("sessions.notes")} onClose={() => setNotesEditing(false)}>
+        <Modal
+          title={t("sessions.notes")}
+          onClose={() => setNotesEditing(false)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button onClick={() => saveNotes.mutate()} disabled={saveNotes.isPending}>
+                {t("common.save")}
+              </Button>
+            </div>
+          }
+        >
           {noteTemplates.data && noteTemplates.data.length > 0 && (
             <div className={styles.templatePicker}>
               <select
@@ -1117,13 +1130,13 @@ export function SessionDetail({
               </Link>
             </p>
           )}
-          <TextAreaField
+          <RichTextField
             label={t("sessions.notes")}
             id="session-notes"
-            rows={10}
+            tier="full"
             placeholder={t("sessions.notesPlaceholder")}
             value={notesForm.notes}
-            onChange={(e) => setNotesForm((f) => ({ ...f, notes: e.target.value }))}
+            onChange={(html) => setNotesForm((f) => ({ ...f, notes: html }))}
           />
           <label className="sf-check">
             <input
@@ -1134,11 +1147,6 @@ export function SessionDetail({
             {t("sessions.notesShared")}
           </label>
           <p className="sf-muted">{t("sessions.notesSharedHint")}</p>
-          <div className="sf-form__actions">
-            <Button onClick={() => saveNotes.mutate()} disabled={saveNotes.isPending}>
-              {t("common.save")}
-            </Button>
-          </div>
         </Modal>
       )}
       {maneuverDraftStart && maneuverDraftEnd && (

@@ -7,12 +7,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { InputField } from "@/components/ui/InputField";
+import { RichTextField } from "@/components/ui/RichTextField";
 import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { Avatar } from "@/components/ui/Avatar";
 import { unitsStore, useUnits } from "@/stores/unitsStore";
+import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import type { NoteTemplate, UUID } from "@/types";
 
 export function AnagraficaPage() {
@@ -221,9 +223,7 @@ export function AnagraficaPage() {
               <div key={tpl.id} className="sf-strip__item sf-strip__item--muted">
                 <span>
                   <strong>{tpl.name}</strong>{" "}
-                  <span className="sf-muted">
-                    {tpl.body.length > 60 ? `${tpl.body.slice(0, 60)}…` : tpl.body}
-                  </span>
+                  <span className="sf-muted">{richTextExcerpt(tpl.body, 60)}</span>
                 </span>
                 <span className="sf-strip__actions">
                   <Button variant="ghost" className="sf-btn--sm" onClick={() => openEditTemplate(tpl)}>
@@ -248,6 +248,19 @@ export function AnagraficaPage() {
         <Modal
           title={editingTemplateId ? t("noteTemplates.edit") : t("noteTemplates.new")}
           onClose={() => setTemplateModalOpen(false)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button
+                onClick={() => saveTemplate.mutate()}
+                disabled={
+                  saveTemplate.isPending || !templateForm.name.trim() || !richTextExcerpt(templateForm.body, 1)
+                }
+              >
+                {t("common.save")}
+              </Button>
+            </div>
+          }
         >
           <InputField
             label={t("noteTemplates.name")}
@@ -255,21 +268,13 @@ export function AnagraficaPage() {
             value={templateForm.name}
             onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
           />
-          <TextAreaField
+          <RichTextField
             label={t("noteTemplates.body")}
             id="template-body"
-            rows={5}
+            tier="full"
             value={templateForm.body}
-            onChange={(e) => setTemplateForm((f) => ({ ...f, body: e.target.value }))}
+            onChange={(html) => setTemplateForm((f) => ({ ...f, body: html }))}
           />
-          <div className="sf-form__actions">
-            <Button
-              onClick={() => saveTemplate.mutate()}
-              disabled={saveTemplate.isPending || !templateForm.name.trim() || !templateForm.body.trim()}
-            >
-              {t("common.save")}
-            </Button>
-          </div>
         </Modal>
       )}
     </div>

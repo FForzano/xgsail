@@ -5,6 +5,8 @@ from typing import Optional
 
 from pydantic import AwareDatetime, BaseModel
 
+from ..richtext import RichTextBasic
+
 
 class ActivityWriteModel(BaseModel):
     name: Optional[str] = None
@@ -14,7 +16,7 @@ class ActivityWriteModel(BaseModel):
     group_id: Optional[uuid.UUID] = None
     visibility: Optional[str] = None  # public | club | group | private
     status: Optional[str] = None  # planned | completed
-    description: Optional[str] = None
+    description: RichTextBasic = None
     started_at: Optional[AwareDatetime] = None
     ended_at: Optional[AwareDatetime] = None
 

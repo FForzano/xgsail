@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/Button";
 import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Modal } from "@/components/ui/Modal";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
-import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { InputField } from "@/components/ui/InputField";
+import { RichTextField } from "@/components/ui/RichTextField";
 import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { BackLink } from "@/components/ui/BackLink";
@@ -259,7 +260,18 @@ export function RegattaDetailPage() {
       )}
 
       {panel === "edit" && (
-        <Modal title={t("regate.editRegatta")} onClose={() => setPanel(null)}>
+        <Modal
+          title={t("regate.editRegatta")}
+          onClose={() => setPanel(null)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button type="submit" form="rg-edit-form" disabled={save.isPending || !form.name}>
+                {t("common.save")}
+              </Button>
+            </div>
+          }
+        >
           <div className={`sf-field ${styles.posterField}`}>
             <span className="sf-field__label">{t("regate.posterImage")}</span>
             {r.image && <img className={styles.posterPreview} src={r.image.url} alt="" />}
@@ -272,6 +284,7 @@ export function RegattaDetailPage() {
             />
           </div>
           <form
+            id="rg-edit-form"
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
               save.mutate();
@@ -284,17 +297,13 @@ export function RegattaDetailPage() {
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               required
             />
-            <TextAreaField
+            <RichTextField
               label={t("common.description")}
               id="rg-desc"
               value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(html) => setForm((f) => ({ ...f, description: html }))}
+              tier="basic"
             />
-            <div className="sf-form__actions">
-              <Button type="submit" disabled={save.isPending || !form.name}>
-                {t("common.save")}
-              </Button>
-            </div>
           </form>
         </Modal>
       )}

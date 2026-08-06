@@ -5,6 +5,8 @@ from typing import Literal, Optional
 
 from pydantic import AwareDatetime, BaseModel
 
+from ..richtext import RichTextFull
+
 
 class SessionWriteModel(BaseModel):
     activity_id: Optional[uuid.UUID] = None  # required on create
@@ -47,7 +49,7 @@ class SessionAttachModel(BaseModel):
 
 
 class SessionNotesModel(BaseModel):
-    notes: Optional[str] = None
+    notes: RichTextFull = None
     notes_shared: bool = False
 
 

@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 from backend.db.base import Base
 from backend.db.models import ActivityORM, BoatORM, SessionORM, SessionUploadORM, UserBoatORM
 from backend.repositories.sql.session_repo import SqlSessionRepo
+from backend.richtext import to_plain_text
 
 
 @pytest.fixture
@@ -77,11 +78,17 @@ def _dt(offset_days):
 
 
 def _make_session(Session, *, activity_id, boat_id, notes=None, started_at=None):
+    """Builds the ORM row directly (not through ``SqlSessionRepo.update``),
+    so ``notes_plain`` is derived here exactly the way the repo's write path
+    derives it — keeping these read-side tests decoupled from the mirroring
+    logic, which is covered separately in the ``notes_plain mirroring``
+    tests below."""
     with Session() as s:
         orm = SessionORM(
             activity_id=activity_id,
             boat_id=boat_id,
             notes=notes,
+            notes_plain=to_plain_text(notes) if notes is not None else None,
             started_at=started_at,
         )
         s.add(orm)
@@ -213,3 +220,94 @@ def test_limit_and_offset_paginate_a_known_ordering(repo, activity_id, boat_id):
 
     last_page = r.list_with_notes_for_boat(boat_id, limit=2, offset=4)
     assert [s.id for s in last_page] == expected_order[4:5]
+
+
+def test_html_note_stripped_of_empty_paragraph_excluded(repo, activity_id, boat_id):
+    """``<p></p>`` is what an emptied rich-text note becomes post-sanitizing —
+    not the empty string — so the blank filter must catch it via
+    ``notes_plain``, not by inspecting the HTML in ``notes``."""
+    r, Session = repo
+    _make_session(Session, activity_id=activity_id, boat_id=boat_id, notes="<p></p>")
+
+    assert r.list_with_notes_for_boat(boat_id) == []
+
+
+def test_q_matches_text_split_across_html_tags(repo, activity_id, boat_id):
+    """``q="vento forte"`` must find a note stored as
+    ``vento <strong>forte</strong>`` — an ILIKE against raw ``notes`` would
+    miss it because the tag sits between the two words."""
+    r, Session = repo
+    session_id = _make_session(
+        Session, activity_id=activity_id, boat_id=boat_id,
+        notes="<p>vento <strong>forte</strong> oggi</p>",
+    )
+
+    result = r.list_with_notes_for_boat(boat_id, q="vento forte")
+    assert [s.id for s in result] == [session_id]
+
+
+def test_q_does_not_match_html_tag_names(repo, activity_id, boat_id):
+    """``q="strong"`` must not match a note whose HTML happens to use a
+    ``<strong>`` tag — the search runs on the text a user would actually
+    read, not on markup."""
+    r, Session = repo
+    _make_session(
+        Session, activity_id=activity_id, boat_id=boat_id,
+        notes="<p>vento <strong>forte</strong> oggi</p>",
+    )
+
+    assert r.list_with_notes_for_boat(boat_id, q="strong") == []
+
+
+class TestNotesPlainMirroring:
+    """``SqlSessionRepo.update``/``create`` are the only writers of ``notes``
+    outside a migration, so they're the only place that can keep
+    ``notes_plain`` in sync — this class covers that mirroring directly,
+    independent of the read-side filtering covered above."""
+
+    def test_update_derives_notes_plain_from_html(self, repo, activity_id, boat_id):
+        r, Session = repo
+        session_id = _make_session(Session, activity_id=activity_id, boat_id=boat_id)
+
+        updated = r.update(session_id, {"notes": "<p>vento <strong>forte</strong></p>"})
+
+        assert updated.notes_plain == "vento forte"
+
+    def test_update_with_none_notes_sets_none_notes_plain(self, repo, activity_id, boat_id):
+        r, Session = repo
+        session_id = _make_session(Session, activity_id=activity_id, boat_id=boat_id, notes="<p>x</p>")
+
+        updated = r.update(session_id, {"notes": None})
+
+        assert updated.notes is None
+        assert updated.notes_plain is None
+
+    def test_update_without_notes_key_leaves_notes_plain_untouched(self, repo, activity_id, boat_id):
+        """A partial update (``exclude_unset``) that never mentions ``notes``
+        must not clobber the existing mirror — this is the case an
+        unconditional ``to_plain_text(changes.get("notes"))`` would get
+        wrong, turning every unrelated PATCH into a note-wipe."""
+        r, Session = repo
+        session_id = _make_session(Session, activity_id=activity_id, boat_id=boat_id, notes="<p>hello</p>")
+
+        updated = r.update(session_id, {"status": "processed"})
+
+        assert updated.notes_plain == "hello"
+
+    def test_create_derives_notes_plain_from_html(self, repo, activity_id, boat_id):
+        r, Session = repo
+
+        session = r.create({
+            "activity_id": activity_id,
+            "boat_id": boat_id,
+            "notes": "<p>eased the <em>vang</em></p>",
+        })
+
+        assert session.notes_plain == "eased the vang"
+
+    def test_create_without_notes_leaves_notes_plain_none(self, repo, activity_id, boat_id):
+        r, Session = repo
+
+        session = r.create({"activity_id": activity_id, "boat_id": boat_id})
+
+        assert session.notes_plain is None

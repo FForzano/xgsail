@@ -140,7 +140,6 @@
   overflow: hidden;
 }
 .postBody {
-  white-space: pre-wrap;
   overflow-wrap: break-word;
 }
 .postImage {
@@ -160,26 +159,22 @@ img.postImage {
   object-fit: contain;
 }
 
-.formToolbar {
-  display: flex;
-  gap: 0.25rem;
-  margin-bottom: 0.4rem;
-}
-.formField {
-  position: relative;
+/* The floating layer the Tiptap suggestion plugin appends to the document and
+   keeps anchored to the caret. It only has to win the stacking contest against
+   the mobile composer's `Modal` (z-index 100) — position and size come from
+   the plugin. */
+.mentionLayer {
+  z-index: 200;
+  max-width: min(22rem, calc(100vw - 2rem));
 }
 .formMentions {
-  position: absolute;
-  top: calc(100% + 0.2rem);
-  left: 0;
-  right: 0;
+  min-width: 12rem;
   max-height: 220px;
   overflow-y: auto;
   background: var(--sf-surface-2);
   border: 1px solid var(--sf-border);
   border-radius: var(--sf-radius);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  z-index: 80;
 }
 .formMentionOption {
   display: flex;
@@ -197,15 +192,4 @@ img.postImage {
   color: var(--sf-muted);
   font-size: 0.75rem;
   margin-left: auto;
-}
-
-.mention {
-  font-weight: 600;
-  color: var(--sf-primary);
-}
-a.mentionLink {
-  text-decoration: none;
-}
-a.mentionLink:hover {
-  text-decoration: underline;
 }

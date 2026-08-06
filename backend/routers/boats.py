@@ -287,7 +287,7 @@ def create_note(boat_id: uuid.UUID, body: BoatNoteCreateModel, request: Request)
     _require_boat(boat_id)
     if not _is_manager(user, boat_id):
         raise HTTPException(403, "Boat owner/admin required")
-    if not body.title.strip() or not body.body.strip():
+    if not body.title.strip() or not body.body:
         raise HTTPException(422, "title and body are required")
     return repos.boats.add_note(boat_id, body.title, body.body).to_dict()
 

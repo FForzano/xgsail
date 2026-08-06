@@ -10,11 +10,15 @@ import { useToast } from "@/hooks/useToast";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { InputField } from "@/components/ui/InputField";
+import { RichTextField } from "@/components/ui/RichTextField";
 import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import type { UUID } from "@/types";
+
+const DESCRIPTION_EXCERPT_LENGTH = 100;
 
 export function GroupsPage() {
   const { t } = useTranslation();
@@ -77,7 +81,7 @@ export function GroupsPage() {
             <Link key={g.id} to={`/gruppi/gruppi/${g.id}`} className="sf-card">
               {g.profile_image && <img className="sf-avatar" src={g.profile_image.url} alt="" />}
               <h3>{g.name}</h3>
-              <p className="sf-muted">{g.description}</p>
+              <p className="sf-muted">{richTextExcerpt(g.description, DESCRIPTION_EXCERPT_LENGTH)}</p>
               <span className="sf-badge">{t(`gruppi.${g.visibility}`)}</span>
             </Link>
           ))}
@@ -91,7 +95,7 @@ export function GroupsPage() {
               <div key={g.id} className="sf-strip__item sf-strip__item--muted">
                 <Link to={`/gruppi/gruppi/${g.id}`}>
                   <strong>{g.name}</strong>{" "}
-                  <span className="sf-muted">{g.description}</span>
+                  <span className="sf-muted">{richTextExcerpt(g.description, DESCRIPTION_EXCERPT_LENGTH)}</span>
                 </Link>
                 <Button
                   className="sf-btn--sm"
@@ -107,8 +111,19 @@ export function GroupsPage() {
       )}
 
       {creating && (
-        <Modal title={t("gruppi.createGroup")} onClose={() => setCreating(false)}>
-          <form onSubmit={onSubmit}>
+        <Modal
+          title={t("gruppi.createGroup")}
+          onClose={() => setCreating(false)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button type="submit" form="g-create-form" disabled={create.isPending || !form.name}>
+                {t("common.create")}
+              </Button>
+            </div>
+          }
+        >
+          <form id="g-create-form" onSubmit={onSubmit}>
             <InputField
               label={t("common.name")}
               id="g-name"
@@ -116,11 +131,12 @@ export function GroupsPage() {
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               required
             />
-            <TextAreaField
+            <RichTextField
               label={t("common.description")}
               id="g-desc"
               value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(html) => setForm((f) => ({ ...f, description: html }))}
+              tier="basic"
             />
             <Select
               label={t("gruppi.visibility")}
@@ -131,11 +147,6 @@ export function GroupsPage() {
               <option value="private">{t("gruppi.private")}</option>
               <option value="public">{t("gruppi.public")}</option>
             </Select>
-            <div className="sf-form__actions">
-              <Button type="submit" disabled={create.isPending || !form.name}>
-                {t("common.create")}
-              </Button>
-            </div>
           </form>
         </Modal>
       )}

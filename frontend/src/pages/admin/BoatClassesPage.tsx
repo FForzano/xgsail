@@ -5,7 +5,8 @@ import { boatsService, boatKeys, type BoatClassSort, type SortOrder } from "@/se
 import { useToast } from "@/hooks/useToast";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
-import { InputField, TextAreaField } from "@/components/ui/InputField";
+import { InputField } from "@/components/ui/InputField";
+import { RichTextField } from "@/components/ui/RichTextField";
 import { Modal } from "@/components/ui/Modal";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import type { BoatClass, HullType, RigType, SpinnakerType, UUID } from "@/types";
@@ -274,8 +275,20 @@ export function BoatClassesPage() {
       </form>
 
       {editing && (
-        <Modal title={t("common.edit")} onClose={() => setEditing(null)}>
+        <Modal
+          title={t("common.edit")}
+          onClose={() => setEditing(null)}
+          size="wide"
+          footer={
+            <div className="sf-form__actions">
+              <Button type="submit" form="bce-edit-form" disabled={save.isPending}>
+                {t("common.save")}
+              </Button>
+            </div>
+          }
+        >
           <form
+            id="bce-edit-form"
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
               save.mutate();
@@ -301,11 +314,12 @@ export function BoatClassesPage() {
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               required
             />
-            <TextAreaField
+            <RichTextField
               label={t("common.description")}
               id="bce-desc"
               value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              onChange={(html) => setForm((f) => ({ ...f, description: html }))}
+              tier="basic"
             />
             <div className="sf-form__row">
               <InputField
@@ -391,11 +405,6 @@ export function BoatClassesPage() {
                 value={form.rya_class_id}
                 onChange={(e) => setForm((f) => ({ ...f, rya_class_id: e.target.value }))}
               />
-            </div>
-            <div className="sf-form__actions">
-              <Button type="submit" disabled={save.isPending}>
-                {t("common.save")}
-              </Button>
             </div>
           </form>
         </Modal>

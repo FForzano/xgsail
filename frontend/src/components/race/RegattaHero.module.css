@@ -126,8 +126,6 @@
   padding: 0.85rem 1.25rem 0;
   color: var(--sf-muted);
   font-size: 0.9rem;
-  /* Keeps the organizer's own line breaks instead of collapsing them. */
-  white-space: pre-wrap;
 }
 
 /* ---------- compact (race dashboard) ---------- */

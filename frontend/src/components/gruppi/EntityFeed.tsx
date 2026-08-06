@@ -12,8 +12,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PostBodyField } from "@/components/gruppi/PostBodyField";
 import { PostComposer } from "@/components/gruppi/PostComposer";
+import { RichText } from "@/components/ui/RichText";
 import { userLabel, fmtDateTime } from "@/utils/format";
-import { renderPostBody } from "@/utils/postFormat";
+import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import type { Post, PostOwnerType, UUID } from "@/types";
 import styles from "./EntityFeed.module.css";
 import photoGridStyles from "@/components/common/photoGrid.module.css";
@@ -66,6 +67,10 @@ function PostEditForm({
   const { notify } = useToast();
   const queryClient = useQueryClient();
   const [body, setBody] = useState(post.body);
+  // `"<p></p>"` is a truthy string, so emptiness is a question about the text
+  // the body renders — a mention-only post has no plain text of its own but
+  // does carry its `@label`, and counts as written.
+  const hasBody = richTextExcerpt(body, 1) !== "";
 
   const update = useMutation({
     mutationFn: () => postsService.update(post.id, { body }),
@@ -81,7 +86,7 @@ function PostEditForm({
       className={styles.feedForm}
       onSubmit={(e: FormEvent) => {
         e.preventDefault();
-        if (body.trim()) update.mutate();
+        if (hasBody) update.mutate();
       }}
     >
       <PostBodyField
@@ -91,13 +96,12 @@ function PostEditForm({
         onChange={setBody}
         id={`feed-body-edit-${post.id}`}
         placeholder={t("gruppi.newsBody")}
-        autoFocus
       />
       <div className="sf-form__actions">
         <Button type="button" variant="ghost" onClick={onDone}>
           {t("common.cancel")}
         </Button>
-        <Button type="submit" disabled={update.isPending || !body.trim()}>
+        <Button type="submit" disabled={update.isPending || !hasBody}>
           {t("common.save")}
         </Button>
       </div>
@@ -206,7 +210,7 @@ export function EntityFeed({
                   onDone={() => setEditingId(null)}
                 />
               ) : (
-                <p className={styles.postBody}>{renderPostBody(p.body)}</p>
+                <RichText html={p.body} tier="basic" mentions className={styles.postBody} />
               )}
               {p.event && <PostEventCard event={p.event} />}
               {p.images.length === 1 ? (
