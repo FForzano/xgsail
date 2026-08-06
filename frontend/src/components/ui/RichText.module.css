@@ -171,6 +171,10 @@
   position: sticky;
   top: 0;
   z-index: 2;
+  /* Own compositing layer, so the opaque background reliably paints over
+     scrolled ProseMirror content instead of occasionally showing it through
+     mid-scroll (seen on Android WebView). */
+  isolation: isolate;
   display: flex;
   flex-wrap: wrap;
   gap: 0.15rem 0.35rem;
@@ -258,8 +262,25 @@
   }
   /* Inside the full-screen modal sheet the editor should own most of the
      sheet, but track `--sf-vvh` (set by Modal) so it shrinks with the software
-     keyboard instead of pushing the footer out of reach. */
+     keyboard instead of pushing the footer out of reach. Bleeds edge to edge
+     (cancelling Modal `.body`'s inset, same trick as global.css's `.sf-bleed`)
+     instead of floating as a bordered card inside the full-screen sheet — a
+     card look here just leaves a dead margin on both sides. */
   .editor {
     min-height: max(12rem, calc(var(--sf-vvh, 100dvh) * 0.45));
+    margin-left: calc(-1 * var(--sf-page-pad, 1.25rem));
+    margin-right: calc(-1 * var(--sf-page-pad, 1.25rem));
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+  }
+  .toolbar {
+    padding-left: var(--sf-page-pad, 1.25rem);
+    padding-right: var(--sf-page-pad, 1.25rem);
+    border-radius: 0;
+  }
+  .content {
+    padding-left: var(--sf-page-pad, 1.25rem);
+    padding-right: var(--sf-page-pad, 1.25rem);
   }
 }
