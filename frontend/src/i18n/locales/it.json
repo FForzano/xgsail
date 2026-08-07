@@ -40,6 +40,9 @@
     "delete": "Elimina",
     "edit": "Modifica",
     "close": "Chiudi",
+    "discardChanges": "Scarta modifiche",
+    "discardConfirm": "Scartare le modifiche fatte da quando hai aperto l'editor? Il contenuto tornerà com'era.",
+    "discardConfirmNew": "Questa annotazione è stata creata ora e verrà eliminata. Procedere?",
     "collapse": "Comprimi",
     "expand": "Espandi",
     "backHome": "Torna alla home",
@@ -1129,6 +1132,8 @@
   },
   "richText": {
     "toolbar": "Formattazione",
+    "undo": "Annulla",
+    "redo": "Ripristina",
     "bold": "Grassetto",
     "italic": "Corsivo",
     "underline": "Sottolineato",

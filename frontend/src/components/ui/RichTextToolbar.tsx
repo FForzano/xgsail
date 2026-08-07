@@ -11,9 +11,11 @@ import {
   Link2Off,
   List,
   ListOrdered,
+  Redo2,
   Table as TableIcon,
   Type,
   Underline,
+  Undo2,
 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
@@ -156,6 +158,8 @@ export function RichTextToolbar({
       bulletList: e.isActive("bulletList"),
       orderedList: e.isActive("orderedList"),
       inTable: e.isActive("table"),
+      canUndo: e.can().undo(),
+      canRedo: e.can().redo(),
     }),
   });
 
@@ -183,6 +187,21 @@ export function RichTextToolbar({
       <div className={styles.toolbarScroll} ref={scrollRef}>
         {leadingItems}
         {leadingItems && <span className={styles.toolbarDivider} aria-hidden="true" />}
+        <div className={styles.toolGroup}>
+          <ToolButton
+            label={label("undo", "Undo")}
+            icon={<Undo2 size={17} />}
+            disabled={!state.canUndo}
+            onClick={() => editor.chain().focus().undo().run()}
+          />
+          <ToolButton
+            label={label("redo", "Redo")}
+            icon={<Redo2 size={17} />}
+            disabled={!state.canRedo}
+            onClick={() => editor.chain().focus().redo().run()}
+          />
+        </div>
+        <span className={styles.toolbarDivider} aria-hidden="true" />
         <div className={styles.toolGroup}>
         <ToolButton
           label={label("bold", "Bold")}

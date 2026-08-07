@@ -40,6 +40,9 @@
     "delete": "Delete",
     "edit": "Edit",
     "close": "Close",
+    "discardChanges": "Discard changes",
+    "discardConfirm": "Discard the changes made since you opened the editor? The content will go back to how it was.",
+    "discardConfirmNew": "This entry was just created and will be deleted. Continue?",
     "collapse": "Collapse",
     "expand": "Expand",
     "backHome": "Back to home",
@@ -1129,6 +1132,8 @@
   },
   "richText": {
     "toolbar": "Formatting",
+    "undo": "Undo",
+    "redo": "Redo",
     "bold": "Bold",
     "italic": "Italic",
     "underline": "Underline",

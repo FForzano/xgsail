@@ -626,6 +626,18 @@ Capacitor plugin changes, which still require a store release.
   (`strong`, `li`, `href`) and miss text split by a tag. The mirror is
   derived in `SqlSessionRepo.create`/`update`, so nothing can write
   `notes` without it.
+- **A note editor's dirty-check ref is not its discard snapshot.** Every
+  editor behind `useAutoSaveOnClose` keeps an `original*Ref` for
+  `isDirty()`, and that ref tracks *last saved* — it is refreshed by each
+  successful autosave (and, in `SessionDetail`, by the server-sync
+  effect). "Scarta modifiche" has to restore what the editor was opened
+  with, so each call site keeps a **second**, never-refreshed `opened*Ref`
+  captured in its open handler. Reverting from the dirty-check ref would
+  restore the autosaved text the user is trying to throw away. A new
+  autosave editor needs both refs, and the one it opens for a
+  brand-new record also needs the delete branch: if a periodic autosave
+  already created the row, discarding must remove it, since reverting to
+  a record that never existed is meaningless (`discard.destroysRecord`).
 - **`RichText.tsx` is the only place in the frontend allowed to use
   `dangerouslySetInnerHTML`.** Rendering a prose value any other way
   either shows raw tags or reintroduces the XSS surface. One-line

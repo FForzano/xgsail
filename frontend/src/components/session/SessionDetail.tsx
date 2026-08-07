@@ -132,7 +132,16 @@ export function SessionDetail({
   const [crewRole, setCrewRole] = useState<SailingRole>("crew");
   const [notesForm, setNotesForm] = useState({ notes: "", notes_shared: false });
   const originalNotesFormRef = useRef(notesForm);
+  // The ref above tracks *last saved* — it's refreshed by every successful
+  // autosave and by the server-sync effect below. Discarding has to restore
+  // what the editor was opened with, so it gets its own snapshot, taken once
+  // in `openNotes` and never refreshed.
+  const openedNotesRef = useRef(notesForm);
   const [notesEditing, setNotesEditing] = useState(false);
+  const openNotes = () => {
+    openedNotesRef.current = notesForm;
+    setNotesEditing(true);
+  };
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [pickingNavSource, setPickingNavSource] = useState(false);
@@ -431,13 +440,27 @@ export function SessionDetail({
     // surfaces a save failure (on close) or retries silently (periodic) —
     // an onError here too would double the toast on every close-time failure.
   });
-  const { requestClose: requestCloseNotes } = useAutoSaveOnClose({
+  const discardNotes = async () => {
+    const opened = openedNotesRef.current;
+    await sessionsService.updateNotes(sessionId, {
+      notes: opened.notes || null,
+      notes_shared: opened.notes_shared,
+    });
+    await queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
+  };
+  const {
+    requestClose: requestCloseNotes,
+    discardFooter: notesDiscardFooter,
+    discardDialog: notesDiscardDialog,
+  } = useAutoSaveOnClose({
     canSave: () => true, // an emptied note is a valid, save-worthy state
     isDirty: () =>
       notesForm.notes !== originalNotesFormRef.current.notes ||
       notesForm.notes_shared !== originalNotesFormRef.current.notes_shared,
     save: () => saveNotes.mutateAsync(),
     onClosed: () => setNotesEditing(false),
+    // The session's note row always exists already, so discarding only reverts.
+    discard: { destroysRecord: () => false, run: discardNotes },
   });
   const removeSession = useMutation({
     mutationFn: () => sessionsService.remove(sessionId),
@@ -613,7 +636,7 @@ export function SessionDetail({
     if (!richTextExcerpt(session.data?.notes, 1)) {
       quickActions.push({
         key: "notes", icon: <NotebookPen size={16} />, label: t("sessions.addNotes"),
-        onClick: () => setNotesEditing(true),
+        onClick: openNotes,
       });
     }
   }
@@ -993,7 +1016,7 @@ export function SessionDetail({
                 variant="ghost"
                 className="sf-btn--icon-sm"
                 aria-label={t("common.edit")}
-                onClick={() => setNotesEditing(true)}
+                onClick={openNotes}
               >
                 <Pencil size={16} />
               </Button>
@@ -1093,7 +1116,13 @@ export function SessionDetail({
         </Modal>
       )}
       {notesEditing && (
-        <Modal title={t("sessions.notes")} onClose={requestCloseNotes} size="wide" fillBody>
+        <Modal
+          title={t("sessions.notes")}
+          onClose={requestCloseNotes}
+          size="wide"
+          fillBody
+          footer={notesDiscardFooter}
+        >
           <SessionNotesEditor
             id="session-notes"
             value={notesForm.notes}
@@ -1103,6 +1132,7 @@ export function SessionDetail({
           />
         </Modal>
       )}
+      {notesDiscardDialog}
       {maneuverDraftStart && maneuverDraftEnd && (
         <Modal
           title={t("sessions.addManeuver")}

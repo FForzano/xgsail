@@ -167,10 +167,18 @@ export function BoatNotebookPage() {
   // re-fetching, since it's cheaper and the form is the source of truth
   // while the modal is open anyway.
   const originalFormRef = useRef(form);
+  // The refs above track *last saved* (both are refreshed by every successful
+  // autosave); discarding must restore what the editor was opened with, so it
+  // needs its own snapshot that nothing ever refreshes.
+  const openedNoteRef = useRef<{ note: BoatNote | null; form: { title: string; body: string } }>({
+    note: null,
+    form,
+  });
   const [deleting, setDeleting] = useState<BoatNote | null>(null);
   const [editingSessionNote, setEditingSessionNote] = useState<BoatSessionNote | null>(null);
   const [sessionNoteForm, setSessionNoteForm] = useState({ notes: "", notes_shared: false });
   const originalSessionNoteFormRef = useRef(sessionNoteForm);
+  const openedSessionNoteRef = useRef(sessionNoteForm);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: boatKeys.notes(boatId!) });
   // Prefix match: boatKeys.sessionNotes(id, q) varies by search text, so this
@@ -192,13 +200,30 @@ export function BoatNotebookPage() {
     },
     onError: () => notify(t("errors.generic"), "error"),
   });
-  const { requestClose: requestCloseNote } = useAutoSaveOnClose({
+  const discardNote = async () => {
+    const opened = openedNoteRef.current;
+    if (!opened.note) {
+      if (editing) await boatsService.removeNote(boatId!, editing.id);
+    } else {
+      await boatsService.updateNote(boatId!, opened.note.id, opened.form);
+    }
+    await invalidate();
+  };
+  const {
+    requestClose: requestCloseNote,
+    discardFooter: noteDiscardFooter,
+    discardDialog: noteDiscardDialog,
+  } = useAutoSaveOnClose({
     canSave: () => form.title.trim() !== "" && richTextExcerpt(form.body, 1) !== "",
     isDirty: () => form.title !== originalFormRef.current.title || form.body !== originalFormRef.current.body,
     save: () => save.mutateAsync(),
     onClosed: () => {
       setCreating(false);
       setEditing(null);
+    },
+    discard: {
+      destroysRecord: () => !openedNoteRef.current.note && !!editing,
+      run: discardNote,
     },
   });
 
@@ -232,13 +257,24 @@ export function BoatNotebookPage() {
     },
     onError: () => notify(t("errors.generic"), "error"),
   });
-  const { requestClose: requestCloseSessionNote } = useAutoSaveOnClose({
+  const discardSessionNote = async () => {
+    await sessionsService.updateNotes(editingSessionNote!.session_id, openedSessionNoteRef.current);
+    await invalidateSessionNotes();
+    await queryClient.invalidateQueries({ queryKey: sessionKeys.detail(editingSessionNote!.session_id) });
+  };
+  const {
+    requestClose: requestCloseSessionNote,
+    discardFooter: sessionNoteDiscardFooter,
+    discardDialog: sessionNoteDiscardDialog,
+  } = useAutoSaveOnClose({
     canSave: () => true, // an emptied session note is a valid, save-worthy state
     isDirty: () =>
       sessionNoteForm.notes !== originalSessionNoteFormRef.current.notes ||
       sessionNoteForm.notes_shared !== originalSessionNoteFormRef.current.notes_shared,
     save: () => saveSessionNote.mutateAsync(),
     onClosed: () => setEditingSessionNote(null),
+    // The session note always exists already, so discarding only ever reverts.
+    discard: { destroysRecord: () => false, run: discardSessionNote },
   });
 
   const openPrefilled = (title: string, body: string) => {
@@ -246,6 +282,7 @@ export function BoatNotebookPage() {
     const next = { title, body };
     setForm(next);
     originalFormRef.current = next;
+    openedNoteRef.current = { note: null, form: next };
     setCreating(true);
   };
   const openNew = () => openPrefilled("", "");
@@ -254,12 +291,14 @@ export function BoatNotebookPage() {
     const next = { title: note.title, body: note.body };
     setForm(next);
     originalFormRef.current = next;
+    openedNoteRef.current = { note, form: next };
     setCreating(true);
   };
   const openEditSessionNote = (note: BoatSessionNote) => {
     const next = { notes: note.notes, notes_shared: note.notes_shared };
     setSessionNoteForm(next);
     originalSessionNoteFormRef.current = next;
+    openedSessionNoteRef.current = next;
     setEditingSessionNote(note);
   };
 
@@ -473,6 +512,7 @@ export function BoatNotebookPage() {
           onClose={requestCloseNote}
           size="wide"
           fillBody
+          footer={noteDiscardFooter}
         >
           <RichTextField
             label={t("boatNotes.entryTitle")}
@@ -487,6 +527,7 @@ export function BoatNotebookPage() {
           />
         </Modal>
       )}
+      {noteDiscardDialog}
 
       {deleting && (
         <ConfirmDialog
@@ -499,7 +540,13 @@ export function BoatNotebookPage() {
       )}
 
       {editingSessionNote && (
-        <Modal title={t("sessions.notes")} onClose={requestCloseSessionNote} size="wide" fillBody>
+        <Modal
+          title={t("sessions.notes")}
+          onClose={requestCloseSessionNote}
+          size="wide"
+          fillBody
+          footer={sessionNoteDiscardFooter}
+        >
           <SessionNotesEditor
             id="boat-log-notes"
             value={sessionNoteForm.notes}
@@ -509,6 +556,7 @@ export function BoatNotebookPage() {
           />
         </Modal>
       )}
+      {sessionNoteDiscardDialog}
     </div>
   );
 }

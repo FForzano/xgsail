@@ -23,6 +23,13 @@ export function NoteTemplatesManager({ className }: { className?: string }) {
   const [editingTemplateId, setEditingTemplateId] = useState<UUID | null>(null);
   const [templateForm, setTemplateForm] = useState({ name: "", body: "" });
   const originalTemplateFormRef = useRef(templateForm);
+  // Distinct from the ref above, which tracks *last saved* (it's refreshed by
+  // every successful autosave): discarding must restore the state the editor
+  // was opened with, not the autosaved text being thrown away.
+  const openedTemplateRef = useRef<{ id: UUID | null; form: { name: string; body: string } }>({
+    id: null,
+    form: templateForm,
+  });
   const [deleting, setDeleting] = useState<NoteTemplate | null>(null);
 
   const openNewTemplate = () => {
@@ -30,6 +37,7 @@ export function NoteTemplatesManager({ className }: { className?: string }) {
     const next = { name: "", body: "" };
     setTemplateForm(next);
     originalTemplateFormRef.current = next;
+    openedTemplateRef.current = { id: null, form: next };
     setTemplateModalOpen(true);
   };
   const openEditTemplate = (tpl: NoteTemplate) => {
@@ -37,6 +45,7 @@ export function NoteTemplatesManager({ className }: { className?: string }) {
     const next = { name: tpl.name, body: tpl.body };
     setTemplateForm(next);
     originalTemplateFormRef.current = next;
+    openedTemplateRef.current = { id: tpl.id, form: next };
     setTemplateModalOpen(true);
   };
 
@@ -53,13 +62,30 @@ export function NoteTemplatesManager({ className }: { className?: string }) {
     // No onError here: `useAutoSaveOnClose` below owns surfacing a save
     // failure (on close) or retrying silently (periodic).
   });
-  const { requestClose: requestCloseTemplate } = useAutoSaveOnClose({
+  const discardTemplate = async () => {
+    const opened = openedTemplateRef.current;
+    if (opened.id === null) {
+      if (editingTemplateId) await noteTemplatesService.remove(editingTemplateId);
+    } else {
+      await noteTemplatesService.update(opened.id, opened.form);
+    }
+    await queryClient.invalidateQueries({ queryKey: noteTemplateKeys.mine });
+  };
+  const {
+    requestClose: requestCloseTemplate,
+    discardFooter: templateDiscardFooter,
+    discardDialog: templateDiscardDialog,
+  } = useAutoSaveOnClose({
     canSave: () => templateForm.name.trim() !== "" && richTextExcerpt(templateForm.body, 1) !== "",
     isDirty: () =>
       templateForm.name !== originalTemplateFormRef.current.name ||
       templateForm.body !== originalTemplateFormRef.current.body,
     save: () => saveTemplate.mutateAsync(),
     onClosed: () => setTemplateModalOpen(false),
+    discard: {
+      destroysRecord: () => openedTemplateRef.current.id === null && editingTemplateId !== null,
+      run: discardTemplate,
+    },
   });
   const removeTemplate = useMutation({
     mutationFn: (id: UUID) => noteTemplatesService.remove(id),
@@ -116,6 +142,7 @@ export function NoteTemplatesManager({ className }: { className?: string }) {
           onClose={requestCloseTemplate}
           size="wide"
           fillBody
+          footer={templateDiscardFooter}
         >
           <RichTextField
             label={t("noteTemplates.name")}
@@ -130,6 +157,7 @@ export function NoteTemplatesManager({ className }: { className?: string }) {
           />
         </Modal>
       )}
+      {templateDiscardDialog}
       {deleting && (
         <ConfirmDialog
           title={t("common.delete")}
