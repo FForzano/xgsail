@@ -169,16 +169,6 @@ export function RichTextToolbar({
 
   return (
     <div className={styles.toolbar} role="toolbar" aria-label={label("toolbar", "Formatting")}>
-      {/* Outside `.toolbarScroll` on purpose — that container's `overflow-x:
-          auto` forces `overflow-y` to compute as non-visible too (a CSS
-          quirk: an element can't scroll one axis and stay visible on the
-          other), which was silently clipping a leading item's dropdown the
-          moment it tried to open below the button. Pinning these outside
-          the scroller sidesteps the clipping *and* means they're never the
-          thing that scrolls out of view — arguably the right call anyway
-          for a share-status indicator. */}
-      {leadingItems}
-      {leadingItems && <span className={styles.toolbarDivider} aria-hidden="true" />}
       {canScrollLeft && (
         <button
           type="button"
@@ -191,6 +181,8 @@ export function RichTextToolbar({
         </button>
       )}
       <div className={styles.toolbarScroll} ref={scrollRef}>
+        {leadingItems}
+        {leadingItems && <span className={styles.toolbarDivider} aria-hidden="true" />}
         <div className={styles.toolGroup}>
         <ToolButton
           label={label("bold", "Bold")}

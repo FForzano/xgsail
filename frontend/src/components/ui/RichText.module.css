@@ -174,8 +174,15 @@
    the first line of the same card the toolbar/body share. Matches `.prose
    h1` rather than restating it, so a saved title and a body h1 look the same. */
 .titleInput {
+  /* `.editor`'s DOM order is [title, toolbar, content] — the title has to
+     come first so it isn't hidden behind the lazy-loaded editor chunk while
+     that's still loading — but visually it belongs *after* the toolbar, as
+     if it were simply the document's first line in a larger size. `order`
+     reflows it without needing the toolbar (rendered deep inside the lazy
+     `RichTextEditor`) to know the title exists at all. */
+  order: 1;
   width: 100%;
-  padding: 0.7rem 0.7rem 0;
+  padding: 0.6rem 0.7rem 0;
   border: none;
   background: transparent;
   color: var(--sf-text);
@@ -192,6 +199,7 @@
 }
 
 .content {
+  order: 2;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -279,16 +287,20 @@
 .toolbarNav:hover {
   color: var(--sf-text);
 }
-/* Neutralises `.sf-options`' own `position: relative` so the built-in
-   groups' dropdowns (link/style/table) anchor to the toolbar (positioned,
-   being sticky) instead of to a 38px button — the only way they stay on
-   screen at 360px. Scoped to `.toolGroup` rather than the whole toolbar so
-   it doesn't also swallow a `leadingItems`/`trailingItems` dropdown (the
-   template picker) — those sit outside any `.toolGroup`, keep their own
-   `position: relative`, and anchor directly under their own button instead
-   of the toolbar's right edge, which is what actually reads as "the menu
-   opened where I clicked" for a button near the toolbar's *left* end. */
-.toolGroup :global(.sf-options) {
+/* Neutralises `.sf-options`' own `position: relative` so every dropdown in
+   the scrollable row (link/style/table, and the leading template picker)
+   anchors to `.toolbar` (positioned, being sticky) instead of to its own
+   38px button. This is what makes the panel escape `.toolbarScroll`'s
+   clipping at all: `.toolbarScroll`'s `overflow-x: auto` forces its
+   `overflow-y` to compute as non-visible too (an element can't scroll one
+   axis and stay visible on the other), which would otherwise cut the panel
+   off the moment it tried to open below its button — position:absolute
+   escapes that clipping only when its containing block (the nearest
+   positioned ancestor) sits *outside* the clipping container, which
+   `.toolbar` does and `.toolbarScroll` doesn't. Scoped to `.toolbarScroll`
+   rather than `.toolbar` itself so a non-scrolling caller's dropdown (none
+   today, but the seam exists) wouldn't be affected. */
+.toolbarScroll :global(.sf-options) {
   position: static;
 }
 .toolGroup {
