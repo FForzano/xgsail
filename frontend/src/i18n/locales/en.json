@@ -182,16 +182,20 @@
     "units": "Units",
     "unitsNautical": "Nautical (kn, nm)",
     "unitsMetric": "Metric (km/h, km)",
-    "noteTemplates": "Note templates",
     "hrHint": "Optional, only used to show heart-rate zones for your outings. Never shared: others only ever see the zone boundaries, and only if you share a session's health data.",
     "restingHr": "Resting heart rate (bpm)",
     "maxHr": "Max heart rate, if measured (bpm)"
   },
   "noteTemplates": {
+    "title": "Note templates",
+    "hint": "Reusable text to fill in your session notes faster.",
     "new": "New template",
     "edit": "Edit template",
     "name": "Template name",
     "body": "Template text",
+    "empty": "No templates yet.",
+    "deleteConfirm": "Delete this template?",
+    "backToBoats": "Back to boats",
     "pickPlaceholder": "Apply a template…",
     "manage": "Manage templates"
   },
@@ -232,7 +236,10 @@
     "moveDown": "Move down",
     "backToBoat": "Back to boat",
     "tabShort": "Notebook",
-    "backToSession": "Back to session"
+    "backToSession": "Back to session",
+    "entryCount_one": "{{count}} entry",
+    "entryCount_other": "{{count}} entries",
+    "openFor": "{{name}}'s notebook"
   },
   "boatLog": {
     "hint": "Notes written during this boat's sessions.",

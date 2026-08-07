@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,7 +21,7 @@ import { useAutoSaveOnClose } from "@/hooks/useAutoSaveOnClose";
 import { ApiError } from "@/api/client";
 import { BackLink } from "@/components/ui/BackLink";
 import { Section } from "@/components/ui/Section";
-import { Button } from "@/components/ui/Button";
+import { Button, ICON_BTN } from "@/components/ui/Button";
 import { RichTextField } from "@/components/ui/RichTextField";
 import { RichText } from "@/components/ui/RichText";
 import { Modal } from "@/components/ui/Modal";
@@ -36,8 +36,6 @@ import styles from "./BoatNotebook.module.css";
 type Tab = "notebook" | "log";
 const LOG_PAGE_SIZE = 20;
 const LOG_SEARCH_DEBOUNCE_MS = 300;
-
-const ICON_BTN = "sf-btn sf-btn--ghost sf-btn--icon-sm";
 
 /** Shared 403-vs-generic error message for both the notebook and logbook
  * queries — both hit boat-membership-gated endpoints the same way, only the
@@ -160,7 +158,6 @@ export function BoatNotebookPage() {
     sessionNotes.hasNextPage === true && !sessionNotes.isFetchingNextPage,
   );
 
-  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("notebook");
   const [editing, setEditing] = useState<BoatNote | null>(null);
   const [creating, setCreating] = useState(false);
@@ -381,7 +378,7 @@ export function BoatNotebookPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          className={`sf-btn--icon-sm ${styles.dangerIcon}`}
+                          className="sf-btn--icon-sm sf-btn--icon-danger"
                           aria-label={t("common.delete")}
                           title={t("common.delete")}
                           onClick={() => setDeleting(note)}
@@ -509,10 +506,6 @@ export function BoatNotebookPage() {
             onChange={(html) => setSessionNoteForm((f) => ({ ...f, notes: html }))}
             shared={sessionNoteForm.notes_shared}
             onSharedChange={(notes_shared) => setSessionNoteForm((f) => ({ ...f, notes_shared }))}
-            onManageTemplates={() => {
-              requestCloseSessionNote();
-              navigate("/profilo/anagrafica");
-            }}
           />
         </Modal>
       )}

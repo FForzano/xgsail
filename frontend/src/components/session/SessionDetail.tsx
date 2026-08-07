@@ -1100,10 +1100,6 @@ export function SessionDetail({
             onChange={(html) => setNotesForm((f) => ({ ...f, notes: html }))}
             shared={notesForm.notes_shared}
             onSharedChange={(notes_shared) => setNotesForm((f) => ({ ...f, notes_shared }))}
-            onManageTemplates={() => {
-              requestCloseNotes();
-              navigate("/profilo/anagrafica");
-            }}
           />
         </Modal>
       )}

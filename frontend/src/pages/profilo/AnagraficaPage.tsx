@@ -1,22 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersService, userKeys } from "@/services/users";
-import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
-import { useAutoSaveOnClose } from "@/hooks/useAutoSaveOnClose";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
-import { RichTextField } from "@/components/ui/RichTextField";
-import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { Avatar } from "@/components/ui/Avatar";
 import { unitsStore, useUnits } from "@/stores/unitsStore";
-import { richTextExcerpt } from "@/utils/richTextExcerpt";
-import type { NoteTemplate, UUID } from "@/types";
 
 export function AnagraficaPage() {
   const { t } = useTranslation();
@@ -35,57 +29,6 @@ export function AnagraficaPage() {
     // strings so an empty field stays empty rather than becoming 0.
     resting_hr_bpm: "",
     max_hr_bpm: "",
-  });
-
-  // Note templates: personal reusable snippets to prefill the session-notes
-  // textarea (see SessionDetail.tsx's notes-editing modal) — managed here
-  // rather than a dedicated profile tab, next to the other personal
-  // preference below (units), not identity data.
-  const templates = useQuery({ queryKey: noteTemplateKeys.mine, queryFn: noteTemplatesService.listMine });
-  const [templateModalOpen, setTemplateModalOpen] = useState(false);
-  const [editingTemplateId, setEditingTemplateId] = useState<UUID | null>(null);
-  const [templateForm, setTemplateForm] = useState({ name: "", body: "" });
-  const originalTemplateFormRef = useRef(templateForm);
-
-  const openNewTemplate = () => {
-    setEditingTemplateId(null);
-    const next = { name: "", body: "" };
-    setTemplateForm(next);
-    originalTemplateFormRef.current = next;
-    setTemplateModalOpen(true);
-  };
-  const openEditTemplate = (tpl: NoteTemplate) => {
-    setEditingTemplateId(tpl.id);
-    const next = { name: tpl.name, body: tpl.body };
-    setTemplateForm(next);
-    originalTemplateFormRef.current = next;
-    setTemplateModalOpen(true);
-  };
-
-  const saveTemplate = useMutation({
-    mutationFn: () =>
-      editingTemplateId
-        ? noteTemplatesService.update(editingTemplateId, templateForm)
-        : noteTemplatesService.create(templateForm),
-    onSuccess: async (result) => {
-      if (!editingTemplateId) setEditingTemplateId(result.id);
-      originalTemplateFormRef.current = templateForm;
-      await queryClient.invalidateQueries({ queryKey: noteTemplateKeys.mine });
-    },
-    // No onError here: `useAutoSaveOnClose` below owns surfacing a save
-    // failure (on close) or retrying silently (periodic).
-  });
-  const { requestClose: requestCloseTemplate } = useAutoSaveOnClose({
-    canSave: () => templateForm.name.trim() !== "" && richTextExcerpt(templateForm.body, 1) !== "",
-    isDirty: () =>
-      templateForm.name !== originalTemplateFormRef.current.name ||
-      templateForm.body !== originalTemplateFormRef.current.body,
-    save: () => saveTemplate.mutateAsync(),
-    onClosed: () => setTemplateModalOpen(false),
-  });
-  const removeTemplate = useMutation({
-    mutationFn: (id: UUID) => noteTemplatesService.remove(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: noteTemplateKeys.mine }),
   });
 
   const saveUnits = useMutation({
@@ -225,61 +168,6 @@ export function AnagraficaPage() {
           </button>
         </div>
       </Card>
-      <Card
-        title={t("profile.noteTemplates")}
-        actions={
-          <Button className="sf-btn--sm" onClick={openNewTemplate}>
-            {t("noteTemplates.new")}
-          </Button>
-        }
-      >
-        {templates.data?.length ? (
-          <div className="sf-strip">
-            {templates.data.map((tpl) => (
-              <div key={tpl.id} className="sf-strip__item sf-strip__item--muted">
-                <span>
-                  <strong>{tpl.name}</strong>{" "}
-                  <span className="sf-muted">{richTextExcerpt(tpl.body, 60)}</span>
-                </span>
-                <span className="sf-strip__actions">
-                  <Button variant="ghost" className="sf-btn--sm" onClick={() => openEditTemplate(tpl)}>
-                    {t("common.edit")}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="sf-btn--sm"
-                    onClick={() => removeTemplate.mutate(tpl.id)}
-                  >
-                    {t("common.remove")}
-                  </Button>
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="sf-muted">{t("common.none")}</p>
-        )}
-      </Card>
-      {templateModalOpen && (
-        <Modal
-          title={editingTemplateId ? t("noteTemplates.edit") : t("noteTemplates.new")}
-          onClose={requestCloseTemplate}
-          size="wide"
-          fillBody
-        >
-          <RichTextField
-            label={t("noteTemplates.name")}
-            id="template-body"
-            tier="full"
-            fill
-            title={templateForm.name}
-            onTitleChange={(name) => setTemplateForm((f) => ({ ...f, name }))}
-            titlePlaceholder={t("noteTemplates.name")}
-            value={templateForm.body}
-            onChange={(html) => setTemplateForm((f) => ({ ...f, body: html }))}
-          />
-        </Modal>
-      )}
     </div>
   );
 }

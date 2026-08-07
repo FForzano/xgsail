@@ -492,6 +492,11 @@ body.sf-nav-mode .sf-shell {
   padding: 0;
   border-radius: 50%;
 }
+/* Destructive icon-only action (delete/remove) — the ghost icon button
+   tinted danger, previously re-declared per feature CSS Module. */
+.sf-btn--icon-danger {
+  color: var(--sf-danger);
+}
 /* Toggled-on state for a formatting toolbar button (e.g. Bold when the
    current selection is already bold) — same idea as the ghost hover but
    persistent rather than only on :hover. */

@@ -182,16 +182,20 @@
     "units": "Unità di misura",
     "unitsNautical": "Nautico (kn, nm)",
     "unitsMetric": "Metrico (km/h, km)",
-    "noteTemplates": "Modelli di annotazione",
     "hrHint": "Opzionali, servono solo a mostrare le zone cardio delle tue uscite. Non vengono condivisi: gli altri vedono al massimo i limiti delle zone, e solo se condividi i dati di salute di una sessione.",
     "restingHr": "Battito a riposo (bpm)",
     "maxHr": "Battito massimo, se misurato (bpm)"
   },
   "noteTemplates": {
+    "title": "Modelli di annotazione",
+    "hint": "Testi riutilizzabili per compilare più in fretta le note delle uscite.",
     "new": "Nuovo modello",
     "edit": "Modifica modello",
     "name": "Nome modello",
     "body": "Testo del modello",
+    "empty": "Nessun modello.",
+    "deleteConfirm": "Eliminare questo modello?",
+    "backToBoats": "Torna alle barche",
     "pickPlaceholder": "Applica un modello…",
     "manage": "Gestisci modelli"
   },
@@ -232,7 +236,10 @@
     "moveDown": "Sposta giù",
     "backToBoat": "Torna alla barca",
     "tabShort": "Quaderno",
-    "backToSession": "Torna alla sessione"
+    "backToSession": "Torna alla sessione",
+    "entryCount_one": "{{count}} scheda",
+    "entryCount_other": "{{count}} schede",
+    "openFor": "Quaderno di {{name}}"
   },
   "boatLog": {
     "hint": "Note scritte durante le uscite di questa barca.",

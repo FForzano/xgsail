@@ -1,10 +1,13 @@
-import { useEffect, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import styles from "./Modal.module.css";
+
+let modalSeq = 0;
+const openModals = new Set<number>();
 
 // Minimal accessible modal: Esc closes, backdrop click closes, body content
 // is arbitrary. Feature forms live inside as children.
@@ -26,20 +29,37 @@ export function Modal({
   fillBody?: boolean;
   children: ReactNode;
 }) {
-  useEscapeKey(onClose);
+  // Assigned during render, not in an effect: parents render before children,
+  // so a nested modal always outranks its opener — effects run child-first.
+  const [depth] = useState(() => ++modalSeq);
+
+  useEffect(() => {
+    openModals.add(depth);
+    return () => {
+      openModals.delete(depth);
+    };
+  }, [depth]);
+
+  const isTopmost = useCallback(() => depth === Math.max(...openModals), [depth]);
+
+  const closeIfTopmost = useCallback(() => {
+    if (isTopmost()) onClose();
+  }, [isTopmost, onClose]);
+
+  useEscapeKey(closeIfTopmost);
   useVisualViewportHeight();
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
     const listener = CapacitorApp.addListener("backButton", () => {
-      onClose();
+      closeIfTopmost();
     });
 
     return () => {
       void listener.then((h: PluginListenerHandle) => h.remove());
     };
-  }, [onClose]);
+  }, [closeIfTopmost]);
 
   return (
     <div

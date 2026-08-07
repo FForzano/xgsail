@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { LayoutTemplate, Lock, Users } from "lucide-react";
 import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
 import { RichTextField } from "@/components/ui/RichTextField";
+import { Modal } from "@/components/ui/Modal";
+import { NoteTemplatesManager } from "@/components/notes/NoteTemplatesManager";
 import { keepEditorFocus, MenuPopover, useLabels } from "@/components/ui/richTextToolbarControls";
 import styles from "@/components/ui/RichText.module.css";
 
@@ -55,62 +58,68 @@ export function SessionNotesEditor({
   onChange,
   shared,
   onSharedChange,
-  onManageTemplates,
 }: {
   id: string;
   value: string;
   onChange: (html: string) => void;
   shared: boolean;
   onSharedChange: (shared: boolean) => void;
-  /** Navigates to the templates manager — the caller closes its own modal
-   * first, since leaving the page with it still open makes no sense. */
-  onManageTemplates: () => void;
 }) {
   const { t } = useTranslation();
   const label = useLabels();
   const templates = useQuery({ queryKey: noteTemplateKeys.mine, queryFn: noteTemplatesService.listMine });
+  // Managed in place rather than by navigating to the templates page: leaving
+  // the editor would throw away the note being written.
+  const [managing, setManaging] = useState(false);
 
   const templateItems = [
     ...(templates.data ?? []).map((tpl) => ({
       label: tpl.name,
       onClick: () => onChange(tpl.body),
     })),
-    { label: t("noteTemplates.manage"), onClick: onManageTemplates },
+    { label: t("noteTemplates.manage"), onClick: () => setManaging(true) },
   ];
 
   return (
-    <RichTextField
-      label={t("sessions.notes")}
-      id={id}
-      tier="full"
-      fill
-      placeholder={t("sessions.notesPlaceholder")}
-      value={value}
-      onChange={onChange}
-      leadingToolbarItems={
-        <>
-          <MenuPopover
-            panelClassName={styles.toolbarLeadingMenu}
-            trigger={({ open, toggle }) => (
-              <StackedToolButton
-                icon={<LayoutTemplate size={17} />}
-                caption={label("templatesShort", "Templates")}
-                ariaLabel={label("templates", "Apply a template")}
-                expanded={open}
-                onClick={toggle}
-              />
-            )}
-            items={templateItems}
-          />
-          <StackedToolButton
-            icon={shared ? <Users size={16} /> : <Lock size={16} />}
-            caption={shared ? label("shared", "Shared") : label("private", "Private")}
-            ariaLabel={t("sessions.notesSharedHint")}
-            active={shared}
-            onClick={() => onSharedChange(!shared)}
-          />
-        </>
-      }
-    />
+    <>
+      <RichTextField
+        label={t("sessions.notes")}
+        id={id}
+        tier="full"
+        fill
+        placeholder={t("sessions.notesPlaceholder")}
+        value={value}
+        onChange={onChange}
+        leadingToolbarItems={
+          <>
+            <MenuPopover
+              panelClassName={styles.toolbarLeadingMenu}
+              trigger={({ open, toggle }) => (
+                <StackedToolButton
+                  icon={<LayoutTemplate size={17} />}
+                  caption={label("templatesShort", "Templates")}
+                  ariaLabel={label("templates", "Apply a template")}
+                  expanded={open}
+                  onClick={toggle}
+                />
+              )}
+              items={templateItems}
+            />
+            <StackedToolButton
+              icon={shared ? <Users size={16} /> : <Lock size={16} />}
+              caption={shared ? label("shared", "Shared") : label("private", "Private")}
+              ariaLabel={t("sessions.notesSharedHint")}
+              active={shared}
+              onClick={() => onSharedChange(!shared)}
+            />
+          </>
+        }
+      />
+      {managing && (
+        <Modal title={t("noteTemplates.title")} onClose={() => setManaging(false)} size="wide">
+          <NoteTemplatesManager />
+        </Modal>
+      )}
+    </>
   );
 }

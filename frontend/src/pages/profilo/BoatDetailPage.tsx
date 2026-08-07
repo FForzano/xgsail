@@ -6,7 +6,6 @@ import { boatsService, boatKeys } from "@/services/boats";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
-import { Section } from "@/components/ui/Section";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
@@ -20,9 +19,12 @@ import { UserPicker } from "@/components/common/UserPicker";
 import { AddDeviceDialog } from "@/components/common/AddDeviceDialog";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { userLabel } from "@/utils/format";
+import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import type { BoatRole, UUID } from "@/types";
 import { useRef } from "react";
+import { NotebookText, ChevronRight } from "lucide-react";
 import photoGridStyles from "@/components/common/photoGrid.module.css";
+import styles from "./BoatDetailPage.module.css";
 
 const BOAT_ROLES: BoatRole[] = ["owner", "admin", "visitor"];
 const SAILING_ROLES = ["skipper", "crew"];
@@ -119,10 +121,20 @@ export function BoatDetailPage() {
     queryFn: () => boatsService.get(boatId!),
     enabled: !!boatId,
   });
+  const manager = !!boatId && isBoatManager(boatId);
+  const owner = !!boatId && isBoatOwner(boatId);
+  const isMember = manager || (boat.data?.members?.some((m) => m.user_id === user?.id) ?? false);
+
   const members = useQuery({
     queryKey: boatKeys.members(boatId!),
     queryFn: () => boatsService.members(boatId!),
-    enabled: !!boatId && isBoatManager(boatId!),
+    enabled: !!boatId && manager,
+  });
+  const notes = useQuery({
+    queryKey: boatKeys.notes(boatId!),
+    queryFn: () => boatsService.notes(boatId!),
+    enabled: !!boatId && isMember,
+    retry: false,
   });
 
   const classes = useQuery({
@@ -207,10 +219,7 @@ export function BoatDetailPage() {
   if (boat.isLoading || !boatId) return <Spinner />;
   if (!boat.data) return null;
 
-  const manager = isBoatManager(boatId);
-  const owner = isBoatOwner(boatId);
   const ownerCount = members.data?.filter((m) => m.role === "owner").length ?? 0;
-  const isMember = manager || (boat.data.members?.some((m) => m.user_id === user?.id) ?? false);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -297,16 +306,37 @@ export function BoatDetailPage() {
       </Card>
 
       {isMember && (
-        <Section
-          title={t("boatNotes.title")}
-          actions={
-            <Link to={`/profilo/barche/${boatId}/quaderno`} className="sf-btn sf-btn--ghost sf-btn--sm">
-              {t("boatNotes.open")}
-            </Link>
-          }
-        >
-          <p className="sf-muted">{t("boatNotes.hint")}</p>
-        </Section>
+        <Link to={`/profilo/barche/${boatId}/quaderno`} className={`sf-card ${styles.notebookCard}`}>
+          <span className={styles.notebookIcon}>
+            <NotebookText size={22} />
+          </span>
+          <span className={styles.notebookMain}>
+            <span className={styles.notebookTitle}>
+              {t("boatNotes.title")}
+              {!!notes.data?.length && (
+                <span className={styles.notebookCount}>
+                  {t("boatNotes.entryCount", { count: notes.data.length })}
+                </span>
+              )}
+            </span>
+            <span className={styles.notebookPreview}>
+              {notes.data?.length ? (
+                notes.data.slice(0, 3).map((n) => {
+                  const excerpt = richTextExcerpt(n.body, 60);
+                  return (
+                    <span key={n.id} className={styles.previewItem}>
+                      {n.title}
+                      {excerpt && ` — ${excerpt}`}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className={styles.previewItem}>{t("boatNotes.hint")}</span>
+              )}
+            </span>
+          </span>
+          <ChevronRight size={18} className={styles.notebookChevron} aria-hidden />
+        </Link>
       )}
 
       <Card

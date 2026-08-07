@@ -1,0 +1,66 @@
+.notebookCard {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.notebookCard:hover {
+  border-color: var(--sf-primary);
+}
+
+.notebookCard:active {
+  transform: scale(0.99);
+}
+
+.notebookIcon {
+  flex: 0 0 auto;
+  width: 2.6rem;
+  height: 2.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sf-primary) 14%, transparent);
+  color: var(--sf-primary);
+}
+
+.notebookMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.notebookTitle {
+  font-size: 1.02rem;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.notebookCount {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--sf-muted);
+}
+
+.notebookPreview {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--sf-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.previewItem {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notebookChevron {
+  flex: 0 0 auto;
+  color: var(--sf-muted);
+}

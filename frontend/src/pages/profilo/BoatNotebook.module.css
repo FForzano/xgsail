@@ -227,7 +227,3 @@
   gap: 0.15rem;
   margin-right: auto;
 }
-
-.dangerIcon {
-  color: var(--sf-danger);
-}
