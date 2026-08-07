@@ -60,6 +60,11 @@ export function RichTextField({
   const labelId = useId();
   const surfaceRef = useRef<HTMLDivElement>(null);
   const hasTitle = onTitleChange !== undefined;
+  // `fill` means this field is the modal's one and only job — the modal's
+  // own title already names it, so a second visible caption above the
+  // editor is redundant and, worse, is vertical space the "fill the whole
+  // modal" request explicitly wants back.
+  const hideLabel = hasTitle || fill;
   // A contenteditable is not a labelable element, so the association is
   // `aria-labelledby` rather than the `htmlFor` a textarea would use.
   const style = {
@@ -74,10 +79,10 @@ export function RichTextField({
     // toggling it on every unrelated click. `aria-labelledby` below is the
     // real association, same reason it's used instead of `htmlFor`.
     <div className={`sf-field ${fill ? styles.fieldFill : ""}`}>
-      {/* Still in the accessibility tree when the title row replaces it
-          visually — the field needs *a* name, just not a second visible
-          caption floating above what already reads as a title. */}
-      <span className={`sf-field__label ${hasTitle ? styles.srOnly : ""}`} id={labelId}>
+      {/* Still in the accessibility tree when hidden visually — the field
+          needs *a* name, just not a second visible caption floating above
+          what a fill modal's own title (or the merged H1) already names. */}
+      <span className={`sf-field__label ${hideLabel ? styles.srOnly : ""}`} id={labelId}>
         {label}
       </span>
       <div

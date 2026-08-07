@@ -144,9 +144,16 @@
   min-height: 0;
   margin-bottom: 0;
 }
-.editorFill {
+/* Compounded for the same reason as `.editor` above: without it, this loses
+   the border-removal tie to the global class on some load orders. Now that
+   `Modal`'s `.bodyFill` carries no padding of its own, this can go fully
+   edge-to-edge — no border, and the bottom corners rounded to match the
+   modal's own outer radius so a square corner doesn't poke past it. */
+.editorFill:global(.sf-field__input) {
   flex: 1;
   min-height: 0;
+  border: none;
+  border-radius: 0 0 var(--sf-radius) var(--sf-radius);
 }
 
 /* Visible only to assistive tech: the field still needs *a* name, but a
@@ -272,16 +279,33 @@
 .toolbarNav:hover {
   color: var(--sf-text);
 }
-/* Neutralises `.sf-options`' own `position: relative` so the dropdowns anchor
-   to the toolbar (which is positioned, being sticky) instead of to a 38px
-   button — the only way a link/table panel stays on screen at 360px. */
-.toolbar :global(.sf-options) {
+/* Neutralises `.sf-options`' own `position: relative` so the built-in
+   groups' dropdowns (link/style/table) anchor to the toolbar (positioned,
+   being sticky) instead of to a 38px button — the only way they stay on
+   screen at 360px. Scoped to `.toolGroup` rather than the whole toolbar so
+   it doesn't also swallow a `leadingItems`/`trailingItems` dropdown (the
+   template picker) — those sit outside any `.toolGroup`, keep their own
+   `position: relative`, and anchor directly under their own button instead
+   of the toolbar's right edge, which is what actually reads as "the menu
+   opened where I clicked" for a button near the toolbar's *left* end. */
+.toolGroup :global(.sf-options) {
   position: static;
 }
 .toolGroup {
   display: flex;
   align-items: center;
   gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+/* MS-Word-style separator between the leading extras (template/share) and
+   the text-formatting groups — only rendered when there are leading extras
+   to separate from, so a plain description field never gets a stray line. */
+.toolbarDivider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.35rem 0.2rem;
+  background: var(--sf-border);
   flex-shrink: 0;
 }
 
@@ -325,6 +349,26 @@
   font-size: 0.85rem;
   white-space: nowrap;
 }
+/* Icon-over-caption instead of icon-only or icon-beside-text — for the two
+   buttons (template picker, share toggle) whose icon alone isn't guessable,
+   so a tiny always-visible label does the explaining instead of relying on
+   the user to hover for a tooltip. Taller than a plain `.toolBtn`; the row
+   grows to fit it and the square icon buttons just centre within that. */
+.toolBtnStacked {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  width: auto;
+  min-width: 46px;
+  height: auto;
+  padding: 0.3rem 0.4rem;
+}
+.toolBtnStackedLabel {
+  font-size: 0.6rem;
+  line-height: 1;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 .menuItemActive {
   color: var(--sf-primary);
@@ -337,6 +381,15 @@
   right: 0;
   max-width: 24rem;
   white-space: normal;
+}
+/* `.sf-options__panel`'s default `right: 0` assumes a trigger near the
+   *right* edge of its container (the usual "⋮" menu spot) and would run a
+   left-edge trigger like the template picker off the left of the screen.
+   Anchoring by the left edge instead opens it directly under the button,
+   extending into the room the rest of the toolbar already has. */
+.toolbarLeadingMenu {
+  left: 0;
+  right: auto;
 }
 .linkForm {
   display: flex;
@@ -404,10 +457,18 @@
      ~45vh cap above — sized to leave room for those siblings — would just
      waste the rest of the sheet as dead space. Same compound-selector
      specificity trick, so this reliably overrides rather than losing the
-     cascade tie to the rule above. */
+     cascade tie to the rule above. Width/margin also reset back to plain
+     `100%`/`0` — the negative-margin bleed above compensates for `.body`'s
+     own padding, which `.bodyFill` (Modal.module.css) no longer has, so
+     applying that same compensation here would overshoot past the sheet's
+     edge instead of meeting it. */
   .editorFill:global(.sf-field__input) {
     max-height: none;
     min-height: 0;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    border-radius: 0;
   }
   /* A smaller inset than `--sf-page-pad` on purpose: this is a dense text
      column, not page-level content, and the full page padding on both sides

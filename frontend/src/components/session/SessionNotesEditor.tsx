@@ -3,15 +3,52 @@ import { useQuery } from "@tanstack/react-query";
 import { LayoutTemplate, Lock, Users } from "lucide-react";
 import { noteTemplatesService, noteTemplateKeys } from "@/services/noteTemplates";
 import { RichTextField } from "@/components/ui/RichTextField";
-import { MenuPopover, ToolButton, useLabels } from "@/components/ui/richTextToolbarControls";
+import { keepEditorFocus, MenuPopover, useLabels } from "@/components/ui/richTextToolbarControls";
 import styles from "@/components/ui/RichText.module.css";
+
+/** Icon-over-caption, not icon-only: neither the template icon nor a bare
+ * lock/people icon reads as self-explanatory the first time, so both of
+ * these leading buttons carry a permanent one-word label instead of relying
+ * on a hover tooltip to explain themselves. */
+function StackedToolButton({
+  icon,
+  caption,
+  ariaLabel,
+  active,
+  expanded,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  caption: string;
+  ariaLabel: string;
+  active?: boolean;
+  expanded?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`${styles.toolBtn} ${styles.toolBtnStacked} ${active ? styles.toolBtnActive : ""}`}
+      aria-label={ariaLabel}
+      title={ariaLabel}
+      aria-pressed={expanded === undefined ? active : undefined}
+      aria-expanded={expanded}
+      onMouseDown={keepEditorFocus}
+      onClick={onClick}
+    >
+      {icon}
+      <span className={styles.toolBtnStackedLabel}>{caption}</span>
+    </button>
+  );
+}
 
 /** The `sessions.notes` editor shared by `SessionDetail` and the boat
  * logbook: same field (notes + notes_shared), same template picker, so it
- * exists once instead of twice. Its toolbar's leading/trailing slots (see
- * `RichTextField`) hold the template picker and the share toggle — moved off
- * the standalone `<select>` and checkbox that used to sit above/below the
- * editor, to give the body the whole modal instead of splitting it three ways. */
+ * exists once instead of twice. The template picker and share toggle are
+ * both leading toolbar items (see `RichTextField`) — first, ahead of a
+ * divider from the text-formatting groups — replacing the standalone
+ * `<select>` and checkbox that used to sit above/below the editor, to give
+ * the body the whole modal instead of splitting it three ways. */
 export function SessionNotesEditor({
   id,
   value,
@@ -51,30 +88,28 @@ export function SessionNotesEditor({
       value={value}
       onChange={onChange}
       leadingToolbarItems={
-        <MenuPopover
-          trigger={({ open, toggle }) => (
-            <ToolButton
-              label={label("templates", "Apply a template")}
-              icon={<LayoutTemplate size={17} />}
-              expanded={open}
-              onClick={toggle}
-            />
-          )}
-          items={templateItems}
-        />
-      }
-      trailingToolbarItems={
-        <button
-          type="button"
-          className={`${styles.toolBtn} ${styles.toolBtnLabeled} ${shared ? styles.toolBtnActive : ""}`}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onSharedChange(!shared)}
-          aria-pressed={shared}
-          title={t("sessions.notesSharedHint")}
-        >
-          {shared ? <Users size={16} /> : <Lock size={16} />}
-          <span>{shared ? label("shared", "Shared") : label("private", "Private")}</span>
-        </button>
+        <>
+          <MenuPopover
+            panelClassName={styles.toolbarLeadingMenu}
+            trigger={({ open, toggle }) => (
+              <StackedToolButton
+                icon={<LayoutTemplate size={17} />}
+                caption={label("templatesShort", "Templates")}
+                ariaLabel={label("templates", "Apply a template")}
+                expanded={open}
+                onClick={toggle}
+              />
+            )}
+            items={templateItems}
+          />
+          <StackedToolButton
+            icon={shared ? <Users size={16} /> : <Lock size={16} />}
+            caption={shared ? label("shared", "Shared") : label("private", "Private")}
+            ariaLabel={t("sessions.notesSharedHint")}
+            active={shared}
+            onClick={() => onSharedChange(!shared)}
+          />
+        </>
       }
     />
   );

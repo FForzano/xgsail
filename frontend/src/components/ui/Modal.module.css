@@ -52,6 +52,11 @@
 .bodyFill {
   display: flex;
   flex-direction: column;
+  /* Fill-mode's one child supplies its own inner padding (toolbar/content),
+     so `.body`'s own inset would just be dead margin around it — on the
+     sides *and* below, where it read as unused space rather than writing
+     room. */
+  padding: 0;
 }
 .foot {
   flex-shrink: 0;

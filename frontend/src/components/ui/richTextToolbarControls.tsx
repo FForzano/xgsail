@@ -64,12 +64,17 @@ export function ToolButton({
 export function MenuPopover({
   trigger,
   items,
+  panelClassName,
 }: {
   trigger: (state: { open: boolean; toggle: () => void }) => ReactNode;
   items: { label: string; onClick: () => void; active?: boolean; danger?: boolean }[];
+  /** Extra class(es) alongside `sf-optionsmenu__panel` — e.g. anchoring a
+   * left-edge toolbar trigger's panel by its left edge instead of the
+   * default right-edge alignment meant for a right-edge "⋮" trigger. */
+  panelClassName?: string;
 }) {
   return (
-    <Popover panelClassName="sf-optionsmenu__panel" trigger={trigger}>
+    <Popover panelClassName={`sf-optionsmenu__panel ${panelClassName ?? ""}`} trigger={trigger}>
       {({ close }) =>
         items.map((item, i) => (
           <button
