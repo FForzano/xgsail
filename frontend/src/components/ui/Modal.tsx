@@ -15,6 +15,7 @@ export function Modal({
   title,
   onClose,
   size = "default",
+  headerActions,
   footer,
   fillBody,
   children,
@@ -22,6 +23,10 @@ export function Modal({
   title: ReactNode;
   onClose: () => void;
   size?: "default" | "wide";
+  /** Icon-sized actions sitting next to the close button. For a `fillBody`
+   * modal this is the only place an action can go without stealing height
+   * from the editor filling the body. */
+  headerActions?: ReactNode;
   footer?: ReactNode;
   /** Makes `.body` a flex column so a single `flex: 1` child (a `RichTextField`
    * with `fill`) can stretch to the modal's full remaining height, instead of
@@ -74,9 +79,12 @@ export function Modal({
       >
         <div className={styles.head}>
           <h2 className={styles.title}>{title}</h2>
-          <button className={styles.close} onClick={onClose} aria-label="Close">
-            ×
-          </button>
+          <div className={styles.headActions}>
+            {headerActions}
+            <button className={styles.close} onClick={onClose} aria-label="Close">
+              ×
+            </button>
+          </div>
         </div>
         <div className={`${styles.body} ${fillBody ? styles.bodyFill : ""}`}>{children}</div>
         {footer && <div className={styles.foot}>{footer}</div>}

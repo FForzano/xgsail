@@ -211,7 +211,7 @@ export function BoatNotebookPage() {
   };
   const {
     requestClose: requestCloseNote,
-    discardFooter: noteDiscardFooter,
+    discardAction: noteDiscardAction,
     discardDialog: noteDiscardDialog,
   } = useAutoSaveOnClose({
     canSave: () => form.title.trim() !== "" && richTextExcerpt(form.body, 1) !== "",
@@ -264,7 +264,7 @@ export function BoatNotebookPage() {
   };
   const {
     requestClose: requestCloseSessionNote,
-    discardFooter: sessionNoteDiscardFooter,
+    discardAction: sessionNoteDiscardAction,
     discardDialog: sessionNoteDiscardDialog,
   } = useAutoSaveOnClose({
     canSave: () => true, // an emptied session note is a valid, save-worthy state
@@ -512,7 +512,7 @@ export function BoatNotebookPage() {
           onClose={requestCloseNote}
           size="wide"
           fillBody
-          footer={noteDiscardFooter}
+          headerActions={noteDiscardAction}
         >
           <RichTextField
             label={t("boatNotes.entryTitle")}
@@ -545,7 +545,7 @@ export function BoatNotebookPage() {
           onClose={requestCloseSessionNote}
           size="wide"
           fillBody
-          footer={sessionNoteDiscardFooter}
+          headerActions={sessionNoteDiscardAction}
         >
           <SessionNotesEditor
             id="boat-log-notes"

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -30,7 +31,7 @@ export function useAutoSaveOnClose(options: {
    * any) has settled. */
   onClosed: () => void;
   /** Opt-in "Scarta modifiche" support. Callers that pass it must render both
-   * `discardFooter` (as `Modal`'s `footer`) and `discardDialog`. */
+   * `discardAction` (as `Modal`'s `headerActions`) and `discardDialog`. */
   discard?: {
     /** True when the record exists only because an autosave created it
      * during this editing session — discarding deletes it instead of
@@ -42,7 +43,7 @@ export function useAutoSaveOnClose(options: {
 }): {
   requestClose: () => void;
   requestDiscard: () => void;
-  discardFooter: ReactNode;
+  discardAction: ReactNode;
   discardDialog: ReactNode;
 } {
   const { t } = useTranslation();
@@ -117,14 +118,20 @@ export function useAutoSaveOnClose(options: {
       .finally(() => setDiscarding(false));
   }, [close, notify, t]);
 
-  const discardFooter = options.discard ? (
-    <div className="sf-form__actions">
-      {/* Always enabled: `isDirty` is a plain function, not reactive state, so
-          a `disabled` binding would go stale as the user types. */}
-      <Button variant="ghost" onClick={requestDiscard}>
-        {t("common.discardChanges")}
-      </Button>
-    </div>
+  // In the header rather than a footer: these editors run with `fillBody`, and
+  // an action row below would take the height the editor is meant to fill.
+  // Always enabled — `isDirty` is a plain function, not reactive state, so a
+  // `disabled` binding would go stale as the user types.
+  const discardAction = options.discard ? (
+    <Button
+      variant="ghost"
+      className="sf-btn--icon-sm"
+      aria-label={t("common.discardChanges")}
+      title={t("common.discardChanges")}
+      onClick={requestDiscard}
+    >
+      <RotateCcw size={16} />
+    </Button>
   ) : null;
 
   const discardDialog =
@@ -138,5 +145,5 @@ export function useAutoSaveOnClose(options: {
       />
     ) : null;
 
-  return { requestClose, requestDiscard, discardFooter, discardDialog };
+  return { requestClose, requestDiscard, discardAction, discardDialog };
 }

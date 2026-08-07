@@ -33,6 +33,12 @@
   font-size: 1.05rem;
   margin: 0;
 }
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
 .close {
   background: none;
   border: none;

@@ -450,7 +450,7 @@ export function SessionDetail({
   };
   const {
     requestClose: requestCloseNotes,
-    discardFooter: notesDiscardFooter,
+    discardAction: notesDiscardAction,
     discardDialog: notesDiscardDialog,
   } = useAutoSaveOnClose({
     canSave: () => true, // an emptied note is a valid, save-worthy state
@@ -1121,7 +1121,7 @@ export function SessionDetail({
           onClose={requestCloseNotes}
           size="wide"
           fillBody
-          footer={notesDiscardFooter}
+          headerActions={notesDiscardAction}
         >
           <SessionNotesEditor
             id="session-notes"

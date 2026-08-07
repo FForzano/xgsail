@@ -73,7 +73,7 @@ export function NoteTemplatesManager({ className }: { className?: string }) {
   };
   const {
     requestClose: requestCloseTemplate,
-    discardFooter: templateDiscardFooter,
+    discardAction: templateDiscardAction,
     discardDialog: templateDiscardDialog,
   } = useAutoSaveOnClose({
     canSave: () => templateForm.name.trim() !== "" && richTextExcerpt(templateForm.body, 1) !== "",
@@ -142,7 +142,7 @@ export function NoteTemplatesManager({ className }: { className?: string }) {
           onClose={requestCloseTemplate}
           size="wide"
           fillBody
-          footer={templateDiscardFooter}
+          headerActions={templateDiscardAction}
         >
           <RichTextField
             label={t("noteTemplates.name")}
