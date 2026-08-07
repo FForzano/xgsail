@@ -1,5 +1,6 @@
-import { Suspense, lazy, useId, useRef, type CSSProperties, type ReactNode } from "react";
+import { Suspense, lazy, useId, type CSSProperties, type ReactNode } from "react";
 import type { RichTextTier } from "./RichText";
+import { mergeTitleBody, splitTitleBody } from "./richTextHtml";
 import styles from "./RichText.module.css";
 
 // Tiptap + ProseMirror are ~120KB gzip and most sessions never open an editor,
@@ -40,11 +41,15 @@ export function RichTextField({
   placeholder?: string;
   minHeight?: string;
   disabled?: boolean;
-  /** Notion-style merged title: a plain single-line input styled as an H1,
-   * sharing the same bordered surface as the body instead of a separate
-   * field — pass both `title`/`onTitleChange` to turn it on. The value stays
-   * a genuinely separate field end to end (own DB column, own form state);
-   * this only changes where it's *drawn*, not the data model. */
+  /** Merged title: `title`/`body` stay two genuinely separate fields (own DB
+   * column, own form state) as far as the caller is concerned, but on
+   * screen there is no separate input for it at all — it's simply the
+   * document's first paragraph, scrolling with the rest of the text and
+   * drawn larger by a CSS rule keyed on position, not by being some special
+   * kind of node. Pass `title`/`onTitleChange` to turn this on; every
+   * change re-derives both fields from the one document (see
+   * `richTextHtml.ts`'s `mergeTitleBody`/`splitTitleBody`) and calls both
+   * back. */
   title?: string;
   onTitleChange?: (value: string) => void;
   titlePlaceholder?: string;
@@ -58,7 +63,6 @@ export function RichTextField({
   fill?: boolean;
 }) {
   const labelId = useId();
-  const surfaceRef = useRef<HTMLDivElement>(null);
   const hasTitle = onTitleChange !== undefined;
   // `fill` means this field is the modal's one and only job — the modal's
   // own title already names it, so a second visible caption above the
@@ -71,6 +75,17 @@ export function RichTextField({
     "--rt-min-height": minHeight ?? DEFAULT_MIN_HEIGHT[tier],
   } as CSSProperties;
 
+  const editorValue = hasTitle ? mergeTitleBody(title!, value) : value;
+  const handleEditorChange = (html: string) => {
+    if (!hasTitle) {
+      onChange(html);
+      return;
+    }
+    const { title: nextTitle, body: nextBody } = splitTitleBody(html);
+    onTitleChange!(nextTitle);
+    onChange(nextBody);
+  };
+
   return (
     // A plain div, not a `<label>`: `<button>` is itself a labelable element,
     // so a `<label>` wrapping the toolbar's buttons implicitly associates
@@ -81,50 +96,34 @@ export function RichTextField({
     <div className={`sf-field ${fill ? styles.fieldFill : ""}`}>
       {/* Still in the accessibility tree when hidden visually — the field
           needs *a* name, just not a second visible caption floating above
-          what a fill modal's own title (or the merged H1) already names. */}
+          what a fill modal's own title (or the merged first line) already
+          names. */}
       <span className={`sf-field__label ${hideLabel ? styles.srOnly : ""}`} id={labelId}>
         {label}
       </span>
       <div
-        ref={surfaceRef}
         className={`sf-field__input ${styles.editor} ${fill ? styles.editorFill : ""} ${
           disabled ? styles.editorDisabled : ""
         }`}
         style={style}
       >
-        {hasTitle && (
-          <input
-            type="text"
-            className={styles.titleInput}
-            value={title}
-            onChange={(e) => onTitleChange(e.target.value)}
-            placeholder={titlePlaceholder}
-            disabled={disabled}
-            aria-label={titlePlaceholder}
-            onKeyDown={(e) => {
-              // Notion-style: Enter at the title moves straight into the body
-              // instead of doing nothing (it's a single-line input).
-              if (e.key !== "Enter") return;
-              e.preventDefault();
-              surfaceRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
-            }}
-          />
-        )}
         <Suspense
           fallback={
             <div className={`${styles.content} ${styles.placeholder}`} aria-hidden="true">
-              {placeholder}
+              {hasTitle ? titlePlaceholder : placeholder}
             </div>
           }
         >
           <RichTextEditor
             id={id}
             labelId={labelId}
-            value={value}
-            onChange={onChange}
+            value={editorValue}
+            onChange={handleEditorChange}
             tier={tier}
             mentions={mentions}
             placeholder={placeholder}
+            titlePlaceholder={hasTitle ? titlePlaceholder : undefined}
+            hasMergedTitle={hasTitle}
             disabled={disabled}
             leadingToolbarItems={leadingToolbarItems}
             trailingToolbarItems={trailingToolbarItems}

@@ -3,6 +3,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { RichTextToolbar } from "./RichTextToolbar";
 import { buildRichTextExtensions } from "./richTextSchema";
 import { MentionSuggestionContext } from "./richTextMentions";
+import { toEditorHtml } from "./richTextHtml";
 import type { RichTextTier } from "./RichText";
 import styles from "./RichText.module.css";
 
@@ -14,32 +15,16 @@ export interface RichTextEditorProps {
   tier: RichTextTier;
   mentions: boolean;
   placeholder?: string;
+  /** Ghost text for the document's first node specifically — see
+   * `RichTextField`'s merged-title mode, which is the only caller that sets
+   * this (a plain `placeholder` would otherwise apply to every empty node). */
+  titlePlaceholder?: string;
+  /** Styles the first top-level node as a title (see RichText.module.css) —
+   * on for `RichTextField`'s merged-title mode, off otherwise. */
+  hasMergedTitle?: boolean;
   disabled?: boolean;
   leadingToolbarItems?: ReactNode;
   trailingToolbarItems?: ReactNode;
-}
-
-const BLOCK_TAG_RE = /^\s*<(p|h1|h2|h3|ul|ol|blockquote|table)[\s/>]/i;
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-/** Mirrors `backend/richtext.py`'s `_plain_text_to_html`: rows written before
- * the rich-text migration hold bare text with newlines, and handing that to
- * `setContent` as a string would collapse every line break. */
-function toEditorHtml(value: string): string {
-  if (!value.trim()) return "";
-  if (BLOCK_TAG_RE.test(value)) return value;
-  return escapeHtml(value.replace(/\r\n?/g, "\n"))
-    .split(/\n\s*\n/)
-    .filter((block) => block.trim())
-    .map((block) => `<p>${block.replace(/^\n+|\n+$/g, "").replace(/\n/g, "<br>")}</p>`)
-    .join("");
 }
 
 export default function RichTextEditor({
@@ -50,6 +35,8 @@ export default function RichTextEditor({
   tier,
   mentions,
   placeholder,
+  titlePlaceholder,
+  hasMergedTitle,
   disabled,
   leadingToolbarItems,
   trailingToolbarItems,
@@ -69,8 +56,8 @@ export default function RichTextEditor({
   const mentionSuggestion = useContext(MentionSuggestionContext);
 
   const extensions = useMemo(
-    () => buildRichTextExtensions({ tier, mentions, mentionSuggestion, placeholder }),
-    [tier, mentions, mentionSuggestion, placeholder],
+    () => buildRichTextExtensions({ tier, mentions, mentionSuggestion, placeholder, titlePlaceholder }),
+    [tier, mentions, mentionSuggestion, placeholder, titlePlaceholder],
   );
 
   const editor = useEditor(
@@ -119,7 +106,10 @@ export default function RichTextEditor({
           trailingItems={trailingToolbarItems}
         />
       )}
-      <EditorContent className={`${styles.content} ${styles.prose}`} editor={editor} />
+      <EditorContent
+        className={`${styles.content} ${styles.prose} ${hasMergedTitle ? styles.hasMergedTitle : ""}`}
+        editor={editor}
+      />
     </>
   );
 }

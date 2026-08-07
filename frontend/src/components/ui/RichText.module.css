@@ -170,42 +170,22 @@
   border: 0;
 }
 
-/* Notion-style merged title: no border/background of its own, so it reads as
-   the first line of the same card the toolbar/body share. Matches `.prose
-   h1` rather than restating it, so a saved title and a body h1 look the same. */
-.titleInput {
-  /* `.editor`'s DOM order is [title, toolbar, content] — the title has to
-     come first so it isn't hidden behind the lazy-loaded editor chunk while
-     that's still loading — but visually it belongs *after* the toolbar, as
-     if it were simply the document's first line in a larger size. `order`
-     reflows it without needing the toolbar (rendered deep inside the lazy
-     `RichTextEditor`) to know the title exists at all. */
-  order: 1;
-  width: 100%;
-  padding: 0.6rem 0.7rem 0;
-  border: none;
-  background: transparent;
-  color: var(--sf-text);
-  font: inherit;
-  font-size: 1.15rem;
-  font-weight: 800;
-}
-.titleInput:focus {
-  outline: none;
-}
-.titleInput::placeholder {
-  color: var(--sf-muted);
-  font-weight: 700;
-}
-
 .content {
-  order: 2;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
   overflow-x: auto;
   padding: 0.55rem 0.7rem;
+}
+/* Merged title (see RichTextField/richTextHtml.ts): the first paragraph of
+   the *actual* document, scrolling with everything else — nothing marks it
+   as special beyond being first, so this is purely a paint-time size bump,
+   matching `.prose h1` rather than restating it so a saved title and a real
+   body h1 read identically. */
+.hasMergedTitle :global(.ProseMirror) > *:first-child {
+  font-size: 1.15rem;
+  font-weight: 800;
 }
 .content :global(.ProseMirror) {
   flex: 1;
@@ -224,8 +204,14 @@
 .content :global(.selectedCell) {
   background: color-mix(in srgb, var(--sf-primary) 22%, transparent);
 }
-/* Placeholder text, from the Placeholder extension's data attribute. */
-.content :global(.is-editor-empty:first-child)::before {
+/* Placeholder text, from the Placeholder extension's data attribute.
+   `is-editor-empty` only gets set when the *whole* document is one empty
+   paragraph; a merged-title document with an empty title but real body text
+   below it is empty on just that one node, which Tiptap instead marks with
+   `is-empty` (and, since `showOnlyCurrent` is on, only ever on the currently
+   focused node — so this can't show two ghost placeholders at once). */
+.content :global(.is-editor-empty:first-child)::before,
+.content :global(.is-empty)::before {
   content: attr(data-placeholder);
   float: left;
   height: 0;

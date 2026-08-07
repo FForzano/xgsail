@@ -139,9 +139,17 @@ function mentionExtension(handleRef: MentionSuggestionRef | null | undefined): A
 }
 
 export function buildRichTextExtensions(
-  options: RichTextSchemaOptions & { placeholder?: string },
+  options: RichTextSchemaOptions & { placeholder?: string; titlePlaceholder?: string },
 ): AnyExtension[] {
   const full = options.tier === "full";
+  // A merged title+body document (see RichTextField) needs different ghost
+  // text on its first node than the rest — Tiptap's Placeholder takes a
+  // function precisely for this, keyed on node position rather than a node
+  // *type*, since the first node is a plain paragraph like any other, just
+  // first.
+  const placeholderText = options.titlePlaceholder
+    ? ({ pos }: { pos: number }) => (pos === 0 ? options.titlePlaceholder! : (options.placeholder ?? ""))
+    : (options.placeholder ?? "");
 
   const extensions: AnyExtension[] = [
     StarterKit.configure({
@@ -164,7 +172,7 @@ export function buildRichTextExtensions(
         isAllowedUri: (uri) => normalizeLinkHref(uri) !== null,
       },
     }),
-    Placeholder.configure({ placeholder: options.placeholder ?? "" }),
+    Placeholder.configure({ placeholder: placeholderText }),
   ];
 
   if (full) {
