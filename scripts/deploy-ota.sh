@@ -84,6 +84,11 @@ mc_cp_retry "$WORKDIR/bundle.zip" "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/$VERSI
 mc_cp_retry "$WORKDIR/manifest.json" "ota-deploy/$BUCKET/$OTA_PREFIX/manifest.json"
 
 echo "==> pruning old bundles (keeping newest $KEEP_VERSIONS)"
+# Best-effort: the publish above already succeeded, so a prune failure (seen
+# in practice when the public/tunneled S3 endpoint rejects the HEAD a `mc rm`
+# does internally, even though GET/PUT through the same endpoint are fine —
+# looks like a Cloudflare-side method restriction, not a MinIO permissions
+# issue) must not fail the whole deploy over what's just server-side cleanup.
 mc ls --json "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/" \
   | jq -r '[.lastModified, .key] | @tsv' \
   | sort -r \
@@ -92,7 +97,8 @@ mc ls --json "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/" \
   | while IFS= read -r old; do
       [ -z "$old" ] && continue
       echo "  removing bundles/$old"
-      mc rm "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/$old"
+      mc rm "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/$old" \
+        || echo "  warning: failed to remove bundles/$old, leaving it in place"
     done
 
 echo "==> done: version $VERSION published (checksum $CHECKSUM)"
