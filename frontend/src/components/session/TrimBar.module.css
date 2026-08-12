@@ -1,0 +1,44 @@
+/* Visible save/cancel while trim mode is active — clearer than a menu item
+   for a save/cancel action (was the original complaint: the menu-only
+   Applica/Termina flow wasn't obviously save-vs-cancel). */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.info {
+  min-width: 0;
+}
+.readout {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+.bound {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.swatchStart,
+.swatchEnd {
+  width: 4px;
+  height: 0.95em;
+  border-radius: 2px;
+}
+/* Same two colours as the chart handles (SpeedChart's TRIM_START/END). */
+.swatchStart {
+  background: var(--sf-success);
+}
+.swatchEnd {
+  background: var(--sf-gybe);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}

@@ -433,16 +433,16 @@ function OptimalAngles({
 
 // --- maneuver comparison (violin → grouped means) --------------------------------------
 
-const VIOLIN_METRICS: [string, string][] = [
-  ["speed_loss_kts", "kn"],
-  ["recovery_time_sec", "s"],
-  ["duration_sec", "s"],
+const VIOLIN_METRICS: [string, string, string][] = [
+  ["speed_loss_kts", "sessions.speedLoss", "kn"],
+  ["recovery_time_sec", "sessions.recovery", "s"],
+  ["duration_sec", "sessions.duration", "s"],
 ];
 
 function ViolinBars({ violin }: { violin: Record<string, Record<string, { mean: number }>> }) {
   const { t } = useTranslation();
-  const data = VIOLIN_METRICS.map(([metric]) => ({
-    metric,
+  const data = VIOLIN_METRICS.map(([metric, i18nKey, unit]) => ({
+    metric: `${t(i18nKey)} (${unit})`,
     tack: violin.tack?.[metric]?.mean ?? 0,
     gybe: violin.gybe?.[metric]?.mean ?? 0,
   }));

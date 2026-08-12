@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { timeController, useTimeState } from "@/stores/timeController";
-import { useWindAt } from "@/hooks/useWindAt";
+import { useMapCenterWind } from "@/hooks/useMapCenterWind";
 import { createBaseLayers } from "@/components/map/baseLayers";
 import { bindExpandableMarker, collapseExpandable } from "@/components/map/expandableMarker";
 import { MapLayerToggles } from "@/components/map/MapLayerToggles";
+import { WindBadge } from "@/components/map/WindBadge";
 import { useMapLayers } from "@/components/map/useMapLayers";
 import { useNauticalLayers } from "@/components/map/useNauticalLayers";
 import { fmtKnots } from "@/utils/format";
@@ -117,11 +117,11 @@ export function MapView({
    * .mapSession in MapView.module.css). Omit for the default (race/activity
    * map) height. */
   variant?: "session";
-  /** Region to show a wind direction/speed overlay for (e.g. the session's
-   * start point + start time) — omit to hide the overlay entirely. Ignored
-   * for the actual value shown whenever `sessionWind` has a usable point;
-   * still used as the time to look up (`wind.at`) and as the live-snapshot
-   * fallback when it doesn't. */
+  /** Enables the wind direction/speed overlay, and says which instant to look
+   * up (`at`, e.g. the session's start time) — omit to hide it entirely. The
+   * lookup follows the map center once the map exists; `lat`/`lng` (e.g. the
+   * session's start point) only seed it until then. Ignored for the actual
+   * value shown whenever `sessionWind` has a usable point. */
   wind?: { lat: number; lng: number; at?: string | null };
   /** This session's own determined true-wind series (`session_analysis.
    * true_wind`, see workers/process_upload/processing/wind_estimation.py)
@@ -205,7 +205,12 @@ export function MapView({
     if (map) collapseExpandable(map, styles.markiconRaceLabelInner, styles.expanded);
   };
 
-  const { data: windAt } = useWindAt(wind?.lat, wind?.lng, wind?.at);
+  // Follows the map center (see useMapCenterWind), so panning re-reads the
+  // wind; `wind.lat/lng` only seeds it for the frames before the Leaflet
+  // instance exists, and `wind.at` keeps the lookup at the session's time.
+  // Passing the map only when `wind` is set keeps that prop's "omit to hide
+  // the overlay entirely" meaning (race/manage maps opt out).
+  const windAt = useMapCenterWind(wind ? mapInstance : null, wind?.at, wind ?? null);
   // Prefer this session's own determined wind (closest-in-time point) over
   // the live snapshot — it's what the session's own VMG/polar/legs were
   // actually computed against, not just a nearby model/station guess.
@@ -578,20 +583,7 @@ export function MapView({
         </div>
       )}
       {controls && <div className={styles.controls}>{controls}</div>}
-      {displayWind?.twd_deg != null && (
-        <div className={styles.wind} title={fmtKnots(displayWind.tws_kts)}>
-          <span
-            className={styles.windArrow}
-            // twd_deg is where the wind comes FROM; rotate by +180 so the
-            // arrow shows the direction it's blowing TOWARD (flow), not the
-            // bearing to its source.
-            style={{ transform: `rotate(${(displayWind.twd_deg + 180) % 360}deg)` }}
-          >
-            <ArrowUp size={16} strokeWidth={2.5} />
-          </span>
-          <span className={styles.windSpeed}>{fmtKnots(displayWind.tws_kts)}</span>
-        </div>
-      )}
+      <WindBadge twdDeg={displayWind?.twd_deg} twsKts={displayWind?.tws_kts} />
     </div>
   );
 }

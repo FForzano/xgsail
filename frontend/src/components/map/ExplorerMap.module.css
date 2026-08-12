@@ -22,7 +22,8 @@
    in-card one is always well below it — so the inset belongs here rather
    than on .options/.locate themselves. */
 .mapFill .options,
-.mapFill .locate {
+.mapFill .locate,
+.mapFill .wind {
   top: calc(10px + env(safe-area-inset-top, 0px));
 }
 /* Same story at the bottom edge, where the fixed action bar overlays the map:

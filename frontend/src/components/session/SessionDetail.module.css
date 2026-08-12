@@ -1,18 +1,3 @@
-/* Visible save/cancel while trim mode is active — clearer than a menu item
-   for a save/cancel action (was the original complaint: the menu-only
-   Applica/Termina flow wasn't obviously save-vs-cancel). */
-.trimBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-.trimBarActions {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
 /* "Add photo/video/notes" icon row for whatever a session doesn't have yet
    — shown right under the title instead of buried in the ⋮ menu. Shared
    with ActivityDetailPage's own title Card for the embedded (solo-activity)

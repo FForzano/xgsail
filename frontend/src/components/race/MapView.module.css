@@ -5,7 +5,7 @@
   overflow: hidden;
   position: relative;
   /* Contain Leaflet's internal z-index stack (controls, panes, the wind
-     badge below) so it can never render above page chrome (nav, modals,
+     badge) so it can never render above page chrome (nav, modals,
      dropdowns) that sits outside this element. */
   isolation: isolate;
 }
@@ -166,33 +166,6 @@
   border-radius: var(--sf-radius-sm, 4px);
   object-fit: cover;
   flex-shrink: 0;
-}
-
-/* Wind indicator overlay: direction + speed for the session's region. */
-.wind {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.6rem;
-  background: rgba(10, 24, 38, 0.75);
-  border: 1px solid var(--sf-border);
-  border-radius: 999px;
-  color: #fff;
-  font-size: 0.85rem;
-  backdrop-filter: blur(2px);
-}
-.windArrow {
-  display: inline-block;
-  font-size: 1.1rem;
-  line-height: 1;
-}
-.windSpeed {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* Mark icons (race marks/legs/maneuvers) — see MapMark['kind'] in MapView.tsx. */

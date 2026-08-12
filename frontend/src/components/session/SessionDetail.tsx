@@ -25,6 +25,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { RichText } from "@/components/ui/RichText";
 import { SessionNotesEditor } from "@/components/session/SessionNotesEditor";
+import { TrimBar } from "@/components/session/TrimBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Avatar } from "@/components/ui/Avatar";
@@ -885,21 +886,16 @@ export function SessionDetail({
               {maneuverDraftStart ? t("sessions.maneuverPickEnd") : t("sessions.maneuverPickStart")}
             </p>
           )}
-          {trimMode && (
-            <div className={styles.trimBar}>
-              <p className="sf-muted">{t("sessions.trimHint")}</p>
-              <div className={styles.trimBarActions}>
-                <Button
-                  onClick={applyTrim}
-                  disabled={setTrim.isPending || trimDraftStartMs == null || trimDraftEndMs == null}
-                >
-                  {t("sessions.applyTrim")}
-                </Button>
-                <Button variant="ghost" onClick={exitTrimMode} disabled={setTrim.isPending}>
-                  {t("common.cancel")}
-                </Button>
-              </div>
-            </div>
+          {trimMode && trimDraftStartMs != null && trimDraftEndMs != null && (
+            <TrimBar
+              startMs={trimDraftStartMs}
+              endMs={trimDraftEndMs}
+              onStartChange={setTrimDraftStartMs}
+              onEndChange={setTrimDraftEndMs}
+              onApply={applyTrim}
+              onCancel={exitTrimMode}
+              busy={setTrim.isPending}
+            />
           )}
           {mapLegend.length > 0 && (
             <div className={legendStyles.mapLegend}>

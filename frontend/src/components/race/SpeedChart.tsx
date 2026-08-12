@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Settings } from "lucide-react";
 import {
@@ -23,6 +23,35 @@ import styles from "./SpeedChart.module.css";
 // playback scrubber. Optionally overlays the VMG series (toggle via the
 // options popover) and shows a tap/hover tooltip with the values at that time.
 const H = 160;
+// How close (in CSS pixels) a press must land to a trim handle to grab it.
+// Converted to ms against the live chart width so it stays the same physical
+// distance on a phone and on a wide desktop chart.
+const GRAB_PX = 24;
+// Trim palette, mirroring global.css tokens: --sf-success (start),
+// --sf-gybe (end), --sf-bg (the mask over the discarded parts). Recharts
+// takes plain SVG paint attributes, which don't resolve CSS custom
+// properties, hence the literals.
+const TRIM_START_COLOR = "#3fbf7f";
+const TRIM_END_COLOR = "#e0654f";
+const TRIM_MASK_COLOR = "#0b1f33";
+
+type TrimLabelProps = { viewBox?: { x?: number; y?: number } };
+
+/** Bracket-shaped grip on a trim handle: drawn on the kept side of the line
+ * (start opens right, end opens left) so the two are told apart by shape as
+ * well as by colour, and big enough to aim a thumb at. */
+function trimGrip(x: number, y: number, color: string, side: "start" | "end") {
+  const w = 15;
+  const h = 26;
+  const left = side === "start" ? x : x - w;
+  return (
+    <g pointerEvents="none">
+      <rect x={left} y={y} width={w} height={h} rx={3} fill={color} />
+      <line x1={left + 5} y1={y + 8} x2={left + 5} y2={y + h - 8} stroke={TRIM_MASK_COLOR} strokeWidth={1.5} />
+      <line x1={left + 10} y1={y + 8} x2={left + 10} y2={y + h - 8} stroke={TRIM_MASK_COLOR} strokeWidth={1.5} />
+    </g>
+  );
+}
 
 export function SpeedChart({
   tracks,
@@ -83,18 +112,35 @@ export function SpeedChart({
     if (typeof label === "number") timeController.seek(label);
   };
 
-  // First touch/click of an interaction: in trim mode, pick whichever handle
-  // is nearer and jump it there immediately; otherwise the normal seek. Also
-  // seeks playback to the handle's position either way, so the map's boat
-  // marker follows the dragged handle — showing where the boat actually was
-  // at that instant is the whole point of picking a trim bound by dragging.
+  // Chart width, so the grab tolerance can be expressed in pixels instead of
+  // a hardcoded duration that would be huge on a short track and unusable on
+  // a long one.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [wrapWidth, setWrapWidth] = useState(0);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setWrapWidth(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const grabMs = wrapWidth > 0 ? ((tMax - tMin) * GRAB_PX) / wrapWidth : 0;
+
+  // First touch/click of an interaction: in trim mode, grab a handle only if
+  // the press landed within the tolerance of it; otherwise the press just
+  // seeks. Seeking is also what a handle drag does, so the map's boat marker
+  // follows the dragged bound — showing where the boat actually was at that
+  // instant is the whole point of picking a trim bound by dragging.
   const startInteraction = (label: unknown) => {
     if (typeof label !== "number") return;
     if (trimMode && trimStartMs != null && trimEndMs != null) {
-      const handle = Math.abs(label - trimStartMs) <= Math.abs(label - trimEndMs) ? "start" : "end";
-      setDraggingHandle(handle);
-      if (handle === "start") onTrimStartChange?.(Math.min(label, trimEndMs));
-      else onTrimEndChange?.(Math.max(label, trimStartMs));
+      const dStart = Math.abs(label - trimStartMs);
+      const dEnd = Math.abs(label - trimEndMs);
+      // A press away from both handles moves neither: teleporting a bound on
+      // any stray tap was the bug. Moving a bound a long way is done by
+      // seeking there and using the trim bar's "start/end here" buttons.
+      const grabbed = Math.min(dStart, dEnd) <= grabMs;
+      setDraggingHandle(grabbed ? (dStart <= dEnd ? "start" : "end") : null);
       seekTo(label);
       return;
     }
@@ -120,7 +166,7 @@ export function SpeedChart({
   };
 
   return (
-    <div className="sf-chartpanel">
+    <div className="sf-chartpanel" ref={wrapRef}>
       <div className={styles.head}>
         <span className="sf-muted" style={{ fontSize: "0.8rem" }}>
           {t("race.speedRange")} 0–{fmtKnots(maxSog)}
@@ -204,16 +250,40 @@ export function SpeedChart({
               connectNulls
             />
           )}
-          <ReferenceLine yAxisId="sog" x={cursor} stroke="#fff" strokeWidth={1} />
+          {/* Mask what the trim throws away rather than tinting what it keeps:
+              the kept part stays at full contrast, so "this is what's left"
+              reads without a legend. Drawn before the cursor so the white
+              playback line stays visible over it. */}
           {trimMode && trimStartMs != null && trimEndMs != null && (
-            <ReferenceArea yAxisId="sog" x1={trimStartMs} x2={trimEndMs}
-                          fill="#4fd0e0" fillOpacity={0.12} />
+            <>
+              <ReferenceArea yAxisId="sog" x1={tMin} x2={trimStartMs}
+                            fill={TRIM_MASK_COLOR} fillOpacity={0.72} />
+              <ReferenceArea yAxisId="sog" x1={trimEndMs} x2={tMax}
+                            fill={TRIM_MASK_COLOR} fillOpacity={0.72} />
+            </>
           )}
+          <ReferenceLine yAxisId="sog" x={cursor} stroke="#fff" strokeWidth={1} />
           {trimMode && trimStartMs != null && (
-            <ReferenceLine yAxisId="sog" x={trimStartMs} stroke="#4fd0e0" strokeWidth={2} />
+            <ReferenceLine
+              yAxisId="sog"
+              x={trimStartMs}
+              stroke={TRIM_START_COLOR}
+              strokeWidth={draggingHandle === "start" ? 3 : 2}
+              label={({ viewBox }: TrimLabelProps) =>
+                trimGrip(viewBox?.x ?? 0, viewBox?.y ?? 0, TRIM_START_COLOR, "start")
+              }
+            />
           )}
           {trimMode && trimEndMs != null && (
-            <ReferenceLine yAxisId="sog" x={trimEndMs} stroke="#4fd0e0" strokeWidth={2} />
+            <ReferenceLine
+              yAxisId="sog"
+              x={trimEndMs}
+              stroke={TRIM_END_COLOR}
+              strokeWidth={draggingHandle === "end" ? 3 : 2}
+              label={({ viewBox }: TrimLabelProps) =>
+                trimGrip(viewBox?.x ?? 0, viewBox?.y ?? 0, TRIM_END_COLOR, "end")
+              }
+            />
           )}
         </AreaChart>
       </ResponsiveContainer>

@@ -4,6 +4,8 @@ import { LocateFixed } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/Button";
+import { useMapCenterWind } from "@/hooks/useMapCenterWind";
+import { WindBadge } from "./WindBadge";
 import { createBaseLayers } from "./baseLayers";
 import { MapLayerToggles } from "./MapLayerToggles";
 import { useMapLayers } from "./useMapLayers";
@@ -69,6 +71,8 @@ export function ExplorerMap({
 
   const { layers, toggle } = useMapLayers();
   useNauticalLayers(map, layers);
+  // No `at`: this map is about now, not about a recorded moment.
+  const wind = useMapCenterWind(map);
 
   // One-time setup. Deliberately has no data dependencies: unlike MapView,
   // nothing here is rebuilt when props change — later effects mutate the
@@ -169,6 +173,7 @@ export function ExplorerMap({
   return (
     <div className={`${styles.map} ${fill ? styles.mapFill : ""} ${className}`} data-tour={dataTour}>
       <div ref={elRef} className={styles.surface} />
+      <WindBadge twdDeg={wind?.twd_deg} twsKts={wind?.tws_kts} className={styles.wind} />
       <div className={styles.options}>
         <MapLayerToggles layers={layers} onToggle={toggle} />
       </div>

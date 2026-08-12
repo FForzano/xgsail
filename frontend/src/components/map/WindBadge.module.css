@@ -1,0 +1,29 @@
+/* Wind indicator overlay: direction + speed, top-center of a map surface.
+   Positioning lives here rather than per-map so the replay map and the
+   explorer map place it identically; a map that needs to nudge it (e.g. a
+   full-bleed one clearing the notch) passes its own className. */
+.wind {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  background: rgba(10, 24, 38, 0.75);
+  border: 1px solid var(--sf-border);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.85rem;
+  backdrop-filter: blur(2px);
+}
+.windArrow {
+  display: inline-block;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.windSpeed {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
