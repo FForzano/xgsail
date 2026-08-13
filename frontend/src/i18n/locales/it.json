@@ -275,6 +275,8 @@
     "newKey": "Nuova chiave dispositivo",
     "revoke": "Revoca",
     "revokeConfirm": "Revocare questo dispositivo? Non potrà più caricare dati.",
+    "cancelClaim": "Annulla claim",
+    "cancelClaimConfirm": "Annullare questo claim? Il codice non è più valido e il dispositivo dovrà essere registrato di nuovo.",
     "forget": "Dimentica dispositivo",
     "forgetConfirm": "Dimenticare questo dispositivo? Non comparirà più nel tuo elenco dispositivi. Le sessioni già registrate restano intatte.",
     "status": {

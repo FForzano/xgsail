@@ -102,6 +102,10 @@ export function DeviceDetailPage() {
             <Button variant="danger" className="sf-btn--sm" onClick={() => setForgetting(true)}>
               {t("devices.forget")}
             </Button>
+          ) : d.status === "unclaimed" ? (
+            <Button variant="danger" className="sf-btn--sm" onClick={() => setRevoking(true)}>
+              {t("devices.cancelClaim")}
+            </Button>
           ) : undefined
         }
       >
@@ -213,9 +217,13 @@ export function DeviceDetailPage() {
       )}
       {revoking && (
         <ConfirmDialog
-          title={t("devices.revoke")}
-          message={t("devices.revokeConfirm")}
-          confirmLabel={t("devices.revoke")}
+          title={d.status === "unclaimed" ? t("devices.cancelClaim") : t("devices.revoke")}
+          message={
+            d.status === "unclaimed"
+              ? t("devices.cancelClaimConfirm")
+              : t("devices.revokeConfirm")
+          }
+          confirmLabel={d.status === "unclaimed" ? t("devices.cancelClaim") : t("devices.revoke")}
           busy={revoke.isPending}
           onConfirm={() => revoke.mutate()}
           onClose={() => setRevoking(false)}

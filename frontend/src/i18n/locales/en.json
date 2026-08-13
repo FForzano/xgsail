@@ -275,6 +275,8 @@
     "newKey": "New device key",
     "revoke": "Revoke",
     "revokeConfirm": "Revoke this device? It will no longer be able to upload.",
+    "cancelClaim": "Cancel claim",
+    "cancelClaimConfirm": "Cancel this claim? The code will no longer be valid and the device will need to be claimed again.",
     "forget": "Forget device",
     "forgetConfirm": "Forget this device? It will no longer appear in your device list. Its recorded sessions stay untouched.",
     "status": {
