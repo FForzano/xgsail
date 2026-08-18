@@ -698,6 +698,8 @@
     "batteryHint": "Su alcuni telefoni (Xiaomi, Huawei, Samsung, Oppo/Vivo/OnePlus...) il risparmio energetico del produttore può comunque interrompere la registrazione in background: se si interrompe, disattivalo manualmente per XGSail nelle impostazioni batteria del telefono.",
     "openSettings": "Apri impostazioni",
     "offlineWarning": "Nessuna connessione: puoi registrare comunque, il caricamento avverrà appena torna la rete.",
+    "interruptedHint": "L'app si è chiusa mentre registrava: la traccia si ferma all'ultimo punto ricevuto. Puoi caricarla così com'è oppure eliminarla.",
+    "interruptedEmpty": "Nessun punto GPS registrato: non c'è niente da caricare, puoi eliminarla.",
     "error": {
       "title": "GPS non disponibile",
       "permissionDenied": "Permesso di localizzazione negato. Concedi il permesso a XGSail per poter registrare la traccia GPS.",
@@ -711,7 +713,8 @@
       "uploading": "Caricamento…",
       "uploaded": "Caricata",
       "failed": "Caricamento fallito",
-      "permission_error": "GPS non disponibile"
+      "permission_error": "GPS non disponibile",
+      "interrupted": "Registrazione interrotta"
     },
     "source": {
       "label": "Sorgente registrazione",

@@ -68,7 +68,12 @@ export type RecordingStatus =
   | "uploading"
   | "uploaded"
   | "failed"
-  | "permission_error";
+  | "permission_error"
+  // Settled by reconcileOrphans()/stop(): a recording nothing will ever move
+  // on by itself — its app process died mid-recording or mid-upload, or it
+  // was stopped without a single GPS fix. Terminal until the user uploads
+  // what was captured or deletes it.
+  | "interrupted";
 
 export interface RecordingMeta {
   id: UUID;
@@ -93,6 +98,7 @@ const gpxPath = (id: string) => `recordings/${id}.gpx`;
 
 let index: RecordingMeta[] = [];
 let indexLoaded = false;
+let loadPromise: Promise<RecordingMeta[]> | null = null;
 let active: { id: UUID; watcherId: string | null; lastSampleAt: number } | null = null;
 const listeners = new Set<() => void>();
 
@@ -110,6 +116,13 @@ async function ensureDir() {
 
 async function loadIndex(): Promise<RecordingMeta[]> {
   if (indexLoaded) return index;
+  // Shared promise: the first load also reconciles orphans (below), which
+  // writes files — two concurrent callers must not run that twice.
+  loadPromise ??= readIndexFile();
+  return loadPromise;
+}
+
+async function readIndexFile(): Promise<RecordingMeta[]> {
   await ensureDir();
   try {
     const { data } = await Filesystem.readFile({
@@ -122,7 +135,46 @@ async function loadIndex(): Promise<RecordingMeta[]> {
     index = [];
   }
   indexLoaded = true;
+  await reconcileOrphans();
   return index;
+}
+
+/** A running recording's runtime state — `active` and the plugin watcher —
+ * only ever exists in memory, so an entry still stored as recording/paused/
+ * uploading when the index is first read belongs to an app process that no
+ * longer exists (killed by the OS, by the manufacturer's battery manager, or
+ * crashed mid-upload). Nothing can ever move such an entry on again: stop()
+ * and the upload retry both key off state this process doesn't have, which
+ * left it in the list as a permanently "recording" row — elapsed time growing
+ * for days — that the UI offered no control for. Settle them here, so they
+ * get the normal upload/delete actions like any other finished recording. */
+async function reconcileOrphans(): Promise<void> {
+  const orphans = index.filter(
+    (r) => r.status === "recording" || r.status === "paused" || r.status === "uploading",
+  );
+  if (orphans.length === 0) return;
+  for (const entry of orphans) {
+    // An orphaned upload already has its .gpx (finalize() ran at stop());
+    // an interrupted recording still needs one written before it can be
+    // uploaded at all.
+    if (entry.status !== "uploading") {
+      try {
+        const { pointCount, lastTime } = await finalize(entry.id);
+        entry.pointCount = pointCount;
+        // The recording ended when its last fix arrived, not now — otherwise
+        // the row reports the age of the orphan (days) as its duration.
+        entry.endedAt = lastTime ?? entry.startedAt;
+      } catch {
+        // Couldn't write the .gpx. The status below is still settled — an
+        // orphan that can only be deleted beats one that can't be touched.
+        entry.pointCount = 0;
+        entry.endedAt = entry.startedAt;
+      }
+    }
+    entry.status = "interrupted";
+    entry.error = undefined;
+  }
+  await saveIndex();
 }
 
 async function saveIndex() {
@@ -162,18 +214,32 @@ function toGpx(points: { lat: number; lon: number; t: string }[]): string {
   );
 }
 
-async function finalize(id: UUID): Promise<void> {
-  const { data } = await Filesystem.readFile({ path: rawPath(id), directory: Directory.Data, encoding: Encoding.UTF8 });
-  const points = (data as string)
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as { lat: number; lon: number; t: string });
+/** Turns a recording's raw point log into its .gpx. A recording that never
+ * received a fix has no raw log at all, and that must not throw: the caller
+ * is settling the recording's status, and bailing out here is what used to
+ * strand it as a "recording" entry forever. */
+async function finalize(id: UUID): Promise<{ pointCount: number; lastTime: string | null }> {
+  let points: { lat: number; lon: number; t: string }[] = [];
+  try {
+    const { data } = await Filesystem.readFile({
+      path: rawPath(id),
+      directory: Directory.Data,
+      encoding: Encoding.UTF8,
+    });
+    points = (data as string)
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { lat: number; lon: number; t: string });
+  } catch {
+    // No raw log: not a single fix was ever persisted for this recording.
+  }
   await Filesystem.writeFile({
     path: gpxPath(id),
     directory: Directory.Data,
     encoding: Encoding.UTF8,
     data: toGpx(points),
   });
+  return { pointCount: points.length, lastTime: points.length > 0 ? points[points.length - 1].t : null };
 }
 
 /** Reads a finished recording's GPX bytes as a `File`, ready for the same
@@ -383,10 +449,22 @@ export async function stop(): Promise<void> {
   // pause()/resume() deliberately don't reset: a paused-then-resumed
   // recording is one session, and its distance/max/avg should span the gap.
   liveFix.reset();
-  await finalize(id);
+  // `active` is already cleared, so from here on nothing else can settle this
+  // entry — a throw before saveIndex() would leave it stored as "recording"
+  // with no way to reach it. Hence the catch: the status is written either way.
+  let pointCount = 0;
+  try {
+    ({ pointCount } = await finalize(id));
+  } catch {
+    // Writing the .gpx failed; the raw log is still on disk, and the entry
+    // below is settled as interrupted so the user can delete it.
+  }
   const entry = index.find((r) => r.id === id);
   if (entry) {
-    entry.status = "stopped";
+    entry.pointCount = pointCount;
+    // Nothing was captured — there is no track to upload, only a row to
+    // clear, so this is settled the same way an orphan is.
+    entry.status = pointCount > 0 ? "stopped" : "interrupted";
     entry.endedAt = new Date().toISOString();
   }
   await saveIndex();

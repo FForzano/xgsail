@@ -638,6 +638,19 @@ Capacitor plugin changes, which still require a store release.
   brand-new record also needs the delete branch: if a periodic autosave
   already created the row, discarding must remove it, since reverting to
   a record that never existed is meaningless (`discard.destroysRecord`).
+- **A local recording's live state is memory-only; the on-disk index is
+  not.** `nativeRecording.ts` keeps `active` (and the plugin watcher) in a
+  module variable, so a `recording`/`paused`/`uploading` entry found in
+  `recordings/index.json` at startup is by definition an orphan of a dead
+  process — and nothing self-heals it: `stop()` returns early without an
+  in-memory `active`, and the upload retry only looks at `stopped`/`failed`.
+  Such an entry used to render in the Registra sheet as a permanently
+  "recording" row whose elapsed time grew for days, with every control
+  hidden (upload is gated on stopped/failed, delete was hidden for
+  recording/paused). `reconcileOrphans()` on first load and the `interrupted`
+  status exist for exactly this; don't reintroduce a status the row's
+  controls can't act on, and keep delete unconditional there — that list
+  never contains the active recording.
 - **`RichText.tsx` is the only place in the frontend allowed to use
   `dangerouslySetInnerHTML`.** Rendering a prose value any other way
   either shows raw tags or reintroduces the XSS surface. One-line

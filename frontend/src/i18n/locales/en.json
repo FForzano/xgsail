@@ -698,6 +698,8 @@
     "batteryHint": "On some phones (Xiaomi, Huawei, Samsung, Oppo/Vivo/OnePlus...) the manufacturer's own battery saver can still interrupt background recording: if it stops, disable it manually for XGSail in the phone's battery settings.",
     "openSettings": "Open settings",
     "offlineWarning": "No connection: you can still record, upload will happen once you're back online.",
+    "interruptedHint": "The app closed while recording: the track ends at the last fix received. You can upload it as is, or delete it.",
+    "interruptedEmpty": "No GPS points were recorded: there is nothing to upload, you can delete it.",
     "error": {
       "title": "GPS unavailable",
       "permissionDenied": "Location permission denied. Grant XGSail permission to access your location to record a GPS track.",
@@ -711,7 +713,8 @@
       "uploading": "Uploading…",
       "uploaded": "Uploaded",
       "failed": "Upload failed",
-      "permission_error": "GPS unavailable"
+      "permission_error": "GPS unavailable",
+      "interrupted": "Recording interrupted"
     },
     "source": {
       "label": "Recording source",
