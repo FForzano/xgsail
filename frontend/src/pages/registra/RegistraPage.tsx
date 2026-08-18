@@ -258,6 +258,14 @@ function RecordingRow({
     onChanged();
   };
 
+  // An interrupted recording is uploadable only if some track was actually
+  // captured before it died — an empty GPX would import as a pointless
+  // session with nothing in it.
+  const canUpload =
+    recording.status === "stopped" ||
+    recording.status === "failed" ||
+    (recording.status === "interrupted" && recording.pointCount > 0);
+
   return (
     <Card>
       <p className="sf-field__label">
@@ -269,9 +277,14 @@ function RecordingRow({
           : t(`registra.status.${recording.status}`)}{" "}
         · {fmtDuration(durationSeconds(recording))}
       </p>
+      {recording.status === "interrupted" && (
+        <p className="sf-muted">
+          {t(recording.pointCount > 0 ? "registra.interruptedHint" : "registra.interruptedEmpty")}
+        </p>
+      )}
       <ActivityPicker id={`activity-${recording.id}`} value={activityId} onChange={setActivityId} />
       <div className="sf-form__actions">
-        {(recording.status === "stopped" || recording.status === "failed") && (
+        {canUpload && (
           <Button onClick={() => void doUpload()} disabled={busy}>
             {t("registra.upload")}
           </Button>
@@ -281,11 +294,15 @@ function RecordingRow({
             {t("registra.reassign")}
           </Button>
         )}
-        {recording.status !== "recording" && recording.status !== "paused" && recording.status !== "uploading" && (
-          <Button variant="danger" onClick={() => void doRemove()} disabled={busy}>
-            {t("common.delete")}
-          </Button>
-        )}
+        {/* Always offered: this list only ever renders recordings that are
+            not the active one, so nothing here is a live track being
+            recorded — a row stuck in a running-looking state (an app killed
+            mid-recording, an upload interrupted) is exactly the case that
+            most needs a way out. `busy` covers an operation this row itself
+            started. */}
+        <Button variant="danger" onClick={() => void doRemove()} disabled={busy}>
+          {t("common.delete")}
+        </Button>
         {recording.error === ERROR_PERMISSION_DENIED && (
           <Button variant="ghost" onClick={() => void nativeRecording.openSettings()}>
             {t("registra.openSettings")}
@@ -574,7 +591,14 @@ export function RegistraPage() {
   };
 
   const pendingRecordingCount = recordings.filter(
-    (r) => r.id !== activeId && (r.status === "stopped" || r.status === "failed" || r.status === "uploading"),
+    (r) =>
+      r.id !== activeId &&
+      (r.status === "stopped" ||
+        r.status === "failed" ||
+        r.status === "uploading" ||
+        // Interrupted ones can only leave the list by the user's hand
+        // (upload or delete), so they keep the badge until dealt with.
+        r.status === "interrupted"),
   ).length;
 
   return (
