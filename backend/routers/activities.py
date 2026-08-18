@@ -92,7 +92,7 @@ def list_activities(request: Request, type: Optional[str] = None,
         )]
     activities = repos.activities.list(
         club_id=club_id, group_id=group_id, type=type, status=status,
-        created_by=user.id if mine else None,
+        crewed_or_created_by=user.id if mine else None,
         member_of_user=user.id if member_clubs else None,
         viewer_id=user.id if user else None,
         viewer_is_superadmin=bool(user and user.is_superadmin),

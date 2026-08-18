@@ -37,6 +37,19 @@ class SqlActivityRepo:
     def __init__(self, session_factory):
         self.Session = session_factory
 
+    @staticmethod
+    def _crew_activity_ids(user_id: uuid.UUID):
+        """Activities the user crews a session of.
+
+        Two questions in this file need it: whether they may *see* an activity
+        (``_visibility_clause``) and whether it belongs in *their* diary
+        (``?mine=true``). One definition rather than two copies."""
+        return (
+            select(SessionORM.activity_id)
+            .join(SessionCrewORM, SessionCrewORM.session_id == SessionORM.id)
+            .where(SessionCrewORM.user_id == user_id)
+        )
+
     def _visibility_clause(self, viewer_id: Optional[uuid.UUID]):
         """SQL equivalent of ``auth.permissions.activity_visible_to``, so
         visibility can be applied *before* LIMIT/OFFSET — filtering it in
@@ -47,12 +60,7 @@ class SqlActivityRepo:
         if viewer_id is None:
             return or_(*conditions)
         conditions.append(ActivityORM.created_by == viewer_id)
-        crew_activity_ids = (
-            select(SessionORM.activity_id)
-            .join(SessionCrewORM, SessionCrewORM.session_id == SessionORM.id)
-            .where(SessionCrewORM.user_id == viewer_id)
-        )
-        conditions.append(ActivityORM.id.in_(crew_activity_ids))
+        conditions.append(ActivityORM.id.in_(self._crew_activity_ids(viewer_id)))
         member_club_ids = select(UserClubORM.club_id).where(
             UserClubORM.user_id == viewer_id,
             UserClubORM.status == "active",
@@ -106,6 +114,7 @@ class SqlActivityRepo:
              type: Optional[str] = None,
              status: Optional[str] = None,
              created_by: Optional[uuid.UUID] = None,
+             crewed_or_created_by: Optional[uuid.UUID] = None,
              member_of_user: Optional[uuid.UUID] = None,
              viewer_id: Optional[uuid.UUID] = None,
              viewer_is_superadmin: bool = False,
@@ -125,6 +134,20 @@ class SqlActivityRepo:
                 q = q.where(ActivityORM.status == status)
             if created_by is not None:
                 q = q.where(ActivityORM.created_by == created_by)
+            if crewed_or_created_by is not None:
+                # "Mine" in the personal diary means the outings that are
+                # mine to look back on, which includes the ones somebody else
+                # started and I sailed: when two people aboard both record,
+                # the shared session lives in whichever of them uploaded
+                # first, so an authorship-only filter hides my own outing from
+                # me. In SQL, and before LIMIT/OFFSET, for the reason
+                # _visibility_clause spells out. An IN subquery rather than a
+                # join, so a multi-session activity still yields one row and
+                # the caller's page-size arithmetic keeps working.
+                q = q.where(or_(
+                    ActivityORM.created_by == crewed_or_created_by,
+                    ActivityORM.id.in_(self._crew_activity_ids(crewed_or_created_by)),
+                ))
             if member_of_user is not None:
                 member_club_ids = select(UserClubORM.club_id).where(
                     UserClubORM.user_id == member_of_user,

@@ -20,7 +20,8 @@ from ...db.models import (
 _UPLOAD_FIELDS = ("session_id", "source_type", "device_id", "import_id",
                   "subject_type", "subject_user_id", "raw_ref",
                   "sequence_number", "is_final", "status")
-_STREAM_FIELDS = ("sensor_type", "data_ref", "sample_rate_hz", "row_count")
+_STREAM_FIELDS = ("sensor_type", "data_ref", "sample_rate_hz", "row_count",
+                  "first_t", "last_t")
 _PHYSIO_STAT_FIELDS = ("avg_hr_bpm", "max_hr_bpm", "min_hr_bpm", "total_kcal",
                        "avg_kcal_per_min", "avg_hrv_ms", "avg_resp_brpm",
                        "hr_duration_s", "computed_at")
@@ -105,6 +106,22 @@ class SqlIngestRepo:
             if import_id is not None:
                 q = q.where(SessionUploadORM.import_id == import_id)
             return list(s.scalars(q).all())
+
+    def move_upload_to_session(self, upload_id: uuid.UUID,
+                               session_id: uuid.UUID) -> Optional[SessionUploadORM]:
+        """Re-parent one upload onto another session (``services/session_split.py``).
+
+        Its own method rather than a ``session_id`` entry in ``update_upload``'s
+        allow-list: re-parenting drags the upload's streams and physio stats
+        with it and invalidates both sessions' analyses, so it must not be
+        reachable from a generic "patch these fields" call."""
+        with self.Session() as s:
+            orm = s.get(SessionUploadORM, upload_id)
+            if orm is None:
+                return None
+            orm.session_id = session_id
+            s.commit()
+        return self.get_upload(upload_id)
 
     def update_upload(self, upload_id: uuid.UUID, changes: dict) -> Optional[SessionUploadORM]:
         allowed = ("status", "is_final", "raw_ref", "reanalysis_status",

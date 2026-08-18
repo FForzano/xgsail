@@ -480,14 +480,35 @@ export interface NavSourceCandidate {
   row_count: number | null;
   sample_rate_hz: number | null;
   uploaded_at: string;
+  // Span of this track, and how many seconds of the session's own window it
+  // covers — DB columns now (session_streams.first_t/last_t), so they arrive
+  // without `quality`. Null on tracks recorded before those columns existed.
   first_t: string | null;
   last_t: string | null;
   duration_s: number | null;
+  coverage_s: number | null;
+  session_started_at: string | null;
+  session_ended_at: string | null;
+  // Still only measured with `quality=true`: it needs the series itself.
   gap_count: number | null;
   // is_primary = explicitly chosen; is_resolved = what the app reads today,
   // which differs when no choice was ever made and the ranking decided.
   is_primary: boolean;
   is_resolved: boolean;
+}
+
+/** Someone is recording on one of my boats right now. Presence only: no
+ * session exists yet, and this is a hint for the UI — never a permission. */
+export interface LiveRecording {
+  id: UUID;
+  boat_id: UUID;
+  boat_name: string | null;
+  activity_id: UUID | null;
+  activity_name: string | null;
+  started_at: string;
+  last_seen_at: string;
+  user_id: UUID;
+  user: UserSummary | null;
 }
 
 export interface SessionStats {
@@ -666,6 +687,17 @@ export interface ImportRow {
   error: string | null;
   session_id?: UUID | null;
   created_at: string;
+}
+
+/** Only `POST /imports/{id}/complete` carries this — `GET /imports/{id}`,
+ * which the wizard polls afterwards, does not. It is the one moment the
+ * uploader learns their track was joined to an outing that was already
+ * there (backend/services/ingestion.py::resolve_session). */
+export interface ImportCompleted extends ImportRow {
+  session_upload_id: UUID;
+  session_id: UUID;
+  session_merged: boolean;
+  session_crew: UserSummary[];
 }
 
 export interface ImportTicket {

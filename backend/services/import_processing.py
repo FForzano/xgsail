@@ -87,8 +87,10 @@ def complete_import(import_row, *, boat_id: uuid.UUID,
         if session is None or session.boat_id != boat_id:
             raise HTTPException(404, "Session not found for this boat")
         repos.sessions.extend_window(session.id, started_at, ended_at)
+        # The caller named the session: joining it is not a surprise.
+        merged = False
     else:
-        session = ingestion.find_or_create_session(
+        session, merged = ingestion.resolve_session(
             boat_id=boat_id, started_at=started_at, ended_at=ended_at,
             activity_id=activity_id, created_by=user_id,
         )
@@ -122,6 +124,8 @@ def complete_import(import_row, *, boat_id: uuid.UUID,
         ingestion.stage_raw_upload(upload.id, import_row.original_filename, blob.get_bytes(raw_key))
         repos.ingest.update_import(import_row.id, {"status": "processed"})
 
+    from ..routers._common import user_summary  # local: avoids an import cycle
+
     return {
         # Flat, same shape as GET /api/imports/{id} (frontend's `ImportRow`)
         # — the wizard polls that endpoint after this call and assigns both
@@ -131,4 +135,13 @@ def complete_import(import_row, *, boat_id: uuid.UUID,
         **repos.ingest.get_import(import_row.id).to_dict(),
         "session_upload_id": upload.id,
         "session_id": session.id,
+        # Flat for the same reason, and additive: GET /api/imports/{id} does
+        # not carry these, so a client that keeps polling must not let the
+        # poll response overwrite them. This response is the only moment the
+        # uploader learns their track joined somebody else's outing — the
+        # merge is decided server-side and is otherwise invisible.
+        "session_merged": merged,
+        "session_crew": [user_summary(c.user_id)
+                         for c in repos.sessions.list_crew(session.id)
+                         if c.user_id != user_id],
     }

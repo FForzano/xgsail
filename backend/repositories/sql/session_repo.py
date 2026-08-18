@@ -22,6 +22,7 @@ from ...db.models import (
     SessionORM,
     SessionPhotoORM,
     SessionStatsORM,
+    SessionStreamORM,
     SessionUploadORM,
     SessionVideoORM,
 )
@@ -191,6 +192,37 @@ class SqlSessionRepo:
                 orm.started_at = started_at
             if ended_at is not None and (orm.ended_at is None or ended_at > orm.ended_at):
                 orm.ended_at = ended_at
+            s.commit()
+
+    def recompute_window(self, session_id: uuid.UUID) -> None:
+        """Reset the session bounds to the span of the streams it still holds.
+
+        The only method here that can *shrink* a window — ``extend_window``
+        widens monotonically, which is right while data is arriving and wrong
+        after an upload has been detached, since the session would keep
+        claiming hours it no longer has any track for.
+
+        A no-op when no remaining stream carries measured bounds (rows written
+        before ``session_streams.first_t``): leaving a window too wide is
+        strictly safer than fabricating a narrow one out of nothing."""
+        with self.Session() as s:
+            orm = s.get(SessionORM, session_id)
+            if orm is None:
+                return
+            bounds = s.execute(
+                select(func.min(SessionStreamORM.first_t),
+                       func.max(SessionStreamORM.last_t))
+                .join(SessionUploadORM,
+                      SessionStreamORM.session_upload_id == SessionUploadORM.id)
+                .where(SessionUploadORM.session_id == session_id)
+            ).one()
+            first_t, last_t = bounds
+            if first_t is None and last_t is None:
+                return
+            if first_t is not None:
+                orm.started_at = first_t
+            if last_t is not None:
+                orm.ended_at = last_t
             s.commit()
 
     def rollup_status(self, session_id: uuid.UUID) -> Optional[str]:

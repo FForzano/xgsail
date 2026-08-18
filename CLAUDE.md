@@ -172,7 +172,12 @@ Two authorization models:
    scoped via `user_roles.scope_club_id`.
 2. **Per-resource ownership** (`user_boats.role`, `user_groups.role`)
    for personal/boat-scoped resources — the relationship itself grants
-   access, no centralized permission check.
+   access, no centralized permission check. `session_crew` is the
+   session-level counterpart: `is_session_crew_or_manager` is what gates
+   notes, media, the choice of navigation track, and separating a
+   contributed track — a session is routinely co-owned by two people who
+   recorded the same outing, and only one of them owns the activity it
+   ended up in (see the Gotchas below and `docs/device-protocol.md` §10).
 3. **Regatta start list** (`regatta_entries`) for the one case neither
    covers: a competitor who is not a club member and not an editor of
    the organizing club's race activity, but must still be able to
@@ -356,9 +361,9 @@ Shared UI primitives live in `components/ui/`; data fetching in
 One module per resource, registered in `routers/__init__.py`
 (`ALL_ROUTERS`): `app_config`, `legal`, `auth`, `users`, `rbac`,
 `boats`, `clubs`, `groups`, `posts`, `note_templates`, `devices`,
-`integrations`, `activities`, `sessions`, `polars`, `regattas`,
-`racedays`, `races`, `device_api`, `imports`, `ingest`, `uploads`,
-`download`, `wind`, `system`, `video`.
+`integrations`, `activities`, `sessions`, `live_recordings`, `polars`,
+`regattas`, `racedays`, `races`, `device_api`, `imports`, `ingest`,
+`uploads`, `download`, `wind`, `system`, `video`.
 
 Principals differ per router: cookie- or Bearer-authenticated users
 (most routers — see "Native apps"), `DeviceKey`-authenticated hardware
@@ -388,6 +393,15 @@ left in the router layer.
   SPA or Capacitor shell (frontend/) → REST API (backend/) → Postgres
   (metadata) + object storage (processed data, referenced by
   data_ref/raw_ref)
+
+[Two crew members, one outing]
+  each phone records its own track → both upload as manual imports →
+  find_or_create_session merges them by boat + time window into ONE session,
+  both recorders added to session_crew, both tracks kept as session_uploads
+  → nav_source resolves which track the analysis uses
+  → /api/live-recordings announces a recording in progress so the second
+    person can join it deliberately; /sessions/{id}/uploads/{id}/detach
+    undoes a merge that was wrong (docs/device-protocol.md §10–§11)
 
 [Native app OTA update]
   frontend/dist → scripts/deploy-ota.sh (zip + checksum + upload) →
@@ -662,6 +676,52 @@ Capacitor plugin changes, which still require a store release.
   must stay in lockstep.** A tag the editor can produce but the
   sanitizer drops is silently eaten on save, and the user watches
   their content disappear.
+
+- **Two people recording one outing land on one session, automatically.**
+  `find_or_create_session` reuses a session of the same boat whose window
+  overlaps within `SESSION_MERGE_GAP_MINUTES`, and adds both recorders to
+  `session_crew`. Everything downstream has to assume a session has several
+  contributors: each keeps its own `session_uploads` row, physio stays
+  per-person, and only one track is analysed
+  (`nav_source.resolve_nav_upload`). `docs/device-protocol.md` §10 is the
+  contract; the inverse is `POST /sessions/{id}/uploads/{upload_id}/detach`.
+- **`ON DELETE SET NULL` does not fire on `UPDATE`.** Re-parenting a
+  `session_uploads` row leaves `sessions.primary_nav_upload_id` naming a track
+  the session no longer owns, and `resolve_nav_upload` degrades quietly (logs,
+  falls back to the ranking) — so the corruption stays invisible until someone
+  wonders why their explicit choice stopped applying. Anything that moves an
+  upload between sessions clears/carries the pointer by hand
+  (`services/session_split.py`). Same file is the only user of
+  `SqlSessionRepo.recompute_window`, the one method that can *shrink* a
+  session window — `extend_window` widens monotonically, which is right while
+  data is arriving and wrong once some has left.
+- **`session_streams.first_t`/`last_t` are NULL on every stream written before
+  revision `0050`, and nothing backfills them.** A migration must not read
+  object storage, and copying `sessions.started_at`/`ended_at` in would be
+  wrong — that is the *merged* window, the very thing per-stream bounds exist
+  to disambiguate. So `nav_source` skips its coverage criterion entirely
+  unless every candidate is measurable; a ranking change that scores NULL as
+  "covers nothing" silently demotes every historical track.
+- **`live_recordings` is presence, not data.** No row creates or reserves a
+  session, an activity or an upload, liveness is a read-time predicate over
+  `last_seen_at` (no cleanup job exists to add one to), and the banner it
+  feeds is a UI hint — never an authorization decision, same rule as the
+  offline capabilities snapshot. The announce/heartbeat/end calls live in
+  `hooks/useLiveRecordingPresence.ts`, mounted in `AppShell`: not in
+  `services/nativeRecording.ts`, which is deliberately free of API/auth
+  imports so recording keeps working with no server at all, and not in
+  `RegistraPage`, which unmounts while recordings carry on. Every such call is
+  best-effort and must never touch the recordings index or block a recording.
+- **`POST /imports/{id}/complete` returns keys that `GET /imports/{id}` does
+  not** (`session_merged`, `session_crew`). The wizard polls the GET
+  afterwards and assigns it to the same state, so anything that folds those
+  keys into the polled row erases the merge notice on the first tick — see
+  `useImportUpload`'s separate `mergeInfo`.
+- **`?mine=true` on activities means "created by me **or** crewed by me".**
+  A shared outing lives in the private `solo` activity of whoever uploaded
+  first, so an authorship-only filter hid the second recorder's own outing
+  from their own diary. The clause is SQL and runs before `LIMIT`/`OFFSET`,
+  for the reason `_visibility_clause` documents.
 
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.

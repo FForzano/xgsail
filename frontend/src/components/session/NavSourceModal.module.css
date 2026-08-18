@@ -74,3 +74,30 @@
   margin: 0.75rem 0 0;
   font-size: 0.78rem;
 }
+
+/* Separating a track is the opposite decision from choosing one — set apart
+   below the list rather than mixed into it. */
+.detachBlock {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--sf-border);
+}
+
+.detachRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  padding: 0.35rem 0;
+}
+
+.detachName {
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.detachActions {
+  display: flex;
+  gap: 0.4rem;
+}

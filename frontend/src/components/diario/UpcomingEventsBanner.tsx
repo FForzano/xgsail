@@ -9,7 +9,7 @@ import { fmtDateTime } from "@/utils/format";
 import { activityDisplayName } from "@/utils/activityName";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
 import type { EventItem } from "@/components/diario/EventRow";
-import styles from "./UpcomingEventsBanner.module.css";
+import styles from "./calloutStrip.module.css";
 
 const LIMIT = 5;
 
@@ -91,7 +91,7 @@ export function UpcomingEventsBanner() {
             <span className="sf-badge sf-badge--success">{t("activities.tomorrow")}</span>
             <div className={styles.text}>
               <span className={styles.title}>{t("onboarding.demo.event.title")}</span>
-              <p className={`sf-muted ${styles.organizer}`}>{t("onboarding.demo.event.organizer")}</p>
+              <p className={`sf-muted ${styles.subtitle}`}>{t("onboarding.demo.event.organizer")}</p>
             </div>
             <span className={styles.cta}>{t("activities.viewDetails")}</span>
           </div>
@@ -118,7 +118,7 @@ export function UpcomingEventsBanner() {
             <div className={styles.text}>
               <span className={styles.title}>{item.title}</span>
               {org && (
-                <p className={`sf-muted ${styles.organizer}`}>
+                <p className={`sf-muted ${styles.subtitle}`}>
                   {t("activities.organizedBy", { name: org })}
                 </p>
               )}

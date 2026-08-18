@@ -15,7 +15,12 @@ import styles from "./EventRow.module.css";
 /** Who/what an activity or regatta is attributed to, shown as an extra badge
  * next to the kind badge (personal vs. club vs. group — color + text, not
  * just color, per the diario redesign). */
-export type Ownership = { kind: "personal" | "club" | "group"; name?: string };
+export type Ownership = {
+  // "crew" = an outing someone else created that I was aboard for; it reaches
+  // my diary through session_crew, not through authorship.
+  kind: "personal" | "crew" | "club" | "group";
+  name?: string;
+};
 
 export type EventItem =
   | {

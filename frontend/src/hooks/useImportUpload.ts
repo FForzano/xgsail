@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { importsService } from "@/services/imports";
 import { putToUploadUrl } from "@/api/media";
 import { ApiError } from "@/api/client";
-import type { ImportRow, UUID } from "@/types";
+import type { ImportRow, UserSummary, UUID } from "@/types";
 
 export type ImportUploadPhase = "idle" | "uploading" | "processing" | "done" | "failed";
 
@@ -11,6 +11,14 @@ interface StartOptions {
   activityId?: UUID;
   subjectType?: "boat" | "crew_member";
   subjectUserId?: UUID;
+}
+
+/** Whether this upload joined an outing that was already there, and whose.
+ * Decided server-side by boat and time window, so this is the only moment the
+ * uploader learns about it. */
+export interface MergeInfo {
+  sessionId: UUID;
+  crew: UserSummary[];
 }
 
 /** Shared create → PUT → complete → poll sequence for the manual-import
@@ -22,6 +30,10 @@ interface StartOptions {
 export function useImportUpload() {
   const [phase, setPhase] = useState<ImportUploadPhase>("idle");
   const [row, setRow] = useState<ImportRow | null>(null);
+  // Kept apart from `row` on purpose: the CSV poll below refreshes `row` from
+  // GET /imports/{id}, which does not carry the merge keys — folding them in
+  // would erase the merge on the first tick.
+  const [mergeInfo, setMergeInfo] = useState<MergeInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -29,6 +41,7 @@ export function useImportUpload() {
     setError(null);
     setUploadProgress(0);
     setRow(null);
+    setMergeInfo(null);
     try {
       setPhase("uploading");
       const ticket = await importsService.create(file.name);
@@ -44,6 +57,9 @@ export function useImportUpload() {
         subject_user_id: options.subjectUserId,
       });
       setRow(completed);
+      if (completed.session_merged) {
+        setMergeInfo({ sessionId: completed.session_id, crew: completed.session_crew });
+      }
       if (completed.status === "processed") setPhase("done");
       else if (completed.status === "failed") setPhase("failed");
       return completed;
@@ -77,9 +93,10 @@ export function useImportUpload() {
   const reset = () => {
     setPhase("idle");
     setRow(null);
+    setMergeInfo(null);
     setError(null);
     setUploadProgress(0);
   };
 
-  return { phase, row, error, uploadProgress, start, reset };
+  return { phase, row, mergeInfo, error, uploadProgress, start, reset };
 }

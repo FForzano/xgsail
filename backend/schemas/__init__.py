@@ -61,6 +61,7 @@ from .wind import WindStationWriteModel, WindFetchModel
 from .polar import PolarPointModel, PolarUpsertModel
 from .post import PostCreateModel, PostUpdateModel
 from .note_template import NoteTemplateCreateModel, NoteTemplateUpdateModel
+from .live_recording import LiveRecordingUpsertModel
 
 __all__ = [
     "AppConfigUpdateModel",
@@ -127,4 +128,5 @@ __all__ = [
     "PostUpdateModel",
     "NoteTemplateCreateModel",
     "NoteTemplateUpdateModel",
+    "LiveRecordingUpsertModel",
 ]

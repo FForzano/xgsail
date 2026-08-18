@@ -302,6 +302,8 @@ list visibility; recorded sessions are untouched.
 | `DELETE /api/devices/{id}` | user cookie (owner) | Revoke a device |
 | `POST /api/devices/{id}/forget` | user cookie (owner) | Hide an already-revoked device from device lists |
 | `GET /api/devices/{id}/health` | user cookie (owner) | Read back the latest health snapshot |
+| `GET/PUT/DELETE /api/live-recordings` | user cookie or Bearer | Presence: who is recording on my boats right now (§11) |
+| `POST /api/sessions/{id}/uploads/{upload_id}/detach` | user cookie or Bearer (crew, or own upload) | Separate one contributed track into its own session (§10.3) |
 
 ---
 
@@ -519,10 +521,36 @@ stays per-person, but navigation must be single-valued: the map, the GPX
 export, the replay endpoints and the whole analysis pipeline have to agree on
 one track.
 
+The same happens without any wearable at all: two crew members recording the
+same outing on their phones produce two manual imports that merge by boat and
+time window (§10).
+
 `sessions.primary_nav_upload_id` (migration `0041`) records an explicit choice.
-When it is NULL, `backend/services/nav_source.py` ranks the candidates: a
-`boat_tracker` device before a `wearable`, `subject_type=boat` before
-`crew_member`, more points before fewer, older upload as a stable tiebreak.
+When it is NULL, `backend/services/nav_source.py` ranks the candidates:
+
+1. a `boat_tracker` device before a `wearable` — it is fixed to the hull;
+2. `subject_type=boat` before `crew_member`;
+3. **more of the outing covered before less** — the span of each stream
+   (`session_streams.first_t`/`last_t`, migration `0050`) clamped to the
+   session's own window, bucketed to whole minutes;
+4. more points before fewer, which now only separates tracks of comparable
+   extent;
+5. older upload as a stable tiebreak.
+
+Criterion 3 is what stops a phone that quit twenty minutes early from winning
+for having sampled faster while it ran — which is the ordinary two-phone case,
+where neither hardware criterion discriminates. It is **skipped entirely
+unless every candidate carries measured bounds**: `first_t`/`last_t` are NULL
+on streams written before migration `0050` and nothing backfills them (a
+migration must not read object storage), so treating NULL as "covers nothing"
+would demote every historical track. With any span unknown, the ranking is
+exactly what it was before.
+
+`first_t`/`last_t` come from the values the worker callback already sends:
+`POST /api/system/ingest/complete`'s `start_time`/`end_time` describe the one
+series that callback processed, and are recorded on its stream row. The GPX
+import path sets them from the file's own first and last point.
+
 The ranking deliberately ignores upload *recency* — otherwise a crew member
 relaying their watch after the boat's tracker would silently swap out the track
 of an already-analysed session.
@@ -532,7 +560,11 @@ Two consequences worth knowing when integrating:
 - `GET /api/sessions/{id}/streams` returns **one** row per boat sensor: the
   resolved upload's. The alternatives are listed by
   `GET /api/sessions/{id}/nav-sources`, which exists to choose between them
-  (`PATCH /api/sessions/{id}/nav-source`, which re-runs the analysis).
+  (`PATCH /api/sessions/{id}/nav-source`, which re-runs the analysis). Both are
+  crew-level, not owner-level: on a session two people contributed to, the
+  other contributor is often not a boat manager. `nav-sources` serves each
+  candidate's `first_t`/`last_t`/`coverage_s` from the DB; `?quality=true`
+  additionally measures `gap_count`, which does read the series.
 - `imu`/`wind`/`pressure` come from the same upload as the track, since they
   are the same physical device. Mixing one device's heel with another's
   position would fabricate a boat state that never existed.
@@ -556,3 +588,98 @@ race (human tap latency), so it is never written to `races.start_time`
 It exists so that, once several boats in the same race have logged a start,
 that data can later be compared/aggregated to evaluate whether it's usable —
 a separate, not-yet-built piece of work.
+
+
+---
+
+## 10. Two people, one boat
+
+Two crew members recording the same outing — helm and bow, two phones — is
+first-class, not an edge case. Nothing about it is device-specific: both
+tracks arrive as ordinary manual imports (§3) attributed to their own
+recorder (`subject_type=crew_member`, `subject_user_id=self`).
+
+### 10.1 The merge
+
+`backend/services/ingestion.py::find_or_create_session` matches an existing
+session of the **same boat** whose window overlaps, or comes within
+`SESSION_MERGE_GAP_MINUTES` (10) of, the incoming one, and reuses it. Both
+recorders are added to `session_crew` (`add_recorder_as_crew` runs on the
+reuse branch too — a second device in the same window means a second person
+was genuinely aboard). Each keeps its own `session_uploads` row, so:
+
+- every track is retained, and any of them can become the session's
+  navigation track (§9.2c);
+- physiological data stays per-person and private
+  (`session_uploads.physio_shared`, §9.2b);
+- the outing appears in **both** diaries, including when it lives in the
+  other person's private `solo` activity — `GET /api/activities?mine=true`
+  matches "created by me **or** crewed by me".
+
+### 10.2 Saying so, before and after
+
+- `GET /api/live-recordings` (§11) is the *before*: it lets the second person
+  join the outing deliberately, on the same boat and activity, instead of the
+  merge having to guess.
+- `POST /api/imports/{id}/complete` is the *after*: it returns
+  `session_merged` and `session_crew` (the session's other contributors)
+  alongside `session_id`/`session_upload_id`. This is the only moment the
+  uploader learns the merge happened, and it works identically online and
+  offline, since a deferred upload simply reports it whenever it goes through.
+  `GET /api/imports/{id}`, which clients poll afterwards, does **not** carry
+  these keys.
+  `session_merged` is true only for the implicit boat+window match — reusing
+  the session of an activity the uploader explicitly chose is the documented
+  one-session-per-boat-per-activity rule, not a surprise.
+
+### 10.3 Undoing it
+
+`POST /api/sessions/{id}/uploads/{upload_id}/detach` moves one contributed
+track onto a session of its own. Crew-level, plus the unconditional right to
+withdraw your own upload. Semantics:
+
+- `session_streams` and `session_physio_stats` are keyed on the upload, so
+  they follow it;
+- if `sessions.primary_nav_upload_id` named the moved upload, the source is
+  cleared and the new session inherits the choice — `ON DELETE SET NULL` does
+  not fire on `UPDATE`;
+- the source session's window is **recomputed** (not merely widened) from the
+  streams it still holds;
+- the parent activity is kept when it is not a `solo` wrapper: a club training
+  or a race is a real shared event, and moving a detached track into a private
+  activity would pull it out of that event's replay and data endpoints. Only a
+  standalone `solo` recording mints a fresh private activity;
+- the contributor is dropped from the source session's crew only if they have
+  nothing left on it;
+- both sessions are re-analysed;
+- `409` when the session has only one upload — there is nothing to separate.
+
+Two limitations worth knowing: there is no one-click *re*-merge (re-import, or
+move the session onto the same activity), and a wearable contributes two
+uploads (§9.1), so separating a watch fully means detaching both.
+
+---
+
+## 11. Live recordings (presence)
+
+`live_recordings` (migration `0049`) answers one question: is anybody else on
+this boat recording right now.
+
+| Verb | Path | |
+|---|---|---|
+| `GET` | `/api/live-recordings` | Active recordings on boats the caller is a member of, **their own excluded** |
+| `PUT` | `/api/live-recordings` | Announce **or** heartbeat — one call, idempotent on `client_recording_id` |
+| `DELETE` | `/api/live-recordings?boat_id=…` | Stop advertising; always succeeds |
+
+`PUT` requires boat membership in any role (`visitor` included). It is not an
+authorization decision of any kind: the banner it feeds is a hint, and every
+recording proceeds whether or not these calls ever succeed.
+
+**No session, activity or upload is created at start.** An abandoned recording
+therefore leaves nothing behind. Liveness is a read-time predicate over
+`last_seen_at` (`LIVE_STALE_AFTER`, 20 minutes) rather than a cleanup job, and
+rows nothing will refresh again are pruned opportunistically on write — so
+there is no scheduled task to run in the self-hosted stack. The price is that a
+recording whose app died keeps advertising for up to the staleness window; the
+window is generous on purpose, because the heartbeat comes from a phone that is
+locked and backgrounded for most of an outing.

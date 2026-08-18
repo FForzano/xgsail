@@ -6,6 +6,7 @@ import { regattasService, raceKeys } from "@/services/races";
 import { clubsService, clubKeys } from "@/services/clubs";
 import { groupsService, groupKeys } from "@/services/groups";
 import { useInfiniteScrollSentinel } from "@/hooks/useInfiniteScrollSentinel";
+import { useAuth } from "@/hooks/useAuth";
 import { activityDisplayName } from "@/utils/activityName";
 import type { EventItem, Ownership } from "@/components/diario/EventRow";
 
@@ -19,6 +20,7 @@ const PAGE_SIZE = 20;
  * volume than activities). */
 export function useDiaryFeed(scope: "personal" | "clubs", t: TFunction) {
   const [type, setType] = useState("");
+  const { user } = useAuth();
 
   const activities = useInfiniteQuery({
     queryKey: activityKeys.list({ type, scope }),
@@ -61,11 +63,17 @@ export function useDiaryFeed(scope: "personal" | "clubs", t: TFunction) {
       // `ClubEvents.tsx` already applies).
       .filter((a) => a.type !== "race")
       .map((a) => {
+        // A shared outing lives in the private solo activity of whoever
+        // uploaded first, so the personal feed legitimately contains
+        // activities the viewer did not create. Badging those "Personale"
+        // would imply an edit right they do not have.
         const ownership: Ownership = a.club_id
           ? { kind: "club", name: clubName(a.club_id) }
           : a.group_id
             ? { kind: "group", name: groupName(a.group_id) }
-            : { kind: "personal" };
+            : a.created_by && user && a.created_by !== user.id
+              ? { kind: "crew" }
+              : { kind: "personal" };
         return {
           kind: "activity",
           id: a.id,
@@ -88,7 +96,7 @@ export function useDiaryFeed(scope: "personal" | "clubs", t: TFunction) {
     return [...activityItems, ...regattaItems].sort(
       (a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime(),
     );
-  }, [activityList, regattas.data, clubs.data, groups.data, t]);
+  }, [activityList, regattas.data, clubs.data, groups.data, user?.id, t]);
 
   const sentinelRef = useInfiniteScrollSentinel<HTMLDivElement>(
     () => activities.fetchNextPage(),

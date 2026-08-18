@@ -10,6 +10,7 @@ import { PullRefreshProvider } from "@/contexts/PullRefreshContext";
 import * as nativeRecording from "@/services/nativeRecording";
 import { useE1AutoSync } from "@/services/e1Sync";
 import { useWatchRelay } from "@/hooks/useWatchRelay";
+import { useLiveRecordingPresence } from "@/hooks/useLiveRecordingPresence";
 import { ToastViewport } from "@/components/ui/ToastViewport";
 import { Avatar } from "@/components/ui/Avatar";
 import { ProfileMenu } from "@/components/layout/ProfileMenu";
@@ -69,6 +70,11 @@ function AppShellInner() {
   // silent, event-driven; uploads land under the signed-in user as the
   // crew_member subject for the physiological streams.
   useWatchRelay(queryClient, user?.id, !navMode);
+
+  // Tells the boat's other crew that a recording is under way, so they can
+  // join the same outing rather than discovering afterwards that their track
+  // was merged into it. Headless and best-effort — see the hook.
+  useLiveRecordingPresence(user?.id, !navMode);
 
   // Local GPS recordings still waiting to upload (or retrying) — surfaced
   // as a badge on the Registra nav item so it's visible from anywhere in

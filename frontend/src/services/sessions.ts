@@ -79,6 +79,12 @@ export const sessionsService = {
       `/sessions/${id}/nav-source`,
       { session_upload_id: sessionUploadId },
     ),
+  // Undo the automatic boat+window merge for one contributed track: it moves
+  // to a session of its own, and both sessions are re-analysed.
+  detachUpload: (id: UUID, sessionUploadId: UUID) =>
+    api.post<{ ok: boolean; session_id: UUID; activity_id: UUID; source_session_id: UUID }>(
+      `/sessions/${id}/uploads/${sessionUploadId}/detach`,
+    ),
 
   correctManeuver: (id: UUID, maneuverId: UUID, maneuverType: SessionManeuver["maneuver_type"]) =>
     api.patch<SessionManeuver>(`/sessions/${id}/maneuvers/${maneuverId}`, { maneuver_type: maneuverType }),

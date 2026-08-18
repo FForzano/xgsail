@@ -21,6 +21,7 @@ from .race import (
     RaceDayORM, RaceORM, ResultORM,
 )
 from .activity import ActivityORM, MarkORM
+from .live_recording import LiveRecordingORM
 from .session import (
     SessionORM,
     SessionCrewORM,
@@ -70,6 +71,7 @@ __all__ = [
     "ResultORM",
     "ActivityORM",
     "MarkORM",
+    "LiveRecordingORM",
     "SessionORM",
     "SessionCrewORM",
     "SessionPhotoORM",
