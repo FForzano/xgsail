@@ -998,6 +998,12 @@ body.sf-nav-mode .sf-shell {
   background: color-mix(in srgb, var(--sf-leg-downwind) 25%, transparent);
   color: var(--sf-leg-downwind);
 }
+/* An outing somebody else started that I sailed — it belongs in my diary, but
+   calling it "Personale" would suggest I can edit it. */
+.sf-badge--crew {
+  background: color-mix(in srgb, var(--sf-muted) 25%, transparent);
+  color: var(--sf-muted);
+}
 /* Smaller variant for tight contexts (under a name in a roster row) —
    avoids forcing the row to wrap/overflow the way a full-size badge does. */
 .sf-badge--sm {

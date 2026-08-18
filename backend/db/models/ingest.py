@@ -152,3 +152,15 @@ class SessionStreamORM(UUIDPKMixin, Base):
     # S3 ref of the processed/normalized series (raw 10Hz data NOT in DB).
     data_ref: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     row_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Span of the series, mirrored from the worker callback's start/end times
+    # (or the GPX's own first/last point) so that "how much of the outing does
+    # this track actually cover" is a DB question. Without it, choosing between
+    # two GPS streams could only compare row counts — and a device that stopped
+    # twenty minutes early but sampled faster would win. NULL on rows written
+    # before this column existed: unknown span, not zero (services/nav_source.py).
+    first_t: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_t: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

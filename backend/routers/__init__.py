@@ -26,6 +26,7 @@ from . import (
     integrations,
     activities,
     sessions,
+    live_recordings,
     imports,
     regattas,
     racedays,
@@ -58,6 +59,7 @@ ALL_ROUTERS = [
     integrations.router,
     activities.router,
     sessions.router,
+    live_recordings.router,
     polars.router,
     # Race structure
     regattas.router,

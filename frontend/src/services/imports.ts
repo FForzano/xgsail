@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { ImportRow, ImportTicket, UUID } from "@/types";
+import type { ImportCompleted, ImportRow, ImportTicket, UUID } from "@/types";
 
 export const importKeys = {
   all: ["imports"] as const,
@@ -21,7 +21,7 @@ export const importsService = {
       subject_user_id?: UUID;
       started_at?: string;
     },
-  ) => api.post<ImportRow>(`/imports/${id}/complete`, body),
+  ) => api.post<ImportCompleted>(`/imports/${id}/complete`, body),
 
   list: () => api.get<ImportRow[]>("/imports"),
   get: (id: UUID) => api.get<ImportRow>(`/imports/${id}`),

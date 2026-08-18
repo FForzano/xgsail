@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
@@ -10,11 +11,12 @@ import { activitiesService, activityKeys } from "@/services/activities";
 import { sessionsService } from "@/services/sessions";
 import { useImportUpload } from "@/hooks/useImportUpload";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
 import * as nativeRecording from "@/services/nativeRecording";
 import { ERROR_LOCATION_SERVICES_DISABLED, ERROR_PERMISSION_DENIED } from "@/services/nativeRecording";
 import type { RecordingMeta } from "@/services/nativeRecording";
 import { activityDisplayName } from "@/utils/activityName";
-import { fmtDuration } from "@/utils/format";
+import { fmtDuration, userLabel } from "@/utils/format";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -24,6 +26,8 @@ import { Spinner } from "@/components/ui/Spinner";
 import { devicesService, deviceKeys, XGSAIL_E1_PARSER_KEY } from "@/services/devices";
 import { useE1Device } from "@/hooks/useE1Device";
 import { NavModeOverlay } from "@/components/registra/NavModeOverlay";
+import { LiveRecordingBanner } from "@/components/diario/LiveRecordingBanner";
+import type { JoinRecordingState } from "@/components/diario/LiveRecordingBanner";
 import { ExplorerMap } from "@/components/map/ExplorerMap";
 import type { Device, UUID } from "@/types";
 import styles from "./RegistraPage.module.css";
@@ -176,6 +180,7 @@ async function uploadRecording(
   recording: RecordingMeta,
   upload: ReturnType<typeof useImportUpload>,
   userId: UUID,
+  onMerged?: (crewNames: string[]) => void,
 ): Promise<{ error: string | null }> {
   try {
     await nativeRecording.setStatus(recording.id, "uploading");
@@ -186,6 +191,14 @@ async function uploadRecording(
       subjectType: "crew_member",
       subjectUserId: userId,
     });
+    if (completed.session_merged) {
+      // The backend joined this track to an outing that was already there.
+      // Opportunistic only — an upload often completes with the app in the
+      // background, and the local row is about to be deleted either way, so
+      // the durable place to notice (and to undo it) is the session's own
+      // track menu, not here.
+      onMerged?.(completed.session_crew.map(userLabel));
+    }
     await nativeRecording.setStatus(recording.id, "uploaded", completed.session_id ?? undefined);
     // Once the backend confirms the import, the local copy (raw log + GPX)
     // has no further purpose — drop it instead of leaving it in the list.
@@ -212,6 +225,7 @@ function RecordingRow({
 }) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { notify } = useToast();
   const [activityId, setActivityId] = useState(recording.activityId ?? STANDALONE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -230,7 +244,9 @@ function RecordingRow({
     if (!user) return;
     setBusy(true);
     setError(null);
-    const { error } = await uploadRecording(recording, upload, user.id);
+    const { error } = await uploadRecording(recording, upload, user.id, (names) =>
+      notify(t("sessions.navSource.mergedWith", { names: names.join(", ") }), "info"),
+    );
     setError(error);
     setBusy(false);
     onChanged();
@@ -403,6 +419,7 @@ function E1RecordingControl({
 export function RegistraPage() {
   const { t } = useTranslation();
   const { user, identityStale } = useAuth();
+  const { notify } = useToast();
   // Recording needs a background-geolocation foreground service, which only
   // exists in the native builds (see services/nativeRecording.ts). The web
   // build still gets this page for the exploration map, with the recording
@@ -432,13 +449,29 @@ export function RegistraPage() {
     initialDataUpdatedAt: 0,
   });
 
-  // Preselect the last boat used to record, once the (possibly cached)
-  // boat list is available and nothing has been chosen yet.
+  // Arriving from the "someone is recording — record too" banner: the whole
+  // point is that both recordings name the same boat and activity, so the
+  // choice is made here rather than left to the user to reproduce. Cleared
+  // from history straight away so going back doesn't re-apply it.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const joinState = location.state as JoinRecordingState | null;
   useEffect(() => {
-    if (boatId || !boats.data?.length) return;
+    if (!joinState?.prefillBoatId) return;
+    setBoatId(joinState.prefillBoatId);
+    setActivityId(joinState.prefillActivityId ?? STANDALONE);
+    setSheetOpen(true);
+    navigate(".", { replace: true, state: null });
+  }, [joinState, navigate]);
+
+  // Preselect the last boat used to record, once the (possibly cached)
+  // boat list is available and nothing has been chosen yet. Skipped when the
+  // banner above already named a boat — that choice is the deliberate one.
+  useEffect(() => {
+    if (boatId || joinState?.prefillBoatId || !boats.data?.length) return;
     const last = lastBoatId();
     if (last && boats.data.some((b) => b.id === last)) setBoatId(last);
-  }, [boats.data, boatId]);
+  }, [boats.data, boatId, joinState]);
 
   // XGSail E1 devices claimed by this user, available as a recording
   // source alongside the phone's own GPS — native only (BLE), same
@@ -478,13 +511,15 @@ export function RegistraPage() {
       if (!currentUser || uploadingIds.current.has(recording.id)) return;
       uploadingIds.current.add(recording.id);
       try {
-        await uploadRecording(recording, uploadRef.current, currentUser.id);
+        await uploadRecording(recording, uploadRef.current, currentUser.id, (names) =>
+          notify(t("sessions.navSource.mergedWith", { names: names.join(", ") }), "info"),
+        );
       } finally {
         uploadingIds.current.delete(recording.id);
         refresh();
       }
     },
-    [refresh],
+    [refresh, notify, t],
   );
 
   const retryPending = useCallback(() => {
@@ -679,6 +714,9 @@ export function RegistraPage() {
           </Select>
         )}
         {!native && <p className="sf-muted">{t("registra.webUnsupported")}</p>}
+        {/* Last chance to notice somebody aboard is already recording, right
+            where the boat is about to be chosen. */}
+        <LiveRecordingBanner />
         <Select
           label={t("sessions.importBoat")}
           id="registra-boat"

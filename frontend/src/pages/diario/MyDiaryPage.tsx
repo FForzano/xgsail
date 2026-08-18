@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import type { UUID } from "@/types";
 import { useDiaryFeed } from "@/hooks/useDiaryFeed";
+import { LiveRecordingBanner } from "@/components/diario/LiveRecordingBanner";
 import { UpcomingEventsBanner } from "@/components/diario/UpcomingEventsBanner";
 import { EventRow } from "@/components/diario/EventRow";
 import { DiaryToolbar } from "@/components/diario/DiaryToolbar";
@@ -26,6 +27,9 @@ export function MyDiaryPage() {
   return (
     <>
       <div className={feedStyles.page}>
+        {/* Above the "in arrivo" strip: an outing happening right now is the
+            one thing on this page that stops being actionable if missed. */}
+        <LiveRecordingBanner />
         <UpcomingEventsBanner />
         <DiaryToolbar type={type} onTypeChange={setType} importHref="/diario/activities/import" />
 

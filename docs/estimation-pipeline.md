@@ -36,15 +36,30 @@ Both paths register their `gps.json`/`gps_10hz.json` blobs in
 `session_streams` (`sensor_type="gps"`) via the normal ingestion flow.
 
 **Which track, when there's more than one.** A session can hold several `gps`
-streams — an onboard tracker plus an Apple Watch per crew member (see
-`docs/device-protocol.md` §9.2c). The pipeline runs against one processed
-prefix, and that prefix is the session's resolved navigation upload:
+streams — an onboard tracker plus an Apple Watch per crew member, or simply two
+crew members who each recorded the outing on their phone (see
+`docs/device-protocol.md` §9.2c and §10). The pipeline runs against one
+processed prefix, and that prefix is the session's resolved navigation upload:
 `sessions.primary_nav_upload_id`, or the ranked fallback in
 `backend/services/nav_source.py`. Anything that dispatches analysis
 (`reanalyze`, `trim`, `wind/refresh`, or changing the track itself) goes
 through that resolver. It used to pick the *most recently uploaded* upload,
 which with a watch aboard could be the physiological one — a prefix with no
 `gps.json` in it at all.
+
+The fallback ranks hardware first (hull-mounted before wrist-worn), then **how
+much of the session's window each track covers**, and only then how densely it
+samples. Coverage comes from `session_streams.first_t`/`last_t`, so the
+resolver's inputs are DB columns and no candidate series is read to decide. It
+matters most in the two-phone case, where no hardware criterion separates the
+candidates and the older point-count-first rule handed the session to whichever
+device sampled faster — including one that stopped recording twenty minutes
+early.
+
+Only one track is ever analysed: the others are retained and selectable, not
+stitched together. A recording that covers a genuinely different stretch of the
+outing is a separate session, reachable via the detach endpoint in
+`docs/device-protocol.md` §10.3.
 
 ### Estimation — the joint position/motion estimator
 

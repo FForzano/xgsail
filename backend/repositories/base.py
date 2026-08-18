@@ -33,6 +33,7 @@ class Repositories:
         app_config,
         posts,
         note_templates,
+        live_recordings,
     ):
         self.users = users
         self.auth_tokens = auth_tokens
@@ -53,3 +54,4 @@ class Repositories:
         self.app_config = app_config
         self.posts = posts
         self.note_templates = note_templates
+        self.live_recordings = live_recordings

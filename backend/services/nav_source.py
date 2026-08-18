@@ -15,6 +15,14 @@ stable over time.
 The ranking never depends on upload *recency*, so a later upload — a crew
 member relaying their watch after the boat's tracker, say — cannot silently
 swap the track out from under a session that has already been analysed.
+
+Two crew members recording the same outing on their phones is the case the
+ranking has to get right by itself: both uploads are manual imports with
+``subject_type="crew_member"``, so the hardware criteria cannot separate them
+and it comes down to the data. It ranks by how much of the outing each track
+covers before how densely it samples — a phone that stopped twenty minutes
+early is the wrong track however fast it was recording — using the
+``session_streams.first_t``/``last_t`` columns rather than reading the series.
 """
 
 import logging
@@ -46,7 +54,15 @@ def nav_candidates(session_id: uuid.UUID) -> "list[tuple[object, object]]":
         if stream.sensor_type == "gps" and stream.data_ref
     ]
     categories = {u.id: device_category(u) for u, _ in pairs}
-    return sorted(pairs, key=lambda p: _rank(p[0], p[1], categories))
+    session = repos.sessions.get(session_id)
+    # All-or-nothing: coverage only discriminates when EVERY candidate can be
+    # measured. A set where some streams predate the first_t/last_t columns
+    # must rank exactly as it did before, rather than handing the session to
+    # whichever upload happens to be new enough to carry a span.
+    use_coverage = bool(pairs) and all(
+        st.first_t is not None and st.last_t is not None for _, st in pairs
+    )
+    return sorted(pairs, key=lambda p: _rank(p[0], p[1], categories, session, use_coverage))
 
 
 def device_category(upload) -> Optional[str]:
@@ -62,22 +78,63 @@ def device_category(upload) -> Optional[str]:
     return getattr(device_type, "category", None)
 
 
-def _rank(upload, stream, categories: dict) -> tuple:
+# Whole minutes. Two phones recording the same outing start and stop seconds
+# apart, and a criterion that fine would hand the session to whichever one was
+# unlocked first rather than to the better track. A device that died twenty
+# minutes early loses by twenty buckets; one that started fifteen seconds late
+# loses nothing.
+COVERAGE_BUCKET_S = 60
+
+
+def covered_seconds(stream, session=None) -> float:
+    """Seconds of the session's window this series actually spans.
+
+    Clamped to the session window so a stray point hours outside it (a device
+    with a bad clock) cannot buy coverage the outing never had. 0.0 when the
+    stream carries no measured bounds — callers decide whether that means
+    "covers nothing" or "unknown"; ``nav_candidates`` chooses the latter by
+    dropping the criterion entirely (see ``use_coverage`` there).
+    """
+    first_t, last_t = getattr(stream, "first_t", None), getattr(stream, "last_t", None)
+    if first_t is None or last_t is None:
+        return 0.0
+    start = getattr(session, "started_at", None) or first_t
+    end = getattr(session, "ended_at", None) or last_t
+    lo, hi = max(first_t, start), min(last_t, end)
+    return max(0.0, (hi - lo).total_seconds())
+
+
+def _rank(upload, stream, categories: dict, session=None,
+          use_coverage: bool = False) -> tuple:
     """Sort key, lower is better.
 
     1. a boat-mounted tracker beats a wearable — it is fixed to the hull, not
        swinging on a wrist;
     2. data attributed to the boat beats data attributed to a person;
-    3. more points beats fewer (the first criterion that looks at the data
-       rather than the hardware);
-    4. older upload wins ties, so the answer is stable as more data arrives.
+    3. more of the outing actually covered beats less — a phone that quit
+       twenty minutes early is the wrong track however fast it was sampling
+       while it ran;
+    4. within the same minute of coverage, more points beats fewer;
+    5. older upload wins ties, so the answer is stable as more data arrives.
+
+    Criteria 3 and 4 are in that order deliberately: density used to come
+    first, which is how a truncated-but-dense track won. Criterion 3 is
+    skipped altogether unless every candidate carries measured bounds
+    (``use_coverage``), so a session whose streams predate those columns ranks
+    exactly as it did before. Still no recency term anywhere — a crew member
+    relaying their watch after the boat's tracker must not swap out the track
+    of a session that has already been analysed.
     """
     # Manual imports (no device, category None) sit with boat trackers: a GPX
     # someone uploaded for the boat is a boat track, not a wrist track.
     is_wearable = categories.get(upload.id) == "wearable"
+    coverage_bucket = (
+        int(covered_seconds(stream, session) // COVERAGE_BUCKET_S) if use_coverage else 0
+    )
     return (
         1 if is_wearable else 0,
         0 if upload.subject_type == "boat" else 1,
+        -coverage_bucket,
         -(stream.row_count or 0),
         upload.uploaded_at,
     )
@@ -157,10 +214,12 @@ def candidate_payloads(session_id: uuid.UUID, *, with_quality: bool = False) -> 
     Returns ``[]`` when there is nothing to choose (zero or one candidate), so
     the UI can stay out of the way in the ordinary single-device case.
 
-    ``with_quality`` adds the measured span and gap count, which means reading
-    each candidate series out of object storage. Off by default so a page can
-    ask the cheap question — "is there even a choice here?" — without paying for
-    the answer to the expensive one.
+    Span and coverage come from ``session_streams`` and so cost nothing.
+    ``with_quality`` adds the gap count, which does mean reading each candidate
+    series out of object storage — off by default so a page can ask the cheap
+    question ("is there even a choice here?") without paying for the expensive
+    one. It also repairs ``first_t``/``last_t`` for streams written before
+    those columns existed, which is the one case the DB cannot answer.
     """
     candidates = nav_candidates(session_id)
     if len(candidates) < 2:
@@ -172,6 +231,8 @@ def candidate_payloads(session_id: uuid.UUID, *, with_quality: bool = False) -> 
     chosen_id = getattr(session, "primary_nav_upload_id", None)
     resolved = resolve_nav_upload(session_id)
     out = []
+    session_start = getattr(session, "started_at", None)
+    session_end = getattr(session, "ended_at", None)
     for upload, stream in candidates:
         device = repos.devices.get(upload.device_id) if upload.device_id else None
         device_type = (repos.devices.get_type(device.device_type_id)
@@ -192,6 +253,18 @@ def candidate_payloads(session_id: uuid.UUID, *, with_quality: bool = False) -> 
             "row_count": stream.row_count,
             "sample_rate_hz": stream.sample_rate_hz,
             "uploaded_at": upload.uploaded_at,
+            # Span of this track and how much of the outing it covers — the
+            # numbers the default ranking now turns on, so the picker has to
+            # show them or the chosen default looks arbitrary.
+            "first_t": stream.first_t,
+            "last_t": stream.last_t,
+            "duration_s": (int((stream.last_t - stream.first_t).total_seconds())
+                           if stream.first_t and stream.last_t else None),
+            "coverage_s": (int(covered_seconds(stream, session))
+                           if stream.first_t and stream.last_t else None),
+            "session_started_at": session_start,
+            "session_ended_at": session_end,
+            "gap_count": None,
             # True for the one explicitly chosen; is_resolved is what the app
             # actually reads today, which differs when no choice was ever made.
             "is_primary": chosen_id is not None and upload.id == chosen_id,

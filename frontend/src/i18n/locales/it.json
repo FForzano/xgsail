@@ -160,7 +160,8 @@
     "ownership": {
       "personal": "Privata",
       "club": "Circolo",
-      "group": "Gruppo"
+      "group": "Gruppo",
+      "crew": "A bordo"
     }
   },
   "profile": {
@@ -659,7 +660,14 @@
       "gaps": "{{n}} buchi",
       "reanalyzeNote": "Cambiare la traccia riavvia l'analisi: manovre, lati, VMG e polari erano calcolati sulla precedente.",
       "applyAndReanalyze": "Usa questa traccia",
-      "applied": "Traccia cambiata — rianalisi avviata"
+      "applied": "Traccia cambiata — rianalisi avviata",
+      "coverage": "copre il {{pct}}% dell'uscita",
+      "you": "tu",
+      "mergedWith": "Registrazione unita all'uscita di {{names}}",
+      "detachIntro": "Se una di queste tracce è di un'uscita diversa, puoi separarla in una sessione a sé.",
+      "detach": "Separa",
+      "detachConfirm": "Separa e rianalizza",
+      "detached": "Traccia separata in una nuova sessione"
     }
   },
   "map": {
@@ -1171,5 +1179,9 @@
     "templatesShort": "Modelli",
     "shared": "Condiviso",
     "private": "Privato"
+  },
+  "live": {
+    "inProgress": "{{name}} sta registrando su {{boat}}",
+    "joinCta": "Registra anche tu"
   }
 }

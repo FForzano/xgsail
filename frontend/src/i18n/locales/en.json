@@ -160,7 +160,8 @@
     "ownership": {
       "personal": "Private",
       "club": "Club",
-      "group": "Group"
+      "group": "Group",
+      "crew": "Aboard"
     }
   },
   "profile": {
@@ -659,7 +660,14 @@
       "gaps": "{{n}} gaps",
       "reanalyzeNote": "Changing the track re-runs the analysis: maneuvers, legs, VMG and polars were all computed from the previous one.",
       "applyAndReanalyze": "Use this track",
-      "applied": "Track changed — reanalysis started"
+      "applied": "Track changed — reanalysis started",
+      "coverage": "covers {{pct}}% of the outing",
+      "you": "you",
+      "mergedWith": "Recording merged into {{names}}'s outing",
+      "detachIntro": "If one of these tracks is from a different outing, you can separate it into its own session.",
+      "detach": "Separate",
+      "detachConfirm": "Separate and reanalyse",
+      "detached": "Track separated into a new session"
     }
   },
   "map": {
@@ -1171,5 +1179,9 @@
     "templatesShort": "Templates",
     "shared": "Shared",
     "private": "Private"
+  },
+  "live": {
+    "inProgress": "{{name}} is recording on {{boat}}",
+    "joinCta": "Record too"
   }
 }

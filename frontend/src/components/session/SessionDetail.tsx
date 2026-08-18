@@ -703,7 +703,12 @@ export function SessionDetail({
       // Only when there's actually a choice: with one recording device — the
       // overwhelmingly common case — the endpoint returns nothing and this
       // stays out of the way.
-      ...(manager && (navSources.data?.length ?? 0) > 1
+      //
+      // Crew, not just managers (mirrors is_session_crew_or_manager): when two
+      // people aboard both recorded, the shared session usually sits in one of
+      // their private solo activities, and a manager-only gate would leave the
+      // other unable to touch the track they contributed — or to separate it.
+      ...(crewOrManager && (navSources.data?.length ?? 0) > 1
         ? [
             {
               label: t("sessions.navSource.choose"),
@@ -1208,7 +1213,11 @@ export function SessionDetail({
         />
       )}
       {pickingNavSource && (
-        <NavSourceModal sessionId={sessionId} onClose={() => setPickingNavSource(false)} />
+        <NavSourceModal
+          sessionId={sessionId}
+          canEdit={crewOrManager}
+          onClose={() => setPickingNavSource(false)}
+        />
       )}
     </div>
   );

@@ -34,7 +34,7 @@ from ..schemas import (
     SessionTrimModel,
     SessionWriteModel,
 )
-from ..services import gpx, ingestion, media, nav_source, physio
+from ..services import gpx, ingestion, media, nav_source, physio, session_split
 from ._common import blob, load_json_or_404, repos, with_user
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -489,14 +489,20 @@ def set_nav_source(session_id: uuid.UUID, body: NavSourceModel, request: Request
                    background_tasks: BackgroundTasks):
     """Choose which upload's GPS is this session's track.
 
-    Edit-level permission (not the subject's own, unlike the health sharing
-    toggle): the track is shared data — everyone's view of the session changes.
+    Crew-level permission, not edit-level: when two people aboard both
+    recorded, the shared session usually lives in one of their private solo
+    activities, so an edit-level gate would leave the other unable to correct
+    the track they contributed. It is also the crew who know which phone was
+    on the rail and which was in a drybag — boat ownership is not the relevant
+    knowledge here. Still not the subject's own permission, unlike the health
+    sharing toggle: the track is shared data, everyone's view changes.
+
     Re-runs the analysis on the new track, since maneuvers/legs/VMG/polars were
     all computed against the previous one; poll ``GET .../reanalysis-status``."""
     verify_csrf(request)
     user = require_user(request)
     session = _require_session(session_id)
-    if not _can_edit(session, user):
+    if not is_session_crew_or_manager(session, user):
         raise HTTPException(403, "Not allowed")
     candidates = {u.id for u, _ in nav_source.nav_candidates(session_id)}
     if body.session_upload_id not in candidates:
@@ -508,6 +514,57 @@ def set_nav_source(session_id: uuid.UUID, body: NavSourceModel, request: Request
     background_tasks.add_task(_run_reanalyze, upload.id, prefix,
                               session.trim_start_time, session.trim_end_time)
     return {"ok": True, "session_upload_id": upload.id, "status": "running"}
+
+
+def _queue_reanalysis(session_id: uuid.UUID, background_tasks: BackgroundTasks) -> None:
+    """Best-effort re-analysis of whichever track now leads a session.
+
+    Best-effort on purpose: this runs *after* a detach has already been
+    committed, so a session whose reanalysis happens to be mid-flight must not
+    turn the whole operation into a 409."""
+    session = repos.sessions.get(session_id)
+    upload = nav_source.resolve_nav_upload(session_id)
+    if session is None or upload is None:
+        return
+    try:
+        _start_reanalysis_job(upload)
+    except HTTPException:
+        logger.info("skipped post-detach reanalysis of session %s: already running",
+                    session_id)
+        return
+    background_tasks.add_task(_run_reanalyze, upload.id,
+                              ingestion.processed_prefix(upload.id),
+                              session.trim_start_time, session.trim_end_time)
+
+
+@router.post("/{session_id}/uploads/{upload_id}/detach", status_code=202)
+def detach_upload(session_id: uuid.UUID, upload_id: uuid.UUID, request: Request,
+                  background_tasks: BackgroundTasks):
+    """Separate one contributed track into a session of its own.
+
+    The inverse of the automatic boat+window merge in
+    ``services/ingestion.py``: without it, two recordings joined by mistake
+    could never be told apart again. Crew-level, plus the unconditional right
+    to withdraw your own data — someone whose track landed on a session they
+    were never crewed on must still be able to take it back."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = _require_session(session_id)
+    upload = repos.ingest.get_upload(upload_id)
+    if upload is None or upload.session_id != session_id:
+        raise HTTPException(404, "Upload not found for this session")
+    if not (is_session_crew_or_manager(session, user)
+            or upload.subject_user_id == user.id):
+        raise HTTPException(403, "Not allowed")
+    try:
+        result = session_split.detach_upload(session_id, upload_id, user_id=user.id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    # Both sides changed: the source lost a candidate track (possibly the
+    # resolved one) and the new session has never been analysed at all.
+    _queue_reanalysis(session_id, background_tasks)
+    _queue_reanalysis(result["session_id"], background_tasks)
+    return {"ok": True, **result}
 
 
 def _require_maneuver(session_id: uuid.UUID, maneuver_id: uuid.UUID):

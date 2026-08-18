@@ -16,7 +16,7 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import requests
 
@@ -61,6 +61,22 @@ def add_recorder_as_crew(repos, boat_id: uuid.UUID, session_id: uuid.UUID,
     repos.sessions.add_crew(session_id, user_id=user_id, sailing_role=role)
 
 
+class SessionResolution(NamedTuple):
+    """Which session an upload landed on, and whether it joined one that was
+    already there for reasons the uploader never stated.
+
+    ``merged`` is what makes the automatic merge visible: the manual-import
+    path reports it back so the app can say "this was joined to X's outing"
+    and offer to separate it again. It is True only for the implicit
+    boat+window match — reusing the session of an activity the uploader
+    explicitly picked is the documented one-session-per-boat-per-activity
+    rule, not a surprise worth interrupting anyone over.
+    """
+
+    session: object
+    merged: bool
+
+
 def find_or_create_session(*, boat_id: uuid.UUID, started_at: datetime,
                            ended_at: Optional[datetime] = None,
                            activity_id: Optional[uuid.UUID] = None,
@@ -76,8 +92,23 @@ def find_or_create_session(*, boat_id: uuid.UUID, started_at: datetime,
     (``add_recorder_as_crew``) — including on a *reused* session, since a
     second device merging into the same window means a second person was
     genuinely aboard too.
+
+    Returns the session. Callers that also need to know whether it was joined
+    rather than created use ``resolve_session`` below.
     """
+    return resolve_session(
+        boat_id=boat_id, started_at=started_at, ended_at=ended_at,
+        activity_id=activity_id, created_by=created_by,
+    ).session
+
+
+def resolve_session(*, boat_id: uuid.UUID, started_at: datetime,
+                    ended_at: Optional[datetime] = None,
+                    activity_id: Optional[uuid.UUID] = None,
+                    created_by: Optional[uuid.UUID] = None) -> SessionResolution:
+    """``find_or_create_session``, plus whether the session already existed."""
     repos = get_repos()
+    merged = False
     if activity_id is not None:
         # Sessions extend their own window above — the parent activity's
         # window must widen right along with it, since replay/data endpoints
@@ -101,6 +132,7 @@ def find_or_create_session(*, boat_id: uuid.UUID, started_at: datetime,
         if sess is not None:
             repos.sessions.extend_window(sess.id, started_at, ended_at)
             session = repos.sessions.get(sess.id)
+            merged = True
         else:
             activity = repos.activities.create({
                 "type": "solo", "visibility": "private", "created_by": created_by,
@@ -113,7 +145,7 @@ def find_or_create_session(*, boat_id: uuid.UUID, started_at: datetime,
 
     if created_by is not None:
         add_recorder_as_crew(repos, boat_id, session.id, created_by)
-    return session
+    return SessionResolution(session, merged)
 
 
 # --- worker dispatch ---------------------------------------------------------
@@ -358,6 +390,10 @@ def register_gps_stream(upload_id: uuid.UUID, session_id: uuid.UUID,
     repos.ingest.upsert_streams(upload_id, [{
         "sensor_type": "gps", "data_ref": data_ref,
         "sample_rate_hz": None, "row_count": len(points),
+        # The caller derived these from the file's own first/last point, which
+        # is exactly the span this series covers — see the worker's equivalent
+        # in routers/system.py::ingest_complete.
+        "first_t": started_at, "last_t": ended_at,
     }])
     repos.ingest.set_upload_status(upload_id, "processed")
     repos.sessions.rollup_status(session_id)

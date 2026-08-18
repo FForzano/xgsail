@@ -26,6 +26,7 @@ from .rbac_repo import SqlRbacRepo
 from .app_config_repo import SqlAppConfigRepo
 from .post_repo import SqlPostRepo
 from .note_template_repo import SqlNoteTemplateRepo
+from .live_recording_repo import SqlLiveRecordingRepo
 
 
 def build_sql_repos(blob: BlobStore, data_prefix: str) -> Repositories:
@@ -51,6 +52,7 @@ def build_sql_repos(blob: BlobStore, data_prefix: str) -> Repositories:
         app_config=SqlAppConfigRepo(sf),
         posts=SqlPostRepo(sf),
         note_templates=SqlNoteTemplateRepo(sf),
+        live_recordings=SqlLiveRecordingRepo(sf),
     )
 
 
@@ -75,4 +77,5 @@ __all__ = [
     "SqlAppConfigRepo",
     "SqlPostRepo",
     "SqlNoteTemplateRepo",
+    "SqlLiveRecordingRepo",
 ]

@@ -88,7 +88,16 @@ def ingest_complete(payload: IngestCompletePayload, request: Request):
         raise HTTPException(404, "Upload not found")
 
     if payload.streams:
-        repos.ingest.upsert_streams(upload.id, [s.model_dump() for s in payload.streams])
+        # ``start_time``/``end_time`` describe the very series this callback
+        # just merged (one file, one sensor — see workers/process_upload/
+        # handler.py's _post_callback), so they are that stream's span, not
+        # only the session's. Recording them per stream is what lets
+        # ``services/nav_source.py`` rank candidate tracks by how much of the
+        # outing they actually cover without reading any blob.
+        span = {"first_t": payload.start_time, "last_t": payload.end_time}
+        repos.ingest.upsert_streams(
+            upload.id, [s.model_dump() | span for s in payload.streams]
+        )
 
     if payload.physio_stats is not None:
         changes = payload.physio_stats.model_dump(exclude_unset=True, exclude_none=True)
