@@ -6,11 +6,14 @@ import { useTourTarget } from "@/onboarding/useTourTarget";
 import styles from "./TourSpotlight.module.css";
 
 // Rough bubble dimensions used only for placement math (keeping it from
-// overflowing the viewport) — the module's own max-width/max-height still
-// govern actual layout, with overflow-y: auto as a hard fallback if a step's
-// target is unusually large and the estimate below is wrong.
+// overflowing the viewport) — the module's own max-width still governs
+// actual layout, with overflow-y: auto as a hard fallback if a step's
+// content is taller than what's left below the computed `top`.
 const BUBBLE_WIDTH = 300;
 const BUBBLE_HEIGHT_ESTIMATE = 220;
+// Reserve at least this much room below `top` — enough for the step count,
+// title, one line of body and the action buttons.
+const MIN_BUBBLE_HEIGHT = 160;
 const GAP = 12;
 const PAD = 6;
 
@@ -71,13 +74,22 @@ export function TourSpotlight({
   // Always positioned via `top` (never `bottom`) so it can be clamped
   // uniformly against the viewport regardless of the target's own size —
   // a target much taller than the screen (or right at an edge) must never
-  // be able to push the bubble's buttons out of reach. `max-height` +
-  // `overflow-y: auto` in the CSS module is the hard backstop if the
-  // estimate here is off.
+  // be able to push the bubble's buttons out of reach.
   const desiredTop = placeAbove
     ? hole.top - GAP - BUBBLE_HEIGHT_ESTIMATE
     : hole.top + hole.height + GAP;
-  const bubbleTop = Math.min(Math.max(desiredTop, GAP), Math.max(GAP, viewportH - GAP - 80));
+  const bubbleTop = Math.min(
+    Math.max(desiredTop, GAP),
+    Math.max(GAP, viewportH - GAP - MIN_BUBBLE_HEIGHT),
+  );
+  // The module's max-height is a static `100vh`-based value that assumes the
+  // bubble starts at the top of the screen — wrong whenever `top` itself is
+  // well down the page (e.g. a step inside an open BottomSheet near the
+  // bottom), where it let the bubble's own buttons render below the visible
+  // viewport with nothing to scroll (`position: fixed` doesn't move with the
+  // page). Pin it to the room actually left below `top` instead, so
+  // overflow-y: auto in the CSS module always has something real to clamp to.
+  const bubbleMaxHeight = viewportH - bubbleTop - GAP;
   const isLast = stepIndex === tour.steps.length - 1;
 
   return createPortal(
@@ -116,7 +128,7 @@ export function TourSpotlight({
       />
       <div
         className={styles.bubble}
-        style={{ top: bubbleTop, left: bubbleLeft }}
+        style={{ top: bubbleTop, left: bubbleLeft, maxHeight: bubbleMaxHeight }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.stepCount}>

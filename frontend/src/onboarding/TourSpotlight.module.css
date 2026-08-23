@@ -38,6 +38,9 @@
   position: fixed;
   pointer-events: auto;
   width: min(300px, calc(100vw - 1.5rem));
+  /* max-height is set inline per-step (TourSpotlight.tsx), pinned to the
+   * room actually left below `top` — this is only a ceiling for the rare
+   * case the inline value is somehow absent. */
   max-height: calc(100vh - 1.5rem);
   overflow-y: auto;
   background: var(--sf-surface);
