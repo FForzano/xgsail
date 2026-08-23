@@ -228,7 +228,11 @@ export function RegattaDetailPage() {
       <MyRegattaCard regattaId={regattaId} boatId={myBoatId} />
 
       <Section title={t("regate.standings")}>
-        <RegattaStandings regattaId={regattaId} highlightBoatId={myBoatId} />
+        <RegattaStandings
+          regattaId={regattaId}
+          highlightBoatId={myBoatId}
+          dataTour="regatta-standings"
+        />
       </Section>
 
       <Section
@@ -248,11 +252,15 @@ export function RegattaDetailPage() {
           ) : undefined
         }
       >
-        <RegattaRaceDays regattaId={regattaId} manage={false} />
+        {/* RegattaRaceDays is shared with the diario feed's EventRow, so the
+            anchor is wrapped at this call site instead of inside it. */}
+        <div data-tour="regatta-racedays">
+          <RegattaRaceDays regattaId={regattaId} manage={false} />
+        </div>
       </Section>
 
       <Section title={t("regate.entries")}>
-        <RegattaEntries regattaId={regattaId} manage={false} />
+        <RegattaEntries regattaId={regattaId} manage={false} dataTour="regatta-entries" />
       </Section>
 
       {lightboxOpen && r.image && (

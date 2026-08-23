@@ -80,11 +80,11 @@ export function BoatsPage() {
                 </tr>
               </thead>
               <tbody>
-                {boats.data?.map((b) => {
+                {boats.data?.map((b, index) => {
                   const cl = boatClass(b.boat_class_id);
                   const photo = b.photos.find(Boolean);
                   return (
-                    <tr key={b.id}>
+                    <tr key={b.id} data-tour={index === 0 ? "profilo-boat-card" : undefined}>
                       <td>
                         {photo ? (
                           <img className="sf-avatar sf-avatar--sm" src={photo.url} alt="" />
@@ -125,8 +125,13 @@ export function BoatsPage() {
             </table>
           </div>
           <div className={`${styles.cards} sf-mobile-only`}>
-            {boats.data?.map((b) => (
-              <BoatCard key={b.id} boat={b} boatClass={boatClass(b.boat_class_id)} />
+            {boats.data?.map((b, index) => (
+              <BoatCard
+                key={b.id}
+                boat={b}
+                boatClass={boatClass(b.boat_class_id)}
+                dataTour={index === 0 ? "profilo-boat-card" : undefined}
+              />
             ))}
           </div>
         </>
@@ -167,11 +172,19 @@ export function BoatsPage() {
   );
 }
 
-function BoatCard({ boat, boatClass }: { boat: Boat; boatClass: BoatClass | null }) {
+function BoatCard({
+  boat,
+  boatClass,
+  dataTour,
+}: {
+  boat: Boat;
+  boatClass: BoatClass | null;
+  dataTour?: string;
+}) {
   const { t } = useTranslation();
   const photo = boat.photos.find(Boolean);
   return (
-    <div className={`sf-card ${styles.card}`}>
+    <div className={`sf-card ${styles.card}`} data-tour={dataTour}>
       <div className={styles.cardPhoto}>
         {photo ? (
           <img src={photo.url} alt="" />

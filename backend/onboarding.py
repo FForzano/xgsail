@@ -9,8 +9,15 @@ this set is informational, not a validation gate.
 """
 
 KNOWN_TOURS = {
-    "app-overview",
+    "getting-started",
     "diario-personale",
+    "activity-detail",
+    "registra-overview",
     "gruppi-overview",
+    "club-detail",
     "profilo-overview",
+    "boats-overview",
+    "boat-detail",
+    "devices-overview",
+    "regatta-detail",
 }

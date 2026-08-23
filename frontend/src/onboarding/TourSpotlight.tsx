@@ -25,16 +25,23 @@ export function TourSpotlight({
   onNext,
   onBack,
   onSkip,
+  onStepShown,
 }: {
   tour: Tour;
   stepIndex: number;
   onNext: () => void;
   onBack: () => void;
   onSkip: () => void;
+  /** Fired once a step's target actually resolved — see OnboardingContext. */
+  onStepShown: () => void;
 }) {
   const { t } = useTranslation();
   const step = tour.steps[stepIndex];
   const rect = useTourTarget(step.target, onNext);
+
+  useEffect(() => {
+    if (rect) onStepShown();
+  }, [rect, onStepShown]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

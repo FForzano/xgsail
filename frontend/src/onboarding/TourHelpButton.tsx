@@ -24,7 +24,15 @@ export function TourHelpButton() {
       type="button"
       className={styles.button}
       aria-label={t("onboarding.help.button")}
-      onClick={() => requestTour(pageTour?.id ?? "getting-started", { force: true })}
+      // A page tour runs in place: the user pressed "?" while looking at a
+      // real activity/club/boat, so its steps' demo-entity `route`s must not
+      // navigate them away from it. The `getting-started` fallback is meant
+      // to walk across sections, so it keeps its routes.
+      onClick={() =>
+        pageTour
+          ? requestTour(pageTour.id, { force: true, inPlace: true })
+          : requestTour("getting-started", { force: true })
+      }
     >
       <HelpCircle size={20} />
     </button>

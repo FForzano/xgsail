@@ -19,7 +19,17 @@ export function statusBadge(status: Device["status"]): string {
       : "sf-badge sf-badge--warning";
 }
 
-export function DeviceTable({ devices, types }: { devices: Device[]; types?: DeviceType[] }) {
+export function DeviceTable({
+  devices,
+  types,
+  firstRowDataTour,
+}: {
+  devices: Device[];
+  types?: DeviceType[];
+  /** `data-tour` anchor for the first row only — for callers whose tour
+   * wants to spotlight one claimed device instead of the whole table. */
+  firstRowDataTour?: string;
+}) {
   const { t } = useTranslation();
   const typeName = (id: string) => types?.find((dt) => dt.id === id)?.name ?? "—";
   return (
@@ -35,8 +45,8 @@ export function DeviceTable({ devices, types }: { devices: Device[]; types?: Dev
           </tr>
         </thead>
         <tbody>
-          {devices.map((d) => (
-            <tr key={d.id}>
+          {devices.map((d, index) => (
+            <tr key={d.id} data-tour={index === 0 ? firstRowDataTour : undefined}>
               <td>
                 <Link to={`/profilo/devices/${d.id}`}>{d.nickname ?? d.id.slice(0, 8)}</Link>
               </td>
@@ -75,12 +85,12 @@ export function DevicesPage() {
   return (
     <>
       <div className="sf-toolbar" style={{ justifyContent: "flex-end" }}>
-        <Button onClick={() => setClaiming(true)}>{t("devices.claim")}</Button>
+        <Button data-tour="devices-add" onClick={() => setClaiming(true)}>{t("devices.claim")}</Button>
       </div>
       {personal.length === 0 ? (
         <EmptyState>{t("devices.empty")}</EmptyState>
       ) : (
-        <DeviceTable devices={personal} types={types.data} />
+        <DeviceTable devices={personal} types={types.data} firstRowDataTour="devices-row" />
       )}
       {claiming && (
         <AddDeviceDialog owner={{ owner_user_id: user!.id }} onClose={() => setClaiming(false)} />

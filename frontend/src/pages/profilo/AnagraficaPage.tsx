@@ -95,7 +95,7 @@ export function AnagraficaPage() {
           }}
         />
       </div>
-      <form onSubmit={onSubmit}>
+      <form onSubmit={onSubmit} data-tour="profilo-anagrafica">
         <InputField
           label={t("profile.firstName")}
           id="first_name"
@@ -148,26 +148,30 @@ export function AnagraficaPage() {
           </Button>
         </div>
       </form>
-      <Card title={t("profile.units")}>
-        <div className="sf-form__row">
-          <button
-            type="button"
-            className={`sf-btn sf-btn--sm ${units === "nautical" ? "sf-btn--primary" : "sf-btn--ghost"}`}
-            disabled={saveUnits.isPending}
-            onClick={() => saveUnits.mutate("nautical")}
-          >
-            {t("profile.unitsNautical")}
-          </button>
-          <button
-            type="button"
-            className={`sf-btn sf-btn--sm ${units === "metric" ? "sf-btn--primary" : "sf-btn--ghost"}`}
-            disabled={saveUnits.isPending}
-            onClick={() => saveUnits.mutate("metric")}
-          >
-            {t("profile.unitsMetric")}
-          </button>
-        </div>
-      </Card>
+      {/* Card has no pass-through prop for arbitrary DOM attributes, so the
+          anchor goes on a thin wrapper instead of touching the shared component. */}
+      <div data-tour="profilo-units">
+        <Card title={t("profile.units")}>
+          <div className="sf-form__row">
+            <button
+              type="button"
+              className={`sf-btn sf-btn--sm ${units === "nautical" ? "sf-btn--primary" : "sf-btn--ghost"}`}
+              disabled={saveUnits.isPending}
+              onClick={() => saveUnits.mutate("nautical")}
+            >
+              {t("profile.unitsNautical")}
+            </button>
+            <button
+              type="button"
+              className={`sf-btn sf-btn--sm ${units === "metric" ? "sf-btn--primary" : "sf-btn--ghost"}`}
+              disabled={saveUnits.isPending}
+              onClick={() => saveUnits.mutate("metric")}
+            >
+              {t("profile.unitsMetric")}
+            </button>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

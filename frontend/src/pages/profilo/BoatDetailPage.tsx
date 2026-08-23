@@ -306,7 +306,11 @@ export function BoatDetailPage() {
       </Card>
 
       {isMember && (
-        <Link to={`/profilo/barche/${boatId}/quaderno`} className={`sf-card ${styles.notebookCard}`}>
+        <Link
+          to={`/profilo/barche/${boatId}/quaderno`}
+          className={`sf-card ${styles.notebookCard}`}
+          data-tour="boat-notebook"
+        >
           <span className={styles.notebookIcon}>
             <NotebookText size={22} />
           </span>
@@ -339,46 +343,51 @@ export function BoatDetailPage() {
         </Link>
       )}
 
-      <Card
-        title={t("boats.photos")}
-        actions={
-          manager && (
-            <ImageUploader
-              create={() => boatsService.createPhoto(boatId)}
-              confirm={(imageId) => boatsService.confirmPhoto(boatId, imageId)}
-              onDone={async () => {
-                await invalidate();
-              }}
-            />
-          )
-        }
-      >
-        {boat.data.photos.filter(Boolean).length === 0 ? (
-          <p className="sf-muted">{t("common.none")}</p>
-        ) : (
-          <div className={photoGridStyles.grid}>
-            {boat.data.photos.map(
-              (p) =>
-                p && (
-                  <figure key={p.image_id}>
-                    <img src={p.url} alt="" />
-                    {manager && (
-                      <Button
-                        variant="danger"
-                        className={`sf-btn--sm ${photoGridStyles.del}`}
-                        onClick={() => removePhoto.mutate(p.image_id)}
-                      >
-                        ×
-                      </Button>
-                    )}
-                  </figure>
-                ),
-            )}
-          </div>
-        )}
-      </Card>
+      {/* Card has no pass-through prop for arbitrary DOM attributes, so the
+          anchor goes on a thin wrapper instead of touching the shared component. */}
+      <div data-tour="boat-photos">
+        <Card
+          title={t("boats.photos")}
+          actions={
+            manager && (
+              <ImageUploader
+                create={() => boatsService.createPhoto(boatId)}
+                confirm={(imageId) => boatsService.confirmPhoto(boatId, imageId)}
+                onDone={async () => {
+                  await invalidate();
+                }}
+              />
+            )
+          }
+        >
+          {boat.data.photos.filter(Boolean).length === 0 ? (
+            <p className="sf-muted">{t("common.none")}</p>
+          ) : (
+            <div className={photoGridStyles.grid}>
+              {boat.data.photos.map(
+                (p) =>
+                  p && (
+                    <figure key={p.image_id}>
+                      <img src={p.url} alt="" />
+                      {manager && (
+                        <Button
+                          variant="danger"
+                          className={`sf-btn--sm ${photoGridStyles.del}`}
+                          onClick={() => removePhoto.mutate(p.image_id)}
+                        >
+                          ×
+                        </Button>
+                      )}
+                    </figure>
+                  ),
+              )}
+            </div>
+          )}
+        </Card>
+      </div>
 
       {manager && (
+        <div data-tour="boat-crew">
         <Card
           title={t("boats.members")}
           actions={
@@ -472,6 +481,7 @@ export function BoatDetailPage() {
             </table>
           </div>
         </Card>
+        </div>
       )}
 
       {inviting && (

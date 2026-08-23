@@ -326,6 +326,7 @@ export function ActivityDetailPage() {
               // embedded SessionDetail (see soloMenuSections/onMenuSections),
               // instead of showing a second ⋮ menu on the map card below.
               <Menu
+                triggerDataTour="activity-menu"
                 sections={[
                   {
                     items: [
@@ -347,6 +348,7 @@ export function ActivityDetailPage() {
               />
             ) : (
               <OptionsMenu
+                triggerDataTour="activity-menu"
                 items={[
                   {
                     label: t("sessions.import"),
@@ -397,7 +399,7 @@ export function ActivityDetailPage() {
           (() => {
             const boat = boats.data?.find((b) => b.id === soloSession.boat_id);
             return (
-              <p className="sf-crew-row">
+              <p className="sf-crew-row" data-tour="activity-boats">
                 {boat?.photos[0]?.url ? (
                   <img src={boat.photos[0].url} alt="" className="sf-session-thumb" />
                 ) : (
@@ -408,7 +410,7 @@ export function ActivityDetailPage() {
             );
           })()}
         {soloQuickActions.length > 0 && (
-          <div className={sessionStyles.quickActions}>
+          <div className={sessionStyles.quickActions} data-tour="activity-quick-actions">
             <QuickActionButtons actions={soloQuickActions} />
           </div>
         )}
@@ -449,7 +451,7 @@ export function ActivityDetailPage() {
             ) : (
               <>
                 {pickingMarkOnMap && <p className="sf-muted">{t("activities.pickOnMapHint")}</p>}
-                <div className="sf-bleed">
+                <div className="sf-bleed" data-tour="activity-map">
                   <MapView
                     nautical
                     tracks={tracks}
@@ -471,12 +473,15 @@ export function ActivityDetailPage() {
                     }}
                   />
                 </div>
-                <SpeedChart tracks={tracks} />
+                <div data-tour="activity-speed-chart">
+                  <SpeedChart tracks={tracks} />
+                </div>
               </>
             )}
           </Section>
           </div>
 
+          <div data-tour="activity-boats">
           <Section title={t("activities.boats")}>
             {sessions.data?.length ? (
               <>
@@ -550,9 +555,11 @@ export function ActivityDetailPage() {
               <p className="sf-muted">{t("common.none")}</p>
             )}
           </Section>
+          </div>
         </>
       )}
 
+      <div data-tour="activity-marks">
       <Section title={t("activities.marks")}>
         {marks.data?.length ? (
           <div className="sf-strip">
@@ -729,6 +736,7 @@ export function ActivityDetailPage() {
           </form>
         )}
       </Section>
+      </div>
 
       {deleting && (
         <ConfirmDialog

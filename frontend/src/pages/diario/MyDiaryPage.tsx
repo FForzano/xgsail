@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TourDemoCard } from "@/onboarding/TourDemoCard";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
+import { StartChecklist } from "@/components/onboarding/StartChecklist";
 
 /** "Personale" diario tab: my own activities plus regattas I've actually
  * raced in (a personal `created_by` doesn't exist for regattas, so "mine"
@@ -32,6 +33,7 @@ export function MyDiaryPage() {
         <LiveRecordingBanner />
         <UpcomingEventsBanner />
         <DiaryToolbar type={type} onTypeChange={setType} importHref="/diario/activities/import" />
+        <StartChecklist hasRecordedSession={items.length > 0} sessionsLoading={isLoading} />
 
         {isLoading ? (
           <Spinner />

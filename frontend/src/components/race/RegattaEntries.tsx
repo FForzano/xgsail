@@ -27,7 +27,18 @@ const NO_DIVISION = "__none__";
  * assign a division, share the join link). The regatta page renders the plain
  * list in its start-list section and the editable one inside the "Iscritti"
  * modal reached from the page's options menu. */
-export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage: boolean }) {
+export function RegattaEntries({
+  regattaId,
+  manage,
+  dataTour,
+}: {
+  regattaId: UUID;
+  manage: boolean;
+  /** `data-tour` anchor for the guided tour, set only by the page's read-only
+   * start-list section (not the manage modal, so the id resolves to a single
+   * element while both could be in the DOM at once). */
+  dataTour?: string;
+}) {
   const { t } = useTranslation();
   const { notify } = useToast();
   const queryClient = useQueryClient();
@@ -234,7 +245,7 @@ export function RegattaEntries({ regattaId, manage }: { regattaId: UUID; manage:
   );
 
   return (
-    <div>
+    <div data-tour={dataTour}>
       {rows.length === 0 ? (
         <EmptyState>{t("regate.noEntries")}</EmptyState>
       ) : divs.length === 0 ? (

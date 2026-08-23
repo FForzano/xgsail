@@ -29,6 +29,7 @@ import { NavModeOverlay } from "@/components/registra/NavModeOverlay";
 import { LiveRecordingBanner } from "@/components/diario/LiveRecordingBanner";
 import type { JoinRecordingState } from "@/components/diario/LiveRecordingBanner";
 import { ExplorerMap } from "@/components/map/ExplorerMap";
+import { useOnboarding } from "@/onboarding/OnboardingContext";
 import type { Device, UUID } from "@/types";
 import styles from "./RegistraPage.module.css";
 
@@ -40,11 +41,13 @@ function ActivityPicker({
   value,
   onChange,
   disabled,
+  dataTour,
 }: {
   id: string;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  dataTour?: string;
 }) {
   const { t } = useTranslation();
   const activities = useQuery({
@@ -66,6 +69,7 @@ function ActivityPicker({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
+      data-tour={dataTour}
     >
       <option value={STANDALONE}>{t("registra.standalone")}</option>
       {races.data && races.data.length > 0 && (
@@ -399,6 +403,7 @@ function E1RecordingControl({
         ) : (
           <Button
             className="sf-btn--icon"
+            data-tour="registra-start"
             onClick={() =>
               e1.startRec.mutate({
                 boatId: boatId ? (boatId as UUID) : undefined,
@@ -420,6 +425,7 @@ export function RegistraPage() {
   const { t } = useTranslation();
   const { user, identityStale } = useAuth();
   const { notify } = useToast();
+  const { isDemoTarget } = useOnboarding();
   // Recording needs a background-geolocation foreground service, which only
   // exists in the native builds (see services/nativeRecording.ts). The web
   // build still gets this page for the exploration map, with the recording
@@ -463,6 +469,21 @@ export function RegistraPage() {
     setSheetOpen(true);
     navigate(".", { replace: true, state: null });
   }, [joinState, navigate]);
+
+  // The sheet is closed by default, so a tour step pointing at one of its
+  // fields would find nothing to frame (same reasoning as isDemoTarget usage
+  // in MyDiaryPage/UpcomingEventsBanner) — open it while such a step is
+  // active. Never closes it back: the tour may still be on a step inside it.
+  useEffect(() => {
+    if (
+      isDemoTarget("registra-fields") ||
+      isDemoTarget("registra-boat") ||
+      isDemoTarget("registra-activity") ||
+      isDemoTarget("registra-start")
+    ) {
+      setSheetOpen(true);
+    }
+  }, [isDemoTarget]);
 
   // Preselect the last boat used to record, once the (possibly cached)
   // boat list is available and nothing has been chosen yet. Skipped when the
@@ -698,48 +719,52 @@ export function RegistraPage() {
 
       {/* Bottom sheet: pre-recording form */}
       <BottomSheet open={sheetOpen && !active} onClose={() => setSheetOpen(false)} title={t("registra.title")}>
-        {e1Devices.length > 0 && (
+        <div data-tour="registra-fields">
+          {e1Devices.length > 0 && (
+            <Select
+              label={t("registra.source.label")}
+              id="registra-source"
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+            >
+              <option value={PHONE_SOURCE}>{t("registra.source.phone")}</option>
+              {e1Devices.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.nickname ?? d.external_id ?? d.id.slice(0, 8)}
+                </option>
+              ))}
+            </Select>
+          )}
+          {!native && <p className="sf-muted">{t("registra.webUnsupported")}</p>}
+          {/* Last chance to notice somebody aboard is already recording, right
+              where the boat is about to be chosen. */}
+          <LiveRecordingBanner />
           <Select
-            label={t("registra.source.label")}
-            id="registra-source"
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
+            label={t("sessions.importBoat")}
+            id="registra-boat"
+            value={boatId}
+            onChange={(e) => setBoatId(e.target.value)}
+            required
+            disabled={!native}
+            data-tour="registra-boat"
           >
-            <option value={PHONE_SOURCE}>{t("registra.source.phone")}</option>
-            {e1Devices.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.nickname ?? d.external_id ?? d.id.slice(0, 8)}
+            <option value="" disabled>
+              …
+            </option>
+            {boats.data?.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
               </option>
             ))}
           </Select>
-        )}
-        {!native && <p className="sf-muted">{t("registra.webUnsupported")}</p>}
-        {/* Last chance to notice somebody aboard is already recording, right
-            where the boat is about to be chosen. */}
-        <LiveRecordingBanner />
-        <Select
-          label={t("sessions.importBoat")}
-          id="registra-boat"
-          value={boatId}
-          onChange={(e) => setBoatId(e.target.value)}
-          required
-          disabled={!native}
-        >
-          <option value="" disabled>
-            …
-          </option>
-          {boats.data?.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </Select>
-        <ActivityPicker
-          id="registra-activity"
-          value={activityId}
-          onChange={setActivityId}
-          disabled={!native}
-        />
+          <ActivityPicker
+            id="registra-activity"
+            value={activityId}
+            onChange={setActivityId}
+            disabled={!native}
+            dataTour="registra-activity"
+          />
+        </div>
         {native && (!online || identityStale) && (
           <p className="sf-badge sf-badge--warning">{t("registra.offlineWarning")}</p>
         )}
@@ -750,6 +775,7 @@ export function RegistraPage() {
             <div className="sf-form__actions">
               <Button
                 className="sf-btn--icon"
+                data-tour="registra-start"
                 onClick={() => void onStart()}
                 disabled={!native || !boatId}
                 aria-label={t("registra.start")}

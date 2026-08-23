@@ -86,12 +86,21 @@ function MenuRow({ item, depth }: { item: MenuItem; depth: number }) {
  * replaces the flat `OptionsMenu` for pages that outgrew a single list
  * (session detail: session actions, track actions incl. trim, per-type map
  * display toggles, delete). */
-export function Menu({ sections }: { sections: MenuSection[] }) {
+export function Menu({
+  sections,
+  triggerDataTour,
+}: {
+  sections: MenuSection[];
+  /** `data-tour` anchor for the trigger button, for callers whose menu is a
+   * guided-tour step target (see `OptionsMenu`'s `triggerDataTour`). */
+  triggerDataTour?: string;
+}) {
   return (
     <Popover
       panelClassName={styles.panel}
       trigger={({ open, toggle }) => (
         <button
+          data-tour={triggerDataTour}
           className="sf-btn sf-btn--ghost sf-btn--icon-sm"
           aria-label="Options"
           aria-haspopup="menu"

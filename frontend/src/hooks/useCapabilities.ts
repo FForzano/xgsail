@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useAuth } from "./useAuth";
+import { isDemoId } from "@/demo";
 import type { UUID } from "@/types";
 
 export interface CapabilityHelpers {
@@ -33,12 +34,18 @@ export function useCapabilities(): CapabilityHelpers {
     return {
       can,
       isSuperadmin: sa,
+      // A guided tour's demo records read as "mine" so their member-gated
+      // sections render (see isDemoId). Membership only — never `can`, so no
+      // manage/edit UI appears on something that can't be edited anyway.
       ownsClub: (clubId) => sa || (m?.clubsOwned.includes(clubId) ?? false),
-      memberOfClub: (clubId) => m?.clubsMember.includes(clubId) ?? false,
+      memberOfClub: (clubId) => isDemoId(clubId) || (m?.clubsMember.includes(clubId) ?? false),
       memberOfGroup: (groupId) => m?.groups.includes(groupId) ?? false,
-      isBoatOwner: (boatId) => sa || (m?.boatsOwner.includes(boatId) ?? false),
+      isBoatOwner: (boatId) => sa || isDemoId(boatId) || (m?.boatsOwner.includes(boatId) ?? false),
       isBoatManager: (boatId) =>
-        sa || (m?.boatsOwner.includes(boatId) ?? false) || (m?.boatsAdmin.includes(boatId) ?? false),
+        sa ||
+        isDemoId(boatId) ||
+        (m?.boatsOwner.includes(boatId) ?? false) ||
+        (m?.boatsAdmin.includes(boatId) ?? false),
     };
   }, [caps]);
 }

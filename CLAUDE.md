@@ -153,6 +153,20 @@ tours.ts`, `frontend/src/components/common/SupportPromptBanner.tsx`
 respectively). Don't duplicate that copy server-side — these modules
 only track versioning/timing.
 
+**Guided tours** (`frontend/src/onboarding/`) — a coachmark runner plus a
+plain-data registry (`tours.ts`). A step names a `data-tour` attribute;
+a step whose target isn't in the DOM is skipped, not an error. Each
+page tour auto-starts once per account on first visit (tracked in
+`caps.onboarding.seenTours`, IDs mirrored in `backend/onboarding.py`)
+and replays from the "?" button. Both of those run *in place*, so a
+step's `route` only ever navigates for a tour requested by name —
+today just `getting-started`.
+
+**`frontend/src/demo/`** — fixture records (a solo outing, a club, a
+boat, a device) that let those tours show a populated page to an empty
+account, rendered by the *real* pages rather than a second copy of the
+UI. See the Gotchas entry below before touching it.
+
 **`backend/richtext.py`** — the prose-sanitization boundary, not a
 frontend-copy-owner module. Every free-text prose column (activity/
 club/group/regatta descriptions, boat notes, note templates, post
@@ -575,6 +589,30 @@ Capacitor plugin changes, which still require a store release.
   already right (`0045_reconcile_manual_entry_schema.py` is the worked
   example). Do not delete such a revision as "redundant" — it is the only
   thing standing between a corrected file and a still-broken production.
+- **Demo tour data is keyed on the id in the request path, and nothing
+  anywhere turns "demo mode" on.** `matchDemoRequest` (in
+  `frontend/src/demo/`) intercepts a call inside `api/client.ts`'s
+  `request()` only when the path carries a `DEMO_UUID_PREFIX` id, so a
+  request about a real record can never be served a fixture. Don't
+  replace that with a mode flag, and don't fake a *list* endpoint —
+  a list has no demo id in its path, which is exactly what keeps the
+  demo out of the user's own data. Mutations on a demo id are silent
+  no-ops: a guided demo is read-only, and an error toast mid-tour is
+  worse than nothing happening.
+- **The demo records are granted membership in `useCapabilities`, never
+  in `caps.memberships`.** A club's news tab, a boat's notebook/crew and
+  a session's add-photo actions are all gated on membership, so
+  `memberOfClub`/`isBoatOwner`/`isBoatManager` return true for a demo id
+  (`isDemoId`). Injecting the ids into `caps.memberships` instead would
+  break every consumer that reads those arrays as "does this user own a
+  boat yet" — `StartChecklist` among them. Membership only: `can()` is
+  deliberately untouched, so no manage UI appears on a record that
+  can't be edited.
+- **A tour is only marked seen once a step actually rendered.** `Tour.routes`
+  are prefixes, so a tour can auto-start on a page where none of its steps
+  exist (`/profilo/barche/{id}/quaderno` matches the boat tour). Without
+  the `anyStepShown` guard in `OnboardingContext`, that run would spend
+  the one automatic showing the account ever gets, in silence.
 - **Native auth is Bearer, not cookie.** Adding an endpoint that reads
   auth state directly from the request cookie (instead of going
   through `current_user()`) silently breaks it for the native apps —

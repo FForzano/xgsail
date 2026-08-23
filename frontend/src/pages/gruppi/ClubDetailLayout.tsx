@@ -176,7 +176,7 @@ export function ClubDetailLayout() {
       <SectionLayout
         tabs={[
           ...(isMember ? [{ to: `/gruppi/clubs/${clubId}`, label: t("gruppi.news"), end: true }] : []),
-          { to: `/gruppi/clubs/${clubId}/informazioni`, label: t("gruppi.overview") },
+          { to: `/gruppi/clubs/${clubId}/informazioni`, label: t("gruppi.overview"), dataTour: "club-tabs" },
           { to: `/gruppi/clubs/${clubId}/eventi`, label: t("gruppi.events") },
           ...(isMember
             ? [{
@@ -268,5 +268,13 @@ export function ClubDevicesRoute() {
 
 export function ClubFeedRoute() {
   const { clubId, managesPosts } = useClubContext();
-  return <EntityFeed ownerType="club" ownerId={clubId} canManage={managesPosts} />;
+  return (
+    <EntityFeed
+      ownerType="club"
+      ownerId={clubId}
+      canManage={managesPosts}
+      dataTour="club-news"
+      eventCardDataTour="club-news-event"
+    />
+  );
 }

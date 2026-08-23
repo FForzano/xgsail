@@ -19,10 +19,13 @@ import styles from "./RegattaStandings.module.css";
 export function RegattaStandings({
   regattaId,
   highlightBoatId,
+  dataTour,
 }: {
   regattaId: UUID;
   /** The viewer's own boat, pulled out of the pack. */
   highlightBoatId?: UUID | null;
+  /** `data-tour` anchor for the guided tour. */
+  dataTour?: string;
 }) {
   const { t } = useTranslation();
 
@@ -41,7 +44,7 @@ export function RegattaStandings({
     return <EmptyState>{t("regate.standingsEmpty")}</EmptyState>;
 
   return (
-    <div>
+    <div data-tour={dataTour}>
       {data.is_official && (
         <p className={`sf-badge ${styles.officialBadge}`}>{t("regate.officialStandings")}</p>
       )}
@@ -84,7 +87,11 @@ function DivisionTabs({
 
   return (
     <div>
-      <nav className={`sf-tabs ${styles.divisionTabs}`} aria-label={t("regate.divisions")}>
+      <nav
+        className={`sf-tabs ${styles.divisionTabs}`}
+        aria-label={t("regate.divisions")}
+        data-tour="regatta-divisions"
+      >
         {divisions.map((d, i) => (
           <button
             key={d.division?.id ?? "none"}

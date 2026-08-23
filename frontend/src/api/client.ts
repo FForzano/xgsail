@@ -1,4 +1,5 @@
 import { CSRF_COOKIE, CSRF_HEADER, readCookie } from "./csrf";
+import { matchDemoRequest } from "@/demo";
 
 // Thin fetch wrapper for the SailFrames API. The access token is a JWT held
 // in memory only (never localStorage, to limit XSS blast radius) and sent as
@@ -25,10 +26,11 @@ const API_ORIGIN = /^https?:\/\//.test(BASE) ? new URL(BASE).origin : "";
  * they're built to work same-origin on web; a relative URL inside the
  * native WebView resolves against its own virtual origin
  * (`app.xgsail.com`, see `capacitor.config.ts`) instead of the real API,
- * and silently fails (wrong host, nothing there). Already-absolute URLs
- * (a real presigned S3/MinIO URL) are returned untouched. */
+ * and silently fails (wrong host, nothing there). URLs that already carry a
+ * scheme (a real presigned S3/MinIO URL, or a `data:` payload like the demo
+ * fixtures' inlined series) are complete already and returned untouched. */
 export function resolveApiUrl(url: string): string {
-  return /^https?:\/\//.test(url) ? url : `${API_ORIGIN}${url}`;
+  return /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `${API_ORIGIN}${url}`;
 }
 
 // Dispatched when refresh fails — AuthContext listens and drops to anonymous.
@@ -154,6 +156,12 @@ export async function request<T = unknown>(
   opts: RequestOptions = {},
 ): Promise<T> {
   const method = (opts.method ?? "GET").toUpperCase();
+  // Guided-tour demo records (see src/demo): served from fixtures, never sent
+  // to the network. Keyed on a demo id in the path — there is no global demo
+  // flag — so a request about a real record always falls through untouched.
+  const demo = matchDemoRequest(path, method);
+  if (demo) return demo.data as T;
+
   const isMutation = method !== "GET" && method !== "HEAD";
   const headers: Record<string, string> = { ...opts.headers };
   let body: BodyInit | undefined;

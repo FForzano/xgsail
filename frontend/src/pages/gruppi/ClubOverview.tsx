@@ -20,17 +20,19 @@ export function ClubOverview() {
     <>
       {manages && <WindStationHintCard />}
 
-      <Card>
-        <RichText html={club.description} tier="basic" className="sf-muted" />
-        <p className="sf-muted">
-          {club.city ?? ""}{" "}
-          {club.website && (
-            <a href={club.website} target="_blank" rel="noreferrer">
-              {club.website}
-            </a>
-          )}
-        </p>
-      </Card>
+      <div data-tour="club-info">
+        <Card>
+          <RichText html={club.description} tier="basic" className="sf-muted" />
+          <p className="sf-muted">
+            {club.city ?? ""}{" "}
+            {club.website && (
+              <a href={club.website} target="_blank" rel="noreferrer">
+                {club.website}
+              </a>
+            )}
+          </p>
+        </Card>
+      </div>
 
       {position && (
         <Card title={t("gruppi.clubLocation")}>

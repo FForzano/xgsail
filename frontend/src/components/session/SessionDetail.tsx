@@ -843,11 +843,11 @@ export function SessionDetail({
             </h1>
             <div className={styles.headerActions}>
               <QuickActionButtons actions={headerActions} />
-              {menuSections.length > 0 && <Menu sections={menuSections} />}
+              {menuSections.length > 0 && <Menu sections={menuSections} triggerDataTour="activity-menu" />}
             </div>
           </div>
           {quickActions.length > 0 && (
-            <div className={styles.quickActions}>
+            <div className={styles.quickActions} data-tour="activity-quick-actions">
               <QuickActionButtons actions={quickActions} />
             </div>
           )}
@@ -860,7 +860,7 @@ export function SessionDetail({
         <p className="sf-muted">{t("sessions.noGps")}</p>
       ) : (
         <div className="sf-section__body">
-          <div className="sf-bleed">
+          <div className="sf-bleed" data-tour="activity-map">
             <MapView
               nautical
               tracks={tracks}
@@ -913,41 +913,45 @@ export function SessionDetail({
             </div>
           )}
           <div className="sf-section__body">
-            <SpeedChart
-              tracks={tracks}
-              vmg={analysis.data?.vmg_series}
-              trimMode={trimMode}
-              trimStartMs={trimDraftStartMs}
-              trimEndMs={trimDraftEndMs}
-              onTrimStartChange={setTrimDraftStartMs}
-              onTrimEndChange={setTrimDraftEndMs}
-            />
+            <div data-tour="activity-speed-chart">
+              <SpeedChart
+                tracks={tracks}
+                vmg={analysis.data?.vmg_series}
+                trimMode={trimMode}
+                trimStartMs={trimDraftStartMs}
+                trimEndMs={trimDraftEndMs}
+                onTrimStartChange={setTrimDraftStartMs}
+                onTrimEndChange={setTrimDraftEndMs}
+              />
+            </div>
             <PlaybackIndicators track={tracks[0]} vmg={analysis.data?.vmg_series} />
           </div>
         </div>
       )}
 
       {stats.data && (
-        <Section title={t("sessions.stats")}>
-          <div className="sf-tablewrap">
-            <table className="sf-table">
-              <tbody>
-                <tr>
-                  <th>{t("sessions.duration")}</th>
-                  <td>{fmtDuration(stats.data.duration_s)}</td>
-                  <th>{t("sessions.distance")}</th>
-                  <td>{fmtDistance(stats.data.distance_m)}</td>
-                </tr>
-                <tr>
-                  <th>{t("sessions.avgSpeed")}</th>
-                  <td>{fmtKnots(stats.data.avg_speed_kts)}</td>
-                  <th>{t("sessions.maxSpeed")}</th>
-                  <td>{fmtKnots(stats.data.max_speed_kts)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Section>
+        <div data-tour="activity-stats">
+          <Section title={t("sessions.stats")}>
+            <div className="sf-tablewrap">
+              <table className="sf-table">
+                <tbody>
+                  <tr>
+                    <th>{t("sessions.duration")}</th>
+                    <td>{fmtDuration(stats.data.duration_s)}</td>
+                    <th>{t("sessions.distance")}</th>
+                    <td>{fmtDistance(stats.data.distance_m)}</td>
+                  </tr>
+                  <tr>
+                    <th>{t("sessions.avgSpeed")}</th>
+                    <td>{fmtKnots(stats.data.avg_speed_kts)}</td>
+                    <th>{t("sessions.maxSpeed")}</th>
+                    <td>{fmtKnots(stats.data.max_speed_kts)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Section>
+        </div>
       )}
 
       {/* Renders nothing unless this viewer may see someone's health data —
@@ -1089,7 +1093,7 @@ export function SessionDetail({
         </Section>
       ) : null}
 
-      <div id="session-analysis">
+      <div id="session-analysis" data-tour="activity-analysis">
         <SessionAnalysis sessionId={sessionId} editMode={maneuverEditMode} />
       </div>
 

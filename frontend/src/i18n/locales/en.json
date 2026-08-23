@@ -1046,17 +1046,25 @@
         "title": "Welcome to XGSail",
         "body": "Turn your outings into analysis: VMG, tacks, points of sail and polar. Here's how to get the most out of it in a few steps."
       },
+      "tabs": {
+        "title": "Personale and Circoli",
+        "body": "\"Personale\" shows your own activities; \"Circoli\" shows the ones organized by clubs and groups you belong to."
+      },
       "import": {
         "title": "Import your first outing",
         "body": "From here you upload a GPX or CSV track from a device or another app. In seconds it becomes an analyzed session."
       },
-      "session": {
-        "title": "Here's what you'll get",
-        "body": "Every outing shows up as this card: open it for route, speed, tacks and VMG. This is just an example."
+      "feed": {
+        "title": "Your outings",
+        "body": "Every activity and regatta appears as a card here — tap it to open the full analysis."
       },
       "groups": {
         "title": "Join your club",
         "body": "Search for your club or group to see events, regattas and the shared fleet — and compare yourself with others."
+      },
+      "profile": {
+        "title": "Your profile",
+        "body": "Manage your details, your boats and connected devices from here."
       },
       "boat": {
         "title": "Add your boat",
@@ -1075,7 +1083,7 @@
         "organizer": "Organized by your club"
       }
     },
-    "diario": {
+    "diarioPersonale": {
       "tabs": {
         "title": "Personale and Circoli",
         "body": "\"Personale\" shows your own activities; \"Circoli\" shows the ones organized by clubs/groups you belong to."
@@ -1097,7 +1105,45 @@
         "body": "Every activity and regatta appears as a card like this one. Tap it to open the full analysis."
       }
     },
-    "registra": {
+    "activityDetail": {
+      "boat": {
+        "title": "The boat",
+        "body": "The boat you sailed on this outing."
+      },
+      "quickActions": {
+        "title": "Add content",
+        "body": "Add photos, videos or notes to the session, or open the boat's setup notebook."
+      },
+      "map": {
+        "title": "The map",
+        "body": "The session's route, with wind and manoeuvres overlaid."
+      },
+      "speedChart": {
+        "title": "Speed chart",
+        "body": "How speed changed during the session, synced with the map."
+      },
+      "menu": {
+        "title": "More options",
+        "body": "Re-run the analysis, edit the session's details, or delete it."
+      },
+      "stats": {
+        "title": "Statistics",
+        "body": "Distance, duration, and average and top speed for the session."
+      },
+      "health": {
+        "title": "Biometric data",
+        "body": "Heart rate recorded during the session, with your cardio zones."
+      },
+      "analysis": {
+        "title": "Analysis",
+        "body": "Legs, tacks and gybes, VMG, and how you compare to the boat's polar."
+      },
+      "marks": {
+        "title": "Marks",
+        "body": "Add course marks to work out legs and sharpen the VMG analysis."
+      }
+    },
+    "registraOverview": {
       "map": {
         "title": "The map",
         "body": "A full-screen map with the nautical chart, points of interest and sailing clubs. Tap a club to see its details."
@@ -1109,12 +1155,28 @@
       "record": {
         "title": "Record",
         "body": "Tap the button to pick a boat and activity and start recording GPS. Available in the iOS and Android apps only."
+      },
+      "fields": {
+        "title": "GPS source",
+        "body": "Choose to record with your phone or with an E1 device paired to the boat."
+      },
+      "boat": {
+        "title": "Boat",
+        "body": "Pick the boat you're recording on."
+      },
+      "activity": {
+        "title": "Activity",
+        "body": "Attach the recording to an existing outing, or start a new one."
+      },
+      "start": {
+        "title": "Start recording",
+        "body": "Tap to start recording your outing."
       }
     },
-    "gruppi": {
+    "gruppiOverview": {
       "tabs": {
         "title": "Gruppi and Circoli",
-        "body": "\"Gruppi\" lists the groups you belong to; \"Circoli\" lists sailing clubs."
+        "body": "Gruppi are informal crews of sailors; circoli are sailing clubs that organize regattas and events."
       },
       "search": {
         "title": "Search",
@@ -1125,18 +1187,116 @@
         "body": "Create a new group to organize outings and events with your crew."
       }
     },
-    "profilo": {
+    "clubDetail": {
+      "tabs": {
+        "title": "Club sections",
+        "body": "Move between the club's news, info and events."
+      },
+      "news": {
+        "title": "News",
+        "body": "News and events posted by the club."
+      },
+      "event": {
+        "title": "An event",
+        "body": "Tap an event for details and to sign up."
+      },
+      "info": {
+        "title": "Info",
+        "body": "The club's location, contacts and description."
+      },
+      "events": {
+        "title": "Events",
+        "body": "The club's calendar of regattas and other events."
+      }
+    },
+    "profiloOverview": {
       "tabs": {
         "title": "Profile sections",
         "body": "Manage your details, password, boats and connected devices from here."
       },
-      "boats": {
-        "title": "Your boats",
-        "body": "Add a boat to attach sessions, devices and crew to it."
+      "details": {
+        "title": "Personal details",
+        "body": "Name, date of birth, and resting/max heart rate: used for your cardio zones."
+      },
+      "units": {
+        "title": "Units",
+        "body": "Choose knots or km/h: applied across the whole app."
+      }
+    },
+    "boatsOverview": {
+      "add": {
+        "title": "Add a boat",
+        "body": "Register your boat to attach sessions, a device and crew to it."
+      },
+      "example": {
+        "title": "Your boat",
+        "body": "Tap a boat to open its notebook, photos and crew."
+      }
+    },
+    "boatDetail": {
+      "notebook": {
+        "title": "Setup notebook",
+        "body": "Log sail and rigging settings for each wind condition."
+      },
+      "photos": {
+        "title": "Boat photos",
+        "body": "Add photos of your boat: they'll also show on its card."
+      },
+      "crew": {
+        "title": "Crew",
+        "body": "Manage the default crew and roles for this boat."
+      }
+    },
+    "devicesOverview": {
+      "add": {
+        "title": "Pair a device",
+        "body": "Enter the claim code shown on the device to pair it with your account."
+      },
+      "claimed": {
+        "title": "Paired devices",
+        "body": "Your paired devices — open one for details or to attach it to a boat."
+      }
+    },
+    "regattaDetail": {
+      "entries": {
+        "title": "Entries",
+        "body": "The boats entered in the regatta, with name and sail number."
+      },
+      "racedays": {
+        "title": "Race days",
+        "body": "The races sailed on each day, with their results."
+      },
+      "standings": {
+        "title": "Standings",
+        "body": "The standings calculated from the races sailed so far."
+      },
+      "divisions": {
+        "title": "Divisions",
+        "body": "If the regatta is split into divisions, separate standings appear here."
       }
     },
     "help": {
       "button": "Help"
+    },
+    "checklist": {
+      "title": "Getting started",
+      "dismiss": "Dismiss",
+      "boat": {
+        "label": "Add a boat",
+        "cta": "Add"
+      },
+      "device": {
+        "label": "Pair a device",
+        "cta": "Pair"
+      },
+      "group": {
+        "label": "Join a club or group",
+        "cta": "Search"
+      },
+      "session": {
+        "label": "Record or import your first outing",
+        "cta": "Record"
+      }
     }
   },
   "users": {

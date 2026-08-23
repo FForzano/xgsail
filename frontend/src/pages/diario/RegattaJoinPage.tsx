@@ -75,6 +75,7 @@ export function RegattaJoinPage() {
           <EmptyState>{t("regate.joinNeedsBoat")}</EmptyState>
         ) : (
           <form
+            data-tour="regatta-join"
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
               if (code.trim() && boatId) join.mutate();

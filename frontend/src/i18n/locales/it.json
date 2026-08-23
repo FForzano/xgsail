@@ -1046,17 +1046,25 @@
         "title": "Benvenuto in XGSail",
         "body": "Trasforma le tue uscite in analisi: VMG, virate, andature e polare. Ti mostriamo in pochi passi come tirarne fuori il massimo."
       },
+      "tabs": {
+        "title": "Personale e Circoli",
+        "body": "\"Personale\" mostra le tue attività; \"Circoli\" quelle organizzate dai gruppi e circoli a cui appartieni."
+      },
       "import": {
         "title": "Importa la tua prima uscita",
         "body": "Da qui carichi una traccia GPX o CSV da un dispositivo o da un'altra app. In pochi secondi diventa una sessione analizzata."
       },
-      "session": {
-        "title": "Ecco cosa otterrai",
-        "body": "Ogni uscita compare come questa scheda: aprila per vedere rotta, velocità, virate e VMG. Questo è solo un esempio."
+      "feed": {
+        "title": "Le tue uscite",
+        "body": "Ogni attività e regata compare come una scheda: toccala per aprirne l'analisi completa."
       },
       "groups": {
         "title": "Entra nel tuo circolo",
         "body": "Cerca il tuo circolo o gruppo per vedere eventi, regate e la flotta condivisa — e confrontarti con gli altri."
+      },
+      "profile": {
+        "title": "Il tuo profilo",
+        "body": "Da qui gestisci i tuoi dati, le tue barche e i dispositivi collegati."
       },
       "boat": {
         "title": "Aggiungi la tua barca",
@@ -1075,7 +1083,7 @@
         "organizer": "Organizzata dal tuo circolo"
       }
     },
-    "diario": {
+    "diarioPersonale": {
       "tabs": {
         "title": "Personale e Circoli",
         "body": "\"Personale\" mostra le tue attività; \"Circoli\" quelle organizzate dai gruppi/circoli a cui appartieni."
@@ -1097,7 +1105,45 @@
         "body": "Ogni attività e regata compare come una scheda come questa. Toccala per aprirne l'analisi completa."
       }
     },
-    "registra": {
+    "activityDetail": {
+      "boat": {
+        "title": "La barca",
+        "body": "La barca con cui hai fatto questa uscita."
+      },
+      "quickActions": {
+        "title": "Aggiungi contenuti",
+        "body": "Aggiungi foto, video o annotazioni alla sessione, oppure apri il quaderno regolazioni della barca."
+      },
+      "map": {
+        "title": "La mappa",
+        "body": "La rotta della sessione, con vento e manovre in sovrapposizione."
+      },
+      "speedChart": {
+        "title": "Grafico velocità",
+        "body": "L'andamento della velocità durante la sessione, sincronizzato con la mappa."
+      },
+      "menu": {
+        "title": "Altre opzioni",
+        "body": "Rianalizza la traccia, modifica i dettagli o elimina la sessione."
+      },
+      "stats": {
+        "title": "Statistiche",
+        "body": "Distanza, durata e velocità media e massima della sessione."
+      },
+      "health": {
+        "title": "Dati biometrici",
+        "body": "Il battito cardiaco registrato durante la sessione, con le tue zone cardio."
+      },
+      "analysis": {
+        "title": "Analisi",
+        "body": "Bordi, virate e abbattute, VMG e confronto con il polare della barca."
+      },
+      "marks": {
+        "title": "Boe",
+        "body": "Aggiungi le boe di percorso per calcolare i bordi e affinare l'analisi VMG."
+      }
+    },
+    "registraOverview": {
       "map": {
         "title": "La mappa",
         "body": "La mappa a tutto schermo con la carta nautica, i punti d'interesse e i circoli velici. Tocca un circolo per vederne i dettagli."
@@ -1109,12 +1155,28 @@
       "record": {
         "title": "Registra",
         "body": "Tocca il pulsante per scegliere barca e attività e avviare la registrazione GPS. Disponibile solo nelle app iOS e Android."
+      },
+      "fields": {
+        "title": "Sorgente GPS",
+        "body": "Scegli se registrare con il telefono o con un dispositivo E1 abbinato alla barca."
+      },
+      "boat": {
+        "title": "Barca",
+        "body": "Seleziona la barca su cui stai registrando."
+      },
+      "activity": {
+        "title": "Attività",
+        "body": "Associa la registrazione a un'uscita esistente o creane una nuova."
+      },
+      "start": {
+        "title": "Avvia la registrazione",
+        "body": "Tocca per iniziare a registrare la tua uscita."
       }
     },
-    "gruppi": {
+    "gruppiOverview": {
       "tabs": {
         "title": "Gruppi e Circoli",
-        "body": "\"Gruppi\" raccoglie i gruppi a cui appartieni; \"Circoli\" i circoli velici."
+        "body": "I gruppi sono equipaggi informali di velisti; i circoli sono associazioni veliche che organizzano regate ed eventi."
       },
       "search": {
         "title": "Cerca",
@@ -1125,18 +1187,116 @@
         "body": "Crea un nuovo gruppo per organizzare uscite ed eventi con i tuoi compagni di barca."
       }
     },
-    "profilo": {
+    "clubDetail": {
+      "tabs": {
+        "title": "Sezioni del circolo",
+        "body": "Naviga tra bacheca, informazioni ed eventi del circolo."
+      },
+      "news": {
+        "title": "Bacheca",
+        "body": "Notizie ed eventi pubblicati dal circolo."
+      },
+      "event": {
+        "title": "Un evento",
+        "body": "Tocca un evento per i dettagli e per iscriverti."
+      },
+      "info": {
+        "title": "Informazioni",
+        "body": "Sede, contatti e descrizione del circolo."
+      },
+      "events": {
+        "title": "Eventi",
+        "body": "Il calendario di regate e altri eventi organizzati dal circolo."
+      }
+    },
+    "profiloOverview": {
       "tabs": {
         "title": "Sezioni del profilo",
         "body": "Da qui gestisci i tuoi dati, la password, le tue barche e i dispositivi collegati."
       },
-      "boats": {
-        "title": "Le tue barche",
-        "body": "Aggiungi una barca per associarci sessioni, dispositivi ed equipaggio."
+      "details": {
+        "title": "Dati personali",
+        "body": "Nome, data di nascita e battito a riposo/massimo: servono per le tue zone cardio."
+      },
+      "units": {
+        "title": "Unità di misura",
+        "body": "Scegli nodi o km/h: si applicano a tutta l'app."
+      }
+    },
+    "boatsOverview": {
+      "add": {
+        "title": "Aggiungi una barca",
+        "body": "Registra la tua barca per collegarci sessioni, dispositivo ed equipaggio."
+      },
+      "example": {
+        "title": "La tua barca",
+        "body": "Tocca una barca per aprire quaderno, foto ed equipaggio."
+      }
+    },
+    "boatDetail": {
+      "notebook": {
+        "title": "Quaderno regolazioni",
+        "body": "Annota le regolazioni di vele e sartie per ogni condizione di vento."
+      },
+      "photos": {
+        "title": "Foto della barca",
+        "body": "Aggiungi foto della barca: compariranno anche nella sua scheda."
+      },
+      "crew": {
+        "title": "Equipaggio",
+        "body": "Gestisci l'equipaggio e i ruoli di default per questa barca."
+      }
+    },
+    "devicesOverview": {
+      "add": {
+        "title": "Registra un dispositivo",
+        "body": "Inserisci il codice di claim mostrato sul dispositivo per abbinarlo al tuo account."
+      },
+      "claimed": {
+        "title": "Dispositivi registrati",
+        "body": "I tuoi dispositivi abbinati: apri un dispositivo per i dettagli o per collegarlo a una barca."
+      }
+    },
+    "regattaDetail": {
+      "entries": {
+        "title": "Iscritti",
+        "body": "Le barche iscritte alla regata, con nome e numero velico."
+      },
+      "racedays": {
+        "title": "Giornate di regata",
+        "body": "Le prove disputate in ogni giornata, con i relativi risultati."
+      },
+      "standings": {
+        "title": "Classifica",
+        "body": "La classifica calcolata dai risultati delle prove disputate."
+      },
+      "divisions": {
+        "title": "Categorie",
+        "body": "Se la regata è divisa in categorie, qui trovi le classifiche separate."
       }
     },
     "help": {
       "button": "Guida"
+    },
+    "checklist": {
+      "title": "Primi passi",
+      "dismiss": "Nascondi",
+      "boat": {
+        "label": "Aggiungi una barca",
+        "cta": "Aggiungi"
+      },
+      "device": {
+        "label": "Associa un dispositivo",
+        "cta": "Associa"
+      },
+      "group": {
+        "label": "Entra in un circolo o gruppo",
+        "cta": "Cerca"
+      },
+      "session": {
+        "label": "Registra o importa la tua prima uscita",
+        "cta": "Registra"
+      }
     }
   },
   "users": {

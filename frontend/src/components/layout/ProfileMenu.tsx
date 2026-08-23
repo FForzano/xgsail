@@ -35,6 +35,7 @@ export function ProfileMenu({
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={toggle}
+          data-tour="nav-profilo-desktop"
         >
           <Avatar size="sm" profileImage={profileImage} firstName={firstName} lastName={lastName} />
         </button>

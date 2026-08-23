@@ -83,11 +83,13 @@ export function HealthCard({ sessionId }: { sessionId: UUID }) {
   if (!physio.data?.length) return null;
 
   return (
-    <Section title={<HealthTitle />}>
-      {physio.data.map((entry) => (
-        <MemberHealth key={entry.session_upload_id} sessionId={sessionId} entry={entry} />
-      ))}
-    </Section>
+    <div data-tour="activity-health">
+      <Section title={<HealthTitle />}>
+        {physio.data.map((entry) => (
+          <MemberHealth key={entry.session_upload_id} sessionId={sessionId} entry={entry} />
+        ))}
+      </Section>
+    </div>
   );
 }
 

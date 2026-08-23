@@ -23,12 +23,20 @@ import photoGridStyles from "@/components/common/photoGrid.module.css";
  * "shared post" style card (thumbnail + title + description) embedded below
  * the announcement's own text, linking through to the event. Set by
  * `ClubEvents.tsx`/`GroupActivities.tsx`'s "announce this event" action. */
-function PostEventCard({ event }: { event: NonNullable<Post["event"]> }) {
+function PostEventCard({
+  event,
+  dataTour,
+}: {
+  event: NonNullable<Post["event"]>;
+  /** `data-tour` anchor — set only on the first such card by callers that use
+   * this in a guided-tour step, following `EventRow`'s `dataTour` convention. */
+  dataTour?: string;
+}) {
   const { t } = useTranslation();
   const href = event.kind === "activity" ? `/diario/activities/${event.id}` : `/diario/regate/regatta/${event.id}`;
   const title = event.title ?? (event.type ? t(`activities.types.${event.type}`) : t(`gruppi.eventKind.${event.kind}`));
   return (
-    <Link to={href} className={styles.eventCard}>
+    <Link to={href} className={styles.eventCard} data-tour={dataTour}>
       <div className={styles.eventCardMedia}>
         {event.image ? (
           <img src={event.image.url} alt="" />
@@ -117,10 +125,19 @@ export function EntityFeed({
   ownerType,
   ownerId,
   canManage,
+  dataTour,
+  eventCardDataTour,
 }: {
   ownerType: PostOwnerType;
   ownerId: UUID;
   canManage: boolean;
+  /** `data-tour` anchor on the feed's list/empty-state container — opt-in per
+   * caller (e.g. the club news route), never hardcoded here since this
+   * component is shared by clubs and groups. */
+  dataTour?: string;
+  /** `data-tour` anchor forwarded to the first post's `PostEventCard`, if
+   * any — same single-item convention as `EventRow`'s `dataTour`. */
+  eventCardDataTour?: string;
 }) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -139,6 +156,8 @@ export function EntityFeed({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: postKeys.list(ownerType, ownerId) }),
     onError: () => notify(t("errors.generic"), "error"),
   });
+
+  const firstEventPostId = posts.data?.find((p) => p.event)?.id;
 
   return (
     <>
@@ -165,6 +184,7 @@ export function EntityFeed({
         </Modal>
       )}
 
+      <div data-tour={dataTour}>
       {posts.isLoading ? (
         <Spinner />
       ) : posts.data && posts.data.length > 0 ? (
@@ -212,7 +232,12 @@ export function EntityFeed({
               ) : (
                 <RichText html={p.body} tier="basic" mentions className={styles.postBody} />
               )}
-              {p.event && <PostEventCard event={p.event} />}
+              {p.event && (
+                <PostEventCard
+                  event={p.event}
+                  dataTour={p.id === firstEventPostId ? eventCardDataTour : undefined}
+                />
+              )}
               {p.images.length === 1 ? (
                 <img className={styles.postImage} src={p.images[0].url} alt="" />
               ) : p.images.length > 1 ? (
@@ -230,6 +255,7 @@ export function EntityFeed({
       ) : (
         <EmptyState>{t("gruppi.emptyNews")}</EmptyState>
       )}
+      </div>
     </>
   );
 }

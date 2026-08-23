@@ -126,24 +126,26 @@ export function ClubEvents({
             )}
           </div>
         )}
-        <h3>{t("gruppi.upcomingEvents")}</h3>
-        {upcoming.length ? (
-          <div className={feedStyles.feed}>
-            {upcoming.map((i) => (
-              <EventRow
-                key={`${i.kind}-${i.id}`}
-                item={i}
-                manage={manageRegattas}
-                open={openRegattaId === i.id}
-                onToggle={() => setOpenRegattaId(openRegattaId === i.id ? null : i.id)}
-                clubId={clubId}
-                canAnnounce={i.kind === "regatta" ? manageRegattas : manageActivities}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="sf-muted">{t("gruppi.emptyEvents")}</p>
-        )}
+        <div data-tour="club-events">
+          <h3>{t("gruppi.upcomingEvents")}</h3>
+          {upcoming.length ? (
+            <div className={feedStyles.feed}>
+              {upcoming.map((i) => (
+                <EventRow
+                  key={`${i.kind}-${i.id}`}
+                  item={i}
+                  manage={manageRegattas}
+                  open={openRegattaId === i.id}
+                  onToggle={() => setOpenRegattaId(openRegattaId === i.id ? null : i.id)}
+                  clubId={clubId}
+                  canAnnounce={i.kind === "regatta" ? manageRegattas : manageActivities}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="sf-muted">{t("gruppi.emptyEvents")}</p>
+          )}
+        </div>
 
         <h3 style={{ marginTop: "1.5rem" }}>{t("gruppi.pastEvents")}</h3>
         {past.length ? (
