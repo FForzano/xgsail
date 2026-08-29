@@ -51,7 +51,9 @@ function PostEventCard({
           {t(`gruppi.eventKind.${event.kind}`)}
         </span>
         <strong className={styles.eventCardTitle}>{title}</strong>
-        {event.description && <p className={styles.eventCardDescription}>{event.description}</p>}
+        {event.description && (
+          <p className={styles.eventCardDescription}>{richTextExcerpt(event.description, 140)}</p>
+        )}
       </div>
     </Link>
   );
