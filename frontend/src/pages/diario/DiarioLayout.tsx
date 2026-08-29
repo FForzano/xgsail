@@ -8,6 +8,7 @@ export function DiarioLayout() {
       tabs={[
         { to: "/diario/personale", label: t("diario.myDiary"), dataTour: "diario-tabs" },
         { to: "/diario/circoli", label: t("diario.clubsDiary") },
+        { to: "/diario/progressi", label: t("progress.title") },
       ]}
     />
   );

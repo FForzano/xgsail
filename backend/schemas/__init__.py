@@ -8,7 +8,13 @@ layer to keep in sync. All ids are UUIDs; timestamps are ``AwareDatetime``
 
 from .auth import RegisterModel, LoginModel, ChangePasswordModel, RefreshModel, AcceptLegalModel, SupportPromptModel, OnboardingSeenModel
 from .app_config import AppConfigUpdateModel
-from .user import UserUpdateModel
+from .user import (
+    ProgressBestModel,
+    ProgressBoatModel,
+    ProgressTotalsModel,
+    UserProgressModel,
+    UserUpdateModel,
+)
 from .boat import (
     BoatWriteModel,
     BoatMemberModel,
@@ -73,6 +79,10 @@ __all__ = [
     "SupportPromptModel",
     "OnboardingSeenModel",
     "UserUpdateModel",
+    "ProgressTotalsModel",
+    "ProgressBestModel",
+    "ProgressBoatModel",
+    "UserProgressModel",
     "BoatWriteModel",
     "BoatMemberModel",
     "BoatMemberRoleModel",

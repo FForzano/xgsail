@@ -23,9 +23,9 @@ import { OnboardingProvider, useOnboarding } from "@/onboarding/OnboardingContex
 import { TourHelpButton } from "@/onboarding/TourHelpButton";
 
 // The main navigation exposes ONLY the 3 macro-sections (plus Admin) as
-// inline links — sub-pages are reached from inside each section
-// (docs/frontend-project.md, "Navigazione principale"). Profilo isn't a
-// nav link: on desktop it's the avatar dropdown (ProfileMenu), on mobile
+// inline links — sub-pages are reached from inside each section.
+// Profilo isn't a nav link: on desktop it's the avatar dropdown
+// (ProfileMenu), on mobile
 // it's the avatar entry in the bottom action bar. Logout lives in the
 // ProfileMenu dropdown on desktop and at the bottom of the Profilo page on
 // mobile (see ProfiloLayout.tsx).

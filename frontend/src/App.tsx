@@ -12,6 +12,7 @@ import { SessionDetailPage } from "@/pages/diario/SessionDetailPage";
 import { ImportPage } from "@/pages/diario/ImportPage";
 import { MyDiaryPage } from "@/pages/diario/MyDiaryPage";
 import { ClubsDiaryPage } from "@/pages/diario/ClubsDiaryPage";
+import { ProgressPage } from "@/pages/diario/ProgressPage";
 import { ActivityDetailPage } from "@/pages/diario/ActivityDetailPage";
 import { RacePage } from "@/pages/diario/RacePage";
 import { RegattaDetailPage } from "@/pages/diario/RegattaDetailPage";
@@ -65,6 +66,7 @@ export default function App() {
             <Route index element={<Navigate to="personale" replace />} />
             <Route path="personale" element={<MyDiaryPage />} />
             <Route path="circoli" element={<ClubsDiaryPage />} />
+            <Route path="progressi" element={<ProgressPage />} />
             <Route path="activities/import" element={<ImportPage />} />
             <Route path="activities/:activityId" element={<ActivityDetailPage />} />
             <Route path="activities/:activityId/barche/:sessionId" element={<SessionDetailPage />} />

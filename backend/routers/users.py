@@ -6,12 +6,13 @@ auth router. Profile image is parent-mediated media (presign + confirm).
 """
 
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..auth import hash_password, require_superadmin, require_user, verify_csrf
 from ..schemas import UserUpdateModel
-from ..services import media
+from ..services import media, progress
 from ._common import repos, user_summary
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -47,6 +48,22 @@ def my_memberships(request: Request):
         "clubs": repos.clubs.list_memberships_for_user(user.id),
         "groups": repos.groups.list_memberships_for_user(user.id),
     }
+
+
+@router.get("/me/progress")
+def my_progress(
+    request: Request,
+    year: Optional[int] = Query(None, ge=1970, le=2100),
+    tz_offset_minutes: int = Query(0, ge=-840, le=840),
+):
+    """How much I sailed in a year — volume only, never performance.
+
+    ``tz_offset_minutes`` is minutes east of UTC (``-new Date().
+    getTimezoneOffset()``): month and day boundaries are the caller's, not
+    the server's."""
+    user = require_user(request)
+    return progress.user_progress(user.id, year=year,
+                                  tz_offset_minutes=tz_offset_minutes)
 
 
 @router.get("/lookup")

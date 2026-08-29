@@ -1,0 +1,165 @@
+/* Monthly bars (shared with ProgressPage, which imports the component) plus
+   the compact diary strip that wraps a sparkline-scale copy of them. */
+
+.bars {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: end;
+  width: 100%;
+}
+.barsFull {
+  gap: 0.35rem;
+}
+.barsSpark {
+  gap: 2px;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.track {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+}
+.barsFull .track {
+  height: 150px;
+}
+.barsSpark .track {
+  height: 30px;
+}
+
+/* The current year reads as a solid column; last year sits behind it as a
+   wider, flat silhouette so the comparison never competes with the data. */
+.bar {
+  display: block;
+  width: 58%;
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(
+    180deg,
+    var(--sf-primary),
+    color-mix(in srgb, var(--sf-primary) 45%, var(--sf-bg-2))
+  );
+}
+.barsSpark .bar {
+  width: 70%;
+  border-radius: 2px;
+}
+.ghost {
+  position: absolute;
+  bottom: 0;
+  display: block;
+  width: 88%;
+  border-radius: 5px 5px 2px 2px;
+  background: color-mix(in srgb, var(--sf-muted) 20%, transparent);
+}
+
+.count {
+  min-height: 1em;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--sf-muted);
+}
+.month {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--sf-muted);
+}
+
+/* --- diary strip --------------------------------------------------------- */
+
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sf-primary) 12%, var(--sf-surface)), var(--sf-surface));
+  color: var(--sf-text);
+  text-decoration: none;
+  transition: border-color 0.15s ease;
+}
+.strip:hover {
+  border-color: var(--sf-primary);
+}
+
+.stripMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  flex: 1;
+}
+.stripHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-muted);
+}
+.stripTitle {
+  font-weight: 600;
+  color: var(--sf-text);
+}
+.stripYear {
+  font-variant-numeric: tabular-nums;
+}
+
+.stripStats {
+  display: flex;
+  gap: 0.9rem;
+  min-width: 0;
+}
+.stripStat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 0.68rem;
+  color: var(--sf-muted);
+  white-space: nowrap;
+}
+.stripStat b {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--sf-text);
+}
+
+.stripSpark {
+  width: 120px;
+  flex: none;
+}
+
+.stripCta {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex: none;
+  font-size: 0.8rem;
+  color: var(--sf-primary);
+}
+
+@media (max-width: 560px) {
+  .stripSpark {
+    display: none;
+  }
+}
+@media (max-width: 400px) {
+  .stripCtaText {
+    display: none;
+  }
+  .stripStats {
+    gap: 0.7rem;
+  }
+}

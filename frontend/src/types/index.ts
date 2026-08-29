@@ -934,3 +934,42 @@ export interface AppConfig {
   min_native_version_android: string | null;
   min_native_version_ios: string | null;
 }
+
+// --- progress ------------------------------------------------------------------
+
+export interface ProgressTotals {
+  sessions: number;
+  days: number;
+  distance_m: number;
+  duration_s: number;
+  boats: number;
+}
+
+export interface ProgressBest {
+  metric: "max_speed_kts" | "distance_m" | "duration_s" | "avg_polar_pct";
+  value: number;
+  session_id: UUID;
+  activity_id: UUID;
+  boat_id: UUID;
+  boat_name: string | null;
+  occurred_at: string;
+}
+
+export interface ProgressBoat {
+  boat_id: UUID;
+  name: string | null;
+  sessions: number;
+  distance_m: number;
+  duration_s: number;
+}
+
+export interface UserProgress {
+  year: number;
+  available_years: number[];
+  totals: ProgressTotals;
+  previous: ProgressTotals;
+  by_month: number[];
+  previous_by_month: number[];
+  personal_bests: ProgressBest[];
+  by_boat: ProgressBoat[];
+}

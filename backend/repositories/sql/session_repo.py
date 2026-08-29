@@ -32,6 +32,14 @@ _FIELDS = ("activity_id", "boat_id", "started_at", "ended_at", "status",
            "primary_nav_upload_id")
 _STATS_FIELDS = ("distance_m", "avg_speed_kts", "max_speed_kts", "duration_s",
                  "avg_polar_pct", "max_polar_pct", "computed_at")
+# Stats a personal best can be taken on (services/progress.py), mapped here so
+# the caller names a metric instead of handing the repository a column.
+_PROGRESS_STAT_COLUMNS = {
+    "max_speed_kts": SessionStatsORM.max_speed_kts,
+    "distance_m": SessionStatsORM.distance_m,
+    "duration_s": SessionStatsORM.duration_s,
+    "avg_polar_pct": SessionStatsORM.avg_polar_pct,
+}
 # Fields copied verbatim from a fresh worker payload row when inserting a
 # 'detected' maneuver. Deliberately excludes source/rejected/pending/
 # original_maneuver_type/corrected_by_user — those are provenance/
@@ -410,6 +418,64 @@ class SqlSessionRepo:
                     setattr(orm, k, v)
             s.commit()
         return self.get_stats(session_id)
+
+    # --- personal progress (services/progress.py) ---
+
+    def list_crewed_for_progress(self, user_id: uuid.UUID, *,
+                                 start: Optional[datetime] = None,
+                                 end: Optional[datetime] = None) -> "list[dict]":
+        """Sessions ``user_id`` crewed, in ``[start, end)``, projected to the
+        columns the progress summary needs — never whole entities.
+
+        Crew rows only, deliberately unlike ``list_for_user``: a boat is
+        routinely co-owned, so widening this to boat membership would count a
+        co-owner's outings as this user's own miles. ``session_stats`` is
+        LEFT-joined because the worker fills it asynchronously — a session
+        still counts before its analysis has run."""
+        with self.Session() as s:
+            q = (
+                select(SessionORM.id, SessionORM.boat_id, SessionORM.started_at,
+                       SessionStatsORM.distance_m, SessionStatsORM.duration_s)
+                .join(SessionCrewORM, SessionCrewORM.session_id == SessionORM.id)
+                .outerjoin(SessionStatsORM, SessionStatsORM.session_id == SessionORM.id)
+                .where(SessionCrewORM.user_id == user_id,
+                       SessionORM.started_at.is_not(None))
+            )
+            if start is not None:
+                q = q.where(SessionORM.started_at >= start)
+            if end is not None:
+                q = q.where(SessionORM.started_at < end)
+            return [dict(row._mapping) for row in s.execute(q.order_by(SessionORM.started_at))]
+
+    def list_crewed_start_times(self, user_id: uuid.UUID) -> "list[datetime]":
+        """Every crewed session's ``started_at``, ascending — one column, so the
+        year picker's options cost a single narrow scan."""
+        with self.Session() as s:
+            return list(s.scalars(
+                select(SessionORM.started_at)
+                .join(SessionCrewORM, SessionCrewORM.session_id == SessionORM.id)
+                .where(SessionCrewORM.user_id == user_id,
+                       SessionORM.started_at.is_not(None))
+                .order_by(SessionORM.started_at)
+            ).all())
+
+    def best_crewed_stat(self, user_id: uuid.UUID, metric: str) -> Optional[dict]:
+        """The crewed session holding this user's all-time highest ``metric``,
+        or None when no crewed session carries that stat."""
+        column = _PROGRESS_STAT_COLUMNS[metric]
+        with self.Session() as s:
+            row = s.execute(
+                select(SessionORM.id, SessionORM.activity_id, SessionORM.boat_id,
+                       SessionORM.started_at, column.label("value"))
+                .join(SessionCrewORM, SessionCrewORM.session_id == SessionORM.id)
+                .join(SessionStatsORM, SessionStatsORM.session_id == SessionORM.id)
+                .where(SessionCrewORM.user_id == user_id,
+                       SessionORM.started_at.is_not(None),
+                       column.is_not(None))
+                .order_by(column.desc())
+                .limit(1)
+            ).first()
+            return dict(row._mapping) if row is not None else None
 
     # --- analysis: maneuvers / legs / json leftovers ---
 

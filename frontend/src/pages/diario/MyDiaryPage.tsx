@@ -12,6 +12,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { TourDemoCard } from "@/onboarding/TourDemoCard";
 import { useOnboarding } from "@/onboarding/OnboardingContext";
 import { StartChecklist } from "@/components/onboarding/StartChecklist";
+import { ProgressStrip } from "@/components/diario/ProgressStrip";
+import { useProgress } from "@/hooks/useProgress";
 
 /** "Personale" diario tab: my own activities plus regattas I've actually
  * raced in (a personal `created_by` doesn't exist for regattas, so "mine"
@@ -24,6 +26,13 @@ export function MyDiaryPage() {
   const { type, setType, items, isLoading, hasNextPage, sentinelRef } = useDiaryFeed("personal", t);
   const [openRegattaId, setOpenRegattaId] = useState<UUID | null>(null);
   const { isDemoTarget } = useOnboarding();
+  // One or the other above the feed, never both: the start checklist can
+  // persist indefinitely (its "join a club" step may never be done by a solo
+  // sailor), and stacking it under the progress strip is exactly the clutter
+  // this arbitration avoids. Three outings means onboarding is behind us;
+  // while the query is still loading the page looks like it does today.
+  const progress = useProgress();
+  const showProgress = (progress.data?.totals.sessions ?? 0) >= 3;
 
   return (
     <>
@@ -33,7 +42,11 @@ export function MyDiaryPage() {
         <LiveRecordingBanner />
         <UpcomingEventsBanner />
         <DiaryToolbar type={type} onTypeChange={setType} importHref="/diario/activities/import" />
-        <StartChecklist hasRecordedSession={items.length > 0} sessionsLoading={isLoading} />
+        {showProgress ? (
+          <ProgressStrip />
+        ) : (
+          <StartChecklist hasRecordedSession={items.length > 0} sessionsLoading={isLoading} />
+        )}
 
         {isLoading ? (
           <Spinner />

@@ -53,7 +53,9 @@ class SessionORM(UUIDPKMixin, Base):
     boat_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("boats.id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     # Derived/aggregated from the statuses of the linked session_uploads.
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
@@ -104,7 +106,7 @@ class SessionCrewORM(UUIDPKMixin, CreatedAtMixin, Base):
         ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     sailing_role: Mapped[str] = mapped_column(String, nullable=False, default="crew")
 
