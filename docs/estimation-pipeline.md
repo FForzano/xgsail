@@ -35,6 +35,42 @@ Two independent producers, converging on the same on-disk shape
 Both paths register their `gps.json`/`gps_10hz.json` blobs in
 `session_streams` (`sensor_type="gps"`) via the normal ingestion flow.
 
+**Speed despiking — deliberately not in either producer.** The corruption
+handling described above is *positional* and format-specific. A physically
+impossible **speed** is neither, so it is rejected once, downstream of both
+producers, in `handler.py::process_analyze_prefix`:
+`processing/despike.py::despike_speed()` runs on the fetched `gps.json`
+before `analyze_session`, and the cleaned blob is written back **only when
+something was actually dropped**.
+
+That placement is the point. `gps.json` has two independent writers in two
+different deployables, so filtering in each would duplicate the physics across
+the backend/worker boundary; and the frontend map and speed chart read the raw
+`gps` stream blob rather than the analysis, so a filter confined to the
+analysis path would leave the spike visible anyway. Filtering here covers
+analysis, thumbnail and chart from one place — and makes `POST
+/sessions/{id}/reanalyze` the repair tool for already-ingested sessions, with
+no migration and no re-upload.
+
+A sample must be a *local extremum* before any magnitude test applies: a
+genuine acceleration is sustained, so it sits between its neighbours and is
+never a candidate. Candidates are dropped when they breach a physical
+acceleration gate (on **both** sides — a one-sided check would reject the first
+sample of every real acceleration) or a Hampel median/MAD test. Flagged records
+are **dropped whole**, never clamped (fabricated data) and never nulled (a null
+speed reads as 0 downstream, so legs/maneuvers would believe the boat stopped).
+If more than a small fraction of a track is flagged, nothing is dropped and a
+warning is logged — the thresholds are then wrong for that data, and deleting a
+slice of somebody's session is worse than an unfiltered stat.
+
+Two known limits, both on the conservative side: consecutive bad samples are
+not caught (they are each other's neighbour, so neither is an extremum), and
+the first and last samples are never dropped — an edge spike is the reversible
+track trim's job. Note also that `process_gps`'s 10 Hz → 1 Hz downsample keeps
+the *fastest* sample of each second, which amplifies a bad reading into the
+surviving 1 Hz sample; the despike runs after it, where such a spike is
+isolated.
+
 **Which track, when there's more than one.** A session can hold several `gps`
 streams — an onboard tracker plus an Apple Watch per crew member, or simply two
 crew members who each recorded the outing on their phone (see

@@ -144,6 +144,7 @@ def process_analyze_prefix(bucket: str, prefix: str, trim_start=None, trim_end=N
     from pathlib import Path
 
     from analyzer import analyze_session
+    from processing.despike import despike_speed
     from thumbnail import render_track_thumbnail
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -156,6 +157,31 @@ def process_analyze_prefix(bucket: str, prefix: str, trim_start=None, trim_end=N
             except Exception:
                 continue  # optional sensor file not present — analyzer tolerates missing files
             (tmp_path / name).write_bytes(obj['Body'].read())
+
+        # Speed despike (processing/despike.py) runs here, not in either
+        # producer: gps.json has two independent writers in two different
+        # deployables (this file's process_gps for device CSV, the backend's
+        # ingestion.register_gps_stream for GPX imports), and this is the one
+        # funnel every track passes through. Filtering before analyze_session
+        # fixes analysis and the thumbnail; writing the cleaned blob back
+        # fixes the frontend's map/chart, and makes `POST /sessions/{id}/
+        # reanalyze` the repair tool for already-ingested sessions.
+        gps_json_path = tmp_path / 'gps.json'
+        if gps_json_path.exists():
+            try:
+                raw_gps = json.loads(gps_json_path.read_text())
+                cleaned, dropped = despike_speed(raw_gps)
+                if dropped:
+                    logger.info(
+                        f"Speed despike: dropped {dropped} of {len(raw_gps)} "
+                        f"GPS samples for {prefix}"
+                    )
+                    body = json.dumps(cleaned).encode()
+                    gps_json_path.write_bytes(body)
+                    s3.put_object(Bucket=bucket, Key=f"{prefix}gps.json",
+                                  Body=body, ContentType='application/json')
+            except Exception as e:
+                logger.warning(f"Speed despike failed for {prefix}: {e}")
 
         result = analyze_session(tmp_path, trim_start=trim_start, trim_end=trim_end)
 
