@@ -45,9 +45,9 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  /* `contain`, not `cover` — these are low-res generated track overlays
-     (fine at the old ~220px grid-card size); cropping AND upscaling them to
-     fill a wide feed card makes the already-blocky line noticeably worse. */
+  /* `contain`, not `cover` — these are 640x480 track-over-map renders whose
+     4/3 ratio already matches .mediaBox, so `cover` would only ever crop the
+     map and the track's outer edges once the two ratios drift apart. */
   object-fit: contain;
 }
 /* The no-image case lives in components/common/MediaPlaceholder.module.css —

@@ -780,6 +780,9 @@ See `.env.example` for the full list with defaults. Grouped by concern:
   the internal endpoint), plus `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`
   reused verbatim from the backend's MinIO config by convention — don't
   invent separate OTA-specific credential var names.
+- **Track thumbnails** (`workers/process_upload/thumbnail.py`):
+  `THUMBNAIL_TILE_URL` (OSM tile template, empty disables the map
+  background), `THUMBNAIL_TILE_USER_AGENT` (sent on every tile request)
 - **Auth/JWT:** JWT signing secret, token expiry
 - **Weather APIs:** NOAA/METAR/Cumulus endpoints — optional, provider
   is skipped if unset
