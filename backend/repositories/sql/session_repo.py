@@ -21,6 +21,7 @@ from ...db.models import (
     SessionManeuverORM,
     SessionORM,
     SessionPhotoORM,
+    SessionPhysioStatsORM,
     SessionStatsORM,
     SessionStreamORM,
     SessionUploadORM,
@@ -39,6 +40,11 @@ _PROGRESS_STAT_COLUMNS = {
     "distance_m": SessionStatsORM.distance_m,
     "duration_s": SessionStatsORM.duration_s,
     "avg_polar_pct": SessionStatsORM.avg_polar_pct,
+}
+# Same idea for the physiological bests, kept a separate map because these
+# columns live behind a different privacy rule (subject-scoped, not crew-wide).
+_PROGRESS_PHYSIO_COLUMNS = {
+    "max_hr_bpm": SessionPhysioStatsORM.max_hr_bpm,
 }
 # Fields copied verbatim from a fresh worker payload row when inserting a
 # 'detected' maneuver. Deliberately excludes source/rejected/pending/
@@ -458,6 +464,56 @@ class SqlSessionRepo:
                        SessionORM.started_at.is_not(None))
                 .order_by(SessionORM.started_at)
             ).all())
+
+    def list_crewed_physio(self, user_id: uuid.UUID, *,
+                           start: Optional[datetime] = None,
+                           end: Optional[datetime] = None) -> "list[dict]":
+        """This user's OWN physiological aggregates for the sessions they
+        crewed, in ``[start, end)``.
+
+        The filter that matters is ``subject_user_id == user_id``: physio is
+        private to the person it describes, and a session routinely carries a
+        second wearer's row too (the stats are keyed by upload, not by
+        session). Filtering only on crew membership would fold a crewmate's
+        heart rate and calories into this user's own totals.
+
+        No ``physio_shared`` check is needed precisely because this only ever
+        returns the caller's own data — see ``auth.session_physio_visible_to``.
+        """
+        with self.Session() as s:
+            q = (
+                select(SessionORM.started_at,
+                       SessionPhysioStatsORM.total_kcal)
+                .join(SessionUploadORM, SessionUploadORM.session_id == SessionORM.id)
+                .join(SessionPhysioStatsORM,
+                      SessionPhysioStatsORM.session_upload_id == SessionUploadORM.id)
+                .where(SessionUploadORM.subject_user_id == user_id,
+                       SessionORM.started_at.is_not(None))
+            )
+            if start is not None:
+                q = q.where(SessionORM.started_at >= start)
+            if end is not None:
+                q = q.where(SessionORM.started_at < end)
+            return [dict(row._mapping) for row in s.execute(q)]
+
+    def best_crewed_physio(self, user_id: uuid.UUID, metric: str) -> Optional[dict]:
+        """The user's all-time highest physiological ``metric``, same
+        subject-scoping rule as ``list_crewed_physio``."""
+        column = _PROGRESS_PHYSIO_COLUMNS[metric]
+        with self.Session() as s:
+            row = s.execute(
+                select(SessionORM.id, SessionORM.activity_id, SessionORM.boat_id,
+                       SessionORM.started_at, column.label("value"))
+                .join(SessionUploadORM, SessionUploadORM.session_id == SessionORM.id)
+                .join(SessionPhysioStatsORM,
+                      SessionPhysioStatsORM.session_upload_id == SessionUploadORM.id)
+                .where(SessionUploadORM.subject_user_id == user_id,
+                       SessionORM.started_at.is_not(None),
+                       column.is_not(None))
+                .order_by(column.desc())
+                .limit(1)
+            ).first()
+            return dict(row._mapping) if row is not None else None
 
     def best_crewed_stat(self, user_id: uuid.UUID, metric: str) -> Optional[dict]:
         """The crewed session holding this user's all-time highest ``metric``,

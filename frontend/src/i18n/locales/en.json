@@ -1354,7 +1354,8 @@
       "days": "Days on the water",
       "distance": "Distance",
       "duration": "Time on the water",
-      "boats": "Boats"
+      "boats": "Boats",
+      "kcal": "Energy"
     },
     "monthsTitle": "Outings by month",
     "vsPrevious": "vs {{year}}",
@@ -1363,7 +1364,8 @@
       "max_speed_kts": "Top speed",
       "distance_m": "Longest outing",
       "duration_s": "Longest time on the water",
-      "avg_polar_pct": "Best polar %"
+      "avg_polar_pct": "Best polar %",
+      "max_hr_bpm": "Peak heart rate"
     },
     "byBoatTitle": "By boat",
     "allTime": "All time",

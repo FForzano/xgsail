@@ -943,10 +943,12 @@ export interface ProgressTotals {
   distance_m: number;
   duration_s: number;
   boats: number;
+  /** The caller's own active energy; 0 when nobody wore a watch. */
+  kcal: number;
 }
 
 export interface ProgressBest {
-  metric: "max_speed_kts" | "distance_m" | "duration_s" | "avg_polar_pct";
+  metric: "max_speed_kts" | "distance_m" | "duration_s" | "avg_polar_pct" | "max_hr_bpm";
   value: number;
   session_id: UUID;
   activity_id: UUID;

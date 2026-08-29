@@ -4,7 +4,9 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   CalendarDays,
+  Flame,
   Gauge,
+  HeartPulse,
   Percent,
   Route,
   Sailboat,
@@ -32,7 +34,12 @@ const BEST_ICONS = {
   distance_m: Route,
   duration_s: Timer,
   avg_polar_pct: Percent,
+  max_hr_bpm: HeartPulse,
 } as const;
+
+function fmtKcal(value: number): string {
+  return `${Math.round(value).toLocaleString()} kcal`;
+}
 
 function bestValue(best: ProgressBest): string {
   switch (best.metric) {
@@ -44,6 +51,8 @@ function bestValue(best: ProgressBest): string {
       return fmtDuration(best.value);
     case "avg_polar_pct":
       return `${Math.round(best.value)}%`;
+    case "max_hr_bpm":
+      return `${Math.round(best.value)} bpm`;
   }
 }
 
@@ -210,6 +219,26 @@ export function ProgressPage() {
               )
             }
           />
+          {/* Only for whoever actually wore a watch: an account with no physio
+              data sees the same four tiles as before, not an empty fifth. */}
+          {totals.kcal > 0 && (
+            <HeroStat
+              icon={Flame}
+              value={fmtKcal(totals.kcal)}
+              label={t("progress.totals.kcal")}
+              delta={
+                showDeltas &&
+                previous.kcal > 0 && (
+                  <Delta
+                    current={totals.kcal}
+                    previous={previous.kcal}
+                    previousYear={year - 1}
+                    format={fmtKcal}
+                  />
+                )
+              }
+            />
+          )}
         </div>
       </div>
 

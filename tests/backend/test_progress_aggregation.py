@@ -24,7 +24,9 @@ from backend.db.models import (
     ActivityORM,
     SessionCrewORM,
     SessionORM,
+    SessionPhysioStatsORM,
     SessionStatsORM,
+    SessionUploadORM,
     UserBoatORM,
 )
 from backend.repositories.sql.session_repo import SqlSessionRepo
@@ -64,6 +66,8 @@ def db():
         SessionORM.__table__,
         SessionCrewORM.__table__,
         SessionStatsORM.__table__,
+        SessionUploadORM.__table__,
+        SessionPhysioStatsORM.__table__,
         UserBoatORM.__table__,
     ])
     Session = sessionmaker(bind=engine, future=True)
@@ -96,6 +100,23 @@ def _session(Session, *, boat_id=BOAT, started_at=None, crew=(),
             ))
         s.commit()
     return session_id
+
+
+def _physio(Session, session_id, subject_user_id, *, total_kcal=None,
+            max_hr_bpm=None, sequence_number=0) -> None:
+    """One crew member's watch bundle on an existing session."""
+    with Session() as s:
+        upload = SessionUploadORM(
+            session_id=session_id, source_type="manual_import",
+            import_id=uuid.uuid4(), subject_type="crew_member",
+            subject_user_id=subject_user_id, sequence_number=sequence_number,
+        )
+        s.add(upload)
+        s.commit()
+        s.add(SessionPhysioStatsORM(
+            session_upload_id=upload.id, total_kcal=total_kcal, max_hr_bpm=max_hr_bpm,
+        ))
+        s.commit()
 
 
 def _patch_repos(monkeypatch, Session, boat_names=None):
@@ -269,3 +290,52 @@ def test_by_month_always_has_twelve_entries(db, monkeypatch):
 
     assert len(result.by_month) == 12
     assert len(result.previous_by_month) == 12
+
+
+def test_physio_is_subject_scoped_not_crew_scoped(db, monkeypatch):
+    """A crewmate's watch on MY session must not add their calories to my
+    totals. Physio stats are keyed by upload, so one session routinely carries
+    a second wearer's row; scoping on crew membership instead of
+    `subject_user_id` would fold their body's data into mine — the same data
+    `session_physio_visible_to` keeps private from me everywhere else."""
+    Session = db
+    when = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    session_id = _session(Session, started_at=when, crew=[ME, OTHER])
+    _physio(Session, session_id, ME, total_kcal=400.0, sequence_number=0)
+    _physio(Session, session_id, OTHER, total_kcal=999.0, sequence_number=1)
+    _patch_repos(monkeypatch, Session)
+
+    assert progress_module.user_progress(ME, year=2026).totals.kcal == 400.0
+    assert progress_module.user_progress(OTHER, year=2026).totals.kcal == 999.0
+
+
+def test_kcal_is_zero_without_a_watch(db, monkeypatch):
+    """No physio row at all is 0.0, never None — the hero tile is hidden on
+    `kcal > 0`, and a null would make that comparison throw in the client."""
+    Session = db
+    _session(Session, started_at=datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc), crew=[ME])
+    _patch_repos(monkeypatch, Session)
+
+    result = progress_module.user_progress(ME, year=2026)
+    assert result.totals.kcal == 0.0
+    assert result.previous.kcal == 0.0
+
+
+def test_max_hr_personal_best_is_subject_scoped_and_all_time(db, monkeypatch):
+    """The heart-rate best comes from the caller's own physio rows, and like
+    every other best it is all-time rather than scoped to the viewed year."""
+    Session = db
+    old = _session(Session, started_at=datetime(2024, 8, 1, 12, 0, tzinfo=timezone.utc), crew=[ME])
+    _physio(Session, old, ME, max_hr_bpm=182.0)
+    recent = _session(Session, started_at=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
+                      crew=[ME, OTHER])
+    _physio(Session, recent, ME, max_hr_bpm=171.0, sequence_number=0)
+    # Higher than either of mine, and must be ignored: it is not my heart.
+    _physio(Session, recent, OTHER, max_hr_bpm=201.0, sequence_number=1)
+    _patch_repos(monkeypatch, Session, boat_names={BOAT: "J24"})
+
+    bests = progress_module.user_progress(ME, year=2026).personal_bests
+    hr = [b for b in bests if b.metric == "max_hr_bpm"]
+    assert len(hr) == 1
+    assert hr[0].value == 182.0
+    assert hr[0].session_id == old

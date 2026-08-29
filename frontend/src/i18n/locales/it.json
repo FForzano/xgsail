@@ -1354,7 +1354,8 @@
       "days": "Giorni in acqua",
       "distance": "Distanza",
       "duration": "Tempo in acqua",
-      "boats": "Barche"
+      "boats": "Barche",
+      "kcal": "Energia"
     },
     "monthsTitle": "Uscite per mese",
     "vsPrevious": "vs {{year}}",
@@ -1363,7 +1364,8 @@
       "max_speed_kts": "Velocità massima",
       "distance_m": "Uscita più lunga",
       "duration_s": "Più tempo in acqua",
-      "avg_polar_pct": "Miglior % polare"
+      "avg_polar_pct": "Miglior % polare",
+      "max_hr_bpm": "Battito massimo"
     },
     "byBoatTitle": "Per barca",
     "allTime": "Di sempre",

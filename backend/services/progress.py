@@ -31,6 +31,9 @@ from ..schemas.user import (
 
 # Emitted in this order; a metric with no data anywhere is omitted entirely.
 BEST_METRICS = ("max_speed_kts", "distance_m", "duration_s", "avg_polar_pct")
+# Bests drawn from the caller's own physiological stats instead of the
+# session's. Separate because they are subject-scoped, not crew-wide.
+BEST_PHYSIO_METRICS = ("max_hr_bpm",)
 
 
 def _as_utc(dt: datetime) -> datetime:
@@ -49,7 +52,8 @@ def _local_year_start(year: int, tz_offset_minutes: int) -> datetime:
     return datetime(year, 1, 1, tzinfo=timezone.utc) - timedelta(minutes=tz_offset_minutes)
 
 
-def _totals(rows: "list[dict]", local_dates: "list[datetime]") -> ProgressTotalsModel:
+def _totals(rows: "list[dict]", local_dates: "list[datetime]",
+            kcal: float = 0.0) -> ProgressTotalsModel:
     return ProgressTotalsModel(
         sessions=len(rows),
         days=len({d.date() for d in local_dates}),
@@ -59,6 +63,7 @@ def _totals(rows: "list[dict]", local_dates: "list[datetime]") -> ProgressTotals
         distance_m=sum(r["distance_m"] or 0.0 for r in rows),
         duration_s=sum(r["duration_s"] or 0 for r in rows),
         boats=len({r["boat_id"] for r in rows}),
+        kcal=kcal,
     )
 
 
@@ -71,9 +76,11 @@ def _by_month(local_dates: "list[datetime]") -> "list[int]":
 
 def _personal_bests(user_id: uuid.UUID, boat_name) -> "list[ProgressBestModel]":
     repos = get_repos()
+    lookups = [(m, repos.sessions.best_crewed_stat) for m in BEST_METRICS]
+    lookups += [(m, repos.sessions.best_crewed_physio) for m in BEST_PHYSIO_METRICS]
     bests = []
-    for metric in BEST_METRICS:
-        row = repos.sessions.best_crewed_stat(user_id, metric)
+    for metric, lookup in lookups:
+        row = lookup(user_id, metric)
         if row is None:
             continue
         bests.append(ProgressBestModel(
@@ -122,6 +129,16 @@ def user_progress(user_id: uuid.UUID, *, year: Optional[int] = None,
     current = [(r, d) for r, d in dated if d.year == year]
     previous = [(r, d) for r, d in dated if d.year == year - 1]
 
+    physio = repos.sessions.list_crewed_physio(
+        user_id,
+        start=_local_year_start(year - 1, tz_offset_minutes),
+        end=_local_year_start(year + 1, tz_offset_minutes),
+    )
+    kcal_by_year: "dict[int, float]" = {}
+    for p in physio:
+        local_year = _to_local(p["started_at"], tz_offset_minutes).year
+        kcal_by_year[local_year] = kcal_by_year.get(local_year, 0.0) + (p["total_kcal"] or 0.0)
+
     names: "dict[uuid.UUID, Optional[str]]" = {}
 
     def boat_name(boat_id: uuid.UUID) -> Optional[str]:
@@ -136,8 +153,10 @@ def user_progress(user_id: uuid.UUID, *, year: Optional[int] = None,
     return UserProgressModel(
         year=year,
         available_years=years,
-        totals=_totals([r for r, _ in current], [d for _, d in current]),
-        previous=_totals([r for r, _ in previous], [d for _, d in previous]),
+        totals=_totals([r for r, _ in current], [d for _, d in current],
+                       kcal_by_year.get(year, 0.0)),
+        previous=_totals([r for r, _ in previous], [d for _, d in previous],
+                         kcal_by_year.get(year - 1, 0.0)),
         by_month=_by_month([d for _, d in current]),
         previous_by_month=_by_month([d for _, d in previous]),
         personal_bests=_personal_bests(user_id, boat_name),

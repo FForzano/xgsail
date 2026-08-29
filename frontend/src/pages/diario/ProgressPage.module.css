@@ -62,7 +62,10 @@
 }
 .heroGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* auto-fit, not a fixed 4: the energy tile only exists for someone who wore
+     a watch, and a hardcoded 4-column track would strand it alone on a second
+     row. Empty tracks collapse, so four tiles still fill the width. */
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 1.25rem 1rem;
 }
 .heroStat {

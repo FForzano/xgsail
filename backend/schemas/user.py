@@ -30,6 +30,9 @@ class ProgressTotalsModel(BaseModel):
     distance_m: float
     duration_s: int
     boats: int
+    # The caller's own active energy across the year, 0.0 when nobody wore a
+    # watch. Only ever their own — see SqlSessionRepo.list_crewed_physio.
+    kcal: float = 0.0
 
 
 class ProgressBestModel(BaseModel):
