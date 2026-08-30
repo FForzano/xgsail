@@ -40,9 +40,8 @@ OVERPASS_USER_AGENT = os.getenv(
 # window. Kept short on purpose: fanning out over many mirrors on every
 # failure is exactly the load that gets a client blocked.
 ENDPOINTS = (
-    "https://overpass-api.de/api/interpreter"
-    # "https://overpass.private.coffee/api/interpreter",
-    # "https://overpass.kumi.systems/api/interpreter"
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
 )
 # Overpass's own server-side budget, and our socket timeout with slack on top.
 QUERY_TIMEOUT_S = 60
