@@ -878,6 +878,43 @@ Capacitor plugin changes, which still require a store release.
   and `MapLayerToggles` renders each, so incomplete data is surfaced, not
   swallowed.
 
+- **Overpass reports a runtime error as HTTP 200, and believing it wipes the
+  map.** A query that times out or runs out of memory upstream — what a
+  throttled or overloaded instance returns — comes back as a perfectly valid
+  JSON body with an empty `elements` list and a `remark`. Treating that as an
+  answer is not a lost fetch, it is *cache poisoning*: `replace_cell_pois`
+  deletes the cell's real POIs, `fetched_at` gets stamped, and the place reads
+  as fully covered — so the frontend shows no warning at all — for the whole
+  `CELL_TTL_DAYS` window. `check_payload` in `services/osm_poi.py` is the
+  guard, and revision `0055` clears `fetched_at` on the cells that were
+  already blanked. Anything that parses an Overpass response must go through
+  it; success is never just a 2xx.
+
+- **Every Overpass query now leaves from one server IP, so our own concurrency
+  is the rate limit.** That is the flip side of moving the fetch off the
+  browser: overpass-api.de rations per IP (a couple of concurrent slots plus a
+  rolling quota), and the whole instance shares one. Hence `_query_gate` (one
+  query in flight per process, and the read path takes it *non-blocking* —
+  a request that cannot have the slot serves the cache and reports `partial`
+  rather than queueing) and the circuit breaker, which parks the layer after
+  `BREAKER_FAILURES` consecutive failures and immediately on a 429/504. The
+  per-cell `RETRY_AFTER_FAILURE_MIN` window does not cover an outage, because
+  every *new* cell is still a first attempt — that is exactly what turns a
+  slow Overpass into a slow API. Don't add a code path that calls Overpass
+  around the gate.
+
+- **`GET /osm-poi` runs behind nginx's 60 s `proxy_read_timeout`, and the
+  backend route is sync, so it burns a threadpool slot while it waits.** A
+  cold fill is inline and sequential, so cells x endpoints x socket timeout is
+  the number that matters, not one timeout — the original 4 x 2 x 90 s could
+  reach twelve minutes, long enough to 504 the user and, with enough of them,
+  exhaust the threadpool and stall the whole API rather than just the map.
+  `READ_FILL_BUDGET_S` is a wall-clock deadline threaded down into each
+  `requests.post`, so the read path stops trying endpoints once the budget is
+  gone. Keep it comfortably under the nginx timeout in `frontend/nginx.conf`;
+  background fills get the looser `BACKGROUND_FILL_BUDGET_S` because nobody
+  is waiting on them.
+
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 

@@ -22,6 +22,7 @@ expired / recently failed) can be tested without a database.
 
 import logging
 import os
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -44,8 +45,20 @@ ENDPOINTS = (
     "https://overpass.private.coffee/api/interpreter",
 )
 # Overpass's own server-side budget, and our socket timeout with slack on top.
-QUERY_TIMEOUT_S = 60
-FETCH_TIMEOUT_S = 90
+# Deliberately far below what Overpass would allow: a 0.5 deg cell with these
+# selectors answers in a few seconds, and anything slower is a struggling
+# instance we would rather give up on than make a user wait for. The read path
+# runs behind nginx's default 60 s ``proxy_read_timeout``, so a request that
+# outlives that is a 504 the browser reports as "the map is broken".
+QUERY_TIMEOUT_S = 25
+FETCH_TIMEOUT_S = 30
+
+# Wall-clock ceiling on the Overpass work one request may do. The read path's
+# is what keeps ``GET /osm-poi`` inside nginx's timeout no matter how many
+# cold cells the viewport covers or how slow Overpass is; the background
+# budget is looser because nobody is waiting on it.
+READ_FILL_BUDGET_S = 25
+BACKGROUND_FILL_BUDGET_S = 120
 
 # ~55 km of latitude. One Overpass query costs about the same whether it
 # covers a marina or a whole gulf (the work is the index lookup, not the few
@@ -67,9 +80,12 @@ CELL_TTL_DAYS = 60
 RETRY_AFTER_FAILURE_MIN = 60
 
 # How many never-fetched cells a single GET may fill inline. Each is one
-# Overpass round trip, so this is the bound on how long a first visit to a
-# new coastline can block. Four cells is ~110 km of coast either way.
-MAX_COLD_CELLS_PER_REQUEST = 4
+# Overpass round trip, and they run one after another, so this multiplies
+# straight into the request's latency — two cells is ~55 km of coast either
+# way, and the rest of the viewport comes back on the next pan once these are
+# cached. ``READ_FILL_BUDGET_S`` is the real ceiling; this keeps a fast
+# Overpass from being asked for more than a viewport actually needs.
+MAX_COLD_CELLS_PER_REQUEST = 2
 
 # How many cells one scheduler run refreshes. Bounds the run's duration and
 # spreads the load: with cells expiring gradually, five per run is far more
@@ -79,6 +95,28 @@ MAX_CELLS_PER_REFRESH = 5
 # Never burst at Overpass. Its usage policy asks for moderate, spaced
 # queries; five seconds between calls keeps one refresh run well inside it.
 PAUSE_BETWEEN_QUERIES_S = 5
+
+# Every query now leaves from one server IP instead of from each visitor's
+# browser, and overpass-api.de rations by IP (a couple of concurrent slots
+# plus a rolling download quota). So the whole process takes turns: one query
+# in flight at a time, and the read path never *waits* for that turn — a
+# request that cannot have it serves what is cached and reports partial
+# coverage, which is the honest answer and an instant one.
+_query_gate = threading.Lock()
+
+# How long a background fill will wait for its turn. The read path passes 0.
+SLOT_WAIT_S = 30
+
+# Circuit breaker. The per-cell retry window (``may_attempt``) does nothing
+# for an outage, because every *new* cell is still a first attempt: a user
+# panning across an unfetched coast would spend the full budget on every
+# request while Overpass is down. Consecutive failures therefore park the
+# whole layer for a cooldown, and a 429 parks it for longer straight away —
+# continuing to knock is what turns throttling into a block.
+BREAKER_FAILURES = 3
+BREAKER_COOLDOWN_S = 300
+RATE_LIMIT_COOLDOWN_S = 900
+MAX_RETRY_AFTER_S = 3600
 
 # A viewport at the zoom this layer turns on is well under a degree across.
 # This is not a tuning knob, it is the guard against a request that would
@@ -158,10 +196,31 @@ def parse_bbox(raw: str) -> "tuple[float, float, float, float]":
 
 # --- Overpass query / parse ------------------------------------------------
 
-def build_query(south: float, west: float, north: float, east: float) -> str:
+class OverpassError(RuntimeError):
+    """Overpass did not return usable data. Carries the HTTP status when there
+    was one, and ``retry_after`` when the answer said how long to wait."""
+
+    def __init__(self, message: str, *, status: Optional[int] = None,
+                 retry_after: Optional[float] = None):
+        super().__init__(message)
+        self.status = status
+        self.retry_after = retry_after
+
+    @property
+    def rate_limited(self) -> bool:
+        return self.status in (429, 504)
+
+
+def build_query(south: float, west: float, north: float, east: float,
+                timeout_s: int = QUERY_TIMEOUT_S) -> str:
     """`nwr` covers nodes, ways and relations in one clause; `out center tags`
     collapses ways/relations to a single representative point, which is all a
-    map pin needs."""
+    map pin needs.
+
+    ``timeout_s`` is Overpass's *own* budget for the query. It tracks the time
+    we are actually prepared to wait: asking for more than that just has the
+    server keep working on an answer nobody will read.
+    """
     bbox = f"{south},{west},{north},{east}"
     clauses = "".join(
         f"nwr{selector}({bbox});"
@@ -176,7 +235,7 @@ def build_query(south: float, west: float, north: float, east: float) -> str:
             '["amenity"="fuel"]["seamark:type"]',
         )
     )
-    return f"[out:json][timeout:{QUERY_TIMEOUT_S}];({clauses});out center tags;"
+    return f"[out:json][timeout:{timeout_s}];({clauses});out center tags;"
 
 
 def classify(tags: dict) -> Optional[str]:
@@ -213,94 +272,118 @@ def parse_elements(payload: dict) -> "list[dict]":
     return rows
 
 
-def query_overpass(south: float, west: float, north: float, east: float) -> dict:
-    """POST the query to each endpoint in turn, returning the first answer.
-    Raises if every endpoint fails."""
-    body = {"data": build_query(south, west, north, east)}
-    last_error: Optional[Exception] = None
+def check_payload(payload) -> dict:
+    """Overpass reports a *runtime* error inside a **200 OK** body: valid JSON,
+    an ``elements`` list that is empty or truncated, and a ``remark`` saying
+    the query timed out or ran out of memory. Taking that at face value is the
+    worst failure mode this module has — the caller would store zero POIs over
+    a cell that has plenty, stamp it fetched, and serve an empty map there,
+    reported as ``coverage: "complete"``, until the TTL expires two months
+    later. So a remark that mentions an error is a failure, and a body with no
+    ``elements`` key at all is not an Overpass answer we understand.
+    """
+    if not isinstance(payload, dict) or "elements" not in payload:
+        raise OverpassError(f"unexpected Overpass payload: {str(payload)[:200]}")
+    remark = payload.get("remark") or ""
+    if "error" in remark.lower():
+        raise OverpassError(f"Overpass runtime error: {remark[:300]}")
+    return payload
+
+
+def _retry_after_seconds(resp) -> Optional[float]:
+    """``Retry-After`` in seconds, when the answer carried a sane one."""
+    raw = resp.headers.get("Retry-After") if resp is not None else None
+    try:
+        seconds = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return min(max(seconds, 0.0), MAX_RETRY_AFTER_S)
+
+
+def query_overpass(south: float, west: float, north: float, east: float,
+                   deadline: "Optional[float]" = None) -> dict:
+    """POST the query to each endpoint in turn, returning the first usable
+    answer. Raises ``OverpassError`` if every endpoint fails.
+
+    ``deadline`` is a ``time.monotonic()`` instant this call must not outlive:
+    each attempt gets whatever is left, and the endpoints stop being tried
+    once nothing is. Without it a slow Overpass plus the mirror fallback adds
+    up to minutes, which on the read path is a gateway timeout.
+    """
+    last_error: Optional[OverpassError] = None
     for endpoint in ENDPOINTS:
+        timeout = float(FETCH_TIMEOUT_S)
+        if deadline is not None:
+            timeout = min(timeout, deadline - time.monotonic())
+            if timeout < 1:
+                logger.warning(
+                    "Out of time before trying Overpass endpoint %s for bbox %s,%s,%s,%s",
+                    endpoint, south, west, north, east,
+                )
+                break
+        body = {"data": build_query(south, west, north, east,
+                                    timeout_s=max(1, int(timeout)))}
         logger.info(
-            "Trying Overpass endpoint %s for bbox %s,%s,%s,%s",
-            endpoint,
-            south,
-            west,
-            north,
-            east,
+            "Trying Overpass endpoint %s for bbox %s,%s,%s,%s (timeout=%.0fs)",
+            endpoint, south, west, north, east, timeout,
         )
         try:
-            headers = {
-                "User-Agent": OVERPASS_USER_AGENT,
-            }
-            resp = requests.post(endpoint, data=body, timeout=FETCH_TIMEOUT_S, headers=headers)
+            resp = requests.post(endpoint, data=body, timeout=timeout,
+                                 headers={"User-Agent": OVERPASS_USER_AGENT})
             if resp.status_code >= 400:
-                logger.warning(
-                    "Overpass endpoint %s returned HTTP %s for bbox %s,%s,%s,%s; body=%s; trying next endpoint",
-                    endpoint,
-                    resp.status_code,
-                    south,
-                    west,
-                    north,
-                    east,
-                    (resp.text[:300] if resp.text else "<empty>"),
+                raise OverpassError(
+                    f"HTTP {resp.status_code}: {(resp.text[:300] if resp.text else '<empty>')}",
+                    status=resp.status_code,
+                    retry_after=_retry_after_seconds(resp),
                 )
-                resp.raise_for_status()
-            logger.info("Overpass request succeeded via endpoint %s for bbox %s,%s,%s,%s",
-                        endpoint, south, west, north, east)
-            return resp.json()
+            try:
+                payload = resp.json()
+            except ValueError as exc:
+                # An overloaded instance answers 200 with an HTML error page.
+                raise OverpassError(
+                    f"non-JSON body: {(resp.text[:300] if resp.text else '<empty>')}"
+                ) from exc
+            payload = check_payload(payload)
+            logger.info("Overpass request succeeded via endpoint %s for bbox %s,%s,%s,%s "
+                        "(%s elements)", endpoint, south, west, north, east,
+                        len(payload.get("elements") or []))
+            return payload
+        except OverpassError as exc:
+            logger.warning(
+                "Overpass endpoint %s rejected bbox %s,%s,%s,%s: %s; trying next endpoint",
+                endpoint, south, west, north, east, exc,
+            )
+            last_error = exc
         except requests.exceptions.Timeout as exc:
             logger.warning(
-                "Overpass timeout for endpoint %s while fetching bbox %s,%s,%s,%s (timeout=%ss); trying next endpoint",
-                endpoint,
-                south,
-                west,
-                north,
-                east,
-                FETCH_TIMEOUT_S,
-                exc_info=True,
+                "Overpass timeout for endpoint %s while fetching bbox %s,%s,%s,%s "
+                "(timeout=%.0fs); trying next endpoint",
+                endpoint, south, west, north, east, timeout,
             )
-            last_error = exc
-        except requests.exceptions.HTTPError as exc:
-            status_code = exc.response.status_code if exc.response is not None else "unknown"
-            logger.warning(
-                "Overpass HTTP failure for endpoint %s: status=%s bbox=%s,%s,%s,%s reason=%r; trying next endpoint",
-                endpoint,
-                status_code,
-                south,
-                west,
-                north,
-                east,
-                exc,
-                exc_info=True,
-            )
-            last_error = exc
+            # Deliberately not flagged rate-limited: our own socket timeout
+            # only says this instance was slow, and one slow query should not
+            # park the layer the way an upstream 429/504 does. It still counts
+            # toward the consecutive-failure breaker.
+            last_error = OverpassError(f"timeout after {timeout:.0f}s: {exc!r}")
         except Exception as exc:
             logger.warning(
-                "Overpass request failed for endpoint %s bbox %s,%s,%s,%s: %r; trying next endpoint",
-                endpoint,
-                south,
-                west,
-                north,
-                east,
-                exc,
-                exc_info=True,
+                "Overpass request failed for endpoint %s bbox %s,%s,%s,%s: %r; "
+                "trying next endpoint", endpoint, south, west, north, east, exc,
             )
-            last_error = exc
+            last_error = OverpassError(repr(exc))
     logger.error(
-        "All Overpass endpoints failed for bbox %s,%s,%s,%s. Endpoints tried: %s",
-        south,
-        west,
-        north,
-        east,
-        ", ".join(ENDPOINTS),
-        exc_info=True,
+        "All Overpass endpoints failed for bbox %s,%s,%s,%s. Endpoints tried: %s. Last error: %s",
+        south, west, north, east, ", ".join(ENDPOINTS), last_error,
     )
-    raise last_error or RuntimeError("Overpass unreachable")
+    raise last_error or OverpassError("Overpass unreachable")
 
 
-def fetch_cell(cell_lat: float, cell_lng: float) -> "list[dict]":
+def fetch_cell(cell_lat: float, cell_lng: float,
+               deadline: "Optional[float]" = None) -> "list[dict]":
     """Every POI in one cell, straight from Overpass. No caching here — the
     caller owns the cache bookkeeping."""
-    return parse_elements(query_overpass(*cell_bounds(cell_lat, cell_lng)))
+    return parse_elements(query_overpass(*cell_bounds(cell_lat, cell_lng),
+                                         deadline=deadline))
 
 
 # --- staleness policy ------------------------------------------------------
@@ -355,23 +438,93 @@ def needs_refresh(cell, now: Optional[datetime] = None) -> bool:
             and may_attempt(cell, now))
 
 
+# --- rate-limit gate & circuit breaker -------------------------------------
+
+_breaker_lock = threading.Lock()
+_consecutive_failures = 0
+_blocked_until = 0.0  # time.monotonic() instant
+
+
+def reset_breaker() -> None:
+    """Forget the failure history — used by tests and by the manual refresh
+    lever, where a human asking for a retry outranks the cooldown."""
+    global _consecutive_failures, _blocked_until
+    with _breaker_lock:
+        _consecutive_failures = 0
+        _blocked_until = 0.0
+
+
+def breaker_blocked_for() -> float:
+    """Seconds left on the cooldown, 0 when Overpass may be called."""
+    with _breaker_lock:
+        return max(0.0, _blocked_until - time.monotonic())
+
+
+def _record_success() -> None:
+    global _consecutive_failures, _blocked_until
+    with _breaker_lock:
+        _consecutive_failures = 0
+        _blocked_until = 0.0
+
+
+def _record_failure(exc: BaseException) -> None:
+    global _consecutive_failures, _blocked_until
+    rate_limited = isinstance(exc, OverpassError) and exc.rate_limited
+    retry_after = getattr(exc, "retry_after", None)
+    with _breaker_lock:
+        _consecutive_failures += 1
+        if rate_limited:
+            cooldown = retry_after or RATE_LIMIT_COOLDOWN_S
+        elif _consecutive_failures >= BREAKER_FAILURES:
+            cooldown = BREAKER_COOLDOWN_S
+        else:
+            return
+        _blocked_until = max(_blocked_until, time.monotonic() + cooldown)
+    logger.warning("Overpass paused for %.0fs after %s failure(s): %s",
+                   cooldown, _consecutive_failures, exc)
+
+
+def _acquire_slot(wait: bool) -> bool:
+    """Take the process's single Overpass slot, or report that we shouldn't
+    query at all right now. ``wait=False`` (the read path) never blocks: the
+    caller serves what is cached instead."""
+    blocked = breaker_blocked_for()
+    if blocked:
+        logger.info("Skipping Overpass: paused for another %.0fs", blocked)
+        return False
+    if wait:
+        return _query_gate.acquire(timeout=SLOT_WAIT_S)
+    return _query_gate.acquire(blocking=False)
+
+
 # --- cache orchestration ---------------------------------------------------
 
-def _fill_cell(repos, cell_lat: float, cell_lng: float) -> bool:
+def _fill_cell(repos, cell_lat: float, cell_lng: float, *,
+               deadline: "Optional[float]" = None, wait: bool = False) -> bool:
     """Fetch one cell from Overpass and store it. Returns whether it worked.
 
     The attempt is recorded *before* the request, so two requests arriving on
     the same never-seen cell at once don't both query Overpass, and an
-    endpoint that hangs still closes the retry window.
+    endpoint that hangs still closes the retry window. Nothing is recorded
+    when the gate or the breaker turned us away — that is not an attempt on
+    the cell, and marking it would suppress the retry for an hour over a
+    failure that had nothing to do with this place.
     """
-    now = datetime.now(timezone.utc)
-    repos.osm_pois.mark_cell(cell_lat, cell_lng, attempted_at=now)
-    try:
-        rows = fetch_cell(cell_lat, cell_lng)
-    except Exception:
-        logger.warning("overpass fetch failed for cell %s,%s", cell_lat, cell_lng,
-                       exc_info=True)
+    if not _acquire_slot(wait):
         return False
+    try:
+        now = datetime.now(timezone.utc)
+        repos.osm_pois.mark_cell(cell_lat, cell_lng, attempted_at=now)
+        try:
+            rows = fetch_cell(cell_lat, cell_lng, deadline=deadline)
+        except Exception as exc:
+            _record_failure(exc)
+            logger.warning("overpass fetch failed for cell %s,%s: %s",
+                           cell_lat, cell_lng, exc)
+            return False
+        _record_success()
+    finally:
+        _query_gate.release()
     repos.osm_pois.replace_cell_pois(cell_bounds(cell_lat, cell_lng), rows)
     repos.osm_pois.mark_cell(cell_lat, cell_lng,
                              attempted_at=now, fetched_at=datetime.now(timezone.utc))
@@ -391,13 +544,17 @@ def pois_in_bbox(repos, south: float, west: float, north: float, east: float) ->
     keys = cells_for_bbox(south, west, north, east)
     cells = repos.osm_pois.get_cells(keys)
     budget = MAX_COLD_CELLS_PER_REQUEST
+    deadline = time.monotonic() + READ_FILL_BUDGET_S
     for key in keys:
-        if budget <= 0:
+        # The breaker is checked here too, not only inside the fill: a paused
+        # layer would otherwise walk every cell in the bbox to be turned away
+        # by each one.
+        if budget <= 0 or time.monotonic() >= deadline or breaker_blocked_for():
             break
         if not needs_cold_fill(cells.get(key)):
             continue
         budget -= 1
-        if _fill_cell(repos, *key):
+        if _fill_cell(repos, *key, deadline=deadline):
             cells[key] = repos.osm_pois.get_cell(*key)
 
     complete = all(is_covered(cells.get(key)) for key in keys)
@@ -425,7 +582,8 @@ def refresh_stale_cell_in(repos, keys: "list[tuple[float, float]]") -> bool:
     for key in keys:
         cell = cells.get(key)
         if cell is not None and needs_refresh(cell):
-            _fill_cell(repos, *key)
+            _fill_cell(repos, *key, wait=True,
+                       deadline=time.monotonic() + BACKGROUND_FILL_BUDGET_S)
             return True
     return False
 
@@ -436,7 +594,10 @@ def refresh_expired_cells(repos, sleep=None) -> dict:
     someone to browse there. Routine freshness is handled by
     ``refresh_stale_cell_in`` on the read path. Oldest
     first, bounded by ``MAX_CELLS_PER_REFRESH``, spaced by
-    ``PAUSE_BETWEEN_QUERIES_S`` so a run never bursts at Overpass."""
+    ``PAUSE_BETWEEN_QUERIES_S`` so a run never bursts at Overpass. Being the
+    lever a human pulls, it clears the circuit breaker first — otherwise
+    "refresh now" would silently do nothing during a cooldown."""
+    reset_breaker()
     now = datetime.now(timezone.utc)
     candidates = repos.osm_pois.list_expired_cells(
         before=now - timedelta(days=CELL_TTL_DAYS), limit=MAX_CELLS_PER_REFRESH,
@@ -454,7 +615,8 @@ def refresh_expired_cells(repos, sleep=None) -> dict:
         if queried:
             sleep(PAUSE_BETWEEN_QUERIES_S)
         queried += 1
-        if _fill_cell(repos, cell.cell_lat, cell.cell_lng):
+        if _fill_cell(repos, cell.cell_lat, cell.cell_lng, wait=True,
+                      deadline=time.monotonic() + BACKGROUND_FILL_BUDGET_S):
             refreshed += 1
         else:
             failed += 1
