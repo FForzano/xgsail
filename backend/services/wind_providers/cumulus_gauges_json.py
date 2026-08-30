@@ -24,7 +24,7 @@ from typing import Optional
 
 import requests
 
-from ._units import speed_factor_to_kts
+from ._units import speed_factor_to_kts, validate_direction_deg, validate_speed_kts
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,10 @@ def parse_realtime_gauges(text: str, fetched_at: Optional[datetime] = None) -> O
     """Parse one ``realtimegauges.txt`` payload into the wind fields we
     cache. Returns `None` if the payload isn't valid JSON, is missing
     `timeUTC`/`windunit`, or uses an unrecognized wind unit.
+
+    An individual wind field that parses but is out of range (a station's
+    sentinel for "no reading") becomes ``None`` without discarding the
+    fields that are fine.
 
     ``fetched_at`` (defaults to now) is used as a sanity check and fallback
     for ``timeUTC``: if the station's clock has drifted more than
@@ -83,9 +87,9 @@ def parse_realtime_gauges(text: str, fetched_at: Optional[datetime] = None) -> O
 
     return {
         "observed_at": observed_at,
-        "twd_deg": bearing,
-        "tws_kts": round(wspeed * factor, 1) if wspeed is not None else None,
-        "gust_kts": round(wgust * factor, 1) if wgust is not None else None,
+        "twd_deg": validate_direction_deg(bearing),
+        "tws_kts": validate_speed_kts(round(wspeed * factor, 1) if wspeed is not None else None),
+        "gust_kts": validate_speed_kts(round(wgust * factor, 1) if wgust is not None else None),
     }
 
 

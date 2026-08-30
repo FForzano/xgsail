@@ -10,6 +10,8 @@ from typing import Optional
 
 import requests
 
+from ._units import validate_direction_deg, validate_speed_kts
+
 NDBC_REALTIME_URL = "https://www.ndbc.noaa.gov/data/realtime2/{station_id}.txt"
 
 FETCH_TIMEOUT_S = 15
@@ -19,7 +21,9 @@ MPS_TO_KTS = 1.94384
 
 def parse_ndbc_line(header: "list[str]", line: str) -> Optional[dict]:
     """Parse one NDBC data line into the wind fields we cache. Returns None
-    for short/malformed lines; ``MM`` marks a missing value."""
+    for short/malformed lines; ``MM`` marks a missing value. Values that
+    parse but are out of range are dropped to ``None`` too — ``MM`` is not
+    the only way this feed reports "no reading"."""
     parts = line.split()
     if len(parts) < 5:
         return None
@@ -44,9 +48,9 @@ def parse_ndbc_line(header: "list[str]", line: str) -> Optional[dict]:
     wspd, gst = col("WSPD"), col("GST")
     return {
         "observed_at": observed_at,
-        "twd_deg": col("WDIR"),
-        "tws_kts": round(wspd * MPS_TO_KTS, 1) if wspd is not None else None,
-        "gust_kts": round(gst * MPS_TO_KTS, 1) if gst is not None else None,
+        "twd_deg": validate_direction_deg(col("WDIR")),
+        "tws_kts": validate_speed_kts(round(wspd * MPS_TO_KTS, 1) if wspd is not None else None),
+        "gust_kts": validate_speed_kts(round(gst * MPS_TO_KTS, 1) if gst is not None else None),
     }
 
 

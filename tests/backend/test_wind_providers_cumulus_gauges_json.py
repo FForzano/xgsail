@@ -102,3 +102,19 @@ def test_fetch_station_invalid_body_returns_no_rows():
                return_value=resp):
         rows = cumulus_gauges_json.fetch_station(station)
     assert rows == []
+
+
+def test_out_of_range_bearing_is_dropped_without_losing_the_speeds():
+    """A station emits a sentinel (999, -9999, ...) for a sensor it can't
+    read; it parses as a float, so only the range check keeps it out."""
+    result = cumulus_gauges_json.parse_realtime_gauges(_payload(bearing="-9999"),
+                                                       fetched_at=FETCHED_AT)
+    assert result["twd_deg"] is None
+    assert result["tws_kts"] == 10.5
+    assert result["gust_kts"] == 13.8
+
+
+def test_bearing_360_is_normalised_to_north():
+    result = cumulus_gauges_json.parse_realtime_gauges(_payload(bearing="360"),
+                                                       fetched_at=FETCHED_AT)
+    assert result["twd_deg"] == 0.0

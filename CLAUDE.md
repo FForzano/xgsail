@@ -824,6 +824,23 @@ Capacitor plugin changes, which still require a store release.
   station's `(station_lat, station_lng)`. Getting this wrong degrades the
   wind series silently — nothing errors.
 
+- **A real weather station reporting nonsense is worse than one
+  reporting nothing, because it outweighs every model in the fusion.** A
+  dead vane keeps serving well-formed numbers — one frozen direction
+  forever — so nothing errors while TWA, points of sail, VMG and the polar
+  all come out ~190° wrong for every session at that spot (this is real,
+  not hypothetical: see `tests/backend/test_wind_quality.py`). Two guards:
+  `wind_providers/_units.py` rejects out-of-range values at the parser
+  (a station's `-9999` sentinel parses as a float perfectly well), and
+  `services/wind_quality.py` drops a station whose readings are
+  mechanically faulty, called from `_real_station_observations` so the one
+  check covers both the fused wind and the map's arrow. It excludes a
+  station **wholesale** rather than nulling the bad field —
+  `weighted_wind_mean` averages vectors, and a vector needs both
+  components. Wrong coordinates and a misconfigured wind unit stay
+  undetectable from the data; only `calibrate_wind_weights.py
+  --ablate-stations` surfaces those.
+
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 

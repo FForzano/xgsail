@@ -234,6 +234,65 @@ down." `bundle["real_stations"]` concatenates every kept station's rows into
 one list, each row carrying its own `station_id`/`distance_km` so the worker
 can regroup and weight them per station.
 
+#### Trusting a third-party sensor
+
+A real station outweighs every model in the fusion, so a station reporting
+nonsense is more damaging than a station reporting nothing. Two guards sit
+on that path, at two different levels.
+
+**At the parser** (`wind_providers/_units.py`, applied by all three
+adapters): a direction outside `[0, 360]` or a speed that is negative or
+above `MAX_WIND_SPEED_KTS` becomes `None`. These feeds are text files on
+someone else's web server, and a station is free to emit `-9999` / `999`
+for a sensor it can't read; `float()` accepts those without complaint, so
+without the range check a sentinel looks like a plausible reading. Each
+field is validated independently — a dead vane must not invalidate a
+working anemometer.
+
+**At acquisition** (`services/wind_quality.py`, called from
+`_real_station_observations`): a station whose readings are mechanically
+faulty is dropped for that window, and the reason is logged. The three
+faults it recognises all share one shape — *one channel repeats while the
+other moves*, which weather cannot do:
+
+| fault | signature |
+|---|---|
+| stuck vane | `twd_deg` identical while `tws_kts` varies |
+| stuck anemometer | `tws_kts` identical and non-zero while `twd_deg` varies |
+| frozen feed | `twd_deg`, `tws_kts` and `gust_kts` all identical, `tws_kts > 0` |
+
+This is not hypothetical: it was written against a live station at Lido
+delle Nazioni whose vane was frozen at 245.0° while its anemometer tracked
+a neighbouring station's speed almost exactly. `cumulus_realtime` stamps
+observations with the *fetch* instant (the file's own timestamp is
+locale-ambiguous), so a station that has been unplugged for months still
+looks perfectly live — the frozen-feed check is the only thing that
+notices.
+
+Every check requires a minimum row count *and* a minimum time span before
+it fires, and the frozen-feed one requires far more of both
+(`FROZEN_FEED_MIN_ROWS` / `FROZEN_FEED_MIN_SPAN_MINUTES`): a genuinely
+steady wind reported at coarse resolution is indistinguishable from a
+frozen one, and METAR/NDBC publish hourly with direction rounded to 10°, so
+three identical hourly rows are normal weather. The thresholds are sized so
+a 5-minute Cumulus feed crosses them within the hour while an hourly
+provider would have to repeat itself for twelve. The bias is deliberate:
+wrongly discarding a healthy station is the worse failure, so thin evidence
+never produces a verdict.
+
+Two failure modes remain **undetectable from the data alone**, and no code
+guards them:
+
+- a station entered with the **wrong coordinates** — it gets full
+  `real_station` weight at a place it isn't;
+- a station whose **wind unit is misconfigured** (set to km/h while
+  actually reporting m/s) — every reading is wrong by a constant factor and
+  every one of them is individually plausible.
+
+Both surface only by cross-comparison, which is what
+`scripts/calibrate_wind_weights.py` does; `--ablate-stations` is the
+quickest way to see whether a given station is helping or hurting.
+
 The shipped `weighted_fusion` strategy, in order:
 
 1. onboard sensor (`compute_true_wind_series` in `processing/wind.py`) —

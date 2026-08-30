@@ -18,7 +18,7 @@ from typing import Optional
 
 import requests
 
-from ._units import speed_factor_to_kts
+from ._units import speed_factor_to_kts, validate_direction_deg, validate_speed_kts
 
 FETCH_TIMEOUT_S = 15
 
@@ -39,7 +39,9 @@ def _to_float(value: str) -> Optional[float]:
 
 def parse_realtime_line(line: str, fetched_at: Optional[datetime] = None) -> Optional[dict]:
     """Parse one realtime.txt line into the wind fields we cache. Returns
-    `None` for short/malformed lines.
+    `None` for short/malformed lines; an individual field that parses but is
+    out of range (a station's sentinel for "no reading") becomes ``None``
+    without discarding the fields that are fine.
 
     ``observed_at`` is *not* read from the file's own date/time fields:
     their format depends on the station's locale settings (day/month order
@@ -61,9 +63,9 @@ def parse_realtime_line(line: str, fetched_at: Optional[datetime] = None) -> Opt
 
     return {
         "observed_at": fetched_at or datetime.now(timezone.utc),
-        "twd_deg": bearing,
-        "tws_kts": round(avg * factor, 1) if avg is not None else None,
-        "gust_kts": round(latest * factor, 1) if latest is not None else None,
+        "twd_deg": validate_direction_deg(bearing),
+        "tws_kts": validate_speed_kts(round(avg * factor, 1) if avg is not None else None),
+        "gust_kts": validate_speed_kts(round(latest * factor, 1) if latest is not None else None),
     }
 
 

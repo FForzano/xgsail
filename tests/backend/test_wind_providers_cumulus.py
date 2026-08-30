@@ -76,3 +76,21 @@ def test_fetch_station_empty_response_returns_no_rows():
                return_value=resp):
         rows = cumulus_realtime.fetch_station(station)
     assert rows == []
+
+
+def test_out_of_range_bearing_is_dropped_without_losing_the_speeds():
+    """A station emits a sentinel (999, -9999, ...) for a sensor it can't
+    read; it parses as a float, so only the range check keeps it out."""
+    line = SAMPLE_LINE_MPH.replace(" 244 ", " 999 ")
+    result = cumulus_realtime.parse_realtime_line(line)
+    assert result["twd_deg"] is None
+    assert result["tws_kts"] == 3.2
+    assert result["gust_kts"] == 5.9
+
+
+def test_absurd_wind_speed_is_dropped():
+    line = SAMPLE_LINE_MPH.replace(" 3.7 6.8 ", " 9999 6.8 ")
+    result = cumulus_realtime.parse_realtime_line(line)
+    assert result["tws_kts"] is None
+    assert result["gust_kts"] == 5.9
+    assert result["twd_deg"] == 244.0

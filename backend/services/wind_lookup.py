@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional
 
 from ..repositories import get_repos
-from . import wind_estimates
+from . import wind_estimates, wind_quality
 from .wind_providers import open_meteo
 
 if TYPE_CHECKING:
@@ -50,6 +50,14 @@ def _real_station_observations(lat: float, lng: float, start: datetime, end: dat
     Relevance is handled downstream by distance weighting, and a hard
     nearest-only pick would also make the chosen station flip
     discontinuously from waypoint to waypoint along a long track.
+
+    A station whose readings look mechanically faulty (a dead vane repeating
+    one direction, a dead anemometer repeating one speed — see
+    ``wind_quality``) is left out the same way. The check lives here, in the
+    one helper both callers share, so a broken sensor is kept out of the
+    fused wind *and* of the arrow the map draws. It excludes the station
+    wholesale rather than nulling the bad field: ``weighted_wind_mean``
+    averages vectors, and a vector needs both a direction and a speed.
     """
     repos = get_repos()
     found = repos.wind.find_within(lat, lng, providers=list(REAL_SENSOR_PROVIDERS),
@@ -57,8 +65,13 @@ def _real_station_observations(lat: float, lng: float, start: datetime, end: dat
     out = []
     for station, distance_km in found:
         rows = repos.wind.list_observations(station.id, start=start, end=end, limit=500)
-        if rows:
-            out.append((station, distance_km, rows))
+        if not rows:
+            continue
+        fault = wind_quality.station_readings_are_faulty(rows)
+        if fault:
+            logger.warning("wind station %s (%s) excluded: %s", station.id, station.name, fault)
+            continue
+        out.append((station, distance_km, rows))
     return out
 
 
