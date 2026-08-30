@@ -9,6 +9,11 @@ free-text rig-tuning entries) follows the same ownership roles: member-read,
 owner/admin-write. A boat also exposes a read-only logbook view of its
 sessions' crew notes, gated per session (``session_notes_visible_to``) rather
 than by boat membership alone.
+
+A *guest boat* (``boats.is_guest``) is a placeholder its creator owns like any
+other boat; the real owner takes it over through ``boat_claims``, which only
+that creator (or a superadmin) may approve — approving grants boat membership,
+and boat membership is what gates read access to every session on the boat.
 """
 
 import uuid
@@ -23,7 +28,9 @@ from ..auth import (
     session_notes_visible_to,
     verify_csrf,
 )
+from ..auth.throttle import throttle
 from ..schemas import (
+    BoatClaimCreateModel,
     BoatClassWriteModel,
     BoatMemberModel,
     BoatMemberRoleModel,
@@ -32,8 +39,8 @@ from ..schemas import (
     BoatNoteUpdateModel,
     BoatWriteModel,
 )
-from ..services import media
-from ._common import repos, with_user
+from ..services import boat_merge, media
+from ._common import repos, user_summary, with_user
 
 router = APIRouter(prefix="/api", tags=["boats"])
 
@@ -170,6 +177,164 @@ def list_boats(request: Request, mine: bool = False, q: Optional[str] = None,
     return [_boat_payload(b, user) for b in boats]
 
 
+# --- guest boats + claims ----------------------------------------------------
+#
+# Declared before ``/boats/{boat_id}``: FastAPI matches in declaration order,
+# so "claimable" / "claims" would otherwise be parsed as a boat id and 422.
+
+def _claimable_payload(boat) -> dict:
+    """Deliberately not ``_boat_payload``: this is a "is this my boat?" search
+    run by someone with no relationship to the boat, and a boat's full payload
+    (members, documents, photos) belongs to the people already on it. Just
+    enough to recognise the boat and see who entered it."""
+    boat_class = repos.boats.get_class(boat.boat_class_id) if boat.boat_class_id else None
+    return {
+        "id": boat.id,
+        "name": boat.name,
+        "sail_number": boat.sail_number,
+        "boat_class": boat_class.name if boat_class is not None else None,
+        "session_count": repos.sessions.count_for_boat(boat.id),
+        "created_by": user_summary(boat.guest_created_by) if boat.guest_created_by else None,
+    }
+
+
+@router.get("/boats/claimable")
+def list_claimable_boats(request: Request, q: str = Query(...),
+                         limit: int = Query(20, le=50, gt=0),
+                         offset: int = Query(0, ge=0)):
+    """Guest boats matching ``q``. Search-only, minimum two characters: the
+    point is to find one known boat, not to enumerate every placeholder on the
+    instance."""
+    require_user(request)
+    if len(q.strip()) < 2:
+        raise HTTPException(422, "q must be at least 2 characters")
+    return [_claimable_payload(b) for b in
+            repos.boats.list_claimable(q=q.strip(), limit=limit, offset=offset)]
+
+
+@router.get("/boats/claims/mine")
+def list_my_claims(request: Request):
+    """The caller's own claims, any status, so a pending or rejected one stays
+    visible to the person who filed it."""
+    user = require_user(request)
+    out = []
+    for claim in repos.boats.list_claims_by_user(user.id):
+        boat = repos.boats.get(claim.boat_id)
+        out.append(claim.to_dict() | {
+            "boat": {"id": boat.id, "name": boat.name, "sail_number": boat.sail_number,
+                     "is_guest": boat.is_guest} if boat is not None else None,
+        })
+    return out
+
+
+@router.post("/boats/{boat_id}/claims")
+def create_claim(boat_id: uuid.UUID, body: BoatClaimCreateModel, request: Request):
+    """File a claim on a guest boat. Throttled: an authenticated caller could
+    otherwise probe the instance for boats and spam their creators."""
+    verify_csrf(request)
+    throttle(request, bucket="boat_claim", max_per_min=5,
+             message="Too many claims, retry later")
+    user = require_user(request)
+    boat = _require_boat(boat_id)
+    if not boat.is_guest:
+        raise HTTPException(409, "Boat is not claimable")
+    if repos.boats.is_member(boat_id, user.id):
+        raise HTTPException(409, "Already a member of this boat")
+    if body.target_boat_id is not None:
+        if body.target_boat_id == boat_id:
+            raise HTTPException(422, "target_boat_id must be a different boat")
+        if repos.boats.get(body.target_boat_id) is None:
+            raise HTTPException(404, "Target boat not found")
+        # A merge moves the guest boat's sessions onto the target, so the
+        # claimant must manage the target — not merely be a member of it.
+        if not _is_manager(user, body.target_boat_id):
+            raise HTTPException(403, "Target boat owner/admin required")
+    claim = repos.boats.create_claim(boat_id, user_id=user.id,
+                                     target_boat_id=body.target_boat_id)
+    if claim is None:
+        raise HTTPException(409, "A pending claim already exists")
+    return claim.to_dict()
+
+
+@router.get("/boats/{boat_id}/claims")
+def list_boat_claims(boat_id: uuid.UUID, request: Request,
+                     status: Optional[str] = Query(None)):
+    """Claims filed against this guest boat — owner/admin only: they are
+    addressed to the person who has to decide them."""
+    user = require_user(request)
+    _require_boat(boat_id)
+    if not _is_manager(user, boat_id):
+        raise HTTPException(403, "Boat owner/admin required")
+    return [with_user(c.to_dict(), c.user_id)
+            for c in repos.boats.list_claims_for_boat(boat_id, status=status)]
+
+
+def _require_pending_claim(boat_id: uuid.UUID, claim_id: uuid.UUID):
+    claim = repos.boats.get_claim(claim_id)
+    # The boat_id match is not redundant with the 404: without it a claim
+    # against boat A could be resolved by the manager of boat B, who would be
+    # authorizing a membership grant on a boat that is none of their business.
+    if claim is None or claim.boat_id != boat_id:
+        raise HTTPException(404, "Claim not found")
+    if claim.status != "pending":
+        raise HTTPException(409, "Claim already resolved")
+    return claim
+
+
+def _require_claim_approver(user, boat_id: uuid.UUID):
+    """Only the guest boat's owner/admin — in practice its creator — may
+    resolve a claim. Approving adds the claimant to ``user_boats``, and boat
+    membership is what gates read access to every session recorded on the boat
+    (``routers/sessions.py``), so a looser gate here is a data leak, not a UX
+    shortcut."""
+    if not _is_manager(user, boat_id):
+        raise HTTPException(403, "Boat owner/admin required")
+
+
+@router.post("/boats/{boat_id}/claims/{claim_id}/approve")
+def approve_claim(boat_id: uuid.UUID, claim_id: uuid.UUID, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    boat = _require_boat(boat_id)
+    _require_claim_approver(user, boat_id)
+    claim = _require_pending_claim(boat_id, claim_id)
+    target_id = claim.target_boat_id
+    if target_id is not None and not repos.boats.is_member(
+            target_id, claim.user_id, roles=["owner", "admin"]):
+        raise HTTPException(409, "Claimant no longer manages the target boat")
+
+    # Resolve first: ``boat_claims.boat_id`` is ON DELETE CASCADE, so a merge
+    # deletes this very row and there would be nothing left to mark approved.
+    if not repos.boats.resolve_claim(claim_id, status="approved", resolved_by=user.id):
+        raise HTTPException(409, "Claim already resolved")
+
+    if target_id is None:
+        # The demoted-to-visitor party is the creator, not whoever approved: a
+        # superadmin can approve without being on the boat at all, and
+        # demoting them would rewrite an unrelated membership.
+        previous_owner_id = boat.guest_created_by or user.id
+        boat_merge.promote_guest_boat(boat_id, new_owner_id=claim.user_id,
+                                      previous_owner_id=previous_owner_id)
+        return {"ok": True, "merged": None}
+    try:
+        counts = boat_merge.merge_boat(boat_id, target_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    return {"ok": True, "merged": counts}
+
+
+@router.post("/boats/{boat_id}/claims/{claim_id}/reject")
+def reject_claim(boat_id: uuid.UUID, claim_id: uuid.UUID, request: Request):
+    verify_csrf(request)
+    user = require_user(request)
+    _require_boat(boat_id)
+    _require_claim_approver(user, boat_id)
+    _require_pending_claim(boat_id, claim_id)
+    if not repos.boats.resolve_claim(claim_id, status="rejected", resolved_by=user.id):
+        raise HTTPException(409, "Claim already resolved")
+    return {"ok": True}
+
+
 @router.get("/boats/{boat_id}")
 def get_boat(boat_id: uuid.UUID, request: Request):
     return _boat_payload(_require_boat(boat_id), current_user(request))
@@ -181,7 +346,10 @@ def create_boat(body: BoatWriteModel, request: Request):
     user = require_user(request)
     if not body.name:
         raise HTTPException(422, "name is required")
-    boat = repos.boats.create(body.model_dump(exclude_unset=True))
+    data = body.model_dump(exclude_unset=True)
+    if data.pop("is_guest", False):
+        data |= {"is_guest": True, "guest_created_by": user.id}
+    boat = repos.boats.create(data)
     repos.boats.add_member(boat.id, user_id=user.id, role="owner")
     return _boat_payload(repos.boats.get(boat.id), user)
 

@@ -79,6 +79,16 @@ class SqlSessionRepo:
                 q = q.where(SessionORM.boat_id == boat_id)
             return list(s.scalars(q).all())
 
+    def count_for_boat(self, boat_id: uuid.UUID) -> int:
+        """COUNT, not ``len(list(...))``: the claimable-boats search asks this
+        for every hit on the page, and sessions is one of the tables that must
+        never be pulled whole."""
+        with self.Session() as s:
+            return s.scalar(
+                select(func.count()).select_from(SessionORM)
+                .where(SessionORM.boat_id == boat_id)
+            ) or 0
+
     def list_for_user(self, user_id: uuid.UUID) -> "list[SessionORM]":
         """Sessions the user took part in: crew rows plus any session of a boat
         they are a member of (``?mine=true``)."""

@@ -12,6 +12,7 @@ from .club import ClubORM, UserClubORM
 from .group import GroupORM, UserGroupORM
 from .post import PostORM, PostImageORM
 from .boat import BoatClassORM, BoatORM, UserBoatORM, BoatPhotoORM, BoatNoteORM
+from .boat_claim import BoatClaimORM
 from .polar import PolarPointORM
 from .device import DeviceTypeORM, DeviceORM
 from .integration import IntegrationConnectionORM
@@ -57,6 +58,7 @@ __all__ = [
     "UserBoatORM",
     "BoatPhotoORM",
     "BoatNoteORM",
+    "BoatClaimORM",
     "PolarPointORM",
     "DeviceTypeORM",
     "DeviceORM",

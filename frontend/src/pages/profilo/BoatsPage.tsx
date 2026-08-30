@@ -61,6 +61,9 @@ export function BoatsPage() {
           <Link to="/profilo/barche/modelli" className="sf-btn sf-btn--ghost">
             {t("noteTemplates.title")}
           </Link>
+          <Link to="/profilo/barche/rivendica" className="sf-btn sf-btn--ghost">
+            {t("boats.claimTitle")}
+          </Link>
           <Button data-tour="profilo-add-boat" onClick={() => setCreating(true)}>{t("boats.addBoat")}</Button>
         </span>
       </div>
@@ -94,6 +97,11 @@ export function BoatsPage() {
                       </td>
                       <td>
                         <Link to={`/profilo/barche/${b.id}`}>{b.name}</Link>
+                        {b.is_guest && (
+                          <span className="sf-badge sf-badge--sm" style={{ marginLeft: "0.4rem" }}>
+                            {t("boats.guestBadge")}
+                          </span>
+                        )}
                       </td>
                       <td>{b.sail_number ?? "—"}</td>
                       <td>
@@ -196,6 +204,11 @@ function BoatCard({
         <Link to={`/profilo/barche/${boat.id}`} className={styles.cardName}>
           {boat.name}
         </Link>
+        {boat.is_guest && (
+          <span className="sf-badge sf-badge--sm" style={{ marginLeft: "0.4rem" }}>
+            {t("boats.guestBadge")}
+          </span>
+        )}
         <div className={styles.cardMeta}>
           <span>{boat.sail_number ?? "—"}</span>
           {boatClass && (

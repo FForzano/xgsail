@@ -62,7 +62,9 @@ def effective_capabilities(user) -> dict:
     clubs_member = [c.id for c in repos.clubs.list() if repos.clubs.is_active_member(c.id, user.id)]
     groups = [g.id for g in repos.groups.list() if repos.groups.is_member(g.id, user.id)]
     boats_owner, boats_admin = [], []
-    for b in repos.boats.list():
+    # include_guest: a guest boat's creator is a plain owner, and the UI gates
+    # "do you have a boat yet" on these lists.
+    for b in repos.boats.list(include_guest=True):
         if repos.boats.is_member(b.id, user.id, roles=["owner"]):
             boats_owner.append(b.id)
         if repos.boats.is_member(b.id, user.id, roles=["admin"]):

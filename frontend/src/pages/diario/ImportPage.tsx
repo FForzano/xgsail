@@ -6,11 +6,14 @@ import { boatsService, boatKeys } from "@/services/boats";
 import { sessionsService } from "@/services/sessions";
 import { useShareTarget } from "@/hooks/useShareTarget";
 import { useImportUpload } from "@/hooks/useImportUpload";
+import { GuestBoatDialog } from "@/components/common/GuestBoatDialog";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import type { UUID } from "@/types";
+
+const GUEST_BOAT_SENTINEL = "__guest__" as const; // boat select: "add a guest boat" option
 
 /** GPX/CSV import wizard: register → PUT bytes → complete → poll. Handles
  * both a manually-picked file and one arriving from the OS share sheet
@@ -23,6 +26,7 @@ export function ImportPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { pendingFile, clearPendingShare } = useShareTarget();
   const [boatId, setBoatId] = useState("");
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
   const { phase, row, error, uploadProgress, start, reset } = useImportUpload();
 
   const boats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
@@ -46,92 +50,109 @@ export function ImportPage() {
   };
 
   return (
-    <Card title={t("sessions.importTitle")}>
-      {phase === "idle" && (
-        <>
-          {pendingFile ? (
-            <p className="sf-field__label">
-              {t("sessions.importFile")}: {pendingFile.name}
-            </p>
-          ) : (
-            <label className="sf-field">
-              <span className="sf-field__label">{t("sessions.importFile")}</span>
-              <input ref={fileRef} type="file" accept=".gpx,.csv" className="sf-field__input" />
-            </label>
-          )}
-          <Select
-            label={t("sessions.importBoat")}
-            id="import-boat"
-            value={boatId}
-            onChange={(e) => setBoatId(e.target.value)}
-            required
-          >
-            <option value="" disabled>
-              …
-            </option>
-            {boats.data?.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </Select>
-          <div className="sf-form__actions">
-            <Button onClick={() => void onStart()} disabled={!boatId}>
-              {t("sessions.importStart")}
-            </Button>
-          </div>
-        </>
-      )}
-      {phase === "uploading" && (
-        <>
-          <div className="sf-progress" role="progressbar" aria-valuenow={Math.round(uploadProgress * 100)}>
-            <div className="sf-progress__bar" style={{ width: `${Math.round(uploadProgress * 100)}%` }} />
-          </div>
-          <p className="sf-muted" style={{ textAlign: "center" }}>
-            {t("sessions.uploading", { percent: Math.round(uploadProgress * 100) })}
-          </p>
-        </>
-      )}
-      {phase === "processing" && (
-        <>
-          <Spinner />
-          <p className="sf-muted" style={{ textAlign: "center" }}>
-            {t("sessions.processing")}
-          </p>
-        </>
-      )}
-      {phase === "done" && (
-        <>
-          <p className="sf-badge sf-badge--success">{t("sessions.importDone")}</p>
-          <div className="sf-form__actions">
-            <Button
-              disabled={!!row?.session_id && !importedSession.data}
-              onClick={() =>
-                navigate(
-                  importedSession.data
-                    ? `/diario/activities/${importedSession.data.activity_id}/barche/${importedSession.data.id}`
-                    : "/diario/personale",
-                )
-              }
+    <>
+      <Card title={t("sessions.importTitle")}>
+        {phase === "idle" && (
+          <>
+            {pendingFile ? (
+              <p className="sf-field__label">
+                {t("sessions.importFile")}: {pendingFile.name}
+              </p>
+            ) : (
+              <label className="sf-field">
+                <span className="sf-field__label">{t("sessions.importFile")}</span>
+                <input ref={fileRef} type="file" accept=".gpx,.csv" className="sf-field__input" />
+              </label>
+            )}
+            <Select
+              label={t("sessions.importBoat")}
+              id="import-boat"
+              value={boatId}
+              onChange={(e) => {
+                if (e.target.value === GUEST_BOAT_SENTINEL) {
+                  setGuestDialogOpen(true);
+                  return;
+                }
+                setBoatId(e.target.value);
+              }}
+              required
             >
-              {t("activities.title")}
-            </Button>
-          </div>
-        </>
-      )}
-      {phase === "failed" && (
-        <>
-          <p className="sf-form__error">
-            {t("sessions.importFailed")}
-            {error ? ` — ${error}` : row?.error ? ` — ${row.error}` : ""}
-          </p>
-          <div className="sf-form__actions">
-            <Button variant="ghost" onClick={reset}>
-              {t("common.cancel")}
-            </Button>
-          </div>
-        </>
-      )}
-    </Card>
+              <option value="" disabled>
+                …
+              </option>
+              {boats.data?.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+              <option value={GUEST_BOAT_SENTINEL}>{t("boats.guestBoatOption")}</option>
+            </Select>
+            <div className="sf-form__actions">
+              <Button onClick={() => void onStart()} disabled={!boatId}>
+                {t("sessions.importStart")}
+              </Button>
+            </div>
+          </>
+        )}
+        {phase === "uploading" && (
+          <>
+            <div className="sf-progress" role="progressbar" aria-valuenow={Math.round(uploadProgress * 100)}>
+              <div className="sf-progress__bar" style={{ width: `${Math.round(uploadProgress * 100)}%` }} />
+            </div>
+            <p className="sf-muted" style={{ textAlign: "center" }}>
+              {t("sessions.uploading", { percent: Math.round(uploadProgress * 100) })}
+            </p>
+          </>
+        )}
+        {phase === "processing" && (
+          <>
+            <Spinner />
+            <p className="sf-muted" style={{ textAlign: "center" }}>
+              {t("sessions.processing")}
+            </p>
+          </>
+        )}
+        {phase === "done" && (
+          <>
+            <p className="sf-badge sf-badge--success">{t("sessions.importDone")}</p>
+            <div className="sf-form__actions">
+              <Button
+                disabled={!!row?.session_id && !importedSession.data}
+                onClick={() =>
+                  navigate(
+                    importedSession.data
+                      ? `/diario/activities/${importedSession.data.activity_id}/barche/${importedSession.data.id}`
+                      : "/diario/personale",
+                  )
+                }
+              >
+                {t("activities.title")}
+              </Button>
+            </div>
+          </>
+        )}
+        {phase === "failed" && (
+          <>
+            <p className="sf-form__error">
+              {t("sessions.importFailed")}
+              {error ? ` — ${error}` : row?.error ? ` — ${row.error}` : ""}
+            </p>
+            <div className="sf-form__actions">
+              <Button variant="ghost" onClick={reset}>
+                {t("common.cancel")}
+              </Button>
+            </div>
+          </>
+        )}
+      </Card>
+      <GuestBoatDialog
+        open={guestDialogOpen}
+        onClose={() => setGuestDialogOpen(false)}
+        onCreated={(boat) => {
+          setBoatId(boat.id);
+          setGuestDialogOpen(false);
+        }}
+      />
+    </>
   );
 }

@@ -7,6 +7,7 @@ import { Network } from "@capacitor/network";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Disc, Gauge, Pause, Play, Square } from "lucide-react";
 import { boatsService, boatKeys, cachedMyBoats, lastBoatId, rememberLastBoatId } from "@/services/boats";
+import { GuestBoatDialog } from "@/components/common/GuestBoatDialog";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { sessionsService } from "@/services/sessions";
 import { useImportUpload } from "@/hooks/useImportUpload";
@@ -35,6 +36,7 @@ import styles from "./RegistraPage.module.css";
 
 const STANDALONE = "" as const; // empty select value = "uscita singola"
 const PHONE_SOURCE = "phone" as const; // recording source select: this phone's own GPS
+const GUEST_BOAT_SENTINEL = "__guest__" as const; // boat select: "add a guest boat" option
 
 function ActivityPicker({
   id,
@@ -441,6 +443,7 @@ export function RegistraPage() {
   const [online, setOnline] = useState(true);
   const [navMode, setNavMode] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
   const upload = useImportUpload();
 
   // initialData falls back to the last successfully cached "my boats" list
@@ -743,7 +746,13 @@ export function RegistraPage() {
             label={t("sessions.importBoat")}
             id="registra-boat"
             value={boatId}
-            onChange={(e) => setBoatId(e.target.value)}
+            onChange={(e) => {
+              if (e.target.value === GUEST_BOAT_SENTINEL) {
+                setGuestDialogOpen(true);
+                return;
+              }
+              setBoatId(e.target.value);
+            }}
             required
             disabled={!native}
             data-tour="registra-boat"
@@ -756,6 +765,7 @@ export function RegistraPage() {
                 {b.name}
               </option>
             ))}
+            <option value={GUEST_BOAT_SENTINEL}>{t("boats.guestBoatOption")}</option>
           </Select>
           <ActivityPicker
             id="registra-activity"
@@ -811,6 +821,15 @@ export function RegistraPage() {
       {(error === ERROR_PERMISSION_DENIED || error === ERROR_LOCATION_SERVICES_DISABLED) && (
         <GpsErrorModal error={error} onClose={() => setError(null)} />
       )}
+
+      <GuestBoatDialog
+        open={guestDialogOpen}
+        onClose={() => setGuestDialogOpen(false)}
+        onCreated={(boat) => {
+          setBoatId(boat.id);
+          setGuestDialogOpen(false);
+        }}
+      />
     </div>
   );
 }

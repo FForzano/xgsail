@@ -2,11 +2,13 @@ import { api } from "@/api/client";
 import { readCache, writeCache } from "@/services/offlineCache";
 import type {
   Boat,
+  BoatClaim,
   BoatClass,
   BoatMember,
   BoatNote,
   BoatRole,
   BoatSessionNote,
+  ClaimableBoat,
   FileUploadTicket,
   HullType,
   ImageUploadTicket,
@@ -24,6 +26,9 @@ export const boatKeys = {
   members: (id: UUID) => ["boats", id, "members"] as const,
   notes: (id: UUID) => ["boats", id, "notes"] as const,
   sessionNotes: (id: UUID, q = "") => ["boats", id, "session-notes", q] as const,
+  claimable: (q: string) => ["boats", "claimable", q] as const,
+  claims: (id: UUID) => ["boats", id, "claims"] as const,
+  claimsMine: ["boats", "claims", "mine"] as const,
   classes: (
     page = 0,
     search = "",
@@ -52,9 +57,26 @@ export const boatsService = {
   search: (q: string, limit = 20) =>
     api.get<Boat[]>(`/boats?q=${encodeURIComponent(q)}&limit=${limit}`),
   get: (id: UUID) => api.get<Boat>(`/boats/${id}`),
+  /** `is_guest` is honoured only here, on create — a PATCH silently ignores it. */
   create: (body: Partial<Boat>) => api.post<Boat>("/boats", body),
   update: (id: UUID, body: Partial<Boat>) => api.patch<Boat>(`/boats/${id}`, body),
   remove: (id: UUID) => api.del(`/boats/${id}`),
+
+  /** Instance-wide search for the guest-boat claim flow — `q` is required
+   * server-side (min 2 chars) so this never doubles as a generic boat list. */
+  listClaimable: (q: string, limit = 20) =>
+    api.get<ClaimableBoat[]>(`/boats/claimable?q=${encodeURIComponent(q)}&limit=${limit}`),
+  createClaim: (boatId: UUID, targetBoatId?: UUID | null) =>
+    api.post<BoatClaim>(`/boats/${boatId}/claims`, { target_boat_id: targetBoatId ?? null }),
+  listBoatClaims: (boatId: UUID, status?: string) =>
+    api.get<BoatClaim[]>(`/boats/${boatId}/claims${status ? `?status=${status}` : ""}`),
+  listMyClaims: () => api.get<BoatClaim[]>("/boats/claims/mine"),
+  approveClaim: (boatId: UUID, claimId: UUID) =>
+    api.post<{ ok: true; merged: Record<string, number> | null }>(
+      `/boats/${boatId}/claims/${claimId}/approve`,
+    ),
+  rejectClaim: (boatId: UUID, claimId: UUID) =>
+    api.post<{ ok: true }>(`/boats/${boatId}/claims/${claimId}/reject`),
 
   members: (id: UUID) => api.get<BoatMember[]>(`/boats/${id}/members`),
   addMember: (id: UUID, body: { user_id: UUID; role?: BoatRole; default_sailing_role?: string }) =>

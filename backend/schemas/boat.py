@@ -14,6 +14,16 @@ class BoatWriteModel(BaseModel):
     sail_number: Optional[str] = None
     loa_m: Optional[float] = None
     club_id: Optional[uuid.UUID] = None
+    # Honoured on create only: the repository's update path ignores it, so a
+    # boat can never gain or lose placeholder status through a plain edit.
+    is_guest: Optional[bool] = None
+
+
+class BoatClaimCreateModel(BaseModel):
+    """Claiming a guest boat. ``target_boat_id`` names the claimant's own boat
+    to merge the guest into; omitted/NULL means promote the guest boat itself."""
+
+    target_boat_id: Optional[uuid.UUID] = None
 
 
 class BoatMemberModel(BaseModel):

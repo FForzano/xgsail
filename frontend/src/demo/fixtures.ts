@@ -112,6 +112,8 @@ export const demoBoat: Boat = {
   sail_number: "ITA 1234",
   loa_m: 5.05,
   club_id: DEMO_CLUB_ID,
+  is_guest: false,
+  guest_created_by: null,
   members: [
     { user_id: DEMO_SKIPPER_ID, role: "owner", default_sailing_role: "skipper", user: skipper },
     { user_id: DEMO_CREW_ID, role: "admin", default_sailing_role: "crew", user: crewMember },

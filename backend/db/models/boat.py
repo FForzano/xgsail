@@ -6,12 +6,20 @@ centralized RBAC check, the relationship itself grants access) plus the
 default sailing role used to prefill ``session_crew``. Documents (cert/mbsa)
 point at ``files``; photos at ``images`` via ``boat_photos``; free-text
 rig-tuning entries live in ``boat_notes``, ordered by an explicit ``position``.
+
+A *guest boat* (``boats.is_guest``) is an unverified placeholder created by
+someone who does not own the boat — a friend's boat, a club charter — so an
+outing can be recorded against it. Its creator is a plain ``user_boats``
+owner, so every existing membership check keeps working; the real owner takes
+it over through ``boat_claims`` (see ``boat_claim.py``).
 """
 
 import uuid
 from typing import Optional
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..base import Base, CreatedAtMixin, TimestampMixin, UUIDPKMixin, enum_check
@@ -74,6 +82,11 @@ class BoatORM(UUIDPKMixin, TimestampMixin, Base):
     # Optional: the club where the boat is stationed.
     club_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("clubs.id", ondelete="SET NULL"), nullable=True
+    )
+    is_guest: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Cleared when the boat stops being a guest, so it never outlives is_guest.
+    guest_created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
     members: Mapped[list["UserBoatORM"]] = relationship(

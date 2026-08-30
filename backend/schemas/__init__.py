@@ -17,6 +17,7 @@ from .user import (
 )
 from .boat import (
     BoatWriteModel,
+    BoatClaimCreateModel,
     BoatMemberModel,
     BoatMemberRoleModel,
     BoatClassWriteModel,
@@ -84,6 +85,7 @@ __all__ = [
     "ProgressBoatModel",
     "UserProgressModel",
     "BoatWriteModel",
+    "BoatClaimCreateModel",
     "BoatMemberModel",
     "BoatMemberRoleModel",
     "BoatClassWriteModel",

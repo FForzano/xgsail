@@ -175,6 +175,36 @@ export interface Boat {
   photos: Array<ImageRef | null>;
   cert?: FileRef | null;
   mbsa?: FileRef | null;
+  is_guest: boolean;
+  guest_created_by: UUID | null;
+}
+
+/** A boat found by the claimable-boat search — GET /boats/claimable. Not a
+ * full `Boat`: only what the claim-flow picker needs to show a result. */
+export interface ClaimableBoat {
+  id: UUID;
+  name: string;
+  sail_number: string | null;
+  boat_class: string | null;
+  session_count: number;
+  created_by: UserSummary | null;
+}
+
+export type BoatClaimStatus = "pending" | "approved" | "rejected";
+
+export interface BoatClaim {
+  id: UUID;
+  created_at: string;
+  boat_id: UUID;
+  user_id: UUID;
+  target_boat_id: UUID | null;
+  status: BoatClaimStatus;
+  resolved_at: string | null;
+  resolved_by: UUID | null;
+  /** Attached by GET /boats/{id}/claims (owner/admin view). */
+  user?: UserSummary | null;
+  /** Attached by GET /boats/claims/mine (the claimant's own view). */
+  boat?: { id: UUID; name: string; sail_number: string | null; is_guest: boolean } | null;
 }
 
 /** Free-text rig-tuning entry in a boat's setup notebook (title + body +

@@ -128,7 +128,7 @@ router.
 
 **Services** (`backend/services/`) — business logic by domain (course,
 geo, gpx, wind estimation, import processing, maneuver reconciliation,
-regatta scoring).
+regatta scoring, `boat_merge` for resolving a guest-boat claim).
 
 **Repositories** (`backend/repositories/`) — data-access layer only.
 Base class in `repositories/base.py`, SQL implementations in
@@ -208,6 +208,14 @@ Two authorization models:
    (`regatta_divisions`), not a reference to the global `boat_classes`
    catalog; see the Gotchas bullet below before touching scoring or
    standings for a divided regatta.
+4. **Guest boats** (`boats.is_guest`) for a boat the recorder doesn't own —
+   a friend's boat, a club charter. No new role: the creator is a plain
+   `user_boats.role="owner"` like any boat creator, so every check above
+   keeps working unchanged. `boat_claims` (`backend/db/models/boat_claim.py`)
+   is how the real owner takes it over — approval is gated to the guest
+   boat's own owner/admin (`backend/routers/boats.py`'s
+   `_require_claim_approver`), since it grants boat membership and boat
+   membership is what gates session read access. See the Gotchas below.
 
 **Workers** (`workers/`) — heavy processing (GPS/CSV/GPX analysis,
 video transcoding, maneuver-detector training). Invoked by the backend
@@ -331,7 +339,7 @@ wrappers.
 ├── backend/                    # FastAPI REST API (API-only, no static mount)
 │   ├── main.py                 # Composition root: CORS, RBAC startup seed, routers
 │   ├── routers/                # One module per resource (see below)
-│   ├── services/                # Business logic: course, geo, gpx, wind, import, maneuvers, scoring
+│   ├── services/                # Business logic: course, geo, gpx, wind, import, maneuvers, scoring, boat_merge
 │   ├── repositories/           # Data-access layer (base.py + sql/ implementation)
 │   ├── auth/                   # Passwords, tokens (cookie + Bearer), permissions, RBAC seed
 │   ├── db/                     # SQLAlchemy models + base
@@ -570,6 +578,51 @@ Capacitor plugin changes, which still require a store release.
   a regatta has none. Don't "simplify" by moving everything under
   `divisions` — older native OTA bundles read the top-level lists and
   don't know the key exists.
+- **A guest boat's creator is a plain `owner`, not a new role, and
+  `sessions.boat_id` stays `NOT NULL`.** `boats.is_guest` only flags the row
+  as an unverified placeholder (`backend/db/models/boat.py`); the creator
+  gets `user_boats.role="owner"` exactly like any boat creator. That's
+  deliberate — a nullable `sessions.boat_id` with a free-text name (mirroring
+  `regatta_entries`' paper entries) was rejected because every existing
+  membership-keyed check (`_is_manager`, `find_or_create_session`, progress
+  stats, session-split) would need a null-boat fallback. Don't add one; a
+  guest boat is a real boat everywhere except the picker.
+- **`repos.boats.list()` hides guest boats unless `include_guest=True`.**
+  It feeds the instance-wide `BoatPicker` that enters boats in regattas, so
+  an unverified placeholder must not appear there by default. But
+  `backend/auth/permissions.py`'s capabilities builder must pass
+  `include_guest=True` — otherwise a guest boat's own creator would vanish
+  from their own `boats_owner` capability and fail `StartChecklist`-style
+  "do you have a boat yet" checks. A new caller that forgets the flag
+  silently drops a user's own guest boats from their capabilities.
+- **`PATCH /boats/{id}` cannot flip `is_guest`/`guest_created_by` by
+  design.** `SqlBoatRepo.update()` only writes `_UPDATABLE_FIELDS`, which
+  excludes both — a plain boat edit must not be able to promote a
+  placeholder and skip the claim/approval flow. `clear_guest()` (called
+  only from `boat_merge.promote_guest_boat`) is the sole way out.
+- **Approving a boat claim is an authorization decision, not a
+  courtesy.** It grants `user_boats` membership, and boat membership is
+  what gates session read access (`backend/routers/sessions.py`), so
+  `approve_claim` is gated to the guest boat's own owner/admin
+  (`_require_claim_approver`) and `_require_pending_claim` checks
+  `claim.boat_id == boat_id` before anything else — the same class of bug
+  as the `get_entry(regatta_id, None)` gotcha above: without that check,
+  the manager of an unrelated boat B could resolve a claim filed against
+  boat A.
+- **`boat_claims.boat_id` is `ON DELETE CASCADE`, so merging the guest boat
+  away deletes the very claim being resolved.** `approve_claim` calls
+  `repos.boats.resolve_claim()` *before* `boat_merge.merge_boat()` for
+  exactly this reason — merge first would leave nothing to mark approved.
+  Don't reorder those two calls.
+- **`boat_merge.merge_boat` refuses a source that isn't `is_guest`,
+  because it deletes the source boat outright.** In `SqlBoatRepo.merge_into`,
+  the three tables unique on `(parent, boat_id)` — `regatta_entries`,
+  `results`, `official_standings` — drop the *guest's* colliding row rather
+  than the target's, since the target is the record the organizer actually
+  entered/scored. Polar curves are never combined (`bulk_upsert` semantics
+  mean two curves would leave contradictory rows in the same twa/tws bin) —
+  the target's curve wins if it has one. `live_recordings` rows are dropped,
+  not migrated, same reasoning as the presence-not-data gotcha below.
 - **A restored offline capabilities snapshot is a UI hint, not an
   authorization decision.** `AuthContext`'s `identityStale`/cached `caps`
   (see "Native apps") only steer what the native app *shows* while

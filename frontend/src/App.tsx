@@ -32,6 +32,7 @@ import { ProfiloLayout } from "@/pages/profilo/ProfiloLayout";
 import { AnagraficaPage } from "@/pages/profilo/AnagraficaPage";
 import { ChangePasswordPage } from "@/pages/profilo/ChangePasswordPage";
 import { BoatsPage } from "@/pages/profilo/BoatsPage";
+import { ClaimBoatPage } from "@/pages/profilo/ClaimBoatPage";
 import { BoatDetailPage } from "@/pages/profilo/BoatDetailPage";
 import { BoatNotebookPage } from "@/pages/profilo/BoatNotebookPage";
 import { NoteTemplatesPage } from "@/pages/profilo/NoteTemplatesPage";
@@ -106,6 +107,7 @@ export default function App() {
             <Route path="password" element={<ChangePasswordPage />} />
             <Route path="barche" element={<BoatsPage />} />
             <Route path="barche/modelli" element={<NoteTemplatesPage />} />
+            <Route path="barche/rivendica" element={<ClaimBoatPage />} />
             <Route path="barche/:boatId" element={<BoatDetailPage />} />
             <Route path="barche/:boatId/quaderno" element={<BoatNotebookPage />} />
             <Route path="devices" element={<DevicesPage />} />

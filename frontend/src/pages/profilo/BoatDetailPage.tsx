@@ -7,6 +7,7 @@ import { useCapabilities } from "@/hooks/useCapabilities";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { Card } from "@/components/ui/Card";
+import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
 import { Select } from "@/components/ui/Select";
@@ -20,7 +21,8 @@ import { AddDeviceDialog } from "@/components/common/AddDeviceDialog";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { userLabel } from "@/utils/format";
 import { richTextExcerpt } from "@/utils/richTextExcerpt";
-import type { BoatRole, UUID } from "@/types";
+import { ApiError } from "@/api/client";
+import type { BoatClaim, BoatRole, UUID } from "@/types";
 import { useRef } from "react";
 import { NotebookText, ChevronRight } from "lucide-react";
 import photoGridStyles from "@/components/common/photoGrid.module.css";
@@ -145,6 +147,14 @@ export function BoatDetailPage() {
   const [inviting, setInviting] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [approvingClaim, setApprovingClaim] = useState<BoatClaim | null>(null);
+
+  const isGuest = !!boat.data?.is_guest;
+  const boatClaims = useQuery({
+    queryKey: boatKeys.claims(boatId!),
+    queryFn: () => boatsService.listBoatClaims(boatId!),
+    enabled: !!boatId && manager && isGuest,
+  });
 
   useEffect(() => {
     if (boat.data) {
@@ -216,6 +226,31 @@ export function BoatDetailPage() {
     onSuccess: invalidate,
   });
 
+  const claimResolveError = (err: unknown) =>
+    notify(err instanceof ApiError ? err.detail : t("boats.claimResolveFailed"), "error");
+
+  const approveClaim = useMutation({
+    mutationFn: (claimId: UUID) => boatsService.approveClaim(boatId!, claimId),
+    onSuccess: async (result) => {
+      setApprovingClaim(null);
+      await queryClient.invalidateQueries({ queryKey: boatKeys.claims(boatId!) });
+      await queryClient.invalidateQueries({ queryKey: boatKeys.mine });
+      // A merge deletes this boat server-side — staying here just renders a
+      // 404 once the detail query refetches, so leave for the boats list.
+      if (result.merged) {
+        navigate("/profilo/barche");
+      } else {
+        await queryClient.invalidateQueries({ queryKey: boatKeys.detail(boatId!) });
+      }
+    },
+    onError: claimResolveError,
+  });
+  const rejectClaim = useMutation({
+    mutationFn: (claimId: UUID) => boatsService.rejectClaim(boatId!, claimId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: boatKeys.claims(boatId!) }),
+    onError: claimResolveError,
+  });
+
   if (boat.isLoading || !boatId) return <Spinner />;
   if (!boat.data) return null;
 
@@ -228,6 +263,7 @@ export function BoatDetailPage() {
 
   return (
     <div className="sf-section__body">
+      {isGuest && <p className="sf-muted">{t("boats.guestHint")}</p>}
       <Card
         title={boat.data.name}
         actions={
@@ -484,6 +520,54 @@ export function BoatDetailPage() {
         </div>
       )}
 
+      {manager && isGuest && (
+        <Section title={t("boats.claimsIncoming")}>
+          {boatClaims.isLoading ? (
+            <Spinner />
+          ) : boatClaims.data?.length === 0 ? (
+            <p className="sf-muted">{t("boats.claimsIncomingEmpty")}</p>
+          ) : (
+            <div className="sf-strip">
+              {boatClaims.data?.map((c) => (
+                <div key={c.id} className="sf-strip__item">
+                  <span>
+                    {userLabel(c.user)} —{" "}
+                    {t(c.target_boat_id ? "boats.claimMergeInto" : "boats.claimAsNew")}
+                  </span>
+                  {c.status === "pending" ? (
+                    <span style={{ display: "flex", gap: "0.4rem" }}>
+                      <Button
+                        variant="ghost"
+                        className="sf-btn--sm"
+                        onClick={() => setApprovingClaim(c)}
+                      >
+                        {t("boats.claimApprove")}
+                      </Button>
+                      <Button
+                        variant="danger"
+                        className="sf-btn--sm"
+                        disabled={rejectClaim.isPending}
+                        onClick={() => rejectClaim.mutate(c.id)}
+                      >
+                        {t("boats.claimReject")}
+                      </Button>
+                    </span>
+                  ) : (
+                    <span
+                      className={
+                        c.status === "approved" ? "sf-badge sf-badge--success" : "sf-badge sf-badge--danger"
+                      }
+                    >
+                      {t(c.status === "approved" ? "boats.claimApproved" : "boats.claimRejected")}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
+
       {inviting && (
         <Modal title={t("boats.addMember")} onClose={() => setInviting(false)}>
           <UserPicker busy={addMember.isPending} onPick={(u) => addMember.mutate(u.id)} />
@@ -499,6 +583,21 @@ export function BoatDetailPage() {
           busy={removeBoat.isPending}
           onConfirm={() => removeBoat.mutate()}
           onClose={() => setDeleting(false)}
+        />
+      )}
+      {approvingClaim && (
+        <ConfirmDialog
+          title={t("boats.claimApprove")}
+          message={
+            <>
+              <p>{t("boats.claimApproveWarning")}</p>
+              {approvingClaim.target_boat_id && <p>{t("boats.claimMergeWarning")}</p>}
+            </>
+          }
+          confirmLabel={t("boats.claimApprove")}
+          busy={approveClaim.isPending}
+          onConfirm={() => approveClaim.mutate(approvingClaim.id)}
+          onClose={() => setApprovingClaim(null)}
         />
       )}
     </div>

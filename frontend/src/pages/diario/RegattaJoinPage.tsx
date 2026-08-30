@@ -7,12 +7,12 @@ import { boatsService, boatKeys } from "@/services/boats";
 import { useToast } from "@/hooks/useToast";
 import { useRegattaMeta } from "@/hooks/useRegattaMeta";
 import { RegattaHero } from "@/components/race/RegattaHero";
+import { GuestBoatDialog } from "@/components/common/GuestBoatDialog";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { InputField } from "@/components/ui/InputField";
 import { Spinner } from "@/components/ui/Spinner";
-import { EmptyState } from "@/components/ui/EmptyState";
 import type { UUID } from "@/types";
 
 /** Redeem a regatta's share code to put one of your own boats on its start
@@ -31,6 +31,7 @@ export function RegattaJoinPage() {
 
   const [code, setCode] = useState(searchParams.get("code") ?? "");
   const [boatId, setBoatId] = useState<UUID | "">("");
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
 
   const regatta = useQuery({
     queryKey: raceKeys.regatta(regattaId!),
@@ -71,16 +72,14 @@ export function RegattaJoinPage() {
       />
       <Card title={t("regate.joinTitle", { name: regatta.data.name })}>
         <p className="sf-muted">{t("regate.joinIntro")}</p>
-        {myBoats.data?.length === 0 ? (
-          <EmptyState>{t("regate.joinNeedsBoat")}</EmptyState>
-        ) : (
-          <form
-            data-tour="regatta-join"
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              if (code.trim() && boatId) join.mutate();
-            }}
-          >
+        <form
+          data-tour="regatta-join"
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            if (code.trim() && boatId) join.mutate();
+          }}
+        >
+          {(myBoats.data?.length ?? 0) > 0 && (
             <Select
               label={t("race.boat")}
               id="join-boat"
@@ -94,21 +93,36 @@ export function RegattaJoinPage() {
                 </option>
               ))}
             </Select>
-            <InputField
-              label={t("regate.joinCode")}
-              id="join-code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-            />
-            <div className="sf-form__actions">
-              <Button type="submit" disabled={join.isPending || !code.trim() || !boatId}>
-                {t("regate.joinAction")}
-              </Button>
-            </div>
-          </form>
-        )}
+          )}
+          <div className="sf-field">
+            <span className="sf-field__label">{t("regate.joinGuestBoat")}</span>
+            <p className="sf-muted">{t("regate.joinGuestBoatHint")}</p>
+            <Button type="button" variant="ghost" onClick={() => setGuestDialogOpen(true)}>
+              {t("boats.addGuestBoat")}
+            </Button>
+          </div>
+          <InputField
+            label={t("regate.joinCode")}
+            id="join-code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+          />
+          <div className="sf-form__actions">
+            <Button type="submit" disabled={join.isPending || !code.trim() || !boatId}>
+              {t("regate.joinAction")}
+            </Button>
+          </div>
+        </form>
       </Card>
+      <GuestBoatDialog
+        open={guestDialogOpen}
+        onClose={() => setGuestDialogOpen(false)}
+        onCreated={(boat) => {
+          setBoatId(boat.id);
+          setGuestDialogOpen(false);
+        }}
+      />
     </div>
   );
 }
