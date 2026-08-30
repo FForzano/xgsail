@@ -915,6 +915,29 @@ export interface WindStation {
   /** Polled URL — only set for URL-based providers (cumulus_realtime,
    * cumulus_gauges_json); null for API-keyed providers (noaa_ndbc/metar). */
   source_url: string | null;
+  /** Most recent cached reading — only present when the station list was
+   * fetched with `include_last` (the map layer and the info page). */
+  last_observation?: WindObservation | null;
+}
+
+/** One problem keeping a station from contributing, from
+ * GET /wind/stations/health (backend/services/wind_quality.py). */
+export interface WindStationIssue {
+  code: "no_coordinates" | "no_data" | "stale" | "faulty";
+  detail: string;
+}
+
+export interface WindStationHealth {
+  station_id: UUID;
+  issues: WindStationIssue[];
+}
+
+/** GET /wind/sources — which models and station providers are integrated.
+ * Derived server-side from open_meteo.MODEL_CANDIDATES, so the list never
+ * drifts from what the estimate actually queries. */
+export interface WindSources {
+  models: Array<{ id: string; kind: "regional" | "global" }>;
+  station_providers: string[];
 }
 
 export interface WindObservation {

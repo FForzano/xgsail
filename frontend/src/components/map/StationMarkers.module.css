@@ -1,0 +1,80 @@
+/* Weather-station pins. Same two-halves-in-one-icon shape as the club pins
+   (see ClubMarkers.module.css and expandableMarker.ts): collapsed they're a
+   small round badge, tapped they become a card with the station's last
+   reading. Kept as its own stylesheet rather than shared with the clubs
+   because the two differ in size, colour and card content — the shared part
+   is the behaviour, which lives in expandableMarker.ts. */
+.pin {
+  position: relative;
+}
+.inner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.9)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+.badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1f6f8b;
+  border: 2px solid #fff;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+}
+.tail {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid #fff;
+  margin-top: -1px;
+}
+
+/* --- Expanded card ------------------------------------------------------- */
+.card {
+  display: none;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 240px;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--sf-radius);
+  background: rgba(10, 24, 38, 0.95);
+  border: 1px solid #fff;
+  color: #fff;
+  text-align: left;
+}
+.inner.expanded .badge {
+  display: none;
+}
+.inner.expanded .card {
+  display: flex;
+}
+.cardName {
+  font-size: 0.85rem;
+  line-height: 1.25;
+}
+.cardMeta {
+  opacity: 0.75;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+.reading {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.readingValue {
+  font-weight: 700;
+}

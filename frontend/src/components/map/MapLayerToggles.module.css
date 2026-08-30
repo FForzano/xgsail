@@ -25,3 +25,12 @@
   font-size: 0.85rem;
   cursor: pointer;
 }
+
+/* Shown when a zoom-gated layer is on but the map is too far out to draw it
+   (see useMapLayers' DETAIL_LAYERS_MIN_ZOOM) — otherwise the checkbox looks
+   ticked and broken. */
+.hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}

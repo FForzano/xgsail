@@ -1,14 +1,32 @@
 import { api } from "@/api/client";
-import type { UUID, WindObservation, WindSnapshot, WindStation } from "@/types";
+import type {
+  UUID,
+  WindObservation,
+  WindSnapshot,
+  WindStation,
+  WindStationHealth,
+  WindSources,
+} from "@/types";
 
 export const windKeys = {
   stations: ["wind", "stations"] as const,
+  stationsWithLast: ["wind", "stations", "with-last"] as const,
+  sources: ["wind", "sources"] as const,
+  health: ["wind", "stations", "health"] as const,
   observations: (id: UUID, params = "") => ["wind", "stations", id, "observations", params] as const,
   nearest: (lat: number, lng: number, at?: string) => ["wind", "nearest", lat, lng, at ?? "now"] as const,
 };
 
 export const windService = {
-  listStations: () => api.get<WindStation[]>("/wind/stations"),
+  listStations: (opts: { includeLast?: boolean } = {}) =>
+    api.get<WindStation[]>(`/wind/stations${opts.includeLast ? "?include_last=true" : ""}`),
+  /** Why each station is or isn't contributing (superadmin) — a dead sensor,
+   * missing coordinates, a feed gone quiet. Evaluated on demand from the
+   * cached observations; nothing about it is persisted. */
+  stationsHealth: () => api.get<WindStationHealth[]>("/wind/stations/health"),
+  /** The catalog of integrated sources (Open-Meteo models + station
+   * providers), for the info page. Pub-readable. */
+  sources: () => api.get<WindSources>("/wind/sources"),
   createStation: (body: Partial<WindStation>) => api.post<WindStation>("/wind/stations", body),
   updateStation: (id: UUID, body: Partial<WindStation>) =>
     api.patch<WindStation>(`/wind/stations/${id}`, body),

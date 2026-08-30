@@ -27,3 +27,25 @@
   margin: 0;
   word-break: break-word;
 }
+
+/* --- Wind data sources ---------------------------------------------------- */
+.sourceGroup {
+  margin: 0 0 0.9rem;
+}
+.sourceGroup:last-child {
+  margin-bottom: 0;
+}
+.sourceLabel {
+  font-size: 0.75rem;
+  margin: 0 0 0.25rem;
+}
+.sourceList {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.sourceList li {
+  margin-bottom: 0.15rem;
+}
+.sourceReading {
+  font-variant-numeric: tabular-nums;
+}

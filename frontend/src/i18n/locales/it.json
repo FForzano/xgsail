@@ -70,7 +70,10 @@
     "sortOrder": "Direzione",
     "ascending": "Crescente",
     "descending": "Decrescente",
-    "loading": "Caricamento…"
+    "loading": "Caricamento…",
+    "from": "Dal",
+    "to": "Al",
+    "reset": "Reimposta"
   },
   "support": {
     "title": "Sostieni XGSail",
@@ -706,7 +709,9 @@
       "title": "Livelli mappa",
       "seamark": "Carta nautica",
       "poi": "Punti d'interesse",
-      "clubs": "Circoli"
+      "clubs": "Circoli",
+      "stations": "Stazioni meteo",
+      "zoomIn": "Ingrandisci la mappa per vedere circoli e stazioni."
     },
     "poi": {
       "marina": "Marina",
@@ -719,7 +724,11 @@
     },
     "openClub": "Apri scheda circolo",
     "locate": "Centra sulla mia posizione",
-    "locateError": "Posizione non disponibile"
+    "locateError": "Posizione non disponibile",
+    "stations": {
+      "noReading": "Nessuna lettura recente",
+      "ago": "{{minutes}} min fa"
+    }
   },
   "registra": {
     "title": "Registra traccia GPS",
@@ -1058,7 +1067,14 @@
     "appSettings": "Impostazioni app",
     "minNativeVersionAndroid": "Versione minima app nativa (Android)",
     "minNativeVersionIos": "Versione minima app nativa (iOS)",
-    "minNativeVersionHint": "Blocca l'app sotto questa versione (es. 1.4.0) con una schermata di aggiornamento obbligatorio. Lascia vuoto per disattivare — impostato separatamente per Android e iOS."
+    "minNativeVersionHint": "Blocca l'app sotto questa versione (es. 1.4.0) con una schermata di aggiornamento obbligatorio. Lascia vuoto per disattivare — impostato separatamente per Android e iOS.",
+    "editStation": "Modifica stazione",
+    "windIssue": {
+      "no_coordinates": "Senza coordinate",
+      "no_data": "Nessun dato",
+      "stale": "Ferma",
+      "faulty": "Sensore guasto"
+    }
   },
   "updateRequired": {
     "title": "Aggiornamento richiesto",
@@ -1403,5 +1419,19 @@
     "byBoatTitle": "Per barca",
     "allTime": "Di sempre",
     "year": "Anno"
+  },
+  "windSources": {
+    "title": "Fonti dati meteo",
+    "intro": "Il vento mostrato nelle sessioni non viene da una sola fonte: e' la fusione pesata di stazioni reali vicine e modelli meteorologici.",
+    "stations": "Stazioni reali integrate",
+    "modelsRegional": "Modelli regionali ad alta risoluzione",
+    "modelsGlobal": "Modelli globali",
+    "note": "Piu' una fonte e' vicina e recente, piu' pesa. Le stazioni sono visibili sulla mappa attivando il livello \\u201cStazioni meteo\\u201d.",
+    "model": {
+      "icon_d2": "ICON-D2 (DWD, ~2 km, Europa centrale)",
+      "icon_eu": "ICON-EU (DWD, ~7 km, Europa)",
+      "gfs_seamless": "GFS + HRRR (NOAA, ~3-13 km)",
+      "ecmwf_ifs025": "ECMWF IFS (~28 km, globale)"
+    }
   }
 }

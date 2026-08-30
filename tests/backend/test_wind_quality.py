@@ -163,3 +163,49 @@ def test_live_snapshot_skips_the_faulty_station_for_the_next_one():
 
     assert snapshot is not None
     assert snapshot["station_name"] == "Volano"
+
+
+# --- operator-facing health --------------------------------------------
+
+NOW = START + timedelta(hours=1)
+
+
+def _codes(issues):
+    return {i["code"] for i in issues}
+
+
+def test_health_is_empty_for_a_working_station():
+    station = _station("ok", "Volano")
+    assert wind_quality.station_health(station, HEALTHY, now=NOW) == []
+
+
+def test_health_flags_a_station_without_coordinates():
+    """It is silently skipped by find_within's SQL filter, so it never
+    reaches the fusion at all — nothing else would ever say so."""
+    station = SimpleNamespace(id="x", provider="cumulus_realtime", lat=None, lng=None, name="X")
+    assert _codes(wind_quality.station_health(station, HEALTHY, now=NOW)) == {"no_coordinates"}
+
+
+def test_health_flags_a_station_with_no_recent_data():
+    station = _station("quiet", "Quiet")
+    assert _codes(wind_quality.station_health(station, [], now=NOW)) == {"no_data"}
+
+
+def test_health_flags_a_stale_feed():
+    station = _station("stale", "Stale")
+    old = _rows([(60.0, 5.0), (70.0, 6.0)])
+    issues = wind_quality.station_health(station, old, now=START + timedelta(hours=12))
+    assert _codes(issues) == {"stale"}
+
+
+def test_health_reports_the_stuck_vane_with_its_reason():
+    station = _station("broken", "Capo Hoorn")
+    issues = wind_quality.station_health(station, STUCK_VANE, now=NOW)
+    assert _codes(issues) == {"faulty"}
+    assert "stuck vane" in issues[0]["detail"]
+
+
+def test_health_reports_several_problems_at_once():
+    station = SimpleNamespace(id="x", provider="cumulus_realtime", lat=None, lng=None, name="X")
+    issues = wind_quality.station_health(station, STUCK_VANE, now=NOW)
+    assert _codes(issues) == {"no_coordinates", "faulty"}

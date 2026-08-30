@@ -1,0 +1,47 @@
+/* Admin wind-station table: action cells, health badges and the observation
+ * date filter. Scoped here rather than global.css — nothing outside this page
+ * references any of it. */
+
+/* The buttons live in a div, never on the <td> itself: `display:flex` on a
+ * table cell drops it out of the table layout, so the row stops lining up
+ * with its header and appears to break off. */
+.actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.issue {
+  cursor: help;
+}
+
+.observations {
+  margin-top: 0.75rem;
+}
+
+.obsScroll {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.filters :global(.sf-field) {
+  min-width: 12rem;
+}
+
+.pager {
+  justify-content: flex-start;
+}

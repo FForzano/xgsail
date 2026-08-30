@@ -507,9 +507,9 @@ Capacitor plugin changes, which still require a store release.
 - `wind_stations` / `wind_observations` (see `backend/db/models/wind.py`)
   cache this external data locally (avoids re-fetching on every render,
   preserves history past whatever window the upstream API retains).
-  Station selection/aggregation and the estimation algorithms that turn
-  raw observations into a usable wind signal are documented in
-  `docs/estimation-pipeline.md`; the underlying fusion/calibration math
+  Station selection/aggregation, the sensor-fault guards, and the
+  estimation algorithms that turn raw observations into a usable wind
+  signal are documented in `docs/estimation-pipeline.md`; the underlying fusion/calibration math
   lives in `libs/xgsail_windfusion`, shared with `workers/process_upload`.
 
 ---

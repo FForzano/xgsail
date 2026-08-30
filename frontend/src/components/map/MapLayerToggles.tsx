@@ -13,13 +13,17 @@ import styles from "./MapLayerToggles.module.css";
 export function MapLayerToggles({
   layers,
   onToggle,
+  detailHidden = false,
 }: {
   layers: MapLayers;
   onToggle: (key: keyof MapLayers, on: boolean) => void;
+  /** True when a zoom-gated layer is switched on but the map is zoomed too
+   * far out to draw it — without a word here the checkbox looks broken. */
+  detailHidden?: boolean;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const entries: Array<keyof MapLayers> = ["seamark", "poi", "clubs"];
+  const entries: Array<keyof MapLayers> = ["seamark", "poi", "clubs", "stations"];
 
   return (
     <div className={styles.wrap}>
@@ -46,6 +50,7 @@ export function MapLayerToggles({
               {t(`map.layers.${key}`)}
             </label>
           ))}
+          {detailHidden && <p className={styles.hint}>{t("map.layers.zoomIn")}</p>}
         </div>
       )}
     </div>

@@ -8,9 +8,24 @@ export interface MapLayers {
   poi: boolean;
   /** XGSail clubs that have coordinates set. */
   clubs: boolean;
+  /** Real weather stations feeding the wind estimate. */
+  stations: boolean;
 }
 
-export const DEFAULT_MAP_LAYERS: MapLayers = { seamark: false, poi: false, clubs: false };
+export const DEFAULT_MAP_LAYERS: MapLayers = {
+  seamark: false,
+  poi: false,
+  clubs: false,
+  stations: false,
+};
+
+/** Clubs and stations are point data spread over the whole world, so at a
+ * continental zoom they collapse into an unreadable field of pins that says
+ * nothing about anywhere. Below this zoom their layers stay off even when
+ * toggled on, and the switcher says so (see useNauticalLayers/
+ * MapLayerToggles). The seamark and POI layers are exempt: the first is
+ * raster tiles, the second is already fetched per viewport. */
+export const DETAIL_LAYERS_MIN_ZOOM = 9;
 
 const STORAGE_KEY = "xgsail.map.layers";
 

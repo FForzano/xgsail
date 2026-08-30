@@ -280,6 +280,15 @@ provider would have to repeat itself for twelve. The bias is deliberate:
 wrongly discarding a healthy station is the worse failure, so thin evidence
 never produces a verdict.
 
+The same predicates back `GET /wind/stations/health` (superadmin), which is
+what the admin station table flags a station with. It answers the broader
+question "why is this station not contributing?", whose causes are not only a
+broken sensor: a station saved without coordinates is skipped by
+`find_within`'s SQL filter and never reaches the fusion at all, and one whose
+feed died keeps its old rows on file while going quiet. Nothing about that
+verdict is persisted — it is evaluated on demand from the cached
+observations, so a station that recovers stops being flagged by itself.
+
 Two failure modes remain **undetectable from the data alone**, and no code
 guards them:
 
@@ -292,6 +301,16 @@ guards them:
 Both surface only by cross-comparison, which is what
 `scripts/calibrate_wind_weights.py` does; `--ablate-stations` is the
 quickest way to see whether a given station is helping or hurting.
+
+The catalog is exposed to users too, in two halves that match the shape of
+the data: real stations have a position, so they are pins on the explorer
+map's "weather stations" layer (`components/map/StationsLayer.ts`), while the
+Open-Meteo models have none — they are queried at any coordinate — so they
+are listed on the info page instead, from the pub-readable `GET
+/wind/sources`. That endpoint derives the model list from
+`open_meteo.MODEL_CANDIDATES` rather than restating it, since that tuple is
+already mirrored in the worker and in the calibration script and a
+hand-maintained fourth copy in the frontend is the one that would rot.
 
 The shipped `weighted_fusion` strategy, in order:
 

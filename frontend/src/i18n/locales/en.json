@@ -70,7 +70,10 @@
     "sortOrder": "Order",
     "ascending": "Ascending",
     "descending": "Descending",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "from": "From",
+    "to": "To",
+    "reset": "Reset"
   },
   "support": {
     "title": "Support XGSail",
@@ -706,7 +709,9 @@
       "title": "Map layers",
       "seamark": "Nautical chart",
       "poi": "Points of interest",
-      "clubs": "Clubs"
+      "clubs": "Clubs",
+      "stations": "Weather stations",
+      "zoomIn": "Zoom in to see clubs and stations."
     },
     "poi": {
       "marina": "Marina",
@@ -719,7 +724,11 @@
     },
     "openClub": "Open club page",
     "locate": "Center on my location",
-    "locateError": "Location unavailable"
+    "locateError": "Location unavailable",
+    "stations": {
+      "noReading": "No recent reading",
+      "ago": "{{minutes}} min ago"
+    }
   },
   "registra": {
     "title": "Record a GPS track",
@@ -1058,7 +1067,14 @@
     "appSettings": "App settings",
     "minNativeVersionAndroid": "Minimum native app version (Android)",
     "minNativeVersionIos": "Minimum native app version (iOS)",
-    "minNativeVersionHint": "Blocks the app below this version (e.g. 1.4.0) with a mandatory update screen. Leave empty to disable — set separately for Android and iOS."
+    "minNativeVersionHint": "Blocks the app below this version (e.g. 1.4.0) with a mandatory update screen. Leave empty to disable — set separately for Android and iOS.",
+    "editStation": "Edit station",
+    "windIssue": {
+      "no_coordinates": "No coordinates",
+      "no_data": "No data",
+      "stale": "Stale",
+      "faulty": "Faulty sensor"
+    }
   },
   "updateRequired": {
     "title": "Update required",
@@ -1403,5 +1419,19 @@
     "byBoatTitle": "By boat",
     "allTime": "All time",
     "year": "Year"
+  },
+  "windSources": {
+    "title": "Wind data sources",
+    "intro": "The wind shown on a session does not come from one source: it is a weighted fusion of nearby real stations and weather models.",
+    "stations": "Integrated real stations",
+    "modelsRegional": "High-resolution regional models",
+    "modelsGlobal": "Global models",
+    "note": "The closer and more recent a source, the more it weighs. Stations are visible on the map via the \\u201cWeather stations\\u201d layer.",
+    "model": {
+      "icon_d2": "ICON-D2 (DWD, ~2 km, Central Europe)",
+      "icon_eu": "ICON-EU (DWD, ~7 km, Europe)",
+      "gfs_seamless": "GFS + HRRR (NOAA, ~3-13 km)",
+      "ecmwf_ifs025": "ECMWF IFS (~28 km, global)"
+    }
   }
 }

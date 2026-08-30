@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { User, Mail, Code2, ScrollText } from "lucide-react";
+import { windKeys, windService } from "@/services/wind";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SupportReasons } from "@/components/common/SupportReasons";
@@ -11,6 +13,76 @@ import {
   DEVELOPER_GITHUB_URL,
 } from "@/config/links";
 import styles from "./InfoPage.module.css";
+
+/** Which model/station data the wind estimate is actually built from. Kept on
+ * the info page rather than on a page of its own: it belongs with "who made
+ * this and under what licence" — it is the same kind of disclosure, and a
+ * dedicated page is one nobody would find. The map's stations layer is the
+ * other half of this (see components/map/StationsLayer.ts); the models have
+ * no position, so they can only be listed here. */
+function WindSourcesCard() {
+  const { t } = useTranslation();
+  const sources = useQuery({ queryKey: windKeys.sources, queryFn: windService.sources });
+  const stations = useQuery({
+    queryKey: windKeys.stationsWithLast,
+    queryFn: () => windService.listStations({ includeLast: true }),
+    staleTime: 60 * 1000,
+  });
+
+  const models = sources.data?.models ?? [];
+  const regional = models.filter((m) => m.kind === "regional");
+  const global = models.filter((m) => m.kind === "global");
+  const located = (stations.data ?? []).filter((s) => s.lat != null && s.lng != null);
+
+  return (
+    <Card title={t("windSources.title")}>
+      <p className="sf-muted">{t("windSources.intro")}</p>
+
+      {located.length > 0 && (
+        <div className={styles.sourceGroup}>
+          <p className={`sf-muted ${styles.sourceLabel}`}>{t("windSources.stations")}</p>
+          <ul className={styles.sourceList}>
+            {located.map((s) => (
+              <li key={s.id}>
+                {s.name ?? s.external_station_id}
+                {s.last_observation?.tws_kts != null && (
+                  <span className={`sf-muted ${styles.sourceReading}`}>
+                    {" "}
+                    — {s.last_observation.tws_kts} kn
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {regional.length > 0 && (
+        <div className={styles.sourceGroup}>
+          <p className={`sf-muted ${styles.sourceLabel}`}>{t("windSources.modelsRegional")}</p>
+          <ul className={styles.sourceList}>
+            {regional.map((m) => (
+              <li key={m.id}>{t(`windSources.model.${m.id}`, { defaultValue: m.id })}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {global.length > 0 && (
+        <div className={styles.sourceGroup}>
+          <p className={`sf-muted ${styles.sourceLabel}`}>{t("windSources.modelsGlobal")}</p>
+          <ul className={styles.sourceList}>
+            {global.map((m) => (
+              <li key={m.id}>{t(`windSources.model.${m.id}`, { defaultValue: m.id })}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <p className="sf-muted">{t("windSources.note")}</p>
+    </Card>
+  );
+}
 
 export function InfoPage() {
   const { t } = useTranslation();
@@ -75,6 +147,7 @@ export function InfoPage() {
           ))}
         </div>
       </Card>
+      <WindSourcesCard />
     </div>
   );
 }

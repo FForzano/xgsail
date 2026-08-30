@@ -37,6 +37,14 @@ REAL_SENSOR_PROVIDERS = ("custom_device", "noaa_ndbc", "noaa_metar",
 REAL_SENSOR_RADIUS_KM = 50
 MAX_REAL_STATIONS = 3
 
+# The fault check (``wind_quality``) needs a dense enough sample to reach a
+# verdict, and a short session would not provide one on its own — a 20-minute
+# outing is four readings from a 5-minute feed. So the observations are
+# fetched over a window padded by this much on each side and the verdict is
+# taken on all of them, while only the rows actually inside [start, end] are
+# handed on. One wider query, not a second one: this runs per waypoint.
+FAULT_CHECK_PAD = timedelta(hours=3)
+
 
 def _real_station_observations(lat: float, lng: float, start: datetime, end: datetime
                                ) -> "list[tuple[WindStationORM, float, list[WindObservationORM]]]":
@@ -53,7 +61,10 @@ def _real_station_observations(lat: float, lng: float, start: datetime, end: dat
 
     A station whose readings look mechanically faulty (a dead vane repeating
     one direction, a dead anemometer repeating one speed — see
-    ``wind_quality``) is left out the same way. The check lives here, in the
+    ``wind_quality``) is left out the same way. That verdict is taken on a
+    window padded by ``FAULT_CHECK_PAD``, so a short session still has enough
+    readings behind it to reach one, while the rows returned are only those
+    inside the caller's own window. The check lives here, in the
     one helper both callers share, so a broken sensor is kept out of the
     fused wind *and* of the arrow the map draws. It excludes the station
     wholesale rather than nulling the bad field: ``weighted_wind_mean``
@@ -64,10 +75,12 @@ def _real_station_observations(lat: float, lng: float, start: datetime, end: dat
                                    max_km=REAL_SENSOR_RADIUS_KM, limit=MAX_REAL_STATIONS)
     out = []
     for station, distance_km in found:
-        rows = repos.wind.list_observations(station.id, start=start, end=end, limit=500)
+        padded = repos.wind.list_observations(station.id, start=start - FAULT_CHECK_PAD,
+                                              end=end + FAULT_CHECK_PAD, limit=500)
+        rows = [o for o in padded if start <= o.observed_at <= end]
         if not rows:
             continue
-        fault = wind_quality.station_readings_are_faulty(rows)
+        fault = wind_quality.station_readings_are_faulty(padded)
         if fault:
             logger.warning("wind station %s (%s) excluded: %s", station.id, station.name, fault)
             continue

@@ -176,6 +176,51 @@ def _frozen_feed(rows: Sequence) -> Optional[str]:
             f"{_span_minutes(usable):.0f} min (twd {usable[0].twd_deg}°, {speed} kts)")
 
 
-__all__ = ["station_readings_are_faulty", "MIN_ROWS", "MIN_SPAN_MINUTES",
-           "MIN_SPEED_SPREAD_FRACTION", "MIN_DIRECTION_SPREAD_DEG",
-           "FROZEN_FEED_MIN_ROWS", "FROZEN_FEED_MIN_SPAN_MINUTES"]
+# --- operator-facing health -------------------------------------------
+
+# How far back the admin health check looks, and how long a station may go
+# without a reading before it counts as stale. Six hours is loose enough for
+# the slowest provider we poll (NDBC/METAR publish hourly) while still
+# catching a feed that died overnight.
+HEALTH_WINDOW_HOURS = 24
+STALE_AFTER_HOURS = 6
+
+
+def station_health(station, rows: Sequence, *, now) -> "list[dict]":
+    """Everything wrong with one station right now, as ``{code, detail}``
+    entries — empty when it is fine. ``rows`` are its observations over the
+    last ``HEALTH_WINDOW_HOURS``, in any order.
+
+    This answers "why is this station not contributing?", which has more
+    causes than a broken sensor: a station saved without coordinates is
+    skipped by ``find_within``'s SQL filter and never reaches the fusion at
+    all, and one whose feed died keeps its old rows on file while going
+    quiet. Neither shows up as an error anywhere, which is exactly why the
+    admin view has to ask.
+    """
+    issues = []
+    if station.lat is None or station.lng is None:
+        issues.append({"code": "no_coordinates",
+                       "detail": "not matched by any position lookup until lat/lng are set"})
+    if not rows:
+        issues.append({"code": "no_data",
+                       "detail": f"no observations in the last {HEALTH_WINDOW_HOURS}h"})
+        return issues
+
+    latest = max(r.observed_at for r in rows)
+    age_hours = (now - latest).total_seconds() / 3600.0
+    if age_hours > STALE_AFTER_HOURS:
+        issues.append({"code": "stale",
+                       "detail": f"last reading {age_hours:.0f}h ago"})
+
+    fault = station_readings_are_faulty(rows)
+    if fault:
+        issues.append({"code": "faulty", "detail": fault})
+    return issues
+
+
+__all__ = ["station_readings_are_faulty", "station_health", "MIN_ROWS",
+           "MIN_SPAN_MINUTES", "MIN_SPEED_SPREAD_FRACTION",
+           "MIN_DIRECTION_SPREAD_DEG", "FROZEN_FEED_MIN_ROWS",
+           "FROZEN_FEED_MIN_SPAN_MINUTES", "HEALTH_WINDOW_HOURS",
+           "STALE_AFTER_HOURS"]
