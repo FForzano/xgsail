@@ -27,13 +27,15 @@ export function syncStationsLayer(
     const name = station.name ?? station.external_station_id;
     const last = station.last_observation ?? null;
 
+    // Order: arrow, then the angle, then the speed — the glyph is what the eye
+    // lands on first, and the number that qualifies it belongs next to it.
     const reading =
       last && (last.tws_kts != null || last.twd_deg != null)
         ? `<span class="${styles.reading}">` +
+          (last.twd_deg != null ? directionMarkup(last.twd_deg) : "") +
           `<span class="${styles.readingValue}">` +
           (last.tws_kts != null ? `${escapeHtml(String(last.tws_kts))} kn` : "—") +
           `</span>` +
-          (last.twd_deg != null ? directionMarkup(last.twd_deg) : "") +
           `</span>` +
           `<span class="${styles.cardMeta}">` +
           escapeHtml(labels.ago(minutesSince(last.observed_at))) +
@@ -45,9 +47,7 @@ export function syncStationsLayer(
         className: styles.pin,
         html:
           `<span class="${styles.inner}">` +
-          // The badge glyph is inline text, not an icon font: this markup is
-          // built as a string for Leaflet's divIcon, outside React.
-          `<span class="${styles.badge}">🜁</span>` +
+          `<span class="${styles.badge}">${WIND_GLYPH}</span>` +
           `<span class="${styles.card}">` +
           `<strong class="${styles.cardName}">${escapeHtml(name)}</strong>` +
           reading +
@@ -65,6 +65,15 @@ export function syncStationsLayer(
     group.addLayer(marker);
   }
 }
+
+// Lucide's "wind" glyph for the collapsed badge. Inline SVG rather than a text
+// character: a glyph's own metrics decide where it sits in its line box, so it
+// never lands dead centre of the circle, while an SVG box is centred by the
+// badge's own flex rules.
+const WIND_GLYPH =
+  `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ` +
+  `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+  `<path d="M12.8 19.6A2 2 0 1 0 14 16H2M17.5 4.5A2 2 0 1 1 19 8H2M9.8 4.4A2 2 0 1 1 11 8H2"/></svg>`;
 
 // Arrow-up glyph (the lucide icon WindBadge renders as a component), inlined
 // as a path because this markup is a string for Leaflet's divIcon.

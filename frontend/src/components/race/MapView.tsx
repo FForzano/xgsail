@@ -549,7 +549,7 @@ export function MapView({
   }, [pickMode]);
 
   const { layers, toggle } = useMapLayers();
-  const { detailHidden, poiHidden, poiFailed } = useNauticalLayers(
+  const { clubsHidden, nearDetailHidden, poiFailed } = useNauticalLayers(
     nautical ? mapInstance : null,
     layers,
   );
@@ -576,8 +576,8 @@ export function MapView({
             <MapLayerToggles
               layers={layers}
               onToggle={toggle}
-              detailHidden={detailHidden}
-              poiHidden={poiHidden}
+              clubsHidden={clubsHidden}
+              nearDetailHidden={nearDetailHidden}
               poiFailed={poiFailed}
             />
           )}

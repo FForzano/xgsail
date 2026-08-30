@@ -716,8 +716,8 @@
       "poi": "Punti d'interesse",
       "clubs": "Circoli",
       "stations": "Stazioni meteo",
-      "zoomIn": "Ingrandisci la mappa per vedere circoli e stazioni.",
-      "zoomInPoi": "Ingrandisci ancora per i punti d'interesse.",
+      "zoomIn": "Ingrandisci la mappa per vedere i circoli.",
+      "zoomInPoi": "Ingrandisci ancora per punti d'interesse e stazioni meteo.",
       "poiUnavailable": "Punti d'interesse non disponibili: OpenStreetMap non risponde."
     },
     "poi": {

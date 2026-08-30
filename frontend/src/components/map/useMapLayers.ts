@@ -19,13 +19,16 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   stations: false,
 };
 
-/** Clubs and stations are point data spread over the whole world, so at a
- * continental zoom they collapse into an unreadable field of pins that says
- * nothing about anywhere. Below this zoom their layers stay off even when
- * toggled on, and the switcher says so (see useNauticalLayers/
- * MapLayerToggles). The seamark and POI layers are exempt: the first is
- * raster tiles, the second is already fetched per viewport. */
-export const DETAIL_LAYERS_MIN_ZOOM = 9;
+/** Clubs are point data spread over the whole world, so at a continental zoom
+ * they collapse into an unreadable field of pins that says nothing about
+ * anywhere. Below this zoom the layer stays off even when toggled on, and the
+ * switcher says so (see useNauticalLayers/MapLayerToggles).
+ *
+ * Clubs get the lowest of the gates on purpose — they are the layer worth
+ * spotting from furthest out. Weather stations sit at the POI gate instead
+ * (NEAR_DETAIL_MIN_ZOOM), and the seamark layer has none at all: it is raster
+ * tiles, which thin themselves out by zoom already. */
+export const CLUBS_MIN_ZOOM = 9;
 
 const STORAGE_KEY = "xgsail.map.layers";
 

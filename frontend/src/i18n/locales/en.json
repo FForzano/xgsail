@@ -716,8 +716,8 @@
       "poi": "Points of interest",
       "clubs": "Clubs",
       "stations": "Weather stations",
-      "zoomIn": "Zoom in to see clubs and stations.",
-      "zoomInPoi": "Zoom in further for points of interest.",
+      "zoomIn": "Zoom in to see clubs.",
+      "zoomInPoi": "Zoom in further for points of interest and weather stations.",
       "poiUnavailable": "Points of interest unavailable: OpenStreetMap is not responding."
     },
     "poi": {

@@ -28,8 +28,6 @@
   background: #1f6f8b;
   border: 2px solid #fff;
   color: #fff;
-  font-size: 13px;
-  line-height: 1;
 }
 .tail {
   width: 0;
@@ -70,8 +68,10 @@
 }
 .reading {
   display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
+  gap: 0.4rem;
+  /* center, not baseline: the arrow is an SVG box with no text baseline of its
+     own, so baseline alignment drops it below the numbers. */
+  align-items: center;
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
 }

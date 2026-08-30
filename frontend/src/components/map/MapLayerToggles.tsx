@@ -13,22 +13,21 @@ import styles from "./MapLayerToggles.module.css";
 export function MapLayerToggles({
   layers,
   onToggle,
-  detailHidden = false,
-  poiHidden = false,
+  clubsHidden = false,
+  nearDetailHidden = false,
   poiFailed = false,
 }: {
   layers: MapLayers;
   onToggle: (key: keyof MapLayers, on: boolean) => void;
-  /** True when a zoom-gated layer is switched on but the map is zoomed too
-   * far out to draw it — without a word here the checkbox looks broken. */
-  detailHidden?: boolean;
-  /** Same, for the POI layer, which has its own higher threshold (see
-   * useNauticalPoi's POI_MIN_ZOOM) — a separate hint because the two
-   * thresholds are different numbers for different reasons, so one merged
-   * message would be wrong at every zoom between them. */
-  poiHidden?: boolean;
+  /** True when the clubs layer is on but the map is zoomed too far out to
+   * draw it — without a word here the checkbox looks broken. */
+  clubsHidden?: boolean;
+  /** Same, for the POI and weather-station layers, which share a closer
+   * threshold (NEAR_DETAIL_MIN_ZOOM) — a separate hint because merging the
+   * two tiers into one message would be wrong at every zoom between them. */
+  nearDetailHidden?: boolean;
   /** True when the POI layer is on but its upstream (Overpass) is failing —
-   * distinct from `poiHidden`: nothing the user can fix by zooming. */
+   * distinct from `nearDetailHidden`: nothing the user can fix by zooming. */
   poiFailed?: boolean;
 }) {
   const { t } = useTranslation();
@@ -60,9 +59,9 @@ export function MapLayerToggles({
               {t(`map.layers.${key}`)}
             </label>
           ))}
-          {detailHidden && <p className={styles.hint}>{t("map.layers.zoomIn")}</p>}
-          {poiHidden && <p className={styles.hint}>{t("map.layers.zoomInPoi")}</p>}
-          {poiFailed && !poiHidden && (
+          {clubsHidden && <p className={styles.hint}>{t("map.layers.zoomIn")}</p>}
+          {nearDetailHidden && <p className={styles.hint}>{t("map.layers.zoomInPoi")}</p>}
+          {poiFailed && !nearDetailHidden && (
             <p className={styles.hint}>{t("map.layers.poiUnavailable")}</p>
           )}
         </div>
