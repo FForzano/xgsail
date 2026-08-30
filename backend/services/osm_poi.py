@@ -40,8 +40,8 @@ OVERPASS_USER_AGENT = os.getenv(
 # window. Kept short on purpose: fanning out over many mirrors on every
 # failure is exactly the load that gets a client blocked.
 ENDPOINTS = (
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter"
+    "https://overpass-api.de/api/interpreter"
+    # "https://overpass.private.coffee/api/interpreter",
     # "https://overpass.kumi.systems/api/interpreter"
 )
 # Overpass's own server-side budget, and our socket timeout with slack on top.
@@ -222,13 +222,59 @@ def query_overpass(south: float, west: float, north: float, east: float) -> dict
     for endpoint in ENDPOINTS:
         try:
             headers = {
-                "User-Agent": "xgsail/1.0 (f.forzano@ieee.org)"
+                "User-Agent": OVERPASS_USER_AGENT,
             }
             resp = requests.post(endpoint, data=body, timeout=FETCH_TIMEOUT_S, headers=headers)
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                logger.warning(
+                    "Overpass endpoint %s returned HTTP %s for bbox %s,%s,%s,%s; body=%s",
+                    endpoint,
+                    resp.status_code,
+                    south,
+                    west,
+                    north,
+                    east,
+                    (resp.text[:300] if resp.text else "<empty>"),
+                )
+                resp.raise_for_status()
             return resp.json()
+        except requests.exceptions.Timeout as exc:
+            logger.warning(
+                "Overpass timeout for endpoint %s while fetching bbox %s,%s,%s,%s (timeout=%ss)",
+                endpoint,
+                south,
+                west,
+                north,
+                east,
+                FETCH_TIMEOUT_S,
+                exc_info=True,
+            )
+            last_error = exc
+        except requests.exceptions.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else "unknown"
+            logger.warning(
+                "Overpass HTTP failure for endpoint %s: status=%s bbox=%s,%s,%s,%s reason=%r",
+                endpoint,
+                status_code,
+                south,
+                west,
+                north,
+                east,
+                exc,
+                exc_info=True,
+            )
+            last_error = exc
         except Exception as exc:
-            logger.info("overpass endpoint %s failed: %r", endpoint, exc)
+            logger.warning(
+                "Overpass request failed for endpoint %s bbox %s,%s,%s,%s: %r",
+                endpoint,
+                south,
+                west,
+                north,
+                east,
+                exc,
+                exc_info=True,
+            )
             last_error = exc
     raise last_error or RuntimeError("Overpass unreachable")
 
