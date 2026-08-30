@@ -758,3 +758,50 @@ def test_an_exhausted_deadline_stops_the_endpoint_fallback(transport):
     with pytest.raises(osm_poi.OverpassError):
         osm_poi.query_overpass(44.0, 9.0, 44.5, 9.5, deadline=time.monotonic() - 1)
     assert calls == []
+
+
+# --- the endpoint list -----------------------------------------------------
+#
+# This list is what gets fiddled with whenever Overpass misbehaves, and doing
+# it by editing a tuple literal is how the layer once stopped querying
+# anything: commenting out all but one entry left a bare parenthesised string,
+# so the endpoint loop iterated over its characters and POSTed to "h", to
+# "t", ... Every one raised, every one was swallowed as a failed endpoint, and
+# no request left the box while the logs blamed Overpass.
+
+def test_no_configuration_means_the_built_in_endpoints():
+    assert osm_poi.parse_endpoints(None) == osm_poi.DEFAULT_ENDPOINTS
+    assert osm_poi.parse_endpoints("   ") == osm_poi.DEFAULT_ENDPOINTS
+
+
+@pytest.mark.parametrize("raw", [
+    "https://a.example/api/interpreter,https://b.example/api/interpreter",
+    "https://a.example/api/interpreter https://b.example/api/interpreter",
+    " https://a.example/api/interpreter , https://b.example/api/interpreter ",
+])
+def test_endpoints_are_separated_by_commas_or_spaces(raw):
+    assert osm_poi.parse_endpoints(raw) == ("https://a.example/api/interpreter",
+                                            "https://b.example/api/interpreter")
+
+
+def test_a_single_configured_endpoint_stays_a_list_of_one_url():
+    """The regression: one endpoint must be one endpoint, never 39 characters."""
+    parsed = osm_poi.parse_endpoints("https://overpass-api.de/api/interpreter")
+    assert parsed == ("https://overpass-api.de/api/interpreter",)
+    assert list(parsed) == ["https://overpass-api.de/api/interpreter"]
+
+
+@pytest.mark.parametrize("raw", ["overpass-api.de/api/interpreter", "ftp://x/y",
+                                 "https://ok.example/i, nonsense"])
+def test_an_unusable_endpoint_list_is_a_startup_error_not_a_silent_outage(raw):
+    with pytest.raises(ValueError):
+        osm_poi.parse_endpoints(raw)
+
+
+def test_the_endpoints_actually_in_use_are_whole_urls():
+    """Guards the module-level value however it was configured — the shape
+    bug was invisible precisely because every element still looked iterable."""
+    assert isinstance(osm_poi.ENDPOINTS, tuple)
+    assert osm_poi.ENDPOINTS
+    for endpoint in osm_poi.ENDPOINTS:
+        assert endpoint.startswith("https://")

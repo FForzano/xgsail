@@ -40,10 +40,37 @@ OVERPASS_USER_AGENT = os.getenv(
 # with a single endpoint that means no data at all until the next retry
 # window. Kept short on purpose: fanning out over many mirrors on every
 # failure is exactly the load that gets a client blocked.
-ENDPOINTS = (
+#
+# Configured rather than hand-edited, because the list *is* the thing that
+# gets fiddled with when Overpass misbehaves — and editing a tuple literal to
+# do it is how the layer once ended up querying nothing at all: commenting out
+# every entry but one left ``("https://...",)`` without its trailing comma,
+# i.e. a plain string, and ``for endpoint in ENDPOINTS`` then iterated over
+# its *characters*, POSTing to "h", to "t", to "t"... Each one raised, each
+# was swallowed as a failed endpoint, and no request ever left the box while
+# the logs said Overpass was unreachable. ``parse_endpoints`` is why that
+# cannot happen again: a malformed setting is a startup error, not a silent
+# reinterpretation.
+DEFAULT_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 )
+
+
+def parse_endpoints(raw: Optional[str]) -> "tuple[str, ...]":
+    """Comma- or whitespace-separated absolute URLs. Empty/unset means the
+    defaults; anything present but unusable raises, since a mistyped endpoint
+    list must not read as "Overpass is down"."""
+    if raw is None or not raw.strip():
+        return DEFAULT_ENDPOINTS
+    endpoints = tuple(part.strip() for part in raw.replace(",", " ").split())
+    bad = [e for e in endpoints if not e.startswith(("http://", "https://"))]
+    if bad:
+        raise ValueError(f"OVERPASS_ENDPOINTS must be absolute http(s) URLs; got {bad}")
+    return endpoints
+
+
+ENDPOINTS = parse_endpoints(os.getenv("OVERPASS_ENDPOINTS"))
 # Overpass's own server-side budget, and our socket timeout with slack on top.
 # Deliberately far below what Overpass would allow: a 0.5 deg cell with these
 # selectors answers in a few seconds, and anything slower is a struggling

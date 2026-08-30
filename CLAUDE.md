@@ -878,6 +878,23 @@ Capacitor plugin changes, which still require a store release.
   and `MapLayerToggles` renders each, so incomplete data is surfaced, not
   swallowed.
 
+- **The Overpass endpoint list is configuration, and a single entry still has
+  to be a list.** This happened: narrowing `ENDPOINTS` to one instance by
+  commenting the others out left `("https://overpass-api.de/api/interpreter"` +
+  `)` — no trailing comma, so a plain string. `for endpoint in ENDPOINTS` then
+  iterated its *characters*, POSTing to `"h"`, to `"t"`, to `"t"`... 39 times.
+  Every one raised `MissingSchema`, every one was swallowed by the loop's
+  `except Exception` and logged as an endpoint that failed, and **not one
+  packet left the box** while the logs read exactly like an Overpass outage.
+  The tell in the database is total: `osm_poi_cells.fetched_at` NULL
+  everywhere and `osm_pois` empty — no successes at all, as opposed to the
+  partial, patchy damage a real outage or the remark bug below leaves. Hence
+  `OVERPASS_ENDPOINTS` and `parse_endpoints`: the list is swapped without
+  touching code, and a malformed one is a startup error. `scripts/
+  check_overpass.py` is the other half — run it on the host that is failing
+  and it separates DNS, egress, rate limiting and a bad instance, none of
+  which the application can tell apart after the fact.
+
 - **Overpass reports a runtime error as HTTP 200, and believing it wipes the
   map.** A query that times out or runs out of memory upstream — what a
   throttled or overloaded instance returns — comes back as a perfectly valid
@@ -934,6 +951,10 @@ See `.env.example` for the full list with defaults. Grouped by concern:
   the internal endpoint), plus `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`
   reused verbatim from the backend's MinIO config by convention — don't
   invent separate OTA-specific credential var names.
+- **Overpass** (`backend/services/osm_poi.py`): `OVERPASS_USER_AGENT`,
+  `OVERPASS_ENDPOINTS` (comma/space-separated instance URLs, unset = the
+  built-in defaults). The endpoint list is configuration precisely because it
+  is what gets changed when Overpass misbehaves — see the gotcha above.
 - **Track thumbnails** (`workers/process_upload/thumbnail.py`):
   `THUMBNAIL_TILE_URL` (OSM tile template, empty disables the map
   background), `THUMBNAIL_TILE_USER_AGENT` (sent on every tile request)
