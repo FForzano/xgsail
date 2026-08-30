@@ -7,7 +7,15 @@
  * must go through useNauticalPoi (hooks/useNauticalPoi.ts), which bounds the
  * request rate by zoom, debounce and a rounded-bbox query cache. */
 
-const ENDPOINT = "https://overpass-api.de/api/interpreter";
+// Tried in order. It is a volunteer-run service and the main instance does go
+// down outright (not just 429) — with a single endpoint that means the layer
+// silently renders nothing, so a second instance is worth the four lines. Kept
+// short on purpose: fanning out over many mirrors on every failure is exactly
+// the load that gets clients blocked.
+const ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+];
 const TIMEOUT_S = 25;
 
 export type PoiKind =
@@ -80,15 +88,31 @@ function classify(tags: Record<string, string>): PoiKind | null {
   return null;
 }
 
+/** POSTs the query to each endpoint in turn, returning the first that answers.
+ * A caller-side abort is never a failover — it means the map moved on. */
+async function queryOverpass(bbox: Bbox, signal?: AbortSignal): Promise<{ elements?: OverpassElement[] }> {
+  const body = new URLSearchParams({ data: buildQuery(bbox) });
+  let lastError: unknown;
+  for (const endpoint of ENDPOINTS) {
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+        signal,
+      });
+      if (!res.ok) throw new Error(`Overpass ${res.status}`);
+      return (await res.json()) as { elements?: OverpassElement[] };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error("Overpass unreachable");
+}
+
 export async function fetchNauticalPoi(bbox: Bbox, signal?: AbortSignal): Promise<NauticalPoi[]> {
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ data: buildQuery(bbox) }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`Overpass ${res.status}`);
-  const json = (await res.json()) as { elements?: OverpassElement[] };
+  const json = await queryOverpass(bbox, signal);
 
   const out: NauticalPoi[] = [];
   for (const el of json.elements ?? []) {

@@ -70,7 +70,7 @@ export function ExplorerMap({
   const [locateError, setLocateError] = useState(false);
 
   const { layers, toggle } = useMapLayers();
-  const { detailHidden, poiHidden } = useNauticalLayers(map, layers);
+  const { detailHidden, poiHidden, poiFailed } = useNauticalLayers(map, layers);
   // No `at`: this map is about now, not about a recorded moment.
   const wind = useMapCenterWind(map);
 
@@ -180,6 +180,7 @@ export function ExplorerMap({
           onToggle={toggle}
           detailHidden={detailHidden}
           poiHidden={poiHidden}
+          poiFailed={poiFailed}
         />
       </div>
       <div className={styles.locate}>

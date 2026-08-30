@@ -62,12 +62,13 @@ function useMapZoom(map: L.Map | null): number {
  * (`DETAIL_LAYERS_MIN_ZOOM`): both are worldwide point data, and at a
  * continental zoom they degrade into a field of pins that tells the user
  * nothing; the POI layer has its own, higher threshold (POI_MIN_ZOOM, an
- * Overpass rate-limit concern). Returns one flag per threshold so the switcher
- * can say which layer the user just ticked isn't showing, and why. */
+ * Overpass rate-limit concern). Returns one flag per reason a ticked layer
+ * might still be showing nothing — below its zoom gate, or (for the POIs)
+ * upstream unreachable — so the switcher can say which, and why. */
 export function useNauticalLayers(
   map: L.Map | null,
   layers: MapLayers,
-): { detailHidden: boolean; poiHidden: boolean } {
+): { detailHidden: boolean; poiHidden: boolean; poiFailed: boolean } {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -76,7 +77,7 @@ export function useNauticalLayers(
   const showClubs = layers.clubs && zoomedIn;
   const showStations = layers.stations && zoomedIn;
 
-  const pois = useNauticalPoi(map, layers.poi);
+  const { pois, failed: poiFailed } = useNauticalPoi(map, layers.poi);
   const clubs = useQuery({
     queryKey: clubKeys.all,
     queryFn: () => clubsService.list(),
@@ -175,5 +176,6 @@ export function useNauticalLayers(
   return {
     detailHidden: (layers.clubs || layers.stations) && !zoomedIn,
     poiHidden: layers.poi && zoom < POI_MIN_ZOOM,
+    poiFailed: layers.poi && poiFailed,
   };
 }

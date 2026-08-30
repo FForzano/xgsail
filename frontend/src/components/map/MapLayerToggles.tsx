@@ -15,6 +15,7 @@ export function MapLayerToggles({
   onToggle,
   detailHidden = false,
   poiHidden = false,
+  poiFailed = false,
 }: {
   layers: MapLayers;
   onToggle: (key: keyof MapLayers, on: boolean) => void;
@@ -26,6 +27,9 @@ export function MapLayerToggles({
    * thresholds are different numbers for different reasons, so one merged
    * message would be wrong at every zoom between them. */
   poiHidden?: boolean;
+  /** True when the POI layer is on but its upstream (Overpass) is failing —
+   * distinct from `poiHidden`: nothing the user can fix by zooming. */
+  poiFailed?: boolean;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -58,6 +62,9 @@ export function MapLayerToggles({
           ))}
           {detailHidden && <p className={styles.hint}>{t("map.layers.zoomIn")}</p>}
           {poiHidden && <p className={styles.hint}>{t("map.layers.zoomInPoi")}</p>}
+          {poiFailed && !poiHidden && (
+            <p className={styles.hint}>{t("map.layers.poiUnavailable")}</p>
+          )}
         </div>
       )}
     </div>

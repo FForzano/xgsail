@@ -717,7 +717,8 @@
       "clubs": "Circoli",
       "stations": "Stazioni meteo",
       "zoomIn": "Ingrandisci la mappa per vedere circoli e stazioni.",
-      "zoomInPoi": "Ingrandisci ancora per i punti d'interesse."
+      "zoomInPoi": "Ingrandisci ancora per i punti d'interesse.",
+      "poiUnavailable": "Punti d'interesse non disponibili: OpenStreetMap non risponde."
     },
     "poi": {
       "marina": "Marina",

@@ -855,6 +855,19 @@ Capacitor plugin changes, which still require a store release.
   unnamed-POI filter next to it: never hide something whose replacement isn't
   being drawn.
 
+- **A ticked map layer that draws nothing must always say why.** The nautical
+  POI layer has exactly one upstream — the volunteer-run public Overpass API,
+  which does go down outright rather than merely rate-limit — and it is also
+  gated at a higher zoom (`POI_MIN_ZOOM = 11`) than the clubs/stations layers
+  (`DETAIL_LAYERS_MIN_ZOOM = 9`). Each of those produces the same symptom: a
+  checked box and an empty map, indistinguishable from "there is nothing
+  here", which has already been reported twice as a regression it wasn't.
+  `useNauticalLayers` therefore returns one flag per reason (`detailHidden`,
+  `poiHidden`, `poiFailed`) and `MapLayerToggles` renders each — so the query
+  failure is surfaced, not swallowed. `services/overpass.ts` also tries a
+  second instance before giving up; keep that list short, since fanning out
+  over mirrors on every failure is what gets clients blocked.
+
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 

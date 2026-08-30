@@ -32,7 +32,10 @@ function snapBbox(b: L.LatLngBounds): Bbox {
  * debounced, the bbox is snapped to a grid, and results are cached long enough
  * that a normal browsing session issues a handful of requests, not one per
  * pan. */
-export function useNauticalPoi(map: L.Map | null, enabled: boolean): NauticalPoi[] {
+export function useNauticalPoi(
+  map: L.Map | null,
+  enabled: boolean,
+): { pois: NauticalPoi[]; failed: boolean } {
   const [bbox, setBbox] = useState<Bbox | null>(null);
 
   useEffect(() => {
@@ -67,5 +70,9 @@ export function useNauticalPoi(map: L.Map | null, enabled: boolean): NauticalPoi
     refetchOnWindowFocus: false,
   });
 
-  return query.data ?? [];
+  // The failure is reported rather than swallowed: this layer has exactly one
+  // upstream, and a volunteer-run one that does go down, so "no pins" would
+  // otherwise be indistinguishable from "nothing here" — the same silent
+  // emptiness the zoom gate used to produce.
+  return { pois: query.data ?? [], failed: query.isError };
 }

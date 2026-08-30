@@ -549,7 +549,10 @@ export function MapView({
   }, [pickMode]);
 
   const { layers, toggle } = useMapLayers();
-  const { detailHidden, poiHidden } = useNauticalLayers(nautical ? mapInstance : null, layers);
+  const { detailHidden, poiHidden, poiFailed } = useNauticalLayers(
+    nautical ? mapInstance : null,
+    layers,
+  );
 
   // Move position markers to the cursor time (skipping any mid-drag).
   useEffect(() => {
@@ -575,6 +578,7 @@ export function MapView({
               onToggle={toggle}
               detailHidden={detailHidden}
               poiHidden={poiHidden}
+              poiFailed={poiFailed}
             />
           )}
         </div>
