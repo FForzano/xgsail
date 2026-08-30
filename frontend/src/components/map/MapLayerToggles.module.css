@@ -16,7 +16,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  white-space: nowrap;
+  /* Sized by its content, but never wider than the screen. The hints below are
+     full sentences: with the panel anchored to the map's right edge, an
+     unbounded width pushes the checkbox labels off the left of a phone. */
+  max-width: min(17rem, calc(100vw - 4rem));
 }
 .option {
   display: flex;
@@ -24,6 +27,10 @@
   gap: 8px;
   font-size: 0.85rem;
   cursor: pointer;
+  /* Only the labels stay on one line — a wrapped "Carta nautica" beside its
+     checkbox reads badly. The hints must wrap, which is why this lives here
+     and not on .panel. */
+  white-space: nowrap;
 }
 
 /* Shown when a zoom-gated layer is on but the map is too far out to draw it
@@ -34,4 +41,5 @@
   margin: 0.35rem 0 0;
   font-size: 0.75rem;
   opacity: 0.7;
+  white-space: normal;
 }
