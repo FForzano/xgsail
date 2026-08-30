@@ -219,6 +219,14 @@ def query_overpass(south: float, west: float, north: float, east: float) -> dict
     body = {"data": build_query(south, west, north, east)}
     last_error: Optional[Exception] = None
     for endpoint in ENDPOINTS:
+        logger.info(
+            "Trying Overpass endpoint %s for bbox %s,%s,%s,%s",
+            endpoint,
+            south,
+            west,
+            north,
+            east,
+        )
         try:
             headers = {
                 "User-Agent": OVERPASS_USER_AGENT,
@@ -226,7 +234,7 @@ def query_overpass(south: float, west: float, north: float, east: float) -> dict
             resp = requests.post(endpoint, data=body, timeout=FETCH_TIMEOUT_S, headers=headers)
             if resp.status_code >= 400:
                 logger.warning(
-                    "Overpass endpoint %s returned HTTP %s for bbox %s,%s,%s,%s; body=%s",
+                    "Overpass endpoint %s returned HTTP %s for bbox %s,%s,%s,%s; body=%s; trying next endpoint",
                     endpoint,
                     resp.status_code,
                     south,
@@ -236,10 +244,12 @@ def query_overpass(south: float, west: float, north: float, east: float) -> dict
                     (resp.text[:300] if resp.text else "<empty>"),
                 )
                 resp.raise_for_status()
+            logger.info("Overpass request succeeded via endpoint %s for bbox %s,%s,%s,%s",
+                        endpoint, south, west, north, east)
             return resp.json()
         except requests.exceptions.Timeout as exc:
             logger.warning(
-                "Overpass timeout for endpoint %s while fetching bbox %s,%s,%s,%s (timeout=%ss)",
+                "Overpass timeout for endpoint %s while fetching bbox %s,%s,%s,%s (timeout=%ss); trying next endpoint",
                 endpoint,
                 south,
                 west,
@@ -252,7 +262,7 @@ def query_overpass(south: float, west: float, north: float, east: float) -> dict
         except requests.exceptions.HTTPError as exc:
             status_code = exc.response.status_code if exc.response is not None else "unknown"
             logger.warning(
-                "Overpass HTTP failure for endpoint %s: status=%s bbox=%s,%s,%s,%s reason=%r",
+                "Overpass HTTP failure for endpoint %s: status=%s bbox=%s,%s,%s,%s reason=%r; trying next endpoint",
                 endpoint,
                 status_code,
                 south,
@@ -265,7 +275,7 @@ def query_overpass(south: float, west: float, north: float, east: float) -> dict
             last_error = exc
         except Exception as exc:
             logger.warning(
-                "Overpass request failed for endpoint %s bbox %s,%s,%s,%s: %r",
+                "Overpass request failed for endpoint %s bbox %s,%s,%s,%s: %r; trying next endpoint",
                 endpoint,
                 south,
                 west,
@@ -275,6 +285,15 @@ def query_overpass(south: float, west: float, north: float, east: float) -> dict
                 exc_info=True,
             )
             last_error = exc
+    logger.error(
+        "All Overpass endpoints failed for bbox %s,%s,%s,%s. Endpoints tried: %s",
+        south,
+        west,
+        north,
+        east,
+        ", ".join(ENDPOINTS),
+        exc_info=True,
+    )
     raise last_error or RuntimeError("Overpass unreachable")
 
 
