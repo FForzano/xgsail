@@ -5,17 +5,22 @@
 
    Breakpoint matches ExplorerMap.module.css's and global.css's — that's where
    the fixed action bar appears and the bottom corner gets crowded. */
+/* No margin of its own: as a `.leaflet-control` it inherits the corner's 10px
+   insets, and those are what the zoom control above it is spaced by too. */
 .toggle {
   display: none;
   width: 20px;
   height: 20px;
   padding: 0;
-  margin: 0 2px 2px 0;
   border: none;
   border-radius: 50%;
   background: rgba(20, 50, 77, 0.85);
   color: #fff;
   font: 600 12px/1 system-ui, sans-serif;
+}
+/* Element-qualified: `.leaflet-control` sets `cursor: auto` at the same
+   specificity, and whichever stylesheet lands last would otherwise win. */
+button.toggle {
   cursor: pointer;
 }
 

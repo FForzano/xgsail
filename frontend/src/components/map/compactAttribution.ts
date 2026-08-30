@@ -34,7 +34,12 @@ export function installCompactAttribution(map: L.Map, label: string): void {
 
   const toggle = document.createElement("button");
   toggle.type = "button";
-  toggle.className = styles.toggle;
+  // `leaflet-control` is not decoration: Leaflet's corner containers are
+  // `pointer-events: none` and only elements carrying that class get pointer
+  // events back, so without it the button simply cannot be clicked. It also
+  // opts the button into the corner's float/clear stacking and its 10px
+  // margins, which is what puts it on its own row.
+  toggle.className = `${styles.toggle} leaflet-control`;
   // The visible button is just an "(i)", as the guidelines' own example has
   // it. `label` is the accessible name only: a screen reader announcing "i,
   // button" would tell a blind user nothing, so that one place needs words.
@@ -49,5 +54,10 @@ export function installCompactAttribution(map: L.Map, label: string): void {
     toggle.setAttribute("aria-expanded", String(!collapsed));
   });
 
-  corner.insertBefore(toggle, container);
+  // Moved to the end of the corner so the stack reads, bottom-up: the "(i)"
+  // in the very corner, the credit above it when expanded, and the zoom
+  // control above both — where it lines up with the page's other round
+  // controls. Leaflet stacks a corner's children in DOM order, top to bottom.
+  corner.appendChild(container);
+  corner.appendChild(toggle);
 }

@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 # failure is exactly the load that gets a client blocked.
 ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter"
 )
 # Overpass's own server-side budget, and our socket timeout with slack on top.
 QUERY_TIMEOUT_S = 60
