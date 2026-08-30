@@ -841,6 +841,20 @@ Capacitor plugin changes, which still require a store release.
   undetectable from the data; only `calibrate_wind_weights.py
   --ablate-stations` surfaces those.
 
+- **A club and an OSM sailing club can be the same place, and `clubs.osm_ref`
+  is the only thing that says so.** The explorer map draws clubs from two
+  independent sources — our own rows and Overpass POIs — so the same club
+  appears twice until someone creates it from the POI or claims an existing
+  club as that element (`PATCH /clubs/{id}`, already manage-gated: claiming is
+  a management act on that club, not a new permission). The column is UNIQUE
+  because that constraint *is* the anti-duplication guarantee, and it holds
+  `"{osm_type}/{osm_id}"` verbatim so the frontend compares it to
+  `NauticalPoi.id` with no parsing on either side. The map hides a claimed
+  POI **only while the clubs layer is on** — the club's pin is what replaces
+  it, and hiding both would erase the place from the map. Same rule as the
+  unnamed-POI filter next to it: never hide something whose replacement isn't
+  being drawn.
+
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 

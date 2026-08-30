@@ -512,7 +512,12 @@
     "useMyPosition": "Use my position",
     "noLocation": "No location set",
     "findFromAddress": "Find from address",
-    "addressNotFound": "Address not found"
+    "addressNotFound": "Address not found",
+    "createClubFromOsm": "Club prefilled from OpenStreetMap data: check the name and city before saving.",
+    "osmClaimLabel": "Link to an existing club",
+    "osmClaimPlaceholder": "Choose a club…",
+    "osmClaimAction": "Link",
+    "osmAlreadyLinked": "This place is already linked to another club."
   },
   "sessions": {
     "title": "My sessions",
@@ -711,7 +716,8 @@
       "poi": "Points of interest",
       "clubs": "Clubs",
       "stations": "Weather stations",
-      "zoomIn": "Zoom in to see clubs and stations."
+      "zoomIn": "Zoom in to see clubs and stations.",
+      "zoomInPoi": "Zoom in further for points of interest."
     },
     "poi": {
       "marina": "Marina",
@@ -720,7 +726,8 @@
       "slipway": "Slipway",
       "sailing_club": "Sailing club",
       "sports_area": "Sports area",
-      "fuel": "Fuel"
+      "fuel": "Fuel",
+      "createClub": "Create club in XGSail"
     },
     "openClub": "Open club page",
     "locate": "Center on my location",
@@ -1074,7 +1081,8 @@
       "no_data": "No data",
       "stale": "Stale",
       "faulty": "Faulty sensor"
-    }
+    },
+    "coordinates": "Coordinates"
   },
   "updateRequired": {
     "title": "Update required",

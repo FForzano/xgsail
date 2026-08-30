@@ -4,8 +4,12 @@ import type L from "leaflet";
 import { fetchNauticalPoi, type Bbox, type NauticalPoi } from "@/services/overpass";
 
 /** Below this the visible area is whole seas wide — the query would return
- * thousands of elements and the pins would be unreadable anyway. */
-const MIN_ZOOM = 11;
+ * thousands of elements and the pins would be unreadable anyway. It stays
+ * here rather than beside useMapLayers' DETAIL_LAYERS_MIN_ZOOM because it
+ * exists for a different reason (Overpass's rate limits, not pin legibility)
+ * and this hook is what enforces it; exported so the layer switcher can
+ * explain the gate without hardcoding the number a second time. */
+export const POI_MIN_ZOOM = 11;
 /** Snap the bbox to this grid (degrees) so panning around the same area keeps
  * hitting the same cache entry instead of issuing a query per pixel moved. */
 const BBOX_STEP = 0.05;
@@ -24,9 +28,10 @@ function snapBbox(b: L.LatLngBounds): Bbox {
 
 /** Nautical POIs for whatever the map is currently showing. Deliberately
  * conservative about hitting Overpass (see services/overpass.ts): nothing is
- * requested until the user is zoomed in past MIN_ZOOM, movements are debounced,
- * the bbox is snapped to a grid, and results are cached long enough that a
- * normal browsing session issues a handful of requests, not one per pan. */
+ * requested until the user is zoomed in past POI_MIN_ZOOM, movements are
+ * debounced, the bbox is snapped to a grid, and results are cached long enough
+ * that a normal browsing session issues a handful of requests, not one per
+ * pan. */
 export function useNauticalPoi(map: L.Map | null, enabled: boolean): NauticalPoi[] {
   const [bbox, setBbox] = useState<Bbox | null>(null);
 
@@ -39,7 +44,7 @@ export function useNauticalPoi(map: L.Map | null, enabled: boolean): NauticalPoi
     const update = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        setBbox(map.getZoom() >= MIN_ZOOM ? snapBbox(map.getBounds()) : null);
+        setBbox(map.getZoom() >= POI_MIN_ZOOM ? snapBbox(map.getBounds()) : null);
       }, DEBOUNCE_MS);
     };
     update();

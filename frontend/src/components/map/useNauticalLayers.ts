@@ -1,15 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import L from "leaflet";
-import { useNauticalPoi } from "@/hooks/useNauticalPoi";
+import { POI_MIN_ZOOM, useNauticalPoi } from "@/hooks/useNauticalPoi";
 import { clubKeys, clubsService } from "@/services/clubs";
 import { windKeys, windService } from "@/services/wind";
 import type { NauticalPoi } from "@/services/overpass";
 import { createBaseLayers } from "./baseLayers";
-import { collapseClubCards, syncClubsLayer } from "./ClubsLayer";
-import { collapseStationCards, syncStationsLayer } from "./StationsLayer";
+import { syncClubsLayer } from "./ClubsLayer";
+import { syncStationsLayer } from "./StationsLayer";
 import { syncPoiLayer } from "./PoiLayer";
 import { DETAIL_LAYERS_MIN_ZOOM, type MapLayers } from "./useMapLayers";
 
@@ -61,12 +61,13 @@ function useMapZoom(map: L.Map | null): number {
  * The clubs and stations layers are additionally gated on zoom
  * (`DETAIL_LAYERS_MIN_ZOOM`): both are worldwide point data, and at a
  * continental zoom they degrade into a field of pins that tells the user
- * nothing. Returns `detailHidden` so the switcher can say why a layer the
- * user just ticked isn't showing. */
+ * nothing; the POI layer has its own, higher threshold (POI_MIN_ZOOM, an
+ * Overpass rate-limit concern). Returns one flag per threshold so the switcher
+ * can say which layer the user just ticked isn't showing, and why. */
 export function useNauticalLayers(
   map: L.Map | null,
   layers: MapLayers,
-): { detailHidden: boolean } {
+): { detailHidden: boolean; poiHidden: boolean } {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -101,11 +102,58 @@ export function useNauticalLayers(
     };
   }, [map, layers.seamark]);
 
+  // With the nautical chart on, an unnamed POI adds nothing: OpenSeaMap
+  // already draws a harbour/marina symbol at those exact coordinates, and what
+  // our pin has over that mute raster symbol is the label — name, kind,
+  // tappable OSM link. A named POI is therefore always worth drawing, and with
+  // the chart off even an unnamed one still says something is there. Filtered
+  // here, at display time, never in the fetch: a cached Overpass result must
+  // not depend on which layers happen to be toggled.
+  //
+  // A POI already linked to a club (Club.osm_ref) is also dropped, since the
+  // club's own pin now stands for it — but only while the clubs layer is
+  // actually being drawn (`showClubs`, the same condition the clubs query is
+  // `enabled` on above). `clubs.data` otherwise lingers in the TanStack cache
+  // after the layer is toggled off, which would keep hiding the POI even
+  // though nothing was drawn in its place — making the place vanish from the
+  // map entirely.
+  // OSM elements a club has claimed as being itself: their POI pin is the
+  // duplicate the club's own pin replaces. Keyed on `showClubs`, not just on
+  // `clubs.data` — the club list lingers in the TanStack cache after the
+  // layer is switched off, and hiding the POI when nothing draws the club in
+  // its place would make the place vanish from the map entirely.
+  const linkedOsmRefs = useMemo(
+    () =>
+      new Set(
+        (showClubs ? clubs.data ?? [] : [])
+          .map((c) => c.osm_ref)
+          .filter((ref): ref is string => !!ref),
+      ),
+    [showClubs, clubs.data],
+  );
+  const visiblePois = useMemo(
+    () =>
+      (layers.seamark ? pois.filter((poi) => poi.name) : pois).filter((poi) => !linkedOsmRefs.has(poi.id)),
+    [pois, layers.seamark, linkedOsmRefs],
+  );
+
   const poiGroup = useLayerGroup(map, layers.poi);
   useEffect(() => {
     if (!poiGroup) return;
-    syncPoiLayer(poiGroup, pois, (poi: NauticalPoi) => t(`map.poi.${poi.kind}`));
-  }, [poiGroup, pois, t]);
+    syncPoiLayer(
+      poiGroup,
+      visiblePois,
+      (poi: NauticalPoi) => t(`map.poi.${poi.kind}`),
+      t("map.poi.createClub"),
+      (poi: NauticalPoi) => {
+        const params = new URLSearchParams({ osm: poi.id });
+        if (poi.name) params.set("osm_name", poi.name);
+        params.set("osm_lat", String(poi.lat));
+        params.set("osm_lng", String(poi.lng));
+        navigate(`/gruppi/clubs?${params.toString()}`);
+      },
+    );
+  }, [poiGroup, visiblePois, t, navigate]);
 
   const clubsGroup = useLayerGroup(map, showClubs);
   useEffect(() => {
@@ -113,13 +161,6 @@ export function useNauticalLayers(
     syncClubsLayer(map, clubsGroup, clubs.data ?? [], { open: t("map.openClub") }, (clubId) =>
       navigate(`/gruppi/clubs/${clubId}`),
     );
-    // Tapping the map (rather than another pin) closes whichever club card is
-    // open — the pins themselves handle the pin-to-pin case.
-    const collapse = () => collapseClubCards(map);
-    map.on("click", collapse);
-    return () => {
-      map.off("click", collapse);
-    };
   }, [map, clubsGroup, clubs.data, t, navigate]);
 
   const stationsGroup = useLayerGroup(map, showStations);
@@ -129,12 +170,10 @@ export function useNauticalLayers(
       noReading: t("map.stations.noReading"),
       ago: (minutes: number) => t("map.stations.ago", { minutes }),
     });
-    const collapse = () => collapseStationCards(map);
-    map.on("click", collapse);
-    return () => {
-      map.off("click", collapse);
-    };
   }, [map, stationsGroup, stations.data, t]);
 
-  return { detailHidden: (layers.clubs || layers.stations) && !zoomedIn };
+  return {
+    detailHidden: (layers.clubs || layers.stations) && !zoomedIn,
+    poiHidden: layers.poi && zoom < POI_MIN_ZOOM,
+  };
 }

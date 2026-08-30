@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { useMapCenterWind } from "@/hooks/useMapCenterWind";
 import { createBaseLayers } from "@/components/map/baseLayers";
-import { bindExpandableMarker, collapseExpandable } from "@/components/map/expandableMarker";
+import { bindExpandableMarker } from "@/components/map/expandableMarker";
 import { MapLayerToggles } from "@/components/map/MapLayerToggles";
 import { WindBadge } from "@/components/map/WindBadge";
 import { useMapLayers } from "@/components/map/useMapLayers";
@@ -196,15 +196,6 @@ export function MapView({
   const onOpenSessionRef = useRef(onOpenSession);
   onOpenSessionRef.current = onOpenSession;
 
-  // Collapses any race-mark pin currently expanded to its full-name label
-  // (see the "else" branch of the marks effect below) — called on map click
-  // (tapping elsewhere); expanding a different pin collapses the rest through
-  // the same helper, so at most one is ever expanded at a time.
-  const collapseRaceLabels = () => {
-    const map = mapRef.current;
-    if (map) collapseExpandable(map, styles.markiconRaceLabelInner, styles.expanded);
-  };
-
   // Follows the map center (see useMapCenterWind), so panning re-reads the
   // wind; `wind.lat/lng` only seeds it for the frames before the Leaflet
   // instance exists, and `wind.at` keeps the lookup at the session's time.
@@ -285,7 +276,6 @@ export function MapView({
     // from also reaching the map, so a click on the track lands here too
     // with its own (unsnapped) latlng, which is what we want for a mark.
     map.on("click", (e: L.LeafletMouseEvent) => {
-      collapseRaceLabels();
       if (pickModeRef.current) onMapClickRef.current?.(e.latlng.lat, e.latlng.lng);
     });
 
@@ -559,7 +549,7 @@ export function MapView({
   }, [pickMode]);
 
   const { layers, toggle } = useMapLayers();
-  const { detailHidden } = useNauticalLayers(nautical ? mapInstance : null, layers);
+  const { detailHidden, poiHidden } = useNauticalLayers(nautical ? mapInstance : null, layers);
 
   // Move position markers to the cursor time (skipping any mid-drag).
   useEffect(() => {
@@ -580,7 +570,12 @@ export function MapView({
         <div className={styles.options}>
           {mapOptions}
           {nautical && (
-            <MapLayerToggles layers={layers} onToggle={toggle} detailHidden={detailHidden} />
+            <MapLayerToggles
+              layers={layers}
+              onToggle={toggle}
+              detailHidden={detailHidden}
+              poiHidden={poiHidden}
+            />
           )}
         </div>
       )}

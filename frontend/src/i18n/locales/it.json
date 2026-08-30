@@ -512,7 +512,12 @@
     "useMyPosition": "Usa la mia posizione",
     "noLocation": "Nessuna posizione impostata",
     "findFromAddress": "Trova da indirizzo",
-    "addressNotFound": "Indirizzo non trovato"
+    "addressNotFound": "Indirizzo non trovato",
+    "createClubFromOsm": "Circolo creato dai dati OpenStreetMap: controlla nome e citta' prima di salvare.",
+    "osmClaimLabel": "Collega a un circolo esistente",
+    "osmClaimPlaceholder": "Scegli un circolo…",
+    "osmClaimAction": "Collega",
+    "osmAlreadyLinked": "Questo luogo è già collegato a un altro circolo."
   },
   "sessions": {
     "title": "Le mie sessioni",
@@ -711,7 +716,8 @@
       "poi": "Punti d'interesse",
       "clubs": "Circoli",
       "stations": "Stazioni meteo",
-      "zoomIn": "Ingrandisci la mappa per vedere circoli e stazioni."
+      "zoomIn": "Ingrandisci la mappa per vedere circoli e stazioni.",
+      "zoomInPoi": "Ingrandisci ancora per i punti d'interesse."
     },
     "poi": {
       "marina": "Marina",
@@ -720,7 +726,8 @@
       "slipway": "Scivolo di alaggio",
       "sailing_club": "Circolo velico",
       "sports_area": "Area sportiva",
-      "fuel": "Rifornimento"
+      "fuel": "Rifornimento",
+      "createClub": "Crea circolo in XGSail"
     },
     "openClub": "Apri scheda circolo",
     "locate": "Centra sulla mia posizione",
@@ -1074,7 +1081,8 @@
       "no_data": "Nessun dato",
       "stale": "Ferma",
       "faulty": "Sensore guasto"
-    }
+    },
+    "coordinates": "Coordinate"
   },
   "updateRequired": {
     "title": "Aggiornamento richiesto",

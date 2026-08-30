@@ -22,6 +22,7 @@ USER_CLUB_STATUSES = ("invited", "requested", "active", "deleted")
 
 class ClubORM(UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "clubs"
+    __table_args__ = (UniqueConstraint("osm_ref"),)
     __wire_children__ = {"members": "members"}
 
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -41,6 +42,13 @@ class ClubORM(UUIDPKMixin, TimestampMixin, Base):
         ForeignKey("images.id", ondelete="SET NULL"), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # The OSM element this club *is*, as "{osm_type}/{osm_id}" (e.g. "way/123456").
+    # Deliberately the exact string the frontend already computes as
+    # ``NauticalPoi.id``, so deduping the Overpass POI against this club on the
+    # explorer map is a plain equality with no parsing on either side. UNIQUE
+    # because one OSM element maps to at most one club — that constraint *is*
+    # the anti-duplication guarantee. NULL until someone links the two.
+    osm_ref: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     members: Mapped[list["UserClubORM"]] = relationship(
         back_populates="club", cascade="all, delete-orphan", lazy="selectin"

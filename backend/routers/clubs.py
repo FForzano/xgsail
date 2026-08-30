@@ -30,6 +30,20 @@ def _require_club(club_id: uuid.UUID):
     return club
 
 
+def _check_osm_ref_free(body: ClubWriteModel, *, club_id: uuid.UUID | None = None) -> None:
+    """409 if another club already *is* that OSM element.
+
+    ``clubs.osm_ref`` is UNIQUE, so without this the collision would surface as
+    an unhandled IntegrityError (a 500). Re-setting a club's own current value
+    is a no-op, not a conflict.
+    """
+    if "osm_ref" not in body.model_fields_set or body.osm_ref is None:
+        return
+    holder = repos.clubs.get_by_osm_ref(body.osm_ref)
+    if holder is not None and holder.id != club_id:
+        raise HTTPException(409, "That OpenStreetMap place is already linked to a club")
+
+
 def _club_payload(club) -> dict:
     d = club.to_dict()
     d["logo"] = media.image_payload(club.logo_id)
@@ -52,6 +66,7 @@ def create_club(body: ClubWriteModel, request: Request):
     user = require_user(request)
     if not body.name:
         raise HTTPException(422, "name is required")
+    _check_osm_ref_free(body)
     club = repos.clubs.create(body.model_dump(exclude_unset=True))
     repos.clubs.add_member(club.id, user_id=user.id, status="active")
     role = repos.rbac.get_role_by_name("club_admin")
@@ -65,6 +80,9 @@ def update_club(club_id: uuid.UUID, body: ClubWriteModel, request: Request):
     verify_csrf(request)
     _require_club(club_id)
     require_permission(request, "club.manage", club_id=club_id)
+    # Claiming an OSM element is a management action on this club, so the
+    # existing club.manage gate above is the right one — no extra permission.
+    _check_osm_ref_free(body, club_id=club_id)
     return _club_payload(repos.clubs.update(club_id, body.model_dump(exclude_unset=True)))
 
 

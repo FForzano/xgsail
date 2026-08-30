@@ -250,6 +250,10 @@ export interface Club {
   founded_year: number | null;
   is_active: boolean;
   logo: ImageRef | null;
+  /** `"{osm_type}/{osm_id}"` of the OpenStreetMap element this club is, if
+   * linked — the same string `NauticalPoi.id` computes, so matching is a
+   * plain equality (see components/map/useNauticalLayers.ts). */
+  osm_ref: string | null;
   // Embedded unconditionally by the backend (`ClubORM.__wire_children__`) —
   // raw membership rows (no joined `user`), enough to compute a member count
   // without a separate request to the permission-gated `/members` endpoint.

@@ -61,6 +61,13 @@ function payloadOf(form: StationForm) {
   };
 }
 
+/** Compact `lat, lng` for the table — em-dash when either is missing, which
+ * is exactly the case the `no_coordinates` health badge already flags. */
+function fmtCoords(lat: number | null, lng: number | null): string {
+  if (lat == null || lng == null) return "—";
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+
 /** Today and 72h ago as `yyyy-mm-dd`, the observation filter's starting range
  * — it mirrors the server's own default window when no range is sent. */
 function defaultRange(): { from: string; to: string } {
@@ -139,11 +146,8 @@ export function WindStationsPage() {
         <table className="sf-table">
           <thead>
             <tr>
-              <th>{t("admin.provider")}</th>
-              <th>{t("admin.stationId")}</th>
-              <th>{t("admin.sourceUrl")}</th>
               <th>{t("common.name")}</th>
-              <th>{t("admin.stationType")}</th>
+              <th>{t("admin.coordinates")}</th>
               <th />
             </tr>
           </thead>
@@ -152,17 +156,6 @@ export function WindStationsPage() {
               const issues = issuesOf(s.id);
               return (
                 <tr key={s.id}>
-                  <td>{s.provider}</td>
-                  <td>{s.external_station_id}</td>
-                  <td>
-                    {s.source_url ? (
-                      <a href={s.source_url} target="_blank" rel="noreferrer">
-                        {s.source_url}
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
                   <td>
                     <span className={styles.name}>
                       {s.name ?? "—"}
@@ -180,7 +173,7 @@ export function WindStationsPage() {
                       )}
                     </span>
                   </td>
-                  <td>{s.station_type}</td>
+                  <td>{fmtCoords(s.lat, s.lng)}</td>
                   <td>
                     <div className={styles.actions}>
                       <Button
@@ -222,7 +215,7 @@ export function WindStationsPage() {
       {observing && (
         <div className={styles.observations}>
           <h3>
-            {t("admin.lastObservations")} — {observing.external_station_id}
+            {t("admin.lastObservations")} — {observing.name ?? observing.external_station_id}
           </h3>
           <div className={styles.filters}>
             <InputField

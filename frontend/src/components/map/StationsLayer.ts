@@ -1,7 +1,7 @@
 import L from "leaflet";
 import { escapeHtml } from "@/utils/html";
 import type { WindStation } from "@/types";
-import { bindExpandableMarker, collapseExpandable } from "./expandableMarker";
+import { bindExpandableMarker } from "./expandableMarker";
 import styles from "./StationMarkers.module.css";
 
 /** The real weather stations feeding the wind estimate, as pins. Same
@@ -32,9 +32,9 @@ export function syncStationsLayer(
         ? `<span class="${styles.reading}">` +
           `<span class="${styles.readingValue}">` +
           (last.tws_kts != null ? `${escapeHtml(String(last.tws_kts))} kn` : "—") +
-          `</span><span>` +
-          (last.twd_deg != null ? `${escapeHtml(String(Math.round(last.twd_deg)))}°` : "") +
-          `</span></span>` +
+          `</span>` +
+          (last.twd_deg != null ? directionMarkup(last.twd_deg) : "") +
+          `</span>` +
           `<span class="${styles.cardMeta}">` +
           escapeHtml(labels.ago(minutesSince(last.observed_at))) +
           `</span>`
@@ -50,7 +50,6 @@ export function syncStationsLayer(
           `<span class="${styles.badge}">🜁</span>` +
           `<span class="${styles.card}">` +
           `<strong class="${styles.cardName}">${escapeHtml(name)}</strong>` +
-          `<span class="${styles.cardMeta}">${escapeHtml(station.provider)}</span>` +
           reading +
           `</span>` +
           `<span class="${styles.tail}"></span>` +
@@ -67,12 +66,33 @@ export function syncStationsLayer(
   }
 }
 
-function minutesSince(iso: string): number {
-  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+// Arrow-up glyph (the lucide icon WindBadge renders as a component), inlined
+// as a path because this markup is a string for Leaflet's divIcon.
+const ARROW_UP =
+  `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ` +
+  `stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+  `<path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
+
+/** Wind direction as an arrow plus the number: a sailor reads the glyph
+ * instantly where `245°` takes a moment.
+ *
+ * `twd_deg` is the direction the wind blows FROM, in degrees clockwise from
+ * north — the pipeline's convention throughout (see `to_uv` in
+ * libs/xgsail_windfusion). The arrow points where the wind is blowing TOWARD,
+ * so it reads as flow rather than as a bearing back to its source: hence the
+ * +180, matching WindBadge. */
+function directionMarkup(twdDeg: number): string {
+  const rotation = (twdDeg + 180) % 360;
+  return (
+    `<span class="${styles.direction}">` +
+    `<span class="${styles.directionArrow}" style="transform: rotate(${escapeHtml(String(rotation))}deg)">` +
+    ARROW_UP +
+    `</span>` +
+    `${escapeHtml(String(Math.round(twdDeg)))}°` +
+    `</span>`
+  );
 }
 
-/** Collapses any open station card — bound to the map's own click by the
- * caller, so tapping the water closes the card. */
-export function collapseStationCards(map: L.Map): void {
-  collapseExpandable(map, styles.inner, styles.expanded);
+function minutesSince(iso: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 }

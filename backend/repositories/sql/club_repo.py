@@ -22,6 +22,14 @@ class SqlClubRepo:
         with self.Session() as s:
             return s.get(ClubORM, club_id)
 
+    def get_by_osm_ref(self, osm_ref: str) -> Optional[ClubORM]:
+        """The club already linked to an OSM element, if any — the router's
+        409 check before the UNIQUE constraint would raise an IntegrityError."""
+        with self.Session() as s:
+            return s.scalars(
+                select(ClubORM).where(ClubORM.osm_ref == osm_ref)
+            ).first()
+
     def create(self, data: dict) -> ClubORM:
         with self.Session() as s:
             orm = ClubORM(**{k: v for k, v in data.items() if k != "members"})
@@ -58,7 +66,8 @@ class SqlClubRepo:
     def update(self, club_id: uuid.UUID, changes: dict) -> Optional[ClubORM]:
         allowed = ("name", "description", "address_line_1", "address_line_2",
                    "city", "state_province", "postal_code", "country", "lat", "lng",
-                   "founded_year", "website", "contact_email", "logo_id", "is_active")
+                   "founded_year", "website", "contact_email", "logo_id", "osm_ref",
+                   "is_active")
         with self.Session() as s:
             orm = s.get(ClubORM, club_id)
             if orm is None:

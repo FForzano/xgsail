@@ -39,6 +39,12 @@
 }
 
 .filters :global(.sf-field) {
+  /* `.sf-field` carries a `margin-bottom` meant for stacked form fields; in
+   * this row it pads out each field's flex margin box below the input, so
+   * `align-items: flex-end` lines the input up above the button's bottom
+   * edge instead of level with it. Zero it here so the input and button
+   * boxes themselves share the same bottom edge. */
+  margin-bottom: 0;
   min-width: 12rem;
 }
 

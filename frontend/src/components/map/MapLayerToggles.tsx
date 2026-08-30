@@ -14,12 +14,18 @@ export function MapLayerToggles({
   layers,
   onToggle,
   detailHidden = false,
+  poiHidden = false,
 }: {
   layers: MapLayers;
   onToggle: (key: keyof MapLayers, on: boolean) => void;
   /** True when a zoom-gated layer is switched on but the map is zoomed too
    * far out to draw it — without a word here the checkbox looks broken. */
   detailHidden?: boolean;
+  /** Same, for the POI layer, which has its own higher threshold (see
+   * useNauticalPoi's POI_MIN_ZOOM) — a separate hint because the two
+   * thresholds are different numbers for different reasons, so one merged
+   * message would be wrong at every zoom between them. */
+  poiHidden?: boolean;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -51,6 +57,7 @@ export function MapLayerToggles({
             </label>
           ))}
           {detailHidden && <p className={styles.hint}>{t("map.layers.zoomIn")}</p>}
+          {poiHidden && <p className={styles.hint}>{t("map.layers.zoomInPoi")}</p>}
         </div>
       )}
     </div>

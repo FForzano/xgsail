@@ -1,7 +1,7 @@
 import L from "leaflet";
 import { escapeHtml } from "@/utils/html";
 import type { Club } from "@/types";
-import { bindExpandableMarker, collapseExpandable } from "./expandableMarker";
+import { bindExpandableMarker } from "./expandableMarker";
 import styles from "./ClubMarkers.module.css";
 
 /** Clubs that have coordinates set, as round logo (or initial) markers. Same
@@ -80,10 +80,4 @@ export function syncClubsLayer(
     bindExpandableMarker(marker, map, styles.inner, styles.expanded);
     group.addLayer(marker);
   }
-}
-
-/** Collapses any open club card — bound to the map's own click by the caller,
- * so tapping the water closes the card. */
-export function collapseClubCards(map: L.Map): void {
-  collapseExpandable(map, styles.inner, styles.expanded);
 }

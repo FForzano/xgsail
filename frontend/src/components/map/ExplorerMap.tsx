@@ -70,7 +70,7 @@ export function ExplorerMap({
   const [locateError, setLocateError] = useState(false);
 
   const { layers, toggle } = useMapLayers();
-  const { detailHidden } = useNauticalLayers(map, layers);
+  const { detailHidden, poiHidden } = useNauticalLayers(map, layers);
   // No `at`: this map is about now, not about a recorded moment.
   const wind = useMapCenterWind(map);
 
@@ -175,7 +175,12 @@ export function ExplorerMap({
       <div ref={elRef} className={styles.surface} />
       <WindBadge twdDeg={wind?.twd_deg} twsKts={wind?.tws_kts} className={styles.wind} />
       <div className={styles.options}>
-        <MapLayerToggles layers={layers} onToggle={toggle} detailHidden={detailHidden} />
+        <MapLayerToggles
+          layers={layers}
+          onToggle={toggle}
+          detailHidden={detailHidden}
+          poiHidden={poiHidden}
+        />
       </div>
       <div className={styles.locate}>
         <Button
