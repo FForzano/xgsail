@@ -21,6 +21,7 @@ expired / recently failed) can be tested without a database.
 """
 
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -29,14 +30,19 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+OVERPASS_USER_AGENT = os.getenv(
+    "OVERPASS_USER_AGENT",
+    "XGSail/1.0 (mailto:f.forzano@ieee.org)",
+)
+
 # Tried in order. The main instance does go down outright (not just 429), and
 # with a single endpoint that means no data at all until the next retry
 # window. Kept short on purpose: fanning out over many mirrors on every
 # failure is exactly the load that gets a client blocked.
 ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter"
+    "https://overpass.private.coffee/api/interpreter"
+    # "https://overpass.kumi.systems/api/interpreter"
 )
 # Overpass's own server-side budget, and our socket timeout with slack on top.
 QUERY_TIMEOUT_S = 60
@@ -215,7 +221,10 @@ def query_overpass(south: float, west: float, north: float, east: float) -> dict
     last_error: Optional[Exception] = None
     for endpoint in ENDPOINTS:
         try:
-            resp = requests.post(endpoint, data=body, timeout=FETCH_TIMEOUT_S)
+            headers = {
+                "User-Agent": "xgsail/1.0 (f.forzano@ieee.org)"
+            }
+            resp = requests.post(endpoint, data=body, timeout=FETCH_TIMEOUT_S, headers=headers)
             resp.raise_for_status()
             return resp.json()
         except Exception as exc:

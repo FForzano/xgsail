@@ -96,6 +96,7 @@ services:
       AWS_ACCESS_KEY_ID: *minio-user
       AWS_SECRET_ACCESS_KEY: *minio-pass
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      OVERPASS_USER_AGENT: ${OVERPASS_USER_AGENT:-"XGSail/1.0 (mailto:f.forzano@ieee.org)"}
       SAILFRAMES_HOOK_TOKEN: ${SAILFRAMES_HOOK_TOKEN:-dev-hook-token}
       SAILFRAMES_JWT_SECRET: ${SAILFRAMES_JWT_SECRET:-dev-jwt-secret-change-me}
       SAILFRAMES_COOKIE_SECURE: "0"
