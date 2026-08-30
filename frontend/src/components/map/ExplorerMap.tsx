@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { useMapCenterWind } from "@/hooks/useMapCenterWind";
 import { WindBadge } from "./WindBadge";
 import { createBaseLayers } from "./baseLayers";
+import { installCompactAttribution } from "./compactAttribution";
 import { MapLayerToggles } from "./MapLayerToggles";
 import { useMapLayers } from "./useMapLayers";
 import { useNauticalLayers } from "./useNauticalLayers";
@@ -81,6 +82,7 @@ export function ExplorerMap({
     if (!elRef.current) return;
     const instance = L.map(elRef.current, { zoomControl: false, preferCanvas: true });
     L.control.zoom({ position: "bottomright" }).addTo(instance);
+    installCompactAttribution(instance, t("map.attribution"));
     createBaseLayers().base.addTo(instance);
 
     const start = center ? { ...center, zoom: zoom ?? 13 } : readStoredView();

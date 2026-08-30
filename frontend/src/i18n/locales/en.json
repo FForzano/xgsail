@@ -736,7 +736,8 @@
     "stations": {
       "noReading": "No recent reading",
       "ago": "{{minutes}} min ago"
-    }
+    },
+    "attribution": "Map credits and licences"
   },
   "registra": {
     "title": "Record a GPS track",

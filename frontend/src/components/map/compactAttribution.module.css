@@ -1,0 +1,34 @@
+/* Collapsed attribution + its "(i)" toggle. The whole mechanism is
+   phone-only: on a wide screen the credit fits on one line next to the zoom
+   control and there is nothing to solve, so every rule that hides anything
+   lives inside the media query and desktop keeps Leaflet's default look.
+
+   Breakpoint matches ExplorerMap.module.css's and global.css's — that's where
+   the fixed action bar appears and the bottom corner gets crowded. */
+.toggle {
+  display: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin: 0 2px 2px 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(20, 50, 77, 0.85);
+  color: #fff;
+  font: 600 12px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Applied to Leaflet's own attribution container. A class on the element
+     survives the `innerHTML` rewrite Leaflet does whenever a layer is added
+     or removed — anything injected *inside* it would not. */
+  .collapsed {
+    display: none;
+  }
+}

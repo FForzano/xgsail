@@ -736,7 +736,8 @@
     "stations": {
       "noReading": "Nessuna lettura recente",
       "ago": "{{minutes}} min fa"
-    }
+    },
+    "attribution": "Crediti e licenze della mappa"
   },
   "registra": {
     "title": "Registra traccia GPS",

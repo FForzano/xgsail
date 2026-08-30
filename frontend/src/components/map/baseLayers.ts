@@ -13,7 +13,10 @@ import L from "leaflet";
 export function createBaseLayers(): { base: L.TileLayer; seamark: L.TileLayer } {
   return {
     base: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
+      // Linked to the copyright page, as the OSMF attribution guidelines ask.
+      attribution:
+        '© <a href="https://www.openstreetmap.org/copyright" target="_blank" ' +
+        'rel="noreferrer">OpenStreetMap</a> contributors',
       maxZoom: 19,
       // Don't fetch the intermediate tiles a zoom animation passes through.
       updateWhenZooming: false,
@@ -21,7 +24,9 @@ export function createBaseLayers(): { base: L.TileLayer; seamark: L.TileLayer } 
       keepBuffer: 1,
     }),
     seamark: L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
-      attribution: "© OpenSeaMap contributors",
+      attribution:
+        '© <a href="https://www.openseamap.org/" target="_blank" ' +
+        'rel="noreferrer">OpenSeaMap</a> contributors',
       // OpenSeaMap has no seamark tiles past z18; letting Leaflet ask for
       // z19 would just blank the overlay when the base is still fine.
       maxZoom: 18,

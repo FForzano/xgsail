@@ -5,6 +5,7 @@ import "leaflet/dist/leaflet.css";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { useMapCenterWind } from "@/hooks/useMapCenterWind";
 import { createBaseLayers } from "@/components/map/baseLayers";
+import { installCompactAttribution } from "@/components/map/compactAttribution";
 import { bindExpandableMarker } from "@/components/map/expandableMarker";
 import { MapLayerToggles } from "@/components/map/MapLayerToggles";
 import { WindBadge } from "@/components/map/WindBadge";
@@ -232,6 +233,7 @@ export function MapView({
     if (!elRef.current) return;
     const map = L.map(elRef.current, { zoomControl: false, preferCanvas: true });
     L.control.zoom({ position: "bottomright" }).addTo(map);
+    installCompactAttribution(map, t("map.attribution"));
 
     const RecenterControl = L.Control.extend({
       onAdd() {
