@@ -21,8 +21,8 @@ pre-picked series.
 
 Two strategies ship:
 
-- ``sensor_cache_gps`` (legacy): picks ONE source per waypoint
-  (``_flatten_bundle``) — no blending.
+- ``sensor_cache_gps`` (legacy): picks ONE source per waypoint — and, for
+  real stations, the nearest one only (``_flatten_bundle``) — no blending.
 - ``weighted_fusion`` (default): blends every source per waypoint with the
   shared ``xgsail_windfusion`` weighting (``_fuse_bundle``), so a real
   station, several Open-Meteo models, and a grid estimate all contribute in
@@ -62,16 +62,45 @@ _MODEL_SOURCE_TYPE = {
 }
 
 
+def _station_groups(rows: "list[dict]") -> "list[tuple[Optional[float], list[dict]]]":
+    """Split a waypoint's ``real_stations`` rows into one group per station,
+    as ``(distance_km, rows)`` in first-seen order. Caches written before
+    multi-station support carry no ``station_id``, so the key falls back to
+    the station's coordinates — an old single-station cache still yields
+    exactly one group with exactly one distance."""
+    groups: "dict[object, list[dict]]" = {}
+    for r in rows:
+        key = r.get("station_id")
+        if key is None:
+            key = (r.get("station_lat"), r.get("station_lng"))
+        groups.setdefault(key, []).append(r)
+    return [(g[0].get("distance_km"), g) for g in groups.values()]
+
+
+def _nearest_station_rows(rows: "list[dict]") -> "list[dict]":
+    """The rows of the closest station only. A station with no coordinates
+    (``distance_km is None``) sorts last, so it is used only if it is all
+    there is."""
+    groups = _station_groups(rows)
+    if not groups:
+        return []
+    nearest = min(groups, key=lambda g: (g[0] is None, g[0] if g[0] is not None else 0.0))
+    return nearest[1]
+
+
 def _flatten_bundle(raw_wind_bundle: "list[dict]") -> "list[dict]":
     """Reduce the rich per-waypoint bundle to the flat, lat/lng-tagged rows
-    ``true_wind_from_cached`` expects — real station data if a waypoint has
-    it, else the first Open-Meteo candidate model with data, else an
-    existing grid estimate. This is *a* choice (first source wins, no
-    blending) kept for the legacy strategy; ``_fuse_bundle`` blends instead."""
+    ``true_wind_from_cached`` expects — the nearest real station's data if a
+    waypoint has any, else the first Open-Meteo candidate model with data,
+    else an existing grid estimate. This is *a* choice (first source wins, no
+    blending) kept for the legacy strategy; ``_fuse_bundle`` blends instead.
+    Only one station's rows are taken because mixing several into one series
+    would interleave their readings into a zig-zag — blending is
+    ``_fuse_bundle``'s job, not this one's."""
     flat = []
     for wp in raw_wind_bundle or []:
         lat, lng = wp.get("lat"), wp.get("lng")
-        rows = wp.get("real_stations") or []
+        rows = _nearest_station_rows(wp.get("real_stations") or [])
         if not rows:
             for model_rows in (wp.get("model_candidates") or {}).values():
                 if model_rows:
@@ -131,9 +160,11 @@ def _fuse_bundle(raw_wind_bundle: "list[dict]") -> "list[dict]":
     same flat shape ``_flatten_bundle`` returns (so ``true_wind_from_cached``
     can interpolate it onto the track unchanged). For each waypoint:
 
-    1. prepare each source (real station, every Open-Meteo model, grid) as an
-       interpolatable series with a reliability weight from
-       ``xgsail_windfusion.source_weight``;
+    1. prepare each source (every real station present, every Open-Meteo
+       model, grid) as an interpolatable series with a reliability weight from
+       ``xgsail_windfusion.source_weight`` — stations are grouped per station,
+       so each is decayed by its own distance rather than interpolated across
+       its neighbours;
     2. on the union of all their timestamps, interpolate each source to that
        time and ``weighted_wind_mean`` the ones that cover it.
 
@@ -147,11 +178,10 @@ def _fuse_bundle(raw_wind_bundle: "list[dict]") -> "list[dict]":
         # (source_type, weight_kwargs, prepared_arrays) for every source present.
         sources = []
 
-        stations = wp.get("real_stations") or []
-        arrays = _series_arrays(stations)
-        if arrays is not None:
-            # All rows are the same station → one distance for the whole series.
-            sources.append(("real_station", {"distance_km": stations[0].get("distance_km")}, arrays))
+        for distance_km, station_rows in _station_groups(wp.get("real_stations") or []):
+            arrays = _series_arrays(station_rows)
+            if arrays is not None:
+                sources.append(("real_station", {"distance_km": distance_km}, arrays))
 
         for model, rows in (wp.get("model_candidates") or {}).items():
             arrays = _series_arrays(rows or [])

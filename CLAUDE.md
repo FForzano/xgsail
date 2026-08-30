@@ -813,6 +813,16 @@ Capacitor plugin changes, which still require a store release.
   first, so an authorship-only filter hid the second recorder's own outing
   from their own diary. The clause is SQL and runs before `LIMIT`/`OFFSET`,
   for the reason `_visibility_clause` documents.
+- **`wind_cache.json`'s `real_stations` is a multi-station list, not one
+  station's series.** `gather_raw_wind` now fuses up to 3 in-range stations
+  instead of only the nearest, concatenating every station's rows into that
+  one list — a consumer must group them by `station_id` first
+  (`_station_groups` in `workers/process_upload/processing/
+  wind_estimation.py`) or it interpolates two stations' readings across each
+  other into a zig-zag. A cache written before this change carries no
+  `station_id` at all, which is why the grouping key falls back to the
+  station's `(station_lat, station_lng)`. Getting this wrong degrades the
+  wind series silently — nothing errors.
 
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.

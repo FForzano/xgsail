@@ -125,3 +125,54 @@ def test_legacy_flatten_still_picks_single_source():
     flat = _flatten_bundle(_bundle_multi_source())
     assert len(flat) == 2  # only the station's two rows, models/grid ignored
     assert all(r["tws_kts"] in (12, 14) for r in flat)
+
+
+def _bundle_two_stations():
+    """One waypoint covered by two real stations at very different
+    distances, both reporting at t=1000 with clearly separated directions
+    so a nearer-station pull is unambiguous."""
+    return [{
+        "lat": 45.0, "lng": 9.0,
+        "real_stations": [
+            {"station_id": "near", "station_lat": 45.01, "station_lng": 9.0,
+             "distance_km": 2.0, "observed_at": 1000, "twd_deg": 10, "tws_kts": 10},
+            {"station_id": "far", "station_lat": 46.0, "station_lng": 10.0,
+             "distance_km": 45.0, "observed_at": 1000, "twd_deg": 200, "tws_kts": 10},
+        ],
+        "model_candidates": {},
+        "grid_estimates": [],
+    }]
+
+
+def test_fuse_bundle_pulls_toward_the_nearer_station():
+    fused = _fuse_bundle(_bundle_two_stations())
+    assert len(fused) == 1
+    twd = fused[0]["twd_deg"]
+    # 10 and 200 deg are near-opposite; the nearer station (2km, twd=10)
+    # must outweigh the farther one (45km, twd=200) so the fused direction
+    # lands close to 10, not anywhere near the midpoint (~105) or the far
+    # station's own reading.
+    assert twd < 60 or twd > 320
+
+
+def test_legacy_cache_regression_no_station_id_groups_as_a_single_station():
+    """Bundles written before multi-station support carry no station_id, only
+    the station_lat/station_lng shared by every row of what was always
+    exactly one station. Grouping must fall back to those coordinates and
+    yield the same single group an explicit station_id would -- this is the
+    compatibility contract for wind_cache.json files already on disk."""
+    legacy_bundle = _bundle_multi_source()  # fixture above: no station_id anywhere
+    tagged_bundle = _bundle_multi_source()
+    for row in tagged_bundle[0]["real_stations"]:
+        row["station_id"] = "station-a"
+
+    assert _fuse_bundle(legacy_bundle) == _fuse_bundle(tagged_bundle)
+    # One fused row per timestamp -- not one group (and one distance) per row.
+    assert len(_fuse_bundle(legacy_bundle)) == 2
+
+
+def test_flatten_bundle_with_two_stations_returns_only_nearest():
+    flat = _flatten_bundle(_bundle_two_stations())
+    assert len(flat) == 1
+    assert flat[0]["twd_deg"] == 10
+    assert flat[0]["tws_kts"] == 10

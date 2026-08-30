@@ -121,12 +121,16 @@ class SqlWindRepo:
             q = q.order_by(WindObservationORM.observed_at.desc()).limit(limit).offset(offset)
             return list(s.scalars(q).all())
 
-    def find_nearest(self, lat: float, lng: float, *,
-                     providers: "Optional[list[str]]" = None,
-                     max_km: float = 50) -> Optional[WindStationORM]:
-        """Closest real station within ``max_km``, optionally restricted to
-        ``providers`` (haversine, computed in Python — station counts are
-        small, no need for PostGIS)."""
+    def find_within(self, lat: float, lng: float, *,
+                    providers: "Optional[list[str]]" = None,
+                    max_km: float = 50,
+                    limit: int = 3) -> "list[tuple[WindStationORM, float]]":
+        """The ``limit`` closest real stations within ``max_km``, as
+        ``(station, distance_km)`` sorted by ascending distance, optionally
+        restricted to ``providers``. Distance is raw kilometres — callers
+        that persist it round it themselves, so it is never rounded twice.
+        Haversine is computed in Python: station counts are small, no need
+        for PostGIS."""
         from ...services.geo import haversine_m
 
         with self.Session() as s:
@@ -136,12 +140,12 @@ class SqlWindRepo:
             if providers is not None:
                 q = q.where(WindStationORM.provider.in_(providers))
             stations = list(s.scalars(q).all())
-        best, best_km = None, max_km
-        for st in stations:
-            km = haversine_m(lat, lng, st.lat, st.lng) / 1000
-            if km <= best_km:
-                best, best_km = st, km
-        return best
+        within = [
+            (st, km) for st in stations
+            if (km := haversine_m(lat, lng, st.lat, st.lng) / 1000) <= max_km
+        ]
+        within.sort(key=lambda pair: pair[1])
+        return within[:limit]
 
     # --- wind estimates (determined value per grid cell/time bucket) ---
 

@@ -149,7 +149,7 @@ images), so it's necessarily two seams, not one. Same distinction as above:
 acquisition, then estimation.
 
 The two processes deliberately share **one** small pure-Python package,
-`libs/sailframes_windfusion` (blend math + source-reliability weighting),
+`libs/xgsail_windfusion` (blend math + source-reliability weighting),
 installed into both images — because the per-session estimate (worker) and
 the grid refinement (backend) must weigh sources identically or they'd
 disagree. It's dependency-free (stdlib `math` only) so it doesn't pull numpy
@@ -196,7 +196,7 @@ WindEstimateRefiner = Callable[[Optional[dict], dict], dict]
 
 The shipped `weighted_merge` strategy blends the existing row with the new
 observation as a reliability-weighted vector mean (same
-`libs/sailframes_windfusion` weighting the per-session `weighted_fusion`
+`libs/xgsail_windfusion` weighting the per-session `weighted_fusion`
 uses), accumulating provenance in `sources` and evidence in `confidence`.
 The trivial `first_write_wins` (write once, never touch again) stays
 registered as a baseline — see §3 for how to swap strategies.
@@ -220,34 +220,56 @@ WindEstimator = Callable[
 `raw_wind_bundle` comes from `backend/services/ingestion.py::write_wind_cache()`
 (written as `wind_cache.json`, the same file name as before the rewrite,
 different — richer — contents), which calls
-`backend/services/wind_lookup.py::gather_raw_wind()` per waypoint: a real
-station's cached observations if one's in range, every Open-Meteo candidate
-model, and any existing `wind_estimates` rows for that cell — no selection,
-just acquisition, same principle as above.
+`backend/services/wind_lookup.py::gather_raw_wind()` per waypoint: up to
+`MAX_REAL_STATIONS` (3) in-range real stations that actually have
+observations for the window, every Open-Meteo candidate model, and any
+existing `wind_estimates` rows for that cell — no selection, just
+acquisition, same principle as above. `SqlWindRepo.find_within(lat, lng,
+providers=..., max_km=50, limit=3)` returns the closest in-range stations
+ascending by distance; `_real_station_observations` then drops any that have
+no cached observations in `[start, end]`, which is deliberately the only
+fallback logic — if the nearest station is offline for the window, the next
+one is simply used instead, with no special-case branch for "nearest is
+down." `bundle["real_stations"]` concatenates every kept station's rows into
+one list, each row carrying its own `station_id`/`distance_km` so the worker
+can regroup and weight them per station.
 
 The shipped `weighted_fusion` strategy, in order:
 
 1. onboard sensor (`compute_true_wind_series` in `processing/wind.py`) —
    real measurement, tagged `"source": "sensor"`;
 2. the raw bundle *blended* per waypoint (`_fuse_bundle`): every source —
-   the real station, each Open-Meteo model, the grid estimate — is
-   interpolated in time and combined with a reliability-weighted vector mean
-   (`sailframes_windfusion.weighted_wind_mean`/`source_weight`), then
-   interpolated onto the track (`true_wind_from_cached`) — tagged
-   `"source": "fusion"`. When the GPS track is a genuine windward beat/run
-   (`estimate_wind_axis_from_gps`), its tack axis additionally nudges the
-   fused *direction* with a small weight, its 180° ambiguity resolved
-   against the speed-bearing sources (`_nudge_with_gps_axis`);
+   each real station (grouped by `station_id`, one weighted contribution
+   per station rather than one per row), each Open-Meteo model, the grid
+   estimate — is interpolated in time and combined with a
+   reliability-weighted vector mean (`xgsail_windfusion.weighted_wind_mean`/
+   `source_weight`), then interpolated onto the track
+   (`true_wind_from_cached`) — tagged `"source": "fusion"`. When the GPS
+   track is a genuine windward beat/run (`estimate_wind_axis_from_gps`), its
+   tack axis additionally nudges the fused *direction* with a small weight,
+   its 180° ambiguity resolved against the speed-bearing sources
+   (`_nudge_with_gps_axis`);
 3. a rough direction from the GPS tack pattern alone
    (`estimate_wind_from_gps`) — tagged `"source": "gps_estimate"`, no speed
    data (`tws_kts: None`).
 
 The reliability weighting (per-source priors, spatial/temporal decay) lives
-in the shared `libs/sailframes_windfusion` package, so the per-session blend
+in the shared `libs/xgsail_windfusion` package, so the per-session blend
 here and the grid refinement on the backend
-(`wind_estimate_refinement.weighted_merge`) weigh sources identically. The
-legacy pick-first `sensor_then_cache_then_gps`/`_flatten_bundle` strategy is
-still registered for A/B comparison (`ACTIVE_STRATEGY`).
+(`wind_estimate_refinement.weighted_merge`) weigh sources identically. In
+practice this makes the 50 km radius above an *admissibility* cutoff, not a
+radius of real influence: a real station's weight is `0.9 * exp(-distance_km
+/ 15km)` (`SOURCE_PRIORS["real_station"]` × `DISTANCE_DECAY_KM`), which
+already drops below a regional Open-Meteo model's flat `0.6` prior at
+roughly **6.1 km** and below a global model's `0.35` at roughly **14.2 km**
+— a station near the edge of the radius contributes almost nothing next to
+the models it's blended with. `scripts/calibrate_wind_weights.py
+--ablate-stations` re-scores the same leave-one-out sites with every
+`real_station` contribution removed, to check empirically whether fusing in
+neighbouring stations is actually earning its keep. The legacy pick-first
+`sensor_then_cache_then_gps`/`_flatten_bundle` strategy is still registered
+for A/B comparison (`ACTIVE_STRATEGY`) — it takes only the single nearest
+station's rows, never blending across stations.
 
 ### Closing the loop: sensor readings refine the grid
 

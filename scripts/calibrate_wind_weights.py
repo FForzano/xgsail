@@ -18,6 +18,13 @@ e.g. inside the backend container:
     python scripts/calibrate_wind_weights.py \
         --start 2026-06-01 --end 2026-06-30 --max-truth-per-station 20
 
+Pass ``--ablate-stations`` to additionally answer: does fusing in nearby real
+stations actually help, or does an amateur station's disagreement (which
+``weighted_wind_mean`` doesn't penalize) make the fused prediction worse than
+just using the Open-Meteo models? It re-scores the same assembled sites with
+every ``real_station`` contribution removed and prints the with/without
+comparison.
+
 It only reads (queries observations, fetches Open-Meteo); it writes nothing.
 The result is a recommendation to apply by hand after reviewing the error.
 """
@@ -113,12 +120,37 @@ def build_sites(start, end, max_truth_per_station):
     return sites
 
 
+def _without_real_stations(sites):
+    """Copy of ``sites`` with every ``real_station`` contribution dropped —
+    leaves the original site dicts (and thus the baseline/calibration run)
+    untouched. A site left with no contributions is simply unpredictable
+    under ``cal.score``, same as any other empty site."""
+    out = []
+    for s in sites:
+        contributions = [c for c in s["contributions"] if c["source_type"] != "real_station"]
+        out.append({**s, "contributions": contributions})
+    return out
+
+
+def _print_ablation(sites, config, label):
+    with_stations = cal.score(sites, config)
+    without_stations = cal.score(_without_real_stations(sites), config)
+    print(f"\n=== station ablation ({label}) ===")
+    print(f"with neighbouring stations:    twd_mae={with_stations['twd_mae']:.1f}° "
+          f"(tws_mae={with_stations['tws_mae']}) over {with_stations['n']} sites")
+    print(f"without (models only):         twd_mae={without_stations['twd_mae']:.1f}° "
+          f"(tws_mae={without_stations['tws_mae']}) over {without_stations['n']} sites")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--start", required=True, help="window start, YYYY-MM-DD (UTC)")
     parser.add_argument("--end", required=True, help="window end, YYYY-MM-DD (UTC)")
     parser.add_argument("--max-truth-per-station", type=int, default=20,
                         help="cap held-out truth samples per station (bounds Open-Meteo calls)")
+    parser.add_argument("--ablate-stations", action="store_true",
+                        help="also score with every real-station contribution removed, to see "
+                             "whether fusing in neighbouring stations helps or hurts")
     args = parser.parse_args()
 
     start = datetime.fromisoformat(args.start).replace(tzinfo=timezone.utc)
@@ -133,6 +165,14 @@ def main():
     baseline = cal.score(sites, DEFAULT_CONFIG)
     print(f"Sites: {len(sites)} | shipped-config direction MAE: {baseline['twd_mae']:.1f}° "
           f"(speed MAE: {baseline['tws_mae']})")
+
+    if args.ablate_stations:
+        with_neighbours = sum(
+            1 for s in sites if any(c["source_type"] == "real_station" for c in s["contributions"])
+        )
+        print(f"Sites with >=1 neighbouring-station contribution: {with_neighbours}/{len(sites)} "
+              "(the rest are identical with/without and tell us nothing)")
+        _print_ablation(sites, DEFAULT_CONFIG, "shipped config")
 
     candidates = cal.candidate_grid(
         prior_scales={
@@ -153,6 +193,10 @@ def main():
     print(f"time_decay_seconds = {best.time_decay_seconds}")
     for source_type, weight in sorted(best.priors.items()):
         print(f"  prior[{source_type}] = {weight:.3f}")
+
+    if args.ablate_stations:
+        _print_ablation(sites, best, "best-found config")
+
     print("\nReview the error before applying; update SOURCE_PRIORS / decay "
           "constants in libs/xgsail_windfusion/xgsail_windfusion/__init__.py by hand.")
 
