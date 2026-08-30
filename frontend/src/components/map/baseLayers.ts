@@ -15,6 +15,10 @@ export function createBaseLayers(): { base: L.TileLayer; seamark: L.TileLayer } 
     base: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap contributors",
       maxZoom: 19,
+      // Don't fetch the intermediate tiles a zoom animation passes through.
+      updateWhenZooming: false,
+      // Leaflet's default (2) keeps two rings of off-screen tiles loaded; one is enough.
+      keepBuffer: 1,
     }),
     seamark: L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
       attribution: "© OpenSeaMap contributors",
@@ -22,6 +26,14 @@ export function createBaseLayers(): { base: L.TileLayer; seamark: L.TileLayer } 
       // z19 would just blank the overlay when the base is still fine.
       maxZoom: 18,
       maxNativeZoom: 18,
+      // Measured against tiles.openseamap.org over the Adriatic: z4/z6/z8 all
+      // came back as the same 334 B blank PNG, z9 was the first with content
+      // (704 B) — below z9 the overlay draws nothing, so don't request it.
+      minZoom: 9,
+      // Don't fetch the intermediate tiles a zoom animation passes through.
+      updateWhenZooming: false,
+      // Leaflet's default (2) keeps two rings of off-screen tiles loaded; one is enough.
+      keepBuffer: 1,
     }),
   };
 }

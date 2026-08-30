@@ -27,7 +27,7 @@ CURRENT_PRIVACY_VERSION = "2026-08-05"
 # the version, but kept separate so a purely editorial fix can update the
 # displayed date without forcing re-acceptance.
 TERMS_EFFECTIVE_DATE = "2026-07-22"
-PRIVACY_EFFECTIVE_DATE = "2026-08-05"
+PRIVACY_EFFECTIVE_DATE = "2026-08-30"
 
 
 def legal_metadata() -> dict:

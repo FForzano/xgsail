@@ -34,6 +34,7 @@ class Repositories:
         posts,
         note_templates,
         live_recordings,
+        osm_pois,
     ):
         self.users = users
         self.auth_tokens = auth_tokens
@@ -55,3 +56,4 @@ class Repositories:
         self.posts = posts
         self.note_templates = note_templates
         self.live_recordings = live_recordings
+        self.osm_pois = osm_pois

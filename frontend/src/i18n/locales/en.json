@@ -718,7 +718,7 @@
       "stations": "Weather stations",
       "zoomIn": "Zoom in to see clubs.",
       "zoomInPoi": "Zoom in further for points of interest and weather stations.",
-      "poiUnavailable": "Points of interest unavailable: OpenStreetMap is not responding."
+      "poiUnavailable": "Points of interest not yet available for this area. Try again shortly."
     },
     "poi": {
       "marina": "Marina",

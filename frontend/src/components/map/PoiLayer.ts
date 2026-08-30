@@ -1,6 +1,6 @@
 import L from "leaflet";
 import { escapeHtml } from "@/utils/html";
-import type { NauticalPoi } from "@/services/overpass";
+import type { NauticalPoi } from "@/services/nauticalPoi";
 import { poiIcon } from "./poiIcons";
 import styles from "./PoiMarkers.module.css";
 

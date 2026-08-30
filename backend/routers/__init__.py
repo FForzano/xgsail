@@ -33,6 +33,7 @@ from . import (
     races,
     polars,
     wind,
+    osm_poi,
     system,
     ingest,
     uploads,
@@ -73,6 +74,7 @@ ALL_ROUTERS = [
     download.router,
     # Wind & external data
     wind.router,
+    osm_poi.router,
     # System callbacks (workers, scheduler)
     system.router,
     # Media playback (HLS passthrough)

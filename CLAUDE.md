@@ -385,7 +385,7 @@ One module per resource, registered in `routers/__init__.py`
 `boats`, `clubs`, `groups`, `posts`, `note_templates`, `devices`,
 `integrations`, `activities`, `sessions`, `live_recordings`, `polars`,
 `regattas`, `racedays`, `races`, `device_api`, `imports`, `ingest`,
-`uploads`, `download`, `wind`, `system`, `video`.
+`uploads`, `download`, `wind`, `osm_poi`, `system`, `video`.
 
 Principals differ per router: cookie- or Bearer-authenticated users
 (most routers — see "Native apps"), `DeviceKey`-authenticated hardware
@@ -855,19 +855,28 @@ Capacitor plugin changes, which still require a store release.
   unnamed-POI filter next to it: never hide something whose replacement isn't
   being drawn.
 
-- **A ticked map layer that draws nothing must always say why.** The nautical
-  POI layer has exactly one upstream — the volunteer-run public Overpass API,
-  which does go down outright rather than merely rate-limit — and it is also
-  zoom-gated in two tiers: clubs from `CLUBS_MIN_ZOOM = 9`, POIs and weather
-  stations only from `NEAR_DETAIL_MIN_ZOOM = 11` (clubs are the layer worth
-  spotting from furthest out). Each of those produces the same symptom: a
-  checked box and an empty map, indistinguishable from "there is nothing
-  here", which has already been reported twice as a regression it wasn't.
-  `useNauticalLayers` therefore returns one flag per reason (`clubsHidden`,
-  `nearDetailHidden`, `poiFailed`) and `MapLayerToggles` renders each — so the
-  query failure is surfaced, not swallowed. `services/overpass.ts` also tries a
-  second instance before giving up; keep that list short, since fanning out
-  over mirrors on every failure is what gets clients blocked.
+- **A ticked map layer that draws nothing must always say why.** The browser no
+  longer queries Overpass: it calls our own `GET /osm-poi`, and
+  `backend/services/osm_poi.py` owns the Overpass fetch behind a per-cell cache
+  (`CELL_DEG = 0.5`, refetched at most every `CELL_TTL_DAYS`, a failed cell
+  retried no sooner than `RETRY_AFTER_FAILURE_MIN`). Freshness is driven by the
+  read path, not by a scheduler: a never-seen cell is filled inline, and one
+  expired cell the request touched is re-fetched **after** the response as a
+  background task, so a user never waits on Overpass for data we already have.
+  The only cells whose age anyone can observe are the ones being looked at,
+  which is why that beats a timer — and why the stack needs no extra container
+  for it. `POST /api/system/osm-poi/refresh` remains as the manual lever.
+  A request whose bbox still has
+  unfetched cells answers `coverage: "partial"`, which the frontend treats
+  exactly like an error. That matters because the layer is also zoom-gated in
+  two tiers: clubs from `CLUBS_MIN_ZOOM = 9`, POIs and weather stations only
+  from `NEAR_DETAIL_MIN_ZOOM = 11` (clubs are the layer worth spotting from
+  furthest out). Every one of those produces the same symptom — a checked box
+  and an empty map, indistinguishable from "there is nothing here", already
+  reported twice as a regression it wasn't. `useNauticalLayers` therefore
+  returns one flag per reason (`clubsHidden`, `nearDetailHidden`, `poiFailed`)
+  and `MapLayerToggles` renders each, so incomplete data is surfaced, not
+  swallowed.
 
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.

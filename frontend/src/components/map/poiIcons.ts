@@ -1,5 +1,5 @@
 import L from "leaflet";
-import type { PoiKind } from "@/services/overpass";
+import type { PoiKind } from "@/services/nauticalPoi";
 import styles from "./PoiMarkers.module.css";
 
 // Simplified lucide-react glyphs, inlined as raw paths: these go into a

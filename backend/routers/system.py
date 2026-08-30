@@ -2,7 +2,7 @@
 
 The permission matrix's ``system`` actor: processing workers report status/
 streams/stats here (workers stay DB-blind; the backend owns every DB write),
-and the wind scheduler triggers the periodic fetch.
+and the schedulers trigger the periodic wind fetch and OSM POI cache refresh.
 """
 
 import logging
@@ -16,7 +16,9 @@ from pydantic import AwareDatetime, BaseModel
 
 from ..auth import require_system
 from ..schemas import WindFetchModel
-from ..services import ingestion, media, wind_estimate_refinement, wind_estimates
+from ..services import (
+    ingestion, media, osm_poi, wind_estimate_refinement, wind_estimates,
+)
 from ..services.wind_providers import PROVIDERS
 from ._common import repos
 
@@ -348,3 +350,14 @@ def wind_fetch(payload: WindFetchModel, request: Request):
             except Exception as exc:  # one bad station must not stop the sweep
                 errors.append(f"{provider}/{station.external_station_id}: {exc}")
     return {"stations": stations_hit, "inserted": inserted, "errors": errors}
+
+
+@router.post("/osm-poi/refresh")
+def osm_poi_refresh(request: Request):
+    """Periodic refresh of the OpenStreetMap POI cache (see
+    ``services/osm_poi.py``). Re-fetches up to ``MAX_CELLS_PER_REFRESH``
+    already-covered cells whose data is older than ``CELL_TTL_DAYS``, oldest
+    first, pausing between Overpass queries — so the read path never has to
+    wait on a refresh, and Overpass never sees a burst from us."""
+    require_system(request)
+    return osm_poi.refresh_expired_cells(repos)

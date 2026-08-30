@@ -28,6 +28,7 @@ e.g. in the backend container:
 
 import argparse
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -53,12 +54,16 @@ def main() -> None:
                         help="explicitly request a dry run (the default when --apply is absent)")
     parser.add_argument("--limit", type=int, default=None,
                         help="only consider the first N activities (default: all)")
-    parser.add_argument("--delay", type=float, default=1.0,
-                        help="seconds to sleep between dispatches, to go easy on the "
-                             "tile server (default: 1.0)")
+    parser.add_argument("--delay", type=float, default=2.0,
+                        help="seconds to sleep between dispatches, so a bulk run stays "
+                             "paced rather than a burst against OSM's tile server, per "
+                             "its tile usage policy (default: 2.0)")
     args = parser.parse_args()
 
     apply = args.apply and not args.dry_run
+    # Mirrors thumbnail.py's own check: an empty THUMBNAIL_TILE_URL disables the tile
+    # background entirely, so a bulk run in that mode makes no tile requests to pace.
+    tiles_enabled = bool(os.getenv("THUMBNAIL_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png").strip())
     repos = get_repos()
     bucket = ingestion.bucket_name()
 
@@ -66,17 +71,24 @@ def main() -> None:
     skipped = 0
 
     activities = repos.activities.list(viewer_is_superadmin=True, limit=args.limit)
+    to_dispatch = []
     for activity in activities:
         prefixes = ingestion.activity_thumbnail_prefixes(activity.id)
         if not prefixes:
             skipped += 1
             continue
+        to_dispatch.append((activity.id, prefixes))
+
+    for i, (activity_id, prefixes) in enumerate(to_dispatch):
         if apply:
-            ingestion.dispatch_activity_thumbnail(bucket, activity.id, prefixes)
-            logger.info("dispatched thumbnail regeneration for activity %s", activity.id)
-            time.sleep(args.delay)
+            ingestion.dispatch_activity_thumbnail(bucket, activity_id, prefixes)
+            logger.info("dispatched thumbnail regeneration for activity %s", activity_id)
+            # Pace requests between dispatches, not after the last one, and only when
+            # tile fetching is actually enabled — nothing to be polite about otherwise.
+            if tiles_enabled and i < len(to_dispatch) - 1:
+                time.sleep(args.delay)
         else:
-            logger.info("would dispatch thumbnail regeneration for activity %s", activity.id)
+            logger.info("would dispatch thumbnail regeneration for activity %s", activity_id)
         dispatched += 1
 
     verb = "Dispatched" if apply else "Would dispatch"

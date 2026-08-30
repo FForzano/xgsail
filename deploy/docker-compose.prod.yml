@@ -203,6 +203,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+
   watchtower:
     # containrrr/watchtower was archived 2025-12-17 (frozen at v1.7.1, whose
     # vendored Docker client speaks API 1.25 — too old for current Docker

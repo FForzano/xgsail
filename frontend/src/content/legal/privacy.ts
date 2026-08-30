@@ -11,6 +11,10 @@ import type { LegalDocByLang } from "./types";
  * [square brackets] need real values.
  *
  * Keep PRIVACY_VERSION in sync with CURRENT_PRIVACY_VERSION in backend/legal.py.
+ * The 2026-08-30 revision (nautical POIs moved from a direct browser call to
+ * Overpass onto a server-side cached fetch) removes a recipient of personal
+ * data and adds no processing, so it bumped only PRIVACY_EFFECTIVE_DATE there:
+ * the version — and therefore every user's acceptance — stays 2026-08-05.
  */
 export const PRIVACY_VERSION = "2026-08-05";
 
@@ -134,7 +138,7 @@ export const privacy: LegalDocByLang = {
           {
             type: "p",
             text:
-              "Le funzionalità di mappa del Servizio (visualizzazione delle tracce, carta nautica, punti d'interesse nautici, ricerca di un indirizzo) si appoggiano a servizi cartografici pubblici gestiti da soggetti terzi. Tali servizi vengono contattati direttamente dal browser o dall'app dell'Utente, senza passare dai server del Titolare (ad eccezione della miniatura delle tracce, si veda sotto): di conseguenza tali soggetti ricevono autonomamente alcuni dati e agiscono come titolari autonomi del trattamento, non come responsabili ai sensi dell'art. 28 GDPR.",
+              "Le funzionalità di mappa del Servizio (visualizzazione delle tracce, carta nautica, punti d'interesse nautici, ricerca di un indirizzo) si appoggiano a servizi cartografici pubblici gestiti da soggetti terzi. Tali servizi vengono contattati direttamente dal browser o dall'app dell'Utente, senza passare dai server del Titolare (ad eccezione della miniatura delle tracce e dei punti d'interesse nautici, si veda sotto): di conseguenza tali soggetti ricevono autonomamente alcuni dati e agiscono come titolari autonomi del trattamento, non come responsabili ai sensi dell'art. 28 GDPR.",
           },
           {
             type: "p",
@@ -145,7 +149,6 @@ export const privacy: LegalDocByLang = {
             items: [
               "OpenStreetMap Foundation (tile.openstreetmap.org) — mappa di base: indirizzo IP, user agent e coordinate delle porzioni di mappa visualizzate;",
               "OpenSeaMap (tiles.openseamap.org) — livello opzionale della carta nautica: indirizzo IP, user agent e coordinate delle porzioni di mappa visualizzate, solo se l'Utente attiva il livello;",
-              "Overpass API (overpass-api.de) — livello opzionale dei punti d'interesse nautici: indirizzo IP, user agent e coordinate dell'area di mappa inquadrata, solo se l'Utente attiva il livello;",
               "Nominatim (nominatim.openstreetmap.org) — geocodifica di un indirizzo in coordinate: indirizzo IP, user agent e il testo dell'indirizzo cercato, solo quando l'Utente preme il pulsante di ricerca da indirizzo.",
             ],
           },
@@ -157,7 +160,12 @@ export const privacy: LegalDocByLang = {
           {
             type: "p",
             text:
-              "Nessuna di queste richieste viene effettuata finché l'Utente non apre una schermata contenente una mappa (o, per i livelli opzionali e per la geocodifica, finché non li attiva espressamente), ad eccezione della miniatura descritta sopra, generata quando la traccia viene elaborata dal Servizio. Tali servizi non impostano cookie sul dominio del Servizio. La base giuridica è l'esecuzione del contratto (art. 6.1.b GDPR) per le funzionalità di mappa richieste dall'Utente. Si invita a consultare le rispettive informative: osmfoundation.org/wiki/Privacy_Policy per i servizi della OpenStreetMap Foundation (mappa di base, Nominatim), e le condizioni d'uso pubblicate da OpenSeaMap e da Overpass API.",
+              "Lo stesso vale per il livello opzionale dei punti d'interesse nautici (porti turistici, porti, scivoli di alaggio, circoli velici): i relativi dati sono ricavati da OpenStreetMap tramite Overpass API (overpass-api.de) dal server del Servizio, che li conserva in una propria copia locale e li fornisce all'app o al browser dell'Utente. Il browser o l'app dell'Utente non contatta quindi Overpass API, e a tale servizio non pervengono né l'indirizzo IP o lo user agent dell'Utente né le coordinate dell'area di mappa da questi inquadrata.",
+          },
+          {
+            type: "p",
+            text:
+              "Nessuna di queste richieste viene effettuata finché l'Utente non apre una schermata contenente una mappa (o, per i livelli opzionali e per la geocodifica, finché non li attiva espressamente), ad eccezione delle richieste effettuate dal server del Servizio e descritte sopra (la miniatura, generata quando la traccia viene elaborata dal Servizio, e i punti d'interesse nautici), che non coinvolgono il browser o l'app dell'Utente. Tali servizi non impostano cookie sul dominio del Servizio. La base giuridica è l'esecuzione del contratto (art. 6.1.b GDPR) per le funzionalità di mappa richieste dall'Utente. Si invita a consultare le rispettive informative: osmfoundation.org/wiki/Privacy_Policy per i servizi della OpenStreetMap Foundation (mappa di base, Nominatim) e le condizioni d'uso pubblicate da OpenSeaMap.",
           },
           {
             type: "p",
@@ -368,7 +376,7 @@ export const privacy: LegalDocByLang = {
           {
             type: "p",
             text:
-              "The Service's map features (track display, nautical chart, nautical points of interest, address lookup) rely on public mapping services operated by third parties. Those services are contacted directly by the User's browser or app, without passing through the controller's servers (except for the track thumbnail, see below): they therefore receive certain data on their own account and act as independent controllers, not as processors under art. 28 GDPR.",
+              "The Service's map features (track display, nautical chart, nautical points of interest, address lookup) rely on public mapping services operated by third parties. Those services are contacted directly by the User's browser or app, without passing through the controller's servers (except for the track thumbnail and the nautical points of interest, see below): they therefore receive certain data on their own account and act as independent controllers, not as processors under art. 28 GDPR.",
           },
           {
             type: "p",
@@ -379,7 +387,6 @@ export const privacy: LegalDocByLang = {
             items: [
               "OpenStreetMap Foundation (tile.openstreetmap.org) — base map: IP address, user agent and the coordinates of the map tiles displayed;",
               "OpenSeaMap (tiles.openseamap.org) — optional nautical chart layer: IP address, user agent and the coordinates of the map tiles displayed, only if the User enables the layer;",
-              "Overpass API (overpass-api.de) — optional nautical points-of-interest layer: IP address, user agent and the coordinates of the map area in view, only if the User enables the layer;",
               "Nominatim (nominatim.openstreetmap.org) — geocoding an address into coordinates: IP address, user agent and the address text searched for, only when the User presses the find-from-address button.",
             ],
           },
@@ -391,7 +398,12 @@ export const privacy: LegalDocByLang = {
           {
             type: "p",
             text:
-              "None of these requests is made until the User opens a screen containing a map (or, for the optional layers and geocoding, until the User explicitly enables them), except for the thumbnail described above, which is generated when the Service processes the track. These services set no cookies on the Service's domain. The legal basis is performance of the contract (art. 6(1)(b) GDPR) for the map features the User requested. Please refer to their respective policies: osmfoundation.org/wiki/Privacy_Policy for OpenStreetMap Foundation services (base map, Nominatim), and the terms published by OpenSeaMap and the Overpass API.",
+              "The same applies to the optional nautical points-of-interest layer (marinas, harbours, slipways, sailing clubs): that data is obtained from OpenStreetMap through the Overpass API (overpass-api.de) by the Service's own server, which keeps its own local copy of it and serves it to the User's browser or app. The User's browser or app therefore does not contact the Overpass API, and neither the User's IP address or user agent nor the coordinates of the map area they are viewing reach that service.",
+          },
+          {
+            type: "p",
+            text:
+              "None of these requests is made until the User opens a screen containing a map (or, for the optional layers and geocoding, until the User explicitly enables them), except for the requests made by the Service's own server and described above (the thumbnail, generated when the Service processes the track, and the nautical points of interest), which do not involve the User's browser or app. These services set no cookies on the Service's domain. The legal basis is performance of the contract (art. 6(1)(b) GDPR) for the map features the User requested. Please refer to their respective policies: osmfoundation.org/wiki/Privacy_Policy for OpenStreetMap Foundation services (base map, Nominatim), and the terms published by OpenSeaMap.",
           },
           {
             type: "p",

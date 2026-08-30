@@ -27,6 +27,7 @@ from .app_config_repo import SqlAppConfigRepo
 from .post_repo import SqlPostRepo
 from .note_template_repo import SqlNoteTemplateRepo
 from .live_recording_repo import SqlLiveRecordingRepo
+from .osm_poi_repo import SqlOsmPoiRepo
 
 
 def build_sql_repos(blob: BlobStore, data_prefix: str) -> Repositories:
@@ -53,6 +54,7 @@ def build_sql_repos(blob: BlobStore, data_prefix: str) -> Repositories:
         posts=SqlPostRepo(sf),
         note_templates=SqlNoteTemplateRepo(sf),
         live_recordings=SqlLiveRecordingRepo(sf),
+        osm_pois=SqlOsmPoiRepo(sf),
     )
 
 
@@ -78,4 +80,5 @@ __all__ = [
     "SqlPostRepo",
     "SqlNoteTemplateRepo",
     "SqlLiveRecordingRepo",
+    "SqlOsmPoiRepo",
 ]

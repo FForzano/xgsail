@@ -6,7 +6,7 @@ import L from "leaflet";
 import { NEAR_DETAIL_MIN_ZOOM, useNauticalPoi } from "@/hooks/useNauticalPoi";
 import { clubKeys, clubsService } from "@/services/clubs";
 import { windKeys, windService } from "@/services/wind";
-import type { NauticalPoi } from "@/services/overpass";
+import type { NauticalPoi } from "@/services/nauticalPoi";
 import { createBaseLayers } from "./baseLayers";
 import { syncClubsLayer } from "./ClubsLayer";
 import { syncStationsLayer } from "./StationsLayer";
@@ -49,7 +49,7 @@ function useMapZoom(map: L.Map | null): number {
   return zoom;
 }
 
-/** Attaches the optional nautical overlays (OpenSeaMap chart, Overpass POIs,
+/** Attaches the optional nautical overlays (OpenSeaMap chart, nautical POIs,
  * XGSail clubs, weather stations) to an already-built Leaflet map, adding and
  * removing them as the user toggles them. Shared by the replay map
  * (components/race/MapView) and the standalone explorer map so both behave
@@ -107,7 +107,7 @@ export function useNauticalLayers(
   // our pin has over that mute raster symbol is the label — name, kind,
   // tappable OSM link. A named POI is therefore always worth drawing, and with
   // the chart off even an unnamed one still says something is there. Filtered
-  // here, at display time, never in the fetch: a cached Overpass result must
+  // here, at display time, never in the fetch: a cached POI result must
   // not depend on which layers happen to be toggled.
   //
   // A POI already linked to a club (Club.osm_ref) is also dropped, since the
