@@ -878,6 +878,60 @@ Capacitor plugin changes, which still require a store release.
   and `MapLayerToggles` renders each, so incomplete data is surfaced, not
   swallowed.
 
+- **The Overpass endpoint list is configuration, and a single entry still has
+  to be a list.** This happened: narrowing `ENDPOINTS` to one instance by
+  commenting the others out left `("https://overpass-api.de/api/interpreter"` +
+  `)` — no trailing comma, so a plain string. `for endpoint in ENDPOINTS` then
+  iterated its *characters*, POSTing to `"h"`, to `"t"`, to `"t"`... 39 times.
+  Every one raised `MissingSchema`, every one was swallowed by the loop's
+  `except Exception` and logged as an endpoint that failed, and **not one
+  packet left the box** while the logs read exactly like an Overpass outage.
+  The tell in the database is total: `osm_poi_cells.fetched_at` NULL
+  everywhere and `osm_pois` empty — no successes at all, as opposed to the
+  partial, patchy damage a real outage or the remark bug below leaves. Hence
+  `OVERPASS_ENDPOINTS` and `parse_endpoints`: the list is swapped without
+  touching code, and a malformed one is a startup error. `scripts/
+  check_overpass.py` is the other half — run it on the host that is failing
+  and it separates DNS, egress, rate limiting and a bad instance, none of
+  which the application can tell apart after the fact.
+
+- **Overpass reports a runtime error as HTTP 200, and believing it wipes the
+  map.** A query that times out or runs out of memory upstream — what a
+  throttled or overloaded instance returns — comes back as a perfectly valid
+  JSON body with an empty `elements` list and a `remark`. Treating that as an
+  answer is not a lost fetch, it is *cache poisoning*: `replace_cell_pois`
+  deletes the cell's real POIs, `fetched_at` gets stamped, and the place reads
+  as fully covered — so the frontend shows no warning at all — for the whole
+  `CELL_TTL_DAYS` window. `check_payload` in `services/osm_poi.py` is the
+  guard, and revision `0055` clears `fetched_at` on the cells that were
+  already blanked. Anything that parses an Overpass response must go through
+  it; success is never just a 2xx.
+
+- **Every Overpass query now leaves from one server IP, so our own concurrency
+  is the rate limit.** That is the flip side of moving the fetch off the
+  browser: overpass-api.de rations per IP (a couple of concurrent slots plus a
+  rolling quota), and the whole instance shares one. Hence `_query_gate` (one
+  query in flight per process, and the read path takes it *non-blocking* —
+  a request that cannot have the slot serves the cache and reports `partial`
+  rather than queueing) and the circuit breaker, which parks the layer after
+  `BREAKER_FAILURES` consecutive failures and immediately on a 429/504. The
+  per-cell `RETRY_AFTER_FAILURE_MIN` window does not cover an outage, because
+  every *new* cell is still a first attempt — that is exactly what turns a
+  slow Overpass into a slow API. Don't add a code path that calls Overpass
+  around the gate.
+
+- **`GET /osm-poi` runs behind nginx's 60 s `proxy_read_timeout`, and the
+  backend route is sync, so it burns a threadpool slot while it waits.** A
+  cold fill is inline and sequential, so cells x endpoints x socket timeout is
+  the number that matters, not one timeout — the original 4 x 2 x 90 s could
+  reach twelve minutes, long enough to 504 the user and, with enough of them,
+  exhaust the threadpool and stall the whole API rather than just the map.
+  `READ_FILL_BUDGET_S` is a wall-clock deadline threaded down into each
+  `requests.post`, so the read path stops trying endpoints once the budget is
+  gone. Keep it comfortably under the nginx timeout in `frontend/nginx.conf`;
+  background fills get the looser `BACKGROUND_FILL_BUDGET_S` because nobody
+  is waiting on them.
+
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 
@@ -897,6 +951,10 @@ See `.env.example` for the full list with defaults. Grouped by concern:
   the internal endpoint), plus `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`
   reused verbatim from the backend's MinIO config by convention — don't
   invent separate OTA-specific credential var names.
+- **Overpass** (`backend/services/osm_poi.py`): `OVERPASS_USER_AGENT`,
+  `OVERPASS_ENDPOINTS` (comma/space-separated instance URLs, unset = the
+  built-in defaults). The endpoint list is configuration precisely because it
+  is what gets changed when Overpass misbehaves — see the gotcha above.
 - **Track thumbnails** (`workers/process_upload/thumbnail.py`):
   `THUMBNAIL_TILE_URL` (OSM tile template, empty disables the map
   background), `THUMBNAIL_TILE_USER_AGENT` (sent on every tile request)

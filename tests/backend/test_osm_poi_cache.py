@@ -16,6 +16,7 @@ The repository half runs against an in-memory SQLite engine, following
 storage layer wants AWS credentials).
 """
 
+import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -359,11 +360,20 @@ class FakeRepo:
         return []
 
 
+@pytest.fixture(autouse=True)
+def _fresh_breaker():
+    """The gate and the circuit breaker are module state, so a test that fails
+    a fetch would otherwise pause Overpass for the tests that follow."""
+    osm_poi.reset_breaker()
+    yield
+    osm_poi.reset_breaker()
+
+
 @pytest.fixture
 def overpass(monkeypatch):
     """Stands in for the network. Records every cell queried; a cell listed in
     the repo's ``fail`` set raises, as a down Overpass would."""
-    def fake_fetch(cell_lat, cell_lng):
+    def fake_fetch(cell_lat, cell_lng, deadline=None):
         repo.queried.append((cell_lat, cell_lng))
         if (cell_lat, cell_lng) in repo.fail:
             raise RuntimeError("Overpass unreachable")
@@ -507,3 +517,291 @@ def test_read_path_refresh_respects_the_retry_window(overpass):
 
     assert osm_poi.refresh_stale_cell_in(repo, [(45.5, 9.0)]) is False
     assert repo.queried == []
+
+
+# --- Overpass failure modes ------------------------------------------------
+#
+# What actually broke in production: Overpass answers a *runtime* error with
+# HTTP 200 and a `remark`, so the old code stored zero POIs over a real cell,
+# stamped it fetched, and served an empty map there for the whole TTL. The
+# rest are the same class of thing — an answer that parses but isn't data.
+
+def test_a_normal_answer_passes_the_payload_check():
+    payload = {"elements": [_element(leisure="marina")]}
+    assert osm_poi.check_payload(payload) is payload
+
+
+def test_an_empty_but_honest_answer_is_still_a_success():
+    # No marinas in the middle of the Atlantic is a real, cacheable answer.
+    assert osm_poi.check_payload({"elements": []}) == {"elements": []}
+
+
+@pytest.mark.parametrize("remark", [
+    "runtime error: Query timed out in 'query' at line 1 after 60 seconds.",
+    "runtime error: Query run out of memory in 'recurse' at line 2.",
+    "Error: something went wrong",
+])
+def test_a_runtime_error_returned_as_http_200_is_a_failure(remark):
+    with pytest.raises(osm_poi.OverpassError):
+        osm_poi.check_payload({"elements": [], "remark": remark})
+
+
+def test_a_harmless_remark_is_not_treated_as_a_failure():
+    payload = {"elements": [], "remark": "Notice: this query returned no data"}
+    assert osm_poi.check_payload(payload) is payload
+
+
+@pytest.mark.parametrize("payload", [{}, {"version": 0.6}, [], None, "<html>"])
+def test_a_body_that_is_not_an_overpass_answer_is_a_failure(payload):
+    with pytest.raises(osm_poi.OverpassError):
+        osm_poi.check_payload(payload)
+
+
+def test_a_failed_fetch_never_blanks_a_cell_that_already_had_data(overpass):
+    """The whole point of the check above: a cell keeps its POIs and its
+    ``fetched_at`` when the refetch fails, rather than being emptied."""
+    stale = NOW - timedelta(days=osm_poi.CELL_TTL_DAYS + 1)
+    cell = _cell(fetched_at=stale, attempted_at=stale)
+    cell.cell_lat, cell.cell_lng = 45.5, 9.0
+    repo = overpass(FakeRepo({(45.5, 9.0): cell}, fail=[(45.5, 9.0)]))
+
+    osm_poi.refresh_stale_cell_in(repo, [(45.5, 9.0)])
+
+    assert repo.stored == {}  # replace_cell_pois was never reached
+    assert repo.get_cell(45.5, 9.0).fetched_at == stale
+
+
+def test_the_query_asks_overpass_for_no_more_time_than_we_will_wait():
+    assert f"[timeout:{osm_poi.QUERY_TIMEOUT_S}]" in osm_poi.build_query(44.0, 9.0, 44.5, 9.5)
+    assert "[timeout:9]" in osm_poi.build_query(44.0, 9.0, 44.5, 9.5, timeout_s=9)
+    assert osm_poi.QUERY_TIMEOUT_S <= osm_poi.FETCH_TIMEOUT_S
+
+
+def test_the_read_path_cannot_outlive_the_gateway_timeout():
+    """A cold fill is sequential, so its worst case is the budget — not
+    cells x endpoints x socket timeout, which is what produced 504s."""
+    assert osm_poi.READ_FILL_BUDGET_S < 60
+
+
+# --- the circuit breaker ---------------------------------------------------
+#
+# ``may_attempt`` is per cell, which does nothing for an outage: every new
+# cell is still a first attempt. Without a global pause, a user panning over
+# unfetched coast spends the full budget on every request while Overpass is
+# down — and keeps knocking on a service that is rate limiting us.
+
+def _fail(status=None, retry_after=None):
+    return osm_poi.OverpassError("nope", status=status, retry_after=retry_after)
+
+
+def test_overpass_is_called_normally_until_failures_pile_up():
+    for _ in range(osm_poi.BREAKER_FAILURES - 1):
+        osm_poi._record_failure(_fail())
+    assert osm_poi.breaker_blocked_for() == 0
+
+
+def test_consecutive_failures_pause_the_whole_layer():
+    for _ in range(osm_poi.BREAKER_FAILURES):
+        osm_poi._record_failure(_fail())
+    assert osm_poi.breaker_blocked_for() > 0
+
+
+def test_a_success_forgets_the_failures_before_it():
+    for _ in range(osm_poi.BREAKER_FAILURES - 1):
+        osm_poi._record_failure(_fail())
+    osm_poi._record_success()
+    osm_poi._record_failure(_fail())
+    assert osm_poi.breaker_blocked_for() == 0
+
+
+@pytest.mark.parametrize("status", [429, 504])
+def test_being_rate_limited_pauses_immediately_and_for_longer(status):
+    """One 429 is enough: continuing to knock is what turns throttling into a
+    block, and it is the failure the single shared server IP invites."""
+    osm_poi._record_failure(_fail(status=status))
+    assert osm_poi.breaker_blocked_for() > osm_poi.BREAKER_COOLDOWN_S
+
+
+def test_a_retry_after_header_sets_the_pause():
+    osm_poi._record_failure(_fail(status=429, retry_after=120))
+    assert 60 < osm_poi.breaker_blocked_for() <= 120
+
+
+def test_a_paused_layer_serves_the_cache_without_calling_overpass(overpass):
+    repo = overpass(FakeRepo())
+    osm_poi._record_failure(_fail(status=429))
+
+    out = osm_poi.pois_in_bbox(repo, 45.3, 9.0, 45.4, 9.1)
+
+    assert repo.queried == []
+    assert out["coverage"] == "partial"
+    # And no attempt is recorded against the cell: the pause is about
+    # Overpass, not about this place, so it must not also cost the cell its
+    # hour-long retry window.
+    assert repo.get_cell(45.5, 9.0) is None
+
+
+def test_the_manual_refresh_lever_clears_the_pause(overpass):
+    stale = NOW - timedelta(days=osm_poi.CELL_TTL_DAYS + 1)
+    cell = _cell(fetched_at=stale, attempted_at=stale)
+    cell.cell_lat, cell.cell_lng = 45.5, 9.0
+    repo = overpass(FakeRepo({(45.5, 9.0): cell}))
+    osm_poi._record_failure(_fail(status=429))
+
+    out = osm_poi.refresh_expired_cells(repo, sleep=lambda _: None)
+
+    assert repo.queried == [(45.5, 9.0)]
+    assert out["refreshed"] == 1
+
+
+def test_only_one_overpass_query_runs_at_a_time_and_readers_do_not_queue(overpass):
+    """Every query now leaves from one server IP. The read path takes the
+    slot or serves the cache — it never waits, which is what kept requests
+    piling up behind a slow Overpass."""
+    repo = overpass(FakeRepo())
+    osm_poi._query_gate.acquire()
+    try:
+        out = osm_poi.pois_in_bbox(repo, 45.3, 9.0, 45.4, 9.1)
+    finally:
+        osm_poi._query_gate.release()
+
+    assert repo.queried == []
+    assert out["coverage"] == "partial"
+
+
+# --- query_overpass over a faked transport ---------------------------------
+
+class FakeResponse:
+    def __init__(self, status_code=200, payload=None, text="", headers=None):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text
+        self.headers = headers or {}
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError("not JSON")
+        return self._payload
+
+
+@pytest.fixture
+def transport(monkeypatch):
+    """Replaces ``requests.post``. Returns the list of endpoints called, and
+    takes one canned response per attempt."""
+    calls = []
+
+    def bind(*responses):
+        queue = list(responses)
+
+        def fake_post(url, **kwargs):
+            calls.append((url, kwargs))
+            answer = queue.pop(0) if queue else responses[-1]
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        monkeypatch.setattr(osm_poi.requests, "post", fake_post)
+        return calls
+    return bind
+
+
+def test_a_good_answer_comes_back_from_the_first_endpoint(transport):
+    calls = transport(FakeResponse(payload={"elements": [_element(leisure="marina")]}))
+    out = osm_poi.query_overpass(44.0, 9.0, 44.5, 9.5)
+    assert len(out["elements"]) == 1
+    assert len(calls) == 1
+
+
+def test_a_timed_out_query_reported_as_http_200_falls_through_to_the_mirror(transport):
+    """The production bug end to end: this used to return the empty body as a
+    successful answer, and the caller wiped the cell with it."""
+    calls = transport(
+        FakeResponse(payload={"elements": [], "remark": "runtime error: Query timed out"}),
+        FakeResponse(payload={"elements": [_element(leisure="marina")]}),
+    )
+    out = osm_poi.query_overpass(44.0, 9.0, 44.5, 9.5)
+    assert len(out["elements"]) == 1
+    assert [c[0] for c in calls] == list(osm_poi.ENDPOINTS)
+
+
+def test_every_endpoint_failing_raises_rather_than_returning_nothing(transport):
+    transport(FakeResponse(payload={"elements": [], "remark": "runtime error: timed out"}))
+    with pytest.raises(osm_poi.OverpassError):
+        osm_poi.query_overpass(44.0, 9.0, 44.5, 9.5)
+
+
+def test_a_rate_limited_answer_is_raised_as_such_with_its_retry_after(transport):
+    transport(FakeResponse(status_code=429, text="Too Many Requests",
+                           headers={"Retry-After": "42"}))
+    with pytest.raises(osm_poi.OverpassError) as excinfo:
+        osm_poi.query_overpass(44.0, 9.0, 44.5, 9.5)
+    assert excinfo.value.rate_limited
+    assert excinfo.value.retry_after == 42
+
+
+def test_an_html_error_page_served_as_200_is_a_failure(transport):
+    transport(FakeResponse(text="<html>Gateway Timeout</html>"))
+    with pytest.raises(osm_poi.OverpassError):
+        osm_poi.query_overpass(44.0, 9.0, 44.5, 9.5)
+
+
+def test_each_attempt_gets_only_the_time_that_is_left(transport):
+    calls = transport(FakeResponse(payload={"elements": []}))
+    osm_poi.query_overpass(44.0, 9.0, 44.5, 9.5, deadline=time.monotonic() + 3)
+    assert calls[0][1]["timeout"] <= 3
+
+
+def test_an_exhausted_deadline_stops_the_endpoint_fallback(transport):
+    """Trying the mirror with no time left is how a slow Overpass turned into
+    a request that outlived the gateway timeout."""
+    calls = transport(FakeResponse(status_code=502, text="bad gateway"))
+    with pytest.raises(osm_poi.OverpassError):
+        osm_poi.query_overpass(44.0, 9.0, 44.5, 9.5, deadline=time.monotonic() - 1)
+    assert calls == []
+
+
+# --- the endpoint list -----------------------------------------------------
+#
+# This list is what gets fiddled with whenever Overpass misbehaves, and doing
+# it by editing a tuple literal is how the layer once stopped querying
+# anything: commenting out all but one entry left a bare parenthesised string,
+# so the endpoint loop iterated over its characters and POSTed to "h", to
+# "t", ... Every one raised, every one was swallowed as a failed endpoint, and
+# no request left the box while the logs blamed Overpass.
+
+def test_no_configuration_means_the_built_in_endpoints():
+    assert osm_poi.parse_endpoints(None) == osm_poi.DEFAULT_ENDPOINTS
+    assert osm_poi.parse_endpoints("   ") == osm_poi.DEFAULT_ENDPOINTS
+
+
+@pytest.mark.parametrize("raw", [
+    "https://a.example/api/interpreter,https://b.example/api/interpreter",
+    "https://a.example/api/interpreter https://b.example/api/interpreter",
+    " https://a.example/api/interpreter , https://b.example/api/interpreter ",
+])
+def test_endpoints_are_separated_by_commas_or_spaces(raw):
+    assert osm_poi.parse_endpoints(raw) == ("https://a.example/api/interpreter",
+                                            "https://b.example/api/interpreter")
+
+
+def test_a_single_configured_endpoint_stays_a_list_of_one_url():
+    """The regression: one endpoint must be one endpoint, never 39 characters."""
+    parsed = osm_poi.parse_endpoints("https://overpass-api.de/api/interpreter")
+    assert parsed == ("https://overpass-api.de/api/interpreter",)
+    assert list(parsed) == ["https://overpass-api.de/api/interpreter"]
+
+
+@pytest.mark.parametrize("raw", ["overpass-api.de/api/interpreter", "ftp://x/y",
+                                 "https://ok.example/i, nonsense"])
+def test_an_unusable_endpoint_list_is_a_startup_error_not_a_silent_outage(raw):
+    with pytest.raises(ValueError):
+        osm_poi.parse_endpoints(raw)
+
+
+def test_the_endpoints_actually_in_use_are_whole_urls():
+    """Guards the module-level value however it was configured — the shape
+    bug was invisible precisely because every element still looked iterable."""
+    assert isinstance(osm_poi.ENDPOINTS, tuple)
+    assert osm_poi.ENDPOINTS
+    for endpoint in osm_poi.ENDPOINTS:
+        assert endpoint.startswith("https://")
