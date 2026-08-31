@@ -805,3 +805,72 @@ def test_the_endpoints_actually_in_use_are_whole_urls():
     assert osm_poi.ENDPOINTS
     for endpoint in osm_poi.ENDPOINTS:
         assert endpoint.startswith("https://")
+
+
+# --- who runs the place outranks what the place has ------------------------
+#
+# The app is for sailing sports, so the organisation is the identity the map
+# should lead with. Before this ordering, two identical circoli velici got
+# different pins purely from how each had been mapped: one tagged
+# `leisure=marina` because it has berths read as a marina, one tagged only
+# `club=sailing` read as a club.
+
+def test_a_club_with_berths_is_still_a_club():
+    assert osm_poi.classify({"leisure": "marina", "club": "sailing"}) == "sailing_club"
+    assert osm_poi.classify({"leisure": "marina", "sport": "sailing",
+                             "club": "yes"}) == "sailing_club"
+    assert osm_poi.classify({"leisure": "slipway", "club": "sailing"}) == "sailing_club"
+
+
+def test_a_commercial_marina_is_untouched_by_that():
+    """`club=sailing` only ever appears on an element that declares itself a
+    club, so putting the club rule first costs an ordinary marina nothing."""
+    assert osm_poi.classify({"leisure": "marina"}) == "marina"
+    assert osm_poi.classify({"leisure": "marina", "name": "Marina di Loano"}) == "marina"
+    # A marina where people happen to sail, but which claims no club, stays a
+    # marina — the club rule needs an explicit club tag.
+    assert osm_poi.classify({"leisure": "marina", "sport": "sailing"}) == "marina"
+
+
+def test_the_specificity_order_below_the_club_rule_is_unchanged():
+    assert osm_poi.classify({"leisure": "marina", "harbour": "yes"}) == "marina"
+    assert osm_poi.classify({"leisure": "slipway", "seamark:type": "harbour"}) == "slipway"
+    assert osm_poi.classify({"seamark:type": "anchorage"}) == "anchorage"
+
+
+def test_a_sailing_area_with_no_club_tag_is_not_promoted_to_a_club():
+    """The data does not say it is a club, so neither do we — inventing that
+    is worse than the generic label."""
+    assert osm_poi.classify({"sport": "sailing"}) == "sports_area"
+
+
+# --- an unnamed element is judged by its tags, not by its kind -------------
+
+def test_an_unnamed_club_with_berths_keeps_its_pin():
+    """The regression the reordering would otherwise have caused: this used to
+    classify as `marina` and be kept, and keying the drop on the *kind* would
+    now silently delete it from the map for the sole reason that it also
+    declares itself a club."""
+    rows = osm_poi.parse_elements({"elements": [
+        _element(osm_id=1, leisure="marina", club="sailing"),
+    ]})
+    assert [r["osm_ref"] for r in rows] == ["node/1"]
+    assert rows[0]["kind"] == "sailing_club"
+    assert rows[0]["name"] is None
+
+
+@pytest.mark.parametrize("tags", [
+    {"leisure": "marina"}, {"leisure": "slipway"}, {"harbour": "yes"},
+    {"seamark:type": "harbour"}, {"seamark:type": "anchorage"},
+    {"amenity": "fuel", "seamark:type": "fuel_station"},
+])
+def test_something_physically_there_is_worth_a_pin_without_a_name(tags):
+    assert osm_poi.has_facility(tags)
+    assert osm_poi.parse_elements({"elements": [_element(**tags)]}) != []
+
+
+@pytest.mark.parametrize("tags", [{"sport": "sailing"}, {"club": "sailing"},
+                                  {"sport": "sailing", "club": "yes"}])
+def test_an_unnamed_activity_label_is_still_noise(tags):
+    assert not osm_poi.has_facility(tags)
+    assert osm_poi.parse_elements({"elements": [_element(**tags)]}) == []
