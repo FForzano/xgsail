@@ -153,27 +153,53 @@ MAX_BBOX_SPAN_DEG = 5.0
 POI_KINDS = ("marina", "harbour", "slipway", "sailing_club", "sports_area",
              "fuel", "anchorage")
 
-# Ordered most- to least-specific: an element tagged both `leisure=marina`
-# and `harbour=yes` should read as a marina, so the first match wins. The
-# order is load-bearing and this module is now its only copy — the frontend
-# mirror it was ported from is gone.
+# First match wins, and the order is the product decision this module makes.
+# It is now the only copy — the frontend mirror it was ported from is gone.
 #
-# The consequence worth knowing: `marina` outranks `sailing_club`, so a
-# circolo velico whose OSM element carries `leisure=marina` (because it has
-# pontoons) is pinned as a marina, while one tagged only `club=sailing` is
-# pinned as a club. Same kind of place, different pin, purely because of how
-# each was mapped. Changing that is a product decision about which identity
-# the map should lead with, not a bug fix — but it is decided here.
+# **Who runs the place outranks what the place has.** This app is for sailing
+# sports, so someone scanning the map is looking for the circolo velico, the
+# Lega Navale, the yacht club — the organisation. Facility tags
+# (`leisure=marina`, `leisure=slipway`, `harbour=yes`) say what a place *has*;
+# `club=sailing` says what it *is*. A club with pontoons is still a club.
+#
+# The order used to run the other way, and the result was that two identical
+# places got different pins purely from how each had been mapped: a club
+# tagged `leisure=marina` because it has berths showed as a marina, while one
+# tagged only `club=sailing` showed as a club. Nothing downstream can recover
+# the distinction, because `osm_pois` stores the classified kind and not the
+# tags.
+#
+# This costs nothing on a commercial marina: `club=sailing` is only ever on an
+# element that declares itself a club, so a marina without that tag is
+# untouched. Below the club rule the old most- to least-specific ordering
+# stands — an element tagged both `leisure=marina` and `harbour=yes` still
+# reads as a marina.
 KIND_RULES = (
-    ("marina", lambda t: t.get("leisure") == "marina"),
-    ("slipway", lambda t: t.get("leisure") == "slipway"),
     ("sailing_club", lambda t: t.get("club") == "sailing"
         or (t.get("sport") == "sailing" and bool(t.get("club")))),
+    ("marina", lambda t: t.get("leisure") == "marina"),
+    ("slipway", lambda t: t.get("leisure") == "slipway"),
     ("anchorage", lambda t: t.get("seamark:type") == "anchorage"),
     ("fuel", lambda t: t.get("amenity") == "fuel" and bool(t.get("seamark:type"))),
     ("harbour", lambda t: t.get("seamark:type") == "harbour" or t.get("harbour") == "yes"),
     ("sports_area", lambda t: t.get("sport") == "sailing"),
 )
+
+# What makes an element a physical place rather than an activity label. Only
+# used to decide whether an unnamed element is worth a pin — see
+# ``parse_elements``.
+FACILITY_TAGS = (
+    lambda t: t.get("leisure") in ("marina", "slipway"),
+    lambda t: t.get("harbour") == "yes",
+    lambda t: bool(t.get("seamark:type")),
+    lambda t: t.get("amenity") == "fuel",
+)
+
+
+def has_facility(tags: dict) -> bool:
+    """Does this element describe something physically there — berths, a ramp,
+    a harbour — as opposed to only naming an activity?"""
+    return any(matches(tags) for matches in FACILITY_TAGS)
 
 
 # --- grid ------------------------------------------------------------------
@@ -295,8 +321,11 @@ def parse_elements(payload: dict) -> "list[dict]":
             continue
         name = tags.get("name")
         # An unnamed marina/harbour is still worth a pin; an unnamed generic
-        # "sailing area" polygon is just noise on the map.
-        if not name and kind in ("sports_area", "sailing_club"):
+        # "sailing area" polygon is just noise on the map. The test is the
+        # element's *tags*, not its classified kind: now that `sailing_club`
+        # outranks `marina`, keying this on the kind would drop an unnamed
+        # marina for the sole reason that it also declares itself a club.
+        if not name and not has_facility(tags):
             continue
         osm_type, osm_id = el.get("type"), el.get("id")
         if not osm_type or osm_id is None:

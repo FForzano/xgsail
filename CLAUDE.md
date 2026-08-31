@@ -878,6 +878,28 @@ Capacitor plugin changes, which still require a store release.
   and `MapLayerToggles` renders each, so incomplete data is surfaced, not
   swallowed.
 
+- **In `KIND_RULES`, who runs the place outranks what the place has.**
+  `sailing_club` is deliberately the *first* rule, above `marina` and
+  `slipway`: this is an app for sailing sports, so a circolo velico with
+  berths is a circolo velico, not a marina. With the old most- to
+  least-specific order, two identical clubs got different pins purely from how
+  each had been mapped — one tagged `leisure=marina` read as a marina, one
+  tagged only `club=sailing` read as a club — and nothing downstream could
+  recover the difference, because `osm_pois` stores the classified kind and
+  not the tags. Below the club rule the specificity order still stands
+  (`leisure=marina` + `harbour=yes` is a marina). Two things follow that are
+  easy to get wrong:
+  - **The unnamed-element filter keys on tags (`has_facility`), never on the
+    kind.** An unnamed `leisure=marina` + `club=sailing` classifies as a club,
+    and a kind-based drop would delete it from the map for the sole reason
+    that it declares itself a club. What earns an unnamed element its pin is
+    being physically there — berths, a ramp, a harbour — not what it is
+    called.
+  - **Reordering the rules needs a migration.** `osm_pois` holds the kind, so
+    cached rows keep the old classification until their cell is re-fetched,
+    which without help is up to `CELL_TTL_DAYS` (60 days) away. `0056` is the
+    worked example: clear `fetched_at` on the affected cells only.
+
 - **The Overpass endpoint list is configuration, and a single entry still has
   to be a list.** This happened: narrowing `ENDPOINTS` to one instance by
   commenting the others out left `("https://overpass-api.de/api/interpreter"` +
