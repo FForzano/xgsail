@@ -8,7 +8,7 @@ down the layer rendered nothing because nothing was kept. Server-side, the
 same map costs Overpass one query per *place* — a 0.5 deg cell, refreshed at
 most every ``CELL_TTL_DAYS`` — and keeps working while Overpass is out.
 
-The query builder and ``KIND_RULES`` are a deliberate mirror of that
+The query builder and ``KIND_RULES`` came over unchanged from that now-deleted
 frontend module: same tag clauses, same first-match-wins ordering, same rule
 dropping an unnamed generic sailing area. Fetch and parse are split (as in
 ``services/wind_providers/``) so the classification is unit-testable with no
@@ -155,8 +155,15 @@ POI_KINDS = ("marina", "harbour", "slipway", "sailing_club", "sports_area",
 
 # Ordered most- to least-specific: an element tagged both `leisure=marina`
 # and `harbour=yes` should read as a marina, so the first match wins. The
-# order is load-bearing — keep it in step with KIND_RULES in
-# frontend/src/services/overpass.ts.
+# order is load-bearing and this module is now its only copy — the frontend
+# mirror it was ported from is gone.
+#
+# The consequence worth knowing: `marina` outranks `sailing_club`, so a
+# circolo velico whose OSM element carries `leisure=marina` (because it has
+# pontoons) is pinned as a marina, while one tagged only `club=sailing` is
+# pinned as a club. Same kind of place, different pin, purely because of how
+# each was mapped. Changing that is a product decision about which identity
+# the map should lead with, not a bug fix — but it is decided here.
 KIND_RULES = (
     ("marina", lambda t: t.get("leisure") == "marina"),
     ("slipway", lambda t: t.get("leisure") == "slipway"),
