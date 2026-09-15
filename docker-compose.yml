@@ -39,7 +39,13 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:latest
+    # quay.io, not Docker Hub: MinIO archived the open-source server/mc/KES
+    # projects and withdrew both the `minio/*` Docker Hub repos and the
+    # dl.min.io binaries, so `minio/minio:latest` no longer pulls at all on a
+    # machine without it cached. Pinned rather than `latest` because these are
+    # the final community releases — the tag will never move again, and the
+    # newer `*.hotfix.*` tags on quay are commercial builds, not these.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: *minio-user
@@ -60,7 +66,7 @@ services:
       retries: 20
 
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
         condition: service_healthy

@@ -689,6 +689,27 @@ Capacitor plugin changes, which still require a store release.
   (`.github/workflows/docker-publish.yml`'s `deploy-ota` job) at the same
   time as `.env.native.example`, or it silently drops out of every OTA
   update after the first.
+- **MinIO is archived upstream: its images come from quay.io, pinned, and
+  there is no `mc` binary left to download.** MinIO withdrew the open-source
+  server/mc/KES projects — the `minio/*` Docker Hub repos are gone (every tag
+  401s) and `dl.min.io` answers `410 Gone` for every community binary. Nothing
+  here noticed for a while because an existing host keeps running from cached
+  images; it is a *fresh* `docker compose up --build` that fails, i.e. exactly
+  the getting-started path. So both compose files pin
+  `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` and
+  `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z`, and CI installs `mc` by
+  `docker run --entrypoint cat` on that image instead of curling it. Don't
+  "simplify" those back to `minio/minio:latest` — the short name is
+  unresolvable now. Keep the pins: these are the final community releases, so
+  the tags never move again, and the newer `*.hotfix.*` tags on quay are
+  commercial builds, not a continuation of these.
+- **A `curl` that installs something needs `-f`, or an HTTP error installs
+  itself.** This is how the above surfaced: `curl -sSL <url> -o /usr/local/bin/mc`
+  wrote the 410 response *body* — 405 bytes of English prose — into the file
+  and exited 0, so the CI step went green and the job died much later with
+  `line 1: 410: command not found` and a syntax error, reading like a corrupt
+  script rather than a failed download. Any step that fetches a binary fails
+  on the HTTP status (`-f`) and then proves what it got (`mc --version`).
 - **Repo-root `pyproject.toml` only configures pytest.** It is not a
   package manifest for the backend, a worker, or `libs/
   xgsail_windfusion` — each of those has its own build setup; don't
