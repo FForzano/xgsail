@@ -16,7 +16,19 @@ name: Docker publish
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      publish_ota:
+        # Without this, a deploy-ota that fails for a reason of its own (the
+        # install step breaking under it, say) cannot be retried at all: the
+        # job only runs when frontend/ changed, and re-running the old run
+        # re-uses that commit's workflow file — the broken one. The only way
+        # back was an empty commit under frontend/. Opt-in rather than "any
+        # manual run", so dispatching this workflow to rebuild images doesn't
+        # ship a bundle to every installed app as a side effect.
+        description: "Publish an OTA bundle even if frontend/ did not change"
+        type: boolean
+        default: false
 
 env:
   DOCKERHUB_REPO: fforzano99/xgsail
@@ -164,13 +176,16 @@ jobs:
           cache-to: type=inline
 
   # Publishes the native app's JS bundle via scripts/deploy-ota.sh whenever
-  # frontend/ changes on main. Independent of the `publish` job above: this
-  # doesn't touch a container image, it uploads straight to the production
-  # MinIO (over its public endpoint) so ota-service can serve the new
-  # manifest immediately — no Watchtower/redeploy involved on this path.
+  # frontend/ changes on main, or on a manual run with publish_ota ticked.
+  # Independent of the `publish` job above: this doesn't touch a container
+  # image, it uploads straight to the production MinIO (over its public
+  # endpoint) so ota-service can serve the new manifest immediately — no
+  # Watchtower/redeploy involved on this path.
   deploy-ota:
     needs: [changes, test]
-    if: needs.changes.outputs.frontend == 'true'
+    # `inputs.publish_ota` is the manual lever (see the workflow_dispatch input
+    # above); it is empty, so falsy, on a push.
+    if: needs.changes.outputs.frontend == 'true' || inputs.publish_ota
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
