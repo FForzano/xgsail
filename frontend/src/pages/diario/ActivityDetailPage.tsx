@@ -90,7 +90,23 @@ export function ActivityDetailPage() {
     queryFn: () => activitiesService.data(activityId!),
     enabled: !!activityId && !isSolo,
   });
-  const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
+  // Fetched by id rather than via boatsService.list(), which excludes guest
+  // boats by design (see backend SqlBoatRepo.list) — a guest boat used in
+  // this activity must still resolve to its real name/photo here.
+  const boatIds = useMemo(
+    () => Array.from(new Set((sessions.data ?? []).map((s) => s.boat_id))),
+    [sessions.data],
+  );
+  const boatQueries = useQueries({
+    queries: boatIds.map((id) => ({
+      queryKey: boatKeys.detail(id),
+      queryFn: () => boatsService.get(id),
+    })),
+  });
+  const boatsById = useMemo(
+    () => new Map(boatQueries.flatMap((q) => (q.data ? [[q.data.id, q.data] as const] : []))),
+    [boatQueries],
+  );
   // Each session has its own VMG series — unlike SessionDetailPage (a single
   // track), the map-wide `vmg` prop can't work here, so each session's
   // analysis is fetched individually and threaded onto its own Track (see
@@ -153,13 +169,13 @@ export function ActivityDetailPage() {
             : tr.pts.filter(
                 (p) => (start == null || p.ms >= start * 1000) && (end == null || p.ms <= end * 1000),
               );
-        const boatImageUrl = boats.data?.find((b) => b.id === s?.boat_id)?.photos[0]?.url;
+        const boatImageUrl = s ? boatsById.get(s.boat_id)?.photos[0]?.url : undefined;
         return { ...tr, pts, boatImageUrl, vmg: vmgBySessionId.get(tr.id) };
       })
       .filter((tr) => tr.pts.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `sessionAnalyses`
     // intentionally excluded in favor of `sessionAnalysesKey` (see above).
-  }, [activityData.data, sessions.data, sessionAnalysesKey, boats.data]);
+  }, [activityData.data, sessions.data, sessionAnalysesKey, boatsById]);
   useEffect(() => {
     if (tracks.length) timeController.setBounds(...timeBounds(tracks));
     return () => timeController.pause();
@@ -264,11 +280,11 @@ export function ActivityDetailPage() {
   // Falls back to the regular multi-boat layout if a solo activity somehow
   // doesn't have exactly one session yet (e.g. import still processing).
   const soloSession = isSolo && sessions.data?.length === 1 ? sessions.data[0] : undefined;
-  const boatName = (id: string) => boats.data?.find((b) => b.id === id)?.name ?? "—";
+  const boatName = (id: string) => boatsById.get(id)?.name ?? "—";
   const carouselItems: BoatSessionCarouselItem[] = (sessions.data ?? []).map((s, i) => ({
     sessionId: s.id,
     boatName: boatName(s.boat_id),
-    boatPhotoUrl: boats.data?.find((b) => b.id === s.boat_id)?.photos[0]?.url ?? null,
+    boatPhotoUrl: boatsById.get(s.boat_id)?.photos[0]?.url ?? null,
     trackThumbUrl: s.thumbnail?.url ?? null,
     crew: sessionCrews[i]?.data ?? [],
     stats: sessionStatsList[i]?.data,
@@ -397,7 +413,7 @@ export function ActivityDetailPage() {
             treatment as that table, not just a muted line of text. */}
         {soloSession &&
           (() => {
-            const boat = boats.data?.find((b) => b.id === soloSession.boat_id);
+            const boat = boatsById.get(soloSession.boat_id);
             return (
               <p className="sf-crew-row" data-tour="activity-boats">
                 {boat?.photos[0]?.url ? (

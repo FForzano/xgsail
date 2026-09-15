@@ -271,7 +271,15 @@ export function SessionDetail({
     queryFn: () => sessionsService.videos(sessionId),
     enabled: !!sessionId,
   });
-  const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
+  // Fetched by id rather than via boatsService.list(), which excludes guest
+  // boats by design (see backend SqlBoatRepo.list) — a guest boat used in
+  // this session must still resolve to its real name/photo here.
+  const boatId = session.data?.boat_id;
+  const boat = useQuery({
+    queryKey: boatKeys.detail(boatId!),
+    queryFn: () => boatsService.get(boatId!),
+    enabled: !!boatId,
+  });
   // Same query key/fn as SessionAnalysis — TanStack Query dedupes, no extra
   // network round-trip — just so the map can plot leg/maneuver markers.
   const analysis = useQuery({
@@ -306,9 +314,8 @@ export function SessionDetail({
   // The boat's actual name/photo (not the generic "Playback" track label) —
   // shown in the map popup, so it needs the real boat even on this
   // single-track map.
-  const trackBoat = boats.data?.find((b) => b.id === session.data?.boat_id);
-  const trackBoatName = trackBoat?.name ?? t("sessions.playback");
-  const trackBoatImageUrl = trackBoat?.photos[0]?.url;
+  const trackBoatName = boat.data?.name ?? t("sessions.playback");
+  const trackBoatImageUrl = boat.data?.photos[0]?.url;
   const tracks = useMemo(() => {
     if (!gps?.length) return [];
     const extra = { boatImageUrl: trackBoatImageUrl, vmg: analysis.data?.vmg_series };
@@ -589,7 +596,6 @@ export function SessionDetail({
     if (videoUpload.error) notify(t("errors.generic"), "error");
   }, [videoUpload.error, notify, t]);
 
-  const boat = boats.data?.find((b) => b.id === session.data?.boat_id);
   const manager = session.data ? isBoatManager(session.data.boat_id) : false;
   // Mirrors the backend's is_session_crew_or_manager: who can write the
   // shared crew notes and add photos/videos (a superset of who can edit the
@@ -832,7 +838,7 @@ export function SessionDetail({
         <div className="sf-block">
           <div className="sf-toolbar">
             <h1 className="sf-page-title">
-              {boat?.name ?? t("sessions.boat")} — {fmtDateTime(s.started_at)}{" "}
+              {boat.data?.name ?? t("sessions.boat")} — {fmtDateTime(s.started_at)}{" "}
               {reanalysisPolling ? (
                 <span className="sf-badge sf-badge--pending">
                   <Spinner inline /> {t("sessions.reanalyzing")}
@@ -1206,8 +1212,8 @@ export function SessionDetail({
       {sharing && (
         <ShareImageModal
           data={{
-            boatName: boat?.name ?? t("sessions.boat"),
-            boatPhotoUrl: boat?.photos[0]?.url ?? null,
+            boatName: boat.data?.name ?? t("sessions.boat"),
+            boatPhotoUrl: boat.data?.photos[0]?.url ?? null,
             track: tracks[0] ?? null,
             startedAt: s.started_at,
             stats: stats.data ?? null,
