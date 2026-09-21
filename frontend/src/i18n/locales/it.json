@@ -77,7 +77,9 @@
     "loading": "Caricamento…",
     "from": "Dal",
     "to": "Al",
-    "reset": "Reimposta"
+    "reset": "Reimposta",
+    "previousImage": "Immagine precedente",
+    "nextImage": "Immagine successiva"
   },
   "support": {
     "title": "Sostieni XGSail",
@@ -643,6 +645,7 @@
       "includeCrew": "Equipaggio",
       "takePhoto": "Scatta foto",
       "choosePhoto": "Scegli foto",
+      "sessionPhotos": "Da questa sessione",
       "cropPhoto": "Ritaglia foto",
       "cameraTitle": "Scatta la foto",
       "cameraHint": "L'inquadratura che vedi è esattamente quella dell'immagine finale.",
@@ -726,7 +729,16 @@
       "detach": "Separa",
       "detachConfirm": "Separa e rianalizza",
       "detached": "Traccia separata in una nuova sessione"
-    }
+    },
+    "addPhotos": "Aggiungi foto",
+    "photoUploading": "Caricamento {{done}}/{{total}}…",
+    "photoUploadPartial": "{{count}} foto non caricate",
+    "deletePhoto": "Elimina foto",
+    "photoBy": "di {{name}}",
+    "photoCount_one": "{{count}} foto",
+    "photoCount_other": "{{count}} foto",
+    "openGallery": "Apri la galleria",
+    "photoLimitReached": "Questa sessione ha raggiunto il numero massimo di foto."
   },
   "map": {
     "layers": {
@@ -899,7 +911,10 @@
     "today": "Oggi",
     "tomorrow": "Domani",
     "organizedBy": "Organizzato da {{name}}",
-    "viewDetails": "Vedi dettagli"
+    "viewDetails": "Vedi dettagli",
+    "photos": "Foto",
+    "photosFrom": "Foto di {{name}}",
+    "addPhotoToMySession": "Aggiungi foto"
   },
   "regate": {
     "title": "Regate",

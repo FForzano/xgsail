@@ -387,6 +387,10 @@ export interface Activity {
   started_at: string | null;
   ended_at: string | null;
   thumbnail: ImageRef | null;
+  // First photo across this activity's sessions, and the total count — the
+  // diary card's cover. `thumbnail` stays the worker-rendered track overlay.
+  cover_photo: ImageRef | null;
+  photo_count: number;
 }
 
 // Fixed set enforced by a DB check constraint (backend/db/models/activity.py
@@ -422,6 +426,11 @@ export interface Session {
   ended_at: string | null;
   status: SessionStatus;
   thumbnail: ImageRef | null;
+  // The session's own first photo (and how many there are) — carried on every
+  // session payload so a list/card can lead with a real picture instead of the
+  // track render, without a second request per row.
+  cover_photo: ImageRef | null;
+  photo_count: number;
   // Reversible track-trim bounds (unix-epoch seconds) — null means no trim,
   // the full track is analyzed. See sessionsService.setTrim.
   trim_start_time: number | null;
@@ -584,6 +593,23 @@ export interface SessionCrew {
   user_id: UUID;
   sailing_role: SailingRole;
   user?: UserSummary | null;
+}
+
+/** A photo attached to a session (GET /sessions/{id}/photos) — an `ImageRef`
+ * plus who added it and when. A session is routinely co-owned by two crew who
+ * recorded the same outing, so a gallery has to be able to attribute each
+ * shot rather than presenting them all as one person's. */
+export interface SessionPhoto extends ImageRef {
+  created_at: string;
+  created_by: UUID | null;
+  user: UserSummary | null;
+}
+
+/** The same photo seen from its activity (GET /activities/{id}/photos), which
+ * mixes the sessions of several boats — hence the extra provenance. */
+export interface ActivityPhoto extends SessionPhoto {
+  session_id: UUID;
+  boat: { id: UUID; name: string; sail_number: string | null } | null;
 }
 
 // --- session analysis ------------------------------------------------------------------

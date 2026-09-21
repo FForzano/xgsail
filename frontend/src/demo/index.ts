@@ -2,6 +2,7 @@ import { DEMO_ACTIVITY_ID, DEMO_BOAT_ID, DEMO_CLUB_ID, DEMO_DEVICE_ID, DEMO_SESS
 import {
   demoActivity,
   demoActivityData,
+  demoActivityPhotos,
   demoAnalysis,
   demoBoat,
   demoBoatMembers,
@@ -33,6 +34,7 @@ const BY_PATH: Record<string, unknown> = {
   [`/activities/${DEMO_ACTIVITY_ID}/sessions`]: [demoSession],
   [`/activities/${DEMO_ACTIVITY_ID}/marks`]: demoMarks,
   [`/activities/${DEMO_ACTIVITY_ID}/data`]: demoActivityData,
+  [`/activities/${DEMO_ACTIVITY_ID}/photos`]: demoActivityPhotos,
 
   [`/sessions/${DEMO_SESSION_ID}`]: demoSession,
   [`/sessions/${DEMO_SESSION_ID}/streams`]: demoStreams,

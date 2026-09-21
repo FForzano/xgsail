@@ -18,6 +18,7 @@ from ..auth import (
     is_session_crew_or_manager,
     require_user,
     session_notes_visible_to,
+    session_photo_limit,
     session_visible_to,
     verify_csrf,
 )
@@ -78,15 +79,21 @@ def _strip_private_notes(data: dict, session, user) -> dict:
 
 
 def _session_payload(session, user) -> dict:
-    data = _strip_private_notes(session.to_dict(), session, user)
+    # Same builder as the list endpoints (media.session_thumbnail_payload),
+    # so the single-session GET carries the same thumbnail/cover_photo/
+    # photo_count shape instead of a second, drifting copy of it.
+    data = _strip_private_notes(media.session_thumbnail_payload(session), session, user)
     # Single-session path: one is_crew() call is cheap here, unlike the list
     # endpoint below where the same query per row would be an N+1.
     data["was_aboard"] = repos.sessions.is_crew(session.id, user.id) if user is not None else False
     return data
 
 
-def _thumbnail_payload(session, user, *, crew_session_ids: "set[uuid.UUID]") -> dict:
-    data = _strip_private_notes(media.session_thumbnail_payload(session), session, user)
+def _thumbnail_payload(session, user, *, crew_session_ids: "set[uuid.UUID]",
+                       covers: dict) -> dict:
+    data = _strip_private_notes(
+        media.session_thumbnail_payload(session, covers=covers), session, user
+    )
     data["was_aboard"] = session.id in crew_session_ids
     return data
 
@@ -107,7 +114,9 @@ def list_sessions(request: Request, activity_id: Optional[uuid.UUID] = None,
     # One bulk query for the whole page instead of an is_crew() per row.
     crew_ids = (repos.sessions.crew_session_ids(user.id, [s.id for s in sessions])
                 if user is not None else set())
-    return [_thumbnail_payload(s, user, crew_session_ids=crew_ids) for s in sessions]
+    covers = repos.sessions.photo_covers([s.id for s in sessions])
+    return [_thumbnail_payload(s, user, crew_session_ids=crew_ids, covers=covers)
+            for s in sessions]
 
 
 @router.get("/{session_id}")
@@ -752,9 +761,12 @@ def update_crew_role(session_id: uuid.UUID, user_id: uuid.UUID,
 def list_photos(session_id: uuid.UUID, request: Request):
     user = current_user(request)
     _require_visible(session_id, user)
+    # The image is joined by the repo, not fetched per row — a session's
+    # gallery renders every photo it returns.
+    users_by_id: dict = {}
     return [
-        p for p in (media.image_payload(ph.image_id)
-                    for ph in repos.sessions.list_photos(session_id))
+        p for p in (media.session_photo_payload(ph, img, users_by_id=users_by_id)
+                    for ph, img in repos.sessions.list_photos_with_images(session_id))
         if p is not None
     ]
 
@@ -764,8 +776,14 @@ def create_photo(session_id: uuid.UUID, request: Request):
     verify_csrf(request)
     user = require_user(request)
     session = _require_session(session_id)
-    if not is_session_crew_or_manager(session, user):
-        raise HTTPException(403, "Session crew or boat owner/admin required")
+    limit = session_photo_limit(session, user)
+    if limit is None:
+        raise HTTPException(403, "Session crew, boat owner/admin or activity organiser required")
+    # Reuses photo_covers' count, which already excludes deleted images — a
+    # removed photo must free its slot.
+    _cover, count = repos.sessions.photo_covers([session_id]).get(session_id, (None, 0))
+    if count >= limit:
+        raise HTTPException(409, f"This session already has its maximum of {limit} photos")
     payload = media.create_image_upload(user.id)
     repos.sessions.add_photo(session_id, image_id=payload["image_id"], created_by=user.id)
     return payload
@@ -776,8 +794,8 @@ def confirm_photo(session_id: uuid.UUID, image_id: uuid.UUID, request: Request):
     verify_csrf(request)
     user = require_user(request)
     session = _require_session(session_id)
-    if not is_session_crew_or_manager(session, user):
-        raise HTTPException(403, "Session crew or boat owner/admin required")
+    if session_photo_limit(session, user) is None:
+        raise HTTPException(403, "Session crew, boat owner/admin or activity organiser required")
     if repos.sessions.get_photo(session_id, image_id) is None:
         raise HTTPException(404, "Photo not found")
     if not media.confirm_image(image_id):

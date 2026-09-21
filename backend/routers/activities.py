@@ -79,11 +79,13 @@ def list_activities(request: Request, type: Optional[str] = None,
         # Races the caller's boats are entered for, around now — what the
         # recording screen offers as "the race I am about to sail".
         now = datetime.now(timezone.utc)
-        return [activity_payload(a) for a in repos.activities.list_entered_for_user(
+        activities = repos.activities.list_entered_for_user(
             user.id,
             since=now - ENTERED_WINDOW_PAST,
             until=now + ENTERED_WINDOW_AHEAD,
-        )]
+        )
+        covers = repos.activities.photo_covers([a.id for a in activities])
+        return [activity_payload(a, covers=covers) for a in activities]
     activities = repos.activities.list(
         club_id=club_id, group_id=group_id, type=type, status=status,
         crewed_or_created_by=user.id if mine else None,
@@ -92,7 +94,9 @@ def list_activities(request: Request, type: Optional[str] = None,
         viewer_is_superadmin=bool(user and user.is_superadmin),
         limit=limit, offset=offset,
     )
-    return [activity_payload(a) for a in activities]
+    # One batched cover-photo query for the whole page instead of one per row.
+    covers = repos.activities.photo_covers([a.id for a in activities])
+    return [activity_payload(a, covers=covers) for a in activities]
 
 
 @router.get("/upcoming")
@@ -101,8 +105,10 @@ def list_upcoming_activities(request: Request, limit: int = 5):
     powers the "in arrivo" banner in the personal diary. Registered before
     ``/{activity_id}`` so FastAPI doesn't try to parse "upcoming" as a UUID."""
     user = require_user(request)
-    activities = repos.activities.list_upcoming_for_user(user.id, limit=limit)
-    return [activity_payload(a) for a in activities if activity_visible_to(a, user)]
+    activities = [a for a in repos.activities.list_upcoming_for_user(user.id, limit=limit)
+                 if activity_visible_to(a, user)]
+    covers = repos.activities.photo_covers([a.id for a in activities])
+    return [activity_payload(a, covers=covers) for a in activities]
 
 
 @router.get("/{activity_id}")
@@ -184,8 +190,23 @@ def list_activity_sessions(activity_id: uuid.UUID, request: Request):
     # bulk query rather than an is_crew() per row.
     crew_ids = (repos.sessions.crew_session_ids(user.id, [s.id for s in sessions])
                 if user is not None else set())
-    return [{**media.session_thumbnail_payload(s), "was_aboard": s.id in crew_ids}
+    covers = repos.sessions.photo_covers([s.id for s in sessions])
+    return [{**media.session_thumbnail_payload(s, covers=covers), "was_aboard": s.id in crew_ids}
             for s in sessions]
+
+
+@router.get("/{activity_id}/photos")
+def list_activity_photos(activity_id: uuid.UUID, request: Request):
+    """Every photo across the activity's sessions, oldest first (see
+    ``media.activity_photos_payload``). A session inside a visible activity
+    is visible to that caller by construction — ``session_visible_to`` falls
+    back to ``activity_visible_to`` — so no extra per-session check is
+    needed here, unlike the boat session-notes endpoint next door, which
+    deliberately gates twice because a boat member can see a *private*
+    session note an activity-only viewer must not."""
+    user = current_user(request)
+    _require_visible(activity_id, user)
+    return media.activity_photos_payload(activity_id)
 
 
 @router.get("/{activity_id}/data")

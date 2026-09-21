@@ -31,6 +31,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Avatar } from "@/components/ui/Avatar";
 import { UserPicker } from "@/components/common/UserPicker";
 import { WindCard } from "@/components/common/WindCard";
+import { PhotoGallery, type GalleryPhoto } from "@/components/common/PhotoGallery";
 import { SessionAnalysis } from "@/components/session/SessionAnalysis";
 import { ShareImageModal } from "@/components/session/ShareImageModal";
 import { HealthCard } from "@/components/session/HealthCard";
@@ -609,6 +610,21 @@ export function SessionDetail({
   // admin — should be able to log the outing).
   const crewOrManager = manager || (crew.data?.some((c) => c.user_id === user?.id) ?? false);
 
+  // Mirrors the backend's delete_photo rule exactly (backend/routers/
+  // sessions.py): the photo's own uploader, or a boat owner/admin — never a
+  // plain crew member on someone else's shot, which the server would 403.
+  const sessionGalleryPhotos = useMemo<GalleryPhoto[]>(
+    () =>
+      (photos.data ?? []).map((p) => ({
+        id: p.image_id,
+        url: p.url,
+        caption: p.user ? t("sessions.photoBy", { name: userLabel(p.user) }) : undefined,
+        subtitle: fmtDateTime(p.created_at),
+        onDelete: p.created_by === user?.id || manager ? () => removePhoto.mutate(p.image_id) : undefined,
+      })),
+    [photos.data, manager, user?.id, removePhoto, t],
+  );
+
   // Single consolidated ⋮ menu (title-level) — replaces the old separate
   // OptionsMenu (session actions) + MapLegsOptions (⚙ on the map). Sections
   // absent for a non-manager viewer: only "Mostra su mappa" (always visible
@@ -820,11 +836,24 @@ export function SessionDetail({
         ref={photoInputRef}
         type="file"
         accept="image/*"
+        multiple
         hidden
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void photoUpload.upload(f);
+          const files = Array.from(e.target.files ?? []);
           e.target.value = "";
+          if (files.length === 0) return;
+          void photoUpload.uploadMany(files).then(({ failed, firstError }) => {
+            if (failed === 0) return;
+            // 409 is the per-session photo cap (auth/permissions.py's
+            // session_photo_limit) — a count of failures wouldn't say so.
+            const capped = firstError instanceof ApiError && firstError.status === 409;
+            notify(
+              capped
+                ? t("sessions.photoLimitReached")
+                : t("sessions.photoUploadPartial", { count: failed }),
+              "error",
+            );
+          });
         }}
       />
       <input
@@ -838,6 +867,15 @@ export function SessionDetail({
           e.target.value = "";
         }}
       />
+      {/* Rendered unconditionally (not gated on `variant`) so a batch upload
+          triggered from the embedded activity view is just as visible as one
+          from the standalone session page. */}
+      {photoUpload.progress && (
+        <p className="sf-muted">
+          <Spinner inline />{" "}
+          {t("sessions.photoUploading", { done: photoUpload.progress.done, total: photoUpload.progress.total })}
+        </p>
+      )}
       {variant === "page" && (
         // Plain header row, not a `Card` — it's the page's own name, and
         // boxing it just repeats the chrome of every `Section` below it.
@@ -1084,20 +1122,7 @@ export function SessionDetail({
             )
           }
         >
-          <div className={photoGridStyles.grid}>
-            {photos.data.map((p) => (
-              <figure key={p.image_id}>
-                <img src={p.url} alt="" />
-                <Button
-                  variant="danger"
-                  className={`sf-btn--sm ${photoGridStyles.del}`}
-                  onClick={() => removePhoto.mutate(p.image_id)}
-                >
-                  ×
-                </Button>
-              </figure>
-            ))}
-          </div>
+          <PhotoGallery photos={sessionGalleryPhotos} />
         </Section>
       ) : null}
 
@@ -1247,6 +1272,7 @@ export function SessionDetail({
             stats: stats.data ?? null,
             crew: crew.data ?? [],
           }}
+          sessionPhotos={photos.data ?? []}
           onClose={() => setSharing(false)}
         />
       )}

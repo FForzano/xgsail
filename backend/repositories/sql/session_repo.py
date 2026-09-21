@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 
 from ...richtext import to_plain_text
 from ...db.models import (
+    ImageORM,
     SessionAnalysisORM,
     SessionCrewORM,
     SessionLegORM,
@@ -388,8 +389,76 @@ class SqlSessionRepo:
     def list_photos(self, session_id: uuid.UUID) -> "list[SessionPhotoORM]":
         with self.Session() as s:
             return list(s.scalars(
-                select(SessionPhotoORM).where(SessionPhotoORM.session_id == session_id)
+                select(SessionPhotoORM)
+                .where(SessionPhotoORM.session_id == session_id)
+                .order_by(SessionPhotoORM.created_at)
             ).all())
+
+    def list_photos_with_images(
+        self, session_id: uuid.UUID
+    ) -> "list[tuple[SessionPhotoORM, ImageORM]]":
+        """(photo, image) pairs for one session, oldest first, deleted images
+        already excluded. The image is joined rather than left to the caller:
+        a gallery renders every row, so a per-row ``get_image`` would be one
+        query per photograph."""
+        with self.Session() as s:
+            rows = s.execute(
+                select(SessionPhotoORM, ImageORM)
+                .join(ImageORM, ImageORM.id == SessionPhotoORM.image_id)
+                .where(SessionPhotoORM.session_id == session_id)
+                .where(ImageORM.status != "deleted")
+                .order_by(SessionPhotoORM.created_at)
+            ).all()
+            for photo, image in rows:
+                s.expunge(photo)
+                s.expunge(image)
+            return [(photo, image) for photo, image in rows]
+
+    def list_photos_for_activity(
+        self, activity_id: uuid.UUID
+    ) -> "list[tuple[SessionPhotoORM, ImageORM, uuid.UUID]]":
+        """(photo, image, boat_id) triples across every session of the
+        activity, oldest first, deleted images excluded — the aggregation
+        ``GET /activities/{id}/photos`` needs, in one query rather than one
+        ``list_photos`` per session plus one ``get_image`` per photo."""
+        with self.Session() as s:
+            rows = s.execute(
+                select(SessionPhotoORM, ImageORM, SessionORM.boat_id)
+                .join(SessionORM, SessionORM.id == SessionPhotoORM.session_id)
+                .join(ImageORM, ImageORM.id == SessionPhotoORM.image_id)
+                .where(SessionORM.activity_id == activity_id)
+                .where(ImageORM.status != "deleted")
+                .order_by(SessionPhotoORM.created_at)
+            ).all()
+            for photo, image, _boat_id in rows:
+                s.expunge(photo)
+                s.expunge(image)
+            return [(photo, image, boat_id) for photo, image, boat_id in rows]
+
+    def photo_covers(
+        self, session_ids: "list[uuid.UUID]"
+    ) -> "dict[uuid.UUID, tuple[Optional[ImageORM], int]]":
+        """Oldest non-deleted photo + total count, batched for N sessions in
+        one query — the list/gallery cover, without an N+1 per row."""
+        if not session_ids:
+            return {}
+        with self.Session() as s:
+            rows = s.execute(
+                select(SessionPhotoORM.session_id, ImageORM)
+                .join(ImageORM, ImageORM.id == SessionPhotoORM.image_id)
+                .where(SessionPhotoORM.session_id.in_(session_ids))
+                .where(ImageORM.status != "deleted")
+                .order_by(SessionPhotoORM.session_id, SessionPhotoORM.created_at)
+            ).all()
+            out: "dict[uuid.UUID, tuple[Optional[ImageORM], int]]" = {}
+            for session_id, image in rows:
+                s.expunge(image)
+                if session_id in out:
+                    cover, count = out[session_id]
+                    out[session_id] = (cover, count + 1)
+                else:
+                    out[session_id] = (image, 1)
+            return out
 
     def add_photo(self, session_id: uuid.UUID, *, image_id: uuid.UUID,
                   created_by: Optional[uuid.UUID]) -> SessionPhotoORM:

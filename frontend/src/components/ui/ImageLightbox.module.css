@@ -5,9 +5,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
-  background: rgba(4, 15, 26, 0.85);
+  padding: 3.5rem 1rem;
+  padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  background: rgba(4, 15, 26, 0.92);
   cursor: zoom-out;
+}
+
+.stage {
+  position: relative;
+  display: flex;
+  max-width: 100%;
+  max-height: 100%;
+  cursor: default;
 }
 
 .image {
@@ -15,17 +25,113 @@
   max-height: 100%;
   object-fit: contain;
   border-radius: var(--sf-radius);
-  cursor: default;
+  /* The swipe handler needs the horizontal gesture; let the browser keep
+   * vertical panning and pinch-zoom. */
+  touch-action: pan-y pinch-zoom;
+}
+
+.scrim {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 2.5rem 1rem 0.85rem;
+  border-radius: 0 0 var(--sf-radius) var(--sf-radius);
+  background: linear-gradient(to top, rgba(4, 15, 26, 0.85), transparent);
+  pointer-events: none;
+}
+
+.caption,
+.subtitle {
+  margin: 0;
+  color: var(--sf-text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.caption {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+  color: var(--sf-muted);
+}
+
+.close,
+.delete,
+.nav {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(4, 15, 26, 0.55);
+  color: var(--sf-text);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.close:hover,
+.delete:hover,
+.nav:hover:not(:disabled) {
+  background: rgba(4, 15, 26, 0.85);
 }
 
 .close {
+  top: calc(0.85rem + env(safe-area-inset-top, 0px));
+  right: 0.85rem;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.delete {
+  top: calc(0.85rem + env(safe-area-inset-top, 0px));
+  left: 0.85rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--sf-danger);
+}
+
+.nav {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.navPrev {
+  left: 0.5rem;
+}
+
+.navNext {
+  right: 0.5rem;
+}
+
+.counter {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: none;
-  border: none;
-  color: #fff;
-  font-size: 2rem;
-  line-height: 1;
-  cursor: pointer;
+  bottom: calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(4, 15, 26, 0.6);
+  color: var(--sf-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .nav {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
 }

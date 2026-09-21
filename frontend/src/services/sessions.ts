@@ -2,7 +2,6 @@ import { api, BASE } from "@/api/client";
 import type {
   FileRef,
   FileUploadTicket,
-  ImageRef,
   ImageUploadTicket,
   NavSourceCandidate,
   SailingRole,
@@ -10,6 +9,7 @@ import type {
   SessionAnalysis,
   SessionCrew,
   SessionManeuver,
+  SessionPhoto,
   SessionPhysio,
   SessionStats,
   SessionStream,
@@ -124,7 +124,7 @@ export const sessionsService = {
   updateCrewRole: (id: UUID, userId: UUID, body: { sailing_role: SailingRole }) =>
     api.patch<{ ok: boolean }>(`/sessions/${id}/crew/${userId}`, body),
 
-  photos: (id: UUID) => api.get<ImageRef[]>(`/sessions/${id}/photos`),
+  photos: (id: UUID) => api.get<SessionPhoto[]>(`/sessions/${id}/photos`),
   createPhoto: (id: UUID) => api.post<ImageUploadTicket>(`/sessions/${id}/photos`),
   confirmPhoto: (id: UUID, imageId: UUID) => api.post(`/sessions/${id}/photos/${imageId}/confirm`),
   removePhoto: (id: UUID, imageId: UUID) => api.del(`/sessions/${id}/photos/${imageId}`),

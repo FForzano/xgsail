@@ -23,8 +23,9 @@ import { OptionsMenu } from "@/components/ui/OptionsMenu";
 import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { PhotoGallery, type GalleryPhoto } from "@/components/common/PhotoGallery";
 import { activityDisplayName } from "@/utils/activityName";
-import { fmtDateTime, fmtDistance, fmtKnots } from "@/utils/format";
+import { fmtDateTime, fmtDistance, fmtKnots, userLabel } from "@/utils/format";
 import { MARK_ROLES, MARK_ROLE_LETTERS } from "@/utils/markRoles";
 import type { MarkRole, UUID, Visibility } from "@/types";
 import { BackLink } from "@/components/ui/BackLink";
@@ -37,7 +38,7 @@ export function ActivityDetailPage() {
   const { activityId } = useParams<{ activityId: UUID }>();
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { can, isSuperadmin } = useCapabilities();
+  const { can, isSuperadmin, isBoatManager } = useCapabilities();
   const { notify } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -136,6 +137,14 @@ export function ActivityDetailPage() {
       enabled: !!sessions.data && !isSolo,
       retry: false,
     })),
+  });
+  // Every photo across this activity's sessions — only meaningful for the
+  // multi-boat case; a solo activity's embedded SessionDetail has its own
+  // photos section already.
+  const activityPhotos = useQuery({
+    queryKey: activityKeys.photos(activityId!),
+    queryFn: () => activitiesService.photos(activityId!),
+    enabled: !!activityId && !isSolo,
   });
 
   // useQueries returns a new array reference on every render regardless of
@@ -262,6 +271,14 @@ export function ActivityDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: activityKeys.detail(activityId!) }),
     onError: () => notify(t("errors.generic"), "error"),
   });
+  // Keyed on the session the photo belongs to, not the activity — see
+  // sessionsService.removePhoto.
+  const removePhoto = useMutation({
+    mutationFn: ({ sessionId, imageId }: { sessionId: UUID; imageId: UUID }) =>
+      sessionsService.removePhoto(sessionId, imageId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: activityKeys.photos(activityId!) }),
+    onError: () => notify(t("errors.generic"), "error"),
+  });
 
   if (activity.isLoading || !activityId) return <Spinner />;
   if (!activity.data) return null;
@@ -284,11 +301,24 @@ export function ActivityDetailPage() {
   const carouselItems: BoatSessionCarouselItem[] = (sessions.data ?? []).map((s, i) => ({
     sessionId: s.id,
     boatName: boatName(s.boat_id),
+    sessionPhotoUrl: s.cover_photo?.url ?? null,
     boatPhotoUrl: boatsById.get(s.boat_id)?.photos[0]?.url ?? null,
     trackThumbUrl: s.thumbnail?.url ?? null,
     crew: sessionCrews[i]?.data ?? [],
     stats: sessionStatsList[i]?.data,
     wasAboard: s.was_aboard,
+  }));
+  const galleryPhotos: GalleryPhoto[] = (activityPhotos.data ?? []).map((p) => ({
+    id: p.image_id,
+    url: p.url,
+    caption: (p.boat && boatsById.get(p.boat.id)?.name) ?? p.boat?.name,
+    // Omitted rather than "di —": created_by is ON DELETE SET NULL, so a
+    // photo outlives the account that uploaded it.
+    subtitle: p.user ? t("sessions.photoBy", { name: userLabel(p.user) }) : undefined,
+    onDelete:
+      p.created_by === user?.id || (p.boat && isBoatManager(p.boat.id))
+        ? () => removePhoto.mutate({ sessionId: p.session_id, imageId: p.image_id })
+        : undefined,
   }));
 
   return (
@@ -580,6 +610,12 @@ export function ActivityDetailPage() {
             )}
           </Section>
           </div>
+
+          {galleryPhotos.length > 0 && (
+            <Section title={t("activities.photos")}>
+              <PhotoGallery photos={galleryPhotos} captionsOnTiles />
+            </Section>
+          )}
         </>
       )}
 

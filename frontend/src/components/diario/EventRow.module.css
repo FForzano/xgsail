@@ -45,14 +45,43 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  /* `contain`, not `cover` — these are 640x480 track-over-map renders whose
-     4/3 ratio already matches .mediaBox, so `cover` would only ever crop the
-     map and the track's outer edges once the two ratios drift apart. */
+}
+/* Two different sources share this box, and each needs the opposite fit:
+   a track render (`data-fit="track"`, also every regatta hero image) is a
+   640x480 track-over-map overlay whose 4/3 ratio already matches .mediaBox,
+   so `cover` would only ever crop the map and the track's outer edges once
+   the two ratios drift apart — `contain` keeps the whole render visible.
+   A real photograph (`data-fit="photo"`, an activity's `cover_photo`) is the
+   opposite case: it has no relation to .mediaBox's ratio, so `contain` would
+   letterbox every card — `cover` fills the tile the way a photo grid should. */
+.media[data-fit="track"] {
   object-fit: contain;
+}
+.media[data-fit="photo"] {
+  object-fit: cover;
 }
 /* The no-image case lives in components/common/MediaPlaceholder.module.css —
    the regatta hero shows the same tinted stand-in, so the recipe is shared
    rather than copied per surface. */
+
+/* Unobtrusive "there are more photos" cue on a photo cover, echoing the
+   camera-icon count used elsewhere for a photo tally. Kept clear of the
+   badges/title in .body, which live outside this box entirely. */
+.photoCount {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
 
 .body {
   padding: 0.85rem 1rem 1rem;

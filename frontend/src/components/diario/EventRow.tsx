@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Megaphone } from "lucide-react";
+import { Camera, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { MediaPlaceholder } from "@/components/common/MediaPlaceholder";
@@ -75,7 +75,14 @@ export function EventRow({
   const [announcing, setAnnouncing] = useState(false);
   const description = item.kind === "activity" ? item.activity.description : item.regatta.description;
   const href = item.kind === "activity" ? `/diario/activities/${item.id}` : `/diario/regate/regatta/${item.id}`;
-  const imageUrl = item.kind === "activity" ? item.activity.thumbnail?.url : item.regatta.image?.url;
+  // An activity prefers a real photo from one of its sessions over the
+  // worker-rendered track overlay; a regatta only ever has the one hero image.
+  const isPhoto = item.kind === "activity" && !!item.activity.cover_photo;
+  const imageUrl =
+    item.kind === "activity"
+      ? (item.activity.cover_photo?.url ?? item.activity.thumbnail?.url)
+      : item.regatta.image?.url;
+  const photoCount = item.kind === "activity" ? item.activity.photo_count : 0;
 
   return (
     <article className={styles.card} data-tour={dataTour}>
@@ -87,9 +94,23 @@ export function EventRow({
             // dimensions — those vary per track (a long thin route vs. a
             // squarish one), which was making cards with vs. without a
             // thumbnail (or with different track shapes) different heights.
-            <img src={imageUrl} alt="" className={styles.media} />
+            <img
+              src={imageUrl}
+              alt=""
+              className={styles.media}
+              data-fit={isPhoto ? "photo" : "track"}
+            />
           ) : (
             <MediaPlaceholder kind={item.kind} />
+          )}
+          {isPhoto && photoCount > 1 && (
+            <span
+              className={styles.photoCount}
+              aria-label={t("sessions.photoCount", { count: photoCount })}
+            >
+              <Camera size={12} aria-hidden />
+              {photoCount}
+            </span>
           )}
         </div>
       </Link>

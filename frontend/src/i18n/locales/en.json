@@ -77,7 +77,9 @@
     "loading": "Loading…",
     "from": "From",
     "to": "To",
-    "reset": "Reset"
+    "reset": "Reset",
+    "previousImage": "Previous image",
+    "nextImage": "Next image"
   },
   "support": {
     "title": "Support XGSail",
@@ -612,7 +614,7 @@
     "reach": "Reach",
     "speedLoss": "Speed loss",
     "recovery": "Recovery",
-    "showLegs":"Show legs",
+    "showLegs": "Show legs",
     "showManeuvers": "Show maneuvers",
     "editManeuvers": "Edit maneuvers",
     "editManeuversDone": "Done editing maneuvers",
@@ -643,6 +645,7 @@
       "includeCrew": "Crew",
       "takePhoto": "Take photo",
       "choosePhoto": "Choose photo",
+      "sessionPhotos": "From this session",
       "cropPhoto": "Crop photo",
       "cameraTitle": "Take the photo",
       "cameraHint": "What you see here is exactly what the final image will show.",
@@ -726,7 +729,16 @@
       "detach": "Separate",
       "detachConfirm": "Separate and reanalyse",
       "detached": "Track separated into a new session"
-    }
+    },
+    "addPhotos": "Add photos",
+    "photoUploading": "Uploading {{done}}/{{total}}…",
+    "photoUploadPartial": "{{count}} photos failed to upload",
+    "deletePhoto": "Delete photo",
+    "photoBy": "by {{name}}",
+    "photoCount_one": "{{count}} photo",
+    "photoCount_other": "{{count}} photos",
+    "openGallery": "Open gallery",
+    "photoLimitReached": "This session has reached its maximum number of photos."
   },
   "map": {
     "layers": {
@@ -899,7 +911,10 @@
     "today": "Today",
     "tomorrow": "Tomorrow",
     "organizedBy": "Organized by {{name}}",
-    "viewDetails": "View details"
+    "viewDetails": "View details",
+    "photos": "Photos",
+    "photosFrom": "Photo by {{name}}",
+    "addPhotoToMySession": "Add photo"
   },
   "regate": {
     "title": "Regattas",

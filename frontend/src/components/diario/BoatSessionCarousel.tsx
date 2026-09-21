@@ -7,6 +7,7 @@ import styles from "./BoatSessionCarousel.module.css";
 export interface BoatSessionCarouselItem {
   sessionId: string;
   boatName: string;
+  sessionPhotoUrl: string | null;
   boatPhotoUrl: string | null;
   trackThumbUrl: string | null;
   crew: SessionCrew[];
@@ -32,7 +33,9 @@ export function BoatSessionCarousel({
 
   return (
     <div className={`${styles.carousel} sf-mobile-only`}>
-      {items.map((item) => (
+      {items.map((item) => {
+        const mainPhotoUrl = item.sessionPhotoUrl ?? item.boatPhotoUrl;
+        return (
         <button
           key={item.sessionId}
           type="button"
@@ -40,17 +43,19 @@ export function BoatSessionCarousel({
           onClick={() => onOpen(item.sessionId)}
         >
           <div className={styles.photo}>
-            {item.boatPhotoUrl ? (
-              <img src={item.boatPhotoUrl} alt="" />
+            {mainPhotoUrl ? (
+              <img src={mainPhotoUrl} alt="" />
             ) : item.trackThumbUrl ? (
               <img src={item.trackThumbUrl} alt="" />
             ) : (
               <span className={styles.photoEmpty} aria-hidden />
             )}
-            {/* Track thumbnail as a small corner badge, only when there's
-                also a boat photo as the main image — otherwise the track
-                thumbnail above already is the main image. */}
-            {item.boatPhotoUrl && item.trackThumbUrl && (
+            {/* Track thumbnail as a small corner badge whenever the main
+                image above is an actual photograph (the session's own, or
+                failing that the boat's) — otherwise the track thumbnail is
+                already the main image and doesn't need to repeat as a badge
+                over itself. */}
+            {mainPhotoUrl && item.trackThumbUrl && (
               <img className={styles.trackBadge} src={item.trackThumbUrl} alt="" />
             )}
             {/* Otherwise-plain photo gives no hint the whole card opens the
@@ -120,7 +125,8 @@ export function BoatSessionCarousel({
             )}
           </div>
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 }
