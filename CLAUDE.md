@@ -975,6 +975,22 @@ Capacitor plugin changes, which still require a store release.
   background fills get the looser `BACKGROUND_FILL_BUDGET_S` because nobody
   is waiting on them.
 
+- **`was_aboard` is presentation, not authorization.** Boat membership at any
+  role still grants full read access to every session on that boat
+  (`session_visible_to`) — the flag only says whether the viewer is in *that*
+  session's `session_crew`, so the UI can mark an outing as somebody else's
+  instead of presenting it as the viewer's own. `GET /sessions?aboard=` narrows
+  the same union and changes nothing about what is visible. Every session
+  payload carries the field, including `GET /activities/{id}/sessions`, which
+  builds it in `activities.py` rather than in `media.session_thumbnail_payload`
+  — a new session-list endpoint that forgets it makes the TS `Session` type lie.
+- **`add_crew` does not upsert**, which is why `PATCH /sessions/{id}/crew/{user_id}`
+  exists: it returns `False` on a row that already exists, so before that
+  endpoint the only way to fix a role was remove + re-add. Crew is modelled
+  **per session** only — there is no `activity_crew` table, and an activity's
+  crew is the union across its sessions. Don't add an activity-level crew
+  endpoint; extend the session one.
+
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 

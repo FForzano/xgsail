@@ -288,6 +288,7 @@ export function ActivityDetailPage() {
     trackThumbUrl: s.thumbnail?.url ?? null,
     crew: sessionCrews[i]?.data ?? [],
     stats: sessionStatsList[i]?.data,
+    wasAboard: s.was_aboard,
   }));
 
   return (
@@ -543,7 +544,14 @@ export function ActivityDetailPage() {
                                 <span className="sf-session-thumb sf-session-thumb--empty" aria-hidden />
                               )}
                             </td>
-                            <td>{boatName(s.boat_id)}</td>
+                            <td>
+                              {boatName(s.boat_id)}
+                              {s.was_aboard === false && (
+                                <span className={`sf-badge sf-badge--sm ${pageStyles.notAboardBadge}`}>
+                                  {t("sessions.notAboard")}
+                                </span>
+                              )}
+                            </td>
                             <td>{fmtDateTime(s.started_at)}</td>
                             <td>{stats ? fmtDistance(stats.distance_m) : "—"}</td>
                             <td>{stats ? fmtKnots(stats.avg_speed_kts) : "—"}</td>

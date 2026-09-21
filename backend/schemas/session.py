@@ -20,6 +20,14 @@ class SessionCrewModel(BaseModel):
     sailing_role: Literal["skipper", "crew", "guest"] = "crew"
 
 
+class SessionCrewUpdateModel(BaseModel):
+    """Body for ``PATCH /sessions/{id}/crew/{user_id}`` — changing a crew
+    member's role after they've already been added (``SessionCrewModel`` is
+    add-only; ``repos.sessions.add_crew`` returns ``False`` on a row that
+    already exists rather than upserting)."""
+    sailing_role: Literal["skipper", "crew", "guest"]
+
+
 class ManeuverCorrectionModel(BaseModel):
     # Mirrors backend/db/models/session.py::MANEUVER_TYPES — kept as a
     # literal (not imported) since schemas stay dependency-free of db/models.

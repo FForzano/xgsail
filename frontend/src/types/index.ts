@@ -424,6 +424,11 @@ export interface Session {
   // visible). See sessionsService.updateNotes.
   notes?: string | null;
   notes_shared?: boolean;
+  // Whether the viewer is in this session's crew. Boat membership alone also
+  // grants read access (auth/permissions.py::session_visible_to), so a boat's
+  // owner sees outings they were not on — this is what lets the UI say so
+  // instead of presenting them as the viewer's own. False when logged out.
+  was_aboard: boolean;
 }
 
 export interface SessionStream {

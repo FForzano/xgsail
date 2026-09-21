@@ -8,6 +8,12 @@
   margin-top: 0.35rem;
 }
 
+/* "Non a bordo" marker next to a boat name in the sessions table/carousel —
+   the viewer has boat-level access to the session but wasn't its crew. */
+.notAboardBadge {
+  margin-left: 0.4rem;
+}
+
 /* Boe (race marks) list row — allowed to wrap on narrow screens so the icon
    actions never squeeze the (often two-line) mark name; see .markInfo/
    .markText below for the info side, .sf-strip__actions (global.css) for the

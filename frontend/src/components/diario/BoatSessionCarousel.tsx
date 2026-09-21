@@ -11,6 +11,9 @@ export interface BoatSessionCarouselItem {
   trackThumbUrl: string | null;
   crew: SessionCrew[];
   stats?: SessionStats | null;
+  /** True unless the viewer has boat-level access to this session without
+   * having crewed it themselves — see the `was_aboard` contract. */
+  wasAboard: boolean;
 }
 
 /** Mobile-only alternative to the boats table (see ActivityDetailPage):
@@ -67,7 +70,12 @@ export function BoatSessionCarousel({
             </span>
           </div>
           <div className={styles.body}>
-            <h3 className={styles.name}>{item.boatName}</h3>
+            <h3 className={styles.name}>
+              {item.boatName}
+              {!item.wasAboard && (
+                <span className="sf-badge sf-badge--sm">{t("sessions.notAboard")}</span>
+              )}
+            </h3>
             {item.stats && (
               <div className={styles.stats}>
                 <div className={styles.stat}>

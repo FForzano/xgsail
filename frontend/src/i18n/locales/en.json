@@ -534,6 +534,7 @@
     "noGps": "No GPS data for this session",
     "crew": "Crew",
     "addCrew": "Add crew",
+    "notAboard": "Not aboard",
     "sailingRole": "Role",
     "sailingRoles": {
       "skipper": "Skipper",

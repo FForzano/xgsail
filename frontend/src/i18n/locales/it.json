@@ -534,6 +534,7 @@
     "noGps": "Nessun dato GPS per questa sessione",
     "crew": "Equipaggio",
     "addCrew": "Aggiungi equipaggio",
+    "notAboard": "Non a bordo",
     "sailingRole": "Ruolo",
     "sailingRoles": {
       "skipper": "Timoniere",

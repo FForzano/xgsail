@@ -31,9 +31,32 @@ export const sessionKeys = {
     ["sessions", id, "nav-sources", quality] as const,
 };
 
+function sessionsQs(params: Record<string, string | undefined>): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) p.set(k, v);
+  const s = p.toString();
+  return s ? `?${s}` : "";
+}
+
 export const sessionsService = {
-  listMine: () => api.get<Session[]>("/sessions?mine=true"),
-  listForActivity: (activityId: UUID) => api.get<Session[]>(`/sessions?activity_id=${activityId}`),
+  // `aboard` is only meaningful together with `mine: true` — see the
+  // `was_aboard`/`aboard` contract in docs and backend/routers/sessions.py.
+  list: (
+    filters: {
+      activityId?: UUID;
+      boatId?: UUID;
+      mine?: boolean;
+      aboard?: boolean;
+    } = {},
+  ) =>
+    api.get<Session[]>(
+      `/sessions${sessionsQs({
+        activity_id: filters.activityId,
+        boat_id: filters.boatId,
+        mine: filters.mine ? "true" : undefined,
+        aboard: filters.aboard === undefined ? undefined : String(filters.aboard),
+      })}`,
+    ),
   get: (id: UUID) => api.get<Session>(`/sessions/${id}`),
   update: (id: UUID, body: Partial<Session>) => api.patch<Session>(`/sessions/${id}`, body),
   remove: (id: UUID) => api.del(`/sessions/${id}`),
@@ -98,6 +121,8 @@ export const sessionsService = {
   addCrew: (id: UUID, body: { user_id: UUID; sailing_role?: SailingRole }) =>
     api.post(`/sessions/${id}/crew`, body),
   removeCrew: (id: UUID, userId: UUID) => api.del(`/sessions/${id}/crew/${userId}`),
+  updateCrewRole: (id: UUID, userId: UUID, body: { sailing_role: SailingRole }) =>
+    api.patch<{ ok: boolean }>(`/sessions/${id}/crew/${userId}`, body),
 
   photos: (id: UUID) => api.get<ImageRef[]>(`/sessions/${id}/photos`),
   createPhoto: (id: UUID) => api.post<ImageUploadTicket>(`/sessions/${id}/photos`),

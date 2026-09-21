@@ -30,6 +30,7 @@ from ..schemas import (
     PhysioSharingModel,
     SessionAttachModel,
     SessionCrewModel,
+    SessionCrewUpdateModel,
     SessionNotesModel,
     SessionTrimModel,
     SessionWriteModel,
@@ -77,24 +78,36 @@ def _strip_private_notes(data: dict, session, user) -> dict:
 
 
 def _session_payload(session, user) -> dict:
-    return _strip_private_notes(session.to_dict(), session, user)
+    data = _strip_private_notes(session.to_dict(), session, user)
+    # Single-session path: one is_crew() call is cheap here, unlike the list
+    # endpoint below where the same query per row would be an N+1.
+    data["was_aboard"] = repos.sessions.is_crew(session.id, user.id) if user is not None else False
+    return data
 
 
-def _thumbnail_payload(session, user) -> dict:
-    return _strip_private_notes(media.session_thumbnail_payload(session), session, user)
+def _thumbnail_payload(session, user, *, crew_session_ids: "set[uuid.UUID]") -> dict:
+    data = _strip_private_notes(media.session_thumbnail_payload(session), session, user)
+    data["was_aboard"] = session.id in crew_session_ids
+    return data
 
 
 @router.get("")
 def list_sessions(request: Request, activity_id: Optional[uuid.UUID] = None,
-                  boat_id: Optional[uuid.UUID] = None, mine: bool = False):
+                  boat_id: Optional[uuid.UUID] = None, mine: bool = False,
+                  aboard: Optional[bool] = None):
     user = current_user(request)
     if mine:
         if user is None:
             raise HTTPException(401, "Authentication required")
         # Boat membership / crew implies visibility — no extra filter needed.
-        return [_thumbnail_payload(s, user) for s in repos.sessions.list_for_user(user.id)]
-    sessions = repos.sessions.list(activity_id=activity_id, boat_id=boat_id)
-    return [_thumbnail_payload(s, user) for s in sessions if session_visible_to(s, user)]
+        sessions = repos.sessions.list_for_user(user.id, aboard=aboard)
+    else:
+        sessions = [s for s in repos.sessions.list(activity_id=activity_id, boat_id=boat_id)
+                    if session_visible_to(s, user)]
+    # One bulk query for the whole page instead of an is_crew() per row.
+    crew_ids = (repos.sessions.crew_session_ids(user.id, [s.id for s in sessions])
+                if user is not None else set())
+    return [_thumbnail_payload(s, user, crew_session_ids=crew_ids) for s in sessions]
 
 
 @router.get("/{session_id}")
@@ -711,6 +724,24 @@ def remove_crew(session_id: uuid.UUID, user_id: uuid.UUID, request: Request):
     if user.id != user_id and not _can_edit(session, user):
         raise HTTPException(403, "Boat owner/admin required (or remove yourself)")
     if not repos.sessions.remove_crew(session_id, user_id):
+        raise HTTPException(404, "Not in the crew")
+    return {"ok": True}
+
+
+@router.patch("/{session_id}/crew/{user_id}")
+def update_crew_role(session_id: uuid.UUID, user_id: uuid.UUID,
+                     body: SessionCrewUpdateModel, request: Request):
+    """Change a crew member's role after the fact — ``add_crew`` doesn't
+    upsert (it returns ``False`` on a row that already exists), so this is
+    the only way to fix a role without a remove+re-add round trip. Same
+    authorization matrix as ``DELETE`` above: yourself, or boat owner/admin
+    (or the activity creator, via ``_can_edit``)."""
+    verify_csrf(request)
+    user = require_user(request)
+    session = _require_session(session_id)
+    if user.id != user_id and not _can_edit(session, user):
+        raise HTTPException(403, "Boat owner/admin required (or edit your own role)")
+    if not repos.sessions.set_crew_role(session_id, user_id, sailing_role=body.sailing_role):
         raise HTTPException(404, "Not in the crew")
     return {"ok": True}
 

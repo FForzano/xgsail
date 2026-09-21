@@ -183,7 +183,15 @@ def regenerate_thumbnail(activity_id: uuid.UUID, request: Request):
 def list_activity_sessions(activity_id: uuid.UUID, request: Request):
     user = current_user(request)
     _require_visible(activity_id, user)
-    return [media.session_thumbnail_payload(s) for s in repos.sessions.list(activity_id=activity_id)]
+    sessions = repos.sessions.list(activity_id=activity_id)
+    # `was_aboard` is part of every session payload (see routers/sessions.py):
+    # an activity routinely holds sessions of several boats and crews, and this
+    # is the flag that separates the viewer's own outing from the others'. One
+    # bulk query rather than an is_crew() per row.
+    crew_ids = (repos.sessions.crew_session_ids(user.id, [s.id for s in sessions])
+                if user is not None else set())
+    return [{**media.session_thumbnail_payload(s), "was_aboard": s.id in crew_ids}
+            for s in sessions]
 
 
 @router.get("/{activity_id}/data")
