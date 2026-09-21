@@ -244,6 +244,44 @@ def now_iso() -> str:
     return datetime.utcnow().isoformat() + "Z"
 
 
+# --- shared resource payloads ---------------------------------------------
+#
+# These live here rather than in their own router because several routers
+# serve the same resource: a boat is returned by `boats`, and by `admin` for
+# operator diagnostics; an activity by `activities` and by `admin`. Keeping one
+# builder is what stops the two from drifting into subtly different shapes for
+# the same record.
+
+# Document refs a boat only exposes to its own members.
+BOAT_SENSITIVE_FIELDS = ("cert_id", "mbsa_id")
+
+
+def boat_payload(boat, user) -> dict:
+    """Public read shape — sensitive document refs only for members/sa."""
+    d = boat.to_dict()
+    is_member = user is not None and (
+        user.is_superadmin or repos.boats.is_member(boat.id, user.id)
+    )
+    if is_member:
+        d["cert"] = media.file_payload(boat.cert_id)
+        d["mbsa"] = media.file_payload(boat.mbsa_id)
+    else:
+        for k in BOAT_SENSITIVE_FIELDS:
+            d.pop(k, None)
+        d.pop("members", None)
+    d["photos"] = [
+        p for p in (media.image_payload(ph.image_id) for ph in repos.boats.list_photos(boat.id))
+        if p is not None
+    ]
+    return d
+
+
+def activity_payload(activity) -> dict:
+    d = activity.to_dict()
+    d["thumbnail"] = media.image_payload(activity.thumbnail_image_id)
+    return d
+
+
 def detect_file_type(filename: str) -> str:
     """Detect E1 file type from filename pattern."""
     if "_nav.csv" in filename:

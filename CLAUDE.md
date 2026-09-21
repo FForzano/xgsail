@@ -1008,6 +1008,15 @@ Capacitor plugin changes, which still require a store release.
   shared key, the first toggle in either map silently overwrites the other's
   defaults, since `toggle` persists the whole object.
 
+- **A resource served by more than one router gets one payload builder, in
+  `routers/_common.py`.** `boat_payload` and `activity_payload` live there
+  because `admin` serves the same records as `boats`/`activities` do, and two
+  builders for one resource drift into subtly different shapes for the same
+  row. They were private helpers inside those two routers until `admin`
+  started importing them across modules — reaching for another router's
+  `_`-prefixed helper is the signal that it belongs in `_common.py`, not that
+  the import needs a comment.
+
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 
