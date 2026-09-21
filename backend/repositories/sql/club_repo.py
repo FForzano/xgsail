@@ -30,6 +30,17 @@ class SqlClubRepo:
                 select(ClubORM).where(ClubORM.osm_ref == osm_ref)
             ).first()
 
+    def osm_refs_taken(self, osm_refs: "list[str]") -> "set[str]":
+        """Which of ``osm_refs`` some club already *is* — one query, so a
+        suggestion list of any size costs the same. Suggesting a taken element
+        would only produce a 409 on the link (``clubs.osm_ref`` is UNIQUE)."""
+        if not osm_refs:
+            return set()
+        with self.Session() as s:
+            return set(s.scalars(
+                select(ClubORM.osm_ref).where(ClubORM.osm_ref.in_(osm_refs))
+            ).all())
+
     def create(self, data: dict) -> ClubORM:
         with self.Session() as s:
             orm = ClubORM(**{k: v for k, v in data.items() if k != "members"})

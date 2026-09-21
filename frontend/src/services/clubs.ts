@@ -1,10 +1,11 @@
 import { api } from "@/api/client";
-import type { Club, ClubMember, ImageUploadTicket, UUID } from "@/types";
+import type { Club, ClubMember, ClubOsmSuggestion, ImageUploadTicket, UUID } from "@/types";
 
 export const clubKeys = {
   all: ["clubs"] as const,
   detail: (id: UUID) => ["clubs", id] as const,
   members: (id: UUID) => ["clubs", id, "members"] as const,
+  osmSuggestions: (id: UUID) => ["clubs", id, "osm-suggestions"] as const,
 };
 
 export const clubsService = {
@@ -13,6 +14,7 @@ export const clubsService = {
   create: (body: Partial<Club>) => api.post<Club>("/clubs", body),
   update: (id: UUID, body: Partial<Club>) => api.patch<Club>(`/clubs/${id}`, body),
   deactivate: (id: UUID) => api.del(`/clubs/${id}`),
+  listOsmSuggestions: (id: UUID) => api.get<ClubOsmSuggestion[]>(`/clubs/${id}/osm-suggestions`),
 
   members: (id: UUID) => api.get<ClubMember[]>(`/clubs/${id}/members`),
   /** Self-join (no user_id) lands as `requested`; manager add as `invited`. */

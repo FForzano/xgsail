@@ -2,12 +2,12 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError } from "@/api/client";
 import { clubsService, clubKeys } from "@/services/clubs";
 import { membershipKeys } from "@/components/membership/MembershipStrip";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
+import { useOsmLinkErrorNotifier } from "@/hooks/useOsmLinkErrorNotifier";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -56,16 +56,7 @@ export function ClubsPage() {
   // that already exists.
   const clearOsmParams = () => navigate("/gruppi/clubs", { replace: true });
 
-  // A 409 here has one specific cause worth naming — the OSM element is
-  // already linked to another club — and it is the case the user can act on
-  // (they picked the wrong place, or someone else got there first).
-  const notifyLinkError = (error: unknown) =>
-    notify(
-      error instanceof ApiError && error.status === 409
-        ? t("gruppi.osmAlreadyLinked")
-        : t("errors.generic"),
-      "error",
-    );
+  const notifyLinkError = useOsmLinkErrorNotifier();
 
   const create = useMutation({
     mutationFn: () =>

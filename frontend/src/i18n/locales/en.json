@@ -542,7 +542,11 @@
     "osmClaimLabel": "Link to an existing club",
     "osmClaimPlaceholder": "Choose a club…",
     "osmClaimAction": "Link",
-    "osmAlreadyLinked": "This place is already linked to another club."
+    "osmAlreadyLinked": "This place is already linked to another club.",
+    "osmSuggestionsTitle": "Is this club on OpenStreetMap?",
+    "osmSuggestionUnnamed": "Unnamed element",
+    "osmSuggestionDistance": "{{distance}} m away",
+    "osmSuggestionLinked": "Club linked to OpenStreetMap."
   },
   "sessions": {
     "title": "My sessions",

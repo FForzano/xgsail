@@ -542,7 +542,11 @@
     "osmClaimLabel": "Collega a un circolo esistente",
     "osmClaimPlaceholder": "Scegli un circolo…",
     "osmClaimAction": "Collega",
-    "osmAlreadyLinked": "Questo luogo è già collegato a un altro circolo."
+    "osmAlreadyLinked": "Questo luogo è già collegato a un altro circolo.",
+    "osmSuggestionsTitle": "Questo circolo è su OpenStreetMap?",
+    "osmSuggestionUnnamed": "Elemento senza nome",
+    "osmSuggestionDistance": "a {{distance}} m",
+    "osmSuggestionLinked": "Circolo collegato a OpenStreetMap."
   },
   "sessions": {
     "title": "Le mie sessioni",

@@ -198,6 +198,21 @@ export interface ClaimSuggestion {
   matches_boat: { id: UUID; name: string };
 }
 
+// An OpenStreetMap element that is probably this club, ranked most-likely
+// first — computed on demand by GET /clubs/{id}/osm-suggestions; nothing is
+// stored or notified. `name` may be null (an unnamed OSM element);
+// `name_match` is a hint that the club's own name and the OSM name looked
+// like the same place, not a guarantee.
+export interface ClubOsmSuggestion {
+  osm_ref: string;
+  name: string | null;
+  kind: string;
+  lat: number;
+  lng: number;
+  distance_m: number;
+  name_match: boolean;
+}
+
 export type BoatClaimStatus = "pending" | "approved" | "rejected";
 
 export interface BoatClaim {
