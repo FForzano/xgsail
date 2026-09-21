@@ -1,0 +1,33 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Compact key/value grid for the identity fields above the stat tiles —
+   scoped here since nothing else in admin/ needs it. */
+.meta {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+.meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.meta dt {
+  font-size: 0.75rem;
+  color: var(--sf-muted);
+}
+.meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .meta {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

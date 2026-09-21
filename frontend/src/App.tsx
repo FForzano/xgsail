@@ -44,6 +44,7 @@ import { AdminLayout } from "@/pages/admin/AdminLayout";
 import { AppSettingsPage } from "@/pages/admin/AppSettingsPage";
 import { WindStationsPage } from "@/pages/admin/WindStationsPage";
 import { UsersPage } from "@/pages/admin/UsersPage";
+import { UserDetailPage } from "@/pages/admin/UserDetailPage";
 import { DeviceTypesPage } from "@/pages/admin/DeviceTypesPage";
 import { BoatClassesPage } from "@/pages/admin/BoatClassesPage";
 
@@ -122,6 +123,7 @@ export default function App() {
               <Route path="settings" element={<AppSettingsPage />} />
               <Route path="wind" element={<WindStationsPage />} />
               <Route path="users" element={<UsersPage />} />
+              <Route path="users/:userId" element={<UserDetailPage />} />
               <Route path="device-types" element={<DeviceTypesPage />} />
               <Route path="boat-classes" element={<BoatClassesPage />} />
             </Route>

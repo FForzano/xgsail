@@ -381,7 +381,7 @@ Shared UI primitives live in `components/ui/`; data fetching in
 ### Backend routers (`backend/routers/`)
 
 One module per resource, registered in `routers/__init__.py`
-(`ALL_ROUTERS`): `app_config`, `legal`, `auth`, `users`, `rbac`,
+(`ALL_ROUTERS`): `app_config`, `legal`, `auth`, `users`, `rbac`, `admin`,
 `boats`, `clubs`, `groups`, `posts`, `note_templates`, `devices`,
 `integrations`, `activities`, `sessions`, `live_recordings`, `polars`,
 `regattas`, `racedays`, `races`, `device_api`, `imports`, `ingest`,
@@ -1017,6 +1017,23 @@ Capacitor plugin changes, which still require a store release.
   `_`-prefixed helper is the signal that it belongs in `_common.py`, not that
   the import needs a comment.
 
+- **`/api/admin` is read-only, and that is what makes its audit log
+  best-effort.** Every handler in `backend/routers/admin.py` writes one
+  `admin_access_log` row and swallows a failure from that write (logged, never
+  raised): the log is accountability, not a gate — the caller is already
+  authorized, and failing the read would only take the operator's diagnostics
+  away while something is already broken. That trade holds *only* because
+  nothing there mutates. An admin **write** or impersonation endpoint must
+  instead fail the request when its audit write fails — a mutation nobody can
+  attribute should not happen. The table's two FKs are `ON DELETE SET NULL`,
+  not CASCADE: deleting either party must not erase the evidence that the
+  access happened, while still leaving a user erasable (`RESTRICT` would let
+  the log veto a GDPR erasure).
+- **A superadmin is not an audience for crew notes.** `session_notes_visible_to`
+  names the session's crew and the boat's owner/admin — the admin diagnostics
+  endpoints deliberately serve a `has_notes` boolean and never `sessions.notes`.
+  Being able to read a row is not being entitled to its private content; a new
+  admin view that "just includes the session payload" reintroduces that leak.
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 
