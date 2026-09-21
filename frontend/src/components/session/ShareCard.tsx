@@ -89,7 +89,10 @@ export const ShareCard = forwardRef<
         />
       )}
       <div className={styles.scrim} />
-      <div className={styles.brand}>XGSail</div>
+      <div className={styles.brand}>
+        <img src="/logo.svg" alt="" className={styles.brandMark} />
+        XGSail
+      </div>
       <div className={styles.overlay}>
         {includeTitle && (
           <div className={styles.title}>
