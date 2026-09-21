@@ -16,6 +16,7 @@ from . import (
     legal,
     users,
     rbac,
+    admin,
     boats,
     clubs,
     groups,
@@ -50,6 +51,8 @@ ALL_ROUTERS = [
     auth.router,
     users.router,
     rbac.router,
+    # Operator diagnostics (superadmin, read-only, audited)
+    admin.router,
     # Resources
     boats.router,
     clubs.router,

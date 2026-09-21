@@ -12,6 +12,9 @@ export function StatTile({ label, value }: { label: ReactNode; value: ReactNode 
   );
 }
 
-export function StatTiles({ children }: { children: ReactNode }) {
-  return <div className={styles.tiles}>{children}</div>;
+/** `wide` halves the column count (2-up at every width) for a row of two or
+ * four tiles whose values carry a second line — opt-in, so the default 4-up /
+ * 2-up rhythm the playback and health readouts rely on is untouched. */
+export function StatTiles({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  return <div className={wide ? `${styles.tiles} ${styles.wide}` : styles.tiles}>{children}</div>;
 }

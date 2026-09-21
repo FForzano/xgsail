@@ -1,18 +1,67 @@
-.analysisBlock {
-  margin-top: 0.5rem;
+/* Shared by SessionAnalysis and its AnalysisLegs/AnalysisManeuvers siblings —
+   one feature area, one stylesheet. */
+
+/* A top-level region of the analysis (polar / legs / maneuvers). Same rule as
+   .sf-block + .sf-block in global.css: with no border or surface of their own,
+   stacked regions read apart via a hairline plus air, never by boxing each one.
+   Only between adjacent blocks — the first sits under the section heading,
+   which already separates it. */
+.analysisBlock + .analysisBlock {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--sf-border);
 }
+/* Quieter than the section's own .sf-block__title (which is accent-tinted) but
+   still unmistakably a heading rather than another small caption. */
 .analysisTitle {
-  font-size: 0.95rem;
-  margin: 0 0 0.4rem;
-  color: var(--sf-muted);
-  opacity: 0.75;
+  margin: 0 0 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sf-text);
+  opacity: 0.8;
 }
 .tackblock {
-  margin-top: 0.75rem;
+  margin-top: 1rem;
 }
-.tackblockTitle {
+/* Heading for a sub-group inside a block: a point-of-sail breakdown, the
+   maneuver comparison chart. */
+.subheading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.9rem;
-  margin: 0 0 0.35rem;
+  margin: 0 0 0.5rem;
+}
+/* Point-of-sail dot, same token as the map's leg markers. */
+.legDot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex: none;
+}
+/* A count that has to read as a number the reader can use, not as decoration:
+   accent-tinted and full-contrast rather than another muted grey pill. Shared
+   by the point-of-sail headings, the maneuver chips and the collapsed-list
+   toggles. */
+.countPill {
+  flex: none;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sf-primary) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sf-primary) 45%, transparent);
+  color: var(--sf-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* Series/side colour key, used by the maneuver count chips and the port vs
+   starboard comparison header. */
+.swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  flex: none;
 }
 .optimalAngles {
   margin-top: 0.5rem;
@@ -22,26 +71,245 @@
   font-style: italic;
   margin: 0 0 0.5rem;
 }
-.optimalAnglesRow {
+/* Secondary line inside a StatTile value (target/VMG under the angle, the leg
+   number under a best-of figure). */
+.tileSub {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--sf-muted);
+}
+
+/* --- port vs starboard comparison (AnalysisLegs) --- */
+/* Deliberately unboxed: the tiles above already carry surfaces, so giving this
+   one too would stack a box inside the block. It reads as a chart instead. */
+.compare {
+  margin-top: 0.9rem;
+}
+.compareHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--sf-muted);
+}
+.compareSide {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+/* Metric caption on its own row, then value / port bar / starboard bar / value.
+   Both bars start at the shared middle gap, so the shorter one is the answer. */
+.compareRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.45rem;
+  row-gap: 0.15rem;
+  margin-top: 0.55rem;
+}
+.compareMetric {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--sf-muted);
+}
+.compareValue {
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--sf-muted);
+}
+/* The better side of *this* metric — marked on the number rather than by
+   dimming the loser's bar, which would weaken the length comparison. */
+.compareValueWin {
+  color: var(--sf-text);
+  font-weight: 700;
+}
+.compareTrack {
+  display: flex;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sf-border) 55%, transparent);
+  overflow: hidden;
+}
+.compareTrackPort {
+  justify-content: flex-end;
+}
+.compareFill {
+  height: 100%;
+  border-radius: 999px;
+}
+.compareVerdict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.45rem;
+  margin: 0.7rem 0 0;
+  font-size: 0.88rem;
+}
+.compareVerdict svg {
+  flex: none;
+  color: var(--sf-warning);
+}
+
+/* --- maneuver counts (AnalysisManeuvers) --- */
+.countChips {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.optimalAnglesTile {
+.countChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.4rem 0.3rem 0.55rem;
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  border-radius: 999px;
+  font-size: 0.82rem;
+}
+
+/* --- collapsed raw lists --- */
+.collapsible {
+  margin-top: 1rem;
+}
+.collapsibleToggle {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.5rem 0.9rem;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  /* A comfortable thumb target: this is the only control in the block. */
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
   background: var(--sf-surface);
   border: 1px solid var(--sf-border);
   border-radius: var(--sf-radius);
-  min-width: 8rem;
+  color: var(--sf-text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.optimalAnglesLabel {
-  font-size: 0.8rem;
+.collapsibleToggle:hover {
+  background: var(--sf-surface-2);
+  border-color: var(--sf-primary);
+}
+.collapsibleToggle[aria-expanded="true"] {
+  background: var(--sf-surface-2);
+}
+.collapsibleToggle:focus-visible {
+  outline: 2px solid var(--sf-primary);
+}
+/* Accent-coloured so the chevron reads as "this opens" rather than as a glyph
+   in the label's own colour. */
+.collapsibleToggle svg {
+  flex: none;
+  color: var(--sf-primary);
+}
+.collapsibleLabel {
+  flex: 1;
+  min-width: 0;
+}
+.collapsibleBody {
+  margin-top: 0.5rem;
+}
+
+/* --- tacks vs gybes charts --- */
+/* One chart per unit, side by side where there is room. The knots chart holds
+   a single metric, the seconds chart two, hence the uneven split. */
+.chartGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 0.5rem;
+}
+@media (max-width: 700px) {
+  .chartGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.chart {
+  position: relative;
+  min-width: 0;
+}
+.chartUnit {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 0.7rem;
   color: var(--sf-muted);
 }
-.optimalAnglesAngle {
-  font-size: 1.3rem;
+
+/* --- paginated lists as rows on a phone --- */
+/* The leg list is seven columns wide and the maneuver list five or six. Neither
+   fits 360px, and `sf-tablewrap`'s horizontal scroll inside a vertically
+   scrolling page is the worst of both — so below 700px the same markup becomes
+   one flat label/value record per row, hairline-separated in the `sf-strip`
+   spirit rather than boxed. Cells marked `data-head` carry the row's identity
+   and print no label.
+
+   The per-cell label is a real `<span>` in the DOM, not `content: attr(...)`:
+   changing `display` on the table elements below drops the table's implicit
+   ARIA roles, and `thead` is hidden here, so generated content would leave a
+   screen reader reading bare values with nothing to name them. On desktop the
+   span is `display: none` (out of the a11y tree too) and the visible `thead`
+   names the columns instead — exactly one of the two is live at any width. */
+.cellLabel {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .rows {
+    overflow-x: visible;
+  }
+  .rows table,
+  .rows tbody {
+    display: block;
+  }
+  .rows thead {
+    display: none;
+  }
+  .rows tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 0.9rem;
+    row-gap: 0.1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--sf-border) 60%, transparent);
+  }
+  .rows tr:last-child {
+    border-bottom: 0;
+  }
+  .rows tr:hover td {
+    background: none;
+  }
+  .rows td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.1rem 0;
+    border: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .rows td .cellLabel {
+    display: inline;
+    color: var(--sf-muted);
+    font-size: 0.78rem;
+  }
+  .rows td[data-head] {
+    justify-content: flex-start;
+    font-weight: 600;
+    margin-bottom: 0.1rem;
+  }
+  /* The maneuver type cell (a `Select` in edit mode) and the action cell each
+     need the full width. */
+  .rows td[data-span] {
+    grid-column: 1 / -1;
+  }
 }

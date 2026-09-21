@@ -40,11 +40,9 @@ from ..schemas import (
     BoatWriteModel,
 )
 from ..services import boat_merge, media
-from ._common import repos, user_summary, with_user
+from ._common import boat_payload, repos, user_summary, with_user
 
 router = APIRouter(prefix="/api", tags=["boats"])
-
-_SENSITIVE = ("cert_id", "mbsa_id")
 
 
 def _require_boat(boat_id: uuid.UUID):
@@ -61,26 +59,6 @@ def _is_manager(user, boat_id: uuid.UUID, *, owner_only: bool = False) -> bool:
         return True
     roles = ["owner"] if owner_only else ["owner", "admin"]
     return repos.boats.is_member(boat_id, user.id, roles=roles)
-
-
-def _boat_payload(boat, user) -> dict:
-    """Public read shape — sensitive document refs only for members/sa."""
-    d = boat.to_dict()
-    is_member = user is not None and (
-        user.is_superadmin or repos.boats.is_member(boat.id, user.id)
-    )
-    if is_member:
-        d["cert"] = media.file_payload(boat.cert_id)
-        d["mbsa"] = media.file_payload(boat.mbsa_id)
-    else:
-        for k in _SENSITIVE:
-            d.pop(k, None)
-        d.pop("members", None)
-    d["photos"] = [
-        p for p in (media.image_payload(ph.image_id) for ph in repos.boats.list_photos(boat.id))
-        if p is not None
-    ]
-    return d
 
 
 # --- boat classes (superadmin catalog) -------------------------------------
@@ -174,7 +152,7 @@ def list_boats(request: Request, mine: bool = False, q: Optional[str] = None,
         boats = repos.boats.list_boats_for_user(user.id)
     else:
         boats = repos.boats.list(q=q, limit=limit, offset=offset)
-    return [_boat_payload(b, user) for b in boats]
+    return [boat_payload(b, user) for b in boats]
 
 
 # --- guest boats + claims ----------------------------------------------------
@@ -183,7 +161,7 @@ def list_boats(request: Request, mine: bool = False, q: Optional[str] = None,
 # so "claimable" / "claims" would otherwise be parsed as a boat id and 422.
 
 def _claimable_payload(boat) -> dict:
-    """Deliberately not ``_boat_payload``: this is a "is this my boat?" search
+    """Deliberately not ``boat_payload``: this is a "is this my boat?" search
     run by someone with no relationship to the boat, and a boat's full payload
     (members, documents, photos) belongs to the people already on it. Just
     enough to recognise the boat and see who entered it."""
@@ -225,6 +203,21 @@ def list_my_claims(request: Request):
                      "is_guest": boat.is_guest} if boat is not None else None,
         })
     return out
+
+
+@router.get("/boats/claim-suggestions")
+def list_claim_suggestions(request: Request):
+    """Guest boats that plausibly are one of the caller's own boats, matched
+    on (boat class, sail number) — proactive discovery for someone who would
+    otherwise have to go to ``/boats/claimable`` and search by hand."""
+    user = require_user(request)
+    return [
+        {
+            "guest_boat": _claimable_payload(guest_boat),
+            "matches_boat": {"id": matching_boat.id, "name": matching_boat.name},
+        }
+        for guest_boat, matching_boat in repos.boats.find_guest_matches(user.id)
+    ]
 
 
 @router.post("/boats/{boat_id}/claims")
@@ -337,7 +330,7 @@ def reject_claim(boat_id: uuid.UUID, claim_id: uuid.UUID, request: Request):
 
 @router.get("/boats/{boat_id}")
 def get_boat(boat_id: uuid.UUID, request: Request):
-    return _boat_payload(_require_boat(boat_id), current_user(request))
+    return boat_payload(_require_boat(boat_id), current_user(request))
 
 
 @router.post("/boats")
@@ -351,7 +344,7 @@ def create_boat(body: BoatWriteModel, request: Request):
         data |= {"is_guest": True, "guest_created_by": user.id}
     boat = repos.boats.create(data)
     repos.boats.add_member(boat.id, user_id=user.id, role="owner")
-    return _boat_payload(repos.boats.get(boat.id), user)
+    return boat_payload(repos.boats.get(boat.id), user)
 
 
 @router.patch("/boats/{boat_id}")
@@ -361,7 +354,7 @@ def update_boat(boat_id: uuid.UUID, body: BoatWriteModel, request: Request):
     _require_boat(boat_id)
     if not _is_manager(user, boat_id):
         raise HTTPException(403, "Boat owner/admin required")
-    return _boat_payload(repos.boats.update(boat_id, body.model_dump(exclude_unset=True)), user)
+    return boat_payload(repos.boats.update(boat_id, body.model_dump(exclude_unset=True)), user)
 
 
 @router.delete("/boats/{boat_id}")

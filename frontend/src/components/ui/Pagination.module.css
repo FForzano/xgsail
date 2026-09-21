@@ -1,0 +1,19 @@
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+/* Pill rather than bare text: with an arrow button either side, the indicator
+   is read as the middle of one control group instead of as a stray caption. */
+.indicator {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  border: 1px solid var(--sf-border);
+  font-size: 0.8rem;
+  color: var(--sf-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

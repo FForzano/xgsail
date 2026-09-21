@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy.orm import aliased as orm_aliased
 
 from ...db.models import (
     BoatClaimORM, BoatClassORM, BoatNoteORM, BoatORM, BoatPhotoORM, DeviceORM,
@@ -83,6 +84,69 @@ class SqlBoatRepo:
             )
             stmt = stmt.order_by(BoatORM.name.asc()).offset(offset).limit(limit)
             return list(s.scalars(stmt).all())
+
+    @staticmethod
+    def _norm_sail_number(col):
+        """Case/whitespace/hyphen-insensitive sail-number key, so 'ITA-1234',
+        'ita 1234' and 'ITA1234' compare equal. Computed in SQL — never pull
+        guest boats into Python to filter, that table grows with every
+        placeholder on the instance."""
+        return func.lower(func.replace(func.replace(col, " ", ""), "-", ""))
+
+    def find_guest_matches(self, user_id: uuid.UUID) -> "list[tuple[BoatORM, BoatORM]]":
+        """Guest boats that plausibly ARE one of ``user_id``'s own boats,
+        matched on (boat_class_id, normalised sail_number) — the pair the
+        product treats as effectively unique. Returns ``(guest_boat,
+        matching_boat)`` pairs, most-recent guest boat first.
+
+        A NULL/blank class or sail number on either side never matches: same
+        class of bug as the ``get_entry(regatta_id, None)`` gotcha, where a
+        NULL would otherwise compare equal to another NULL and pair up
+        unrelated boats. Excludes a guest boat the caller already belongs to
+        (nothing to claim) and one they already have a *pending* claim on;
+        a rejected claim does not suppress the suggestion, so a re-claim
+        after rejection stays visible."""
+        own = orm_aliased(BoatORM)
+        guest = orm_aliased(BoatORM)
+        own_sail = self._norm_sail_number(own.sail_number)
+        guest_sail = self._norm_sail_number(guest.sail_number)
+        with self.Session() as s:
+            stmt = (
+                select(guest, own)
+                .select_from(own)
+                .join(UserBoatORM, UserBoatORM.boat_id == own.id)
+                .join(
+                    guest,
+                    (guest.boat_class_id == own.boat_class_id)
+                    & (guest_sail == own_sail),
+                )
+                .where(
+                    UserBoatORM.user_id == user_id,
+                    UserBoatORM.role.in_(["owner", "admin"]),
+                    own.is_guest.is_(False),
+                    own.boat_class_id.isnot(None),
+                    own.sail_number.isnot(None),
+                    func.trim(own.sail_number) != "",
+                    guest.is_guest.is_(True),
+                    guest.boat_class_id.isnot(None),
+                    guest.sail_number.isnot(None),
+                    func.trim(guest.sail_number) != "",
+                    ~select(UserBoatORM.id)
+                    .where(UserBoatORM.boat_id == guest.id, UserBoatORM.user_id == user_id)
+                    .correlate(guest)
+                    .exists(),
+                    ~select(BoatClaimORM.id)
+                    .where(
+                        BoatClaimORM.boat_id == guest.id,
+                        BoatClaimORM.user_id == user_id,
+                        BoatClaimORM.status == "pending",
+                    )
+                    .correlate(guest)
+                    .exists(),
+                )
+                .order_by(guest.created_at.desc())
+            )
+            return [(row[0], row[1]) for row in s.execute(stmt).all()]
 
     def get(self, boat_id: uuid.UUID) -> Optional[BoatORM]:
         with self.Session() as s:

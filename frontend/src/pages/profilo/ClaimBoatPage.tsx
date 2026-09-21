@@ -13,7 +13,7 @@ import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { userLabel } from "@/utils/format";
-import type { BoatClaimStatus, ClaimableBoat, UUID } from "@/types";
+import type { BoatClaimStatus, ClaimableBoat, ClaimSuggestion, UUID } from "@/types";
 import styles from "./ClaimBoatPage.module.css";
 
 function claimStatusBadge(status: BoatClaimStatus): string {
@@ -41,6 +41,7 @@ export function ClaimBoatPage() {
 
   const [query, setQuery] = useState("");
   const [target, setTarget] = useState<ClaimableBoat | null>(null);
+  const [initialMergeInto, setInitialMergeInto] = useState<UUID | null>(null);
 
   const trimmed = query.trim();
   const results = useQuery({
@@ -54,11 +55,59 @@ export function ClaimBoatPage() {
     queryFn: () => boatsService.list(true),
   });
 
+  const suggestions = useQuery({
+    queryKey: boatKeys.claimSuggestions,
+    queryFn: boatsService.listClaimSuggestions,
+  });
+
   const outgoing = useQuery({ queryKey: boatKeys.claimsMine, queryFn: boatsService.listMyClaims });
+
+  const openSuggestion = (s: ClaimSuggestion) => {
+    setInitialMergeInto(s.matches_boat.id);
+    setTarget(s.guest_boat);
+  };
+
+  const openSearchResult = (b: ClaimableBoat) => {
+    setInitialMergeInto(null);
+    setTarget(b);
+  };
 
   return (
     <div className="sf-section__body">
       <BackLink to="/profilo/barche" label={t("noteTemplates.backToBoats")} />
+
+      {!!suggestions.data?.length && (
+        <Section title={t("boats.claimSuggestionsTitle")}>
+          <p className="sf-muted">{t("boats.claimSuggestionsIntro")}</p>
+          <div className="sf-strip">
+            {suggestions.data.map((s) => (
+              <div key={s.guest_boat.id} className={`sf-strip__item ${styles.result}`}>
+                <div className={styles.resultMain}>
+                  <strong>
+                    {t("boats.claimSuggestionMatch", {
+                      guestBoat: s.guest_boat.name,
+                      myBoat: s.matches_boat.name,
+                    })}
+                  </strong>
+                  <span className={`sf-muted ${styles.resultMeta}`}>
+                    <span>{s.guest_boat.sail_number ?? "—"}</span>
+                    <span>{s.guest_boat.boat_class ?? "—"}</span>
+                    <span>{s.guest_boat.session_count}</span>
+                  </span>
+                  {s.guest_boat.created_by && (
+                    <span className="sf-muted">
+                      {t("boats.claimCreatedBy", { name: userLabel(s.guest_boat.created_by) })}
+                    </span>
+                  )}
+                </div>
+                <Button className="sf-btn--sm" onClick={() => openSuggestion(s)}>
+                  {t("boats.claimSuggestionAction")}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       <Section title={t("boats.claimTitle")}>
         <p className="sf-muted">{t("boats.claimIntro")}</p>
@@ -94,7 +143,7 @@ export function ClaimBoatPage() {
                       </span>
                     )}
                   </div>
-                  <Button className="sf-btn--sm" onClick={() => setTarget(b)}>
+                  <Button className="sf-btn--sm" onClick={() => openSearchResult(b)}>
                     {t("boats.claimSubmit")}
                   </Button>
                 </div>
@@ -124,10 +173,16 @@ export function ClaimBoatPage() {
         <ClaimBoatModal
           boat={target}
           myBoats={(myBoats.data ?? []).filter((b) => !b.is_guest && b.id !== target.id)}
-          onClose={() => setTarget(null)}
+          initialTargetBoatId={initialMergeInto}
+          onClose={() => {
+            setTarget(null);
+            setInitialMergeInto(null);
+          }}
           onSubmitted={async () => {
             setTarget(null);
+            setInitialMergeInto(null);
             await queryClient.invalidateQueries({ queryKey: boatKeys.claimsMine });
+            await queryClient.invalidateQueries({ queryKey: boatKeys.claimSuggestions });
             notify(t("boats.claimSent"), "success");
           }}
           onFailed={(err) => notify(apiErrorMessage(err, t("boats.claimFailed")), "error")}
@@ -140,19 +195,24 @@ export function ClaimBoatPage() {
 function ClaimBoatModal({
   boat,
   myBoats,
+  initialTargetBoatId = null,
   onClose,
   onSubmitted,
   onFailed,
 }: {
   boat: ClaimableBoat;
   myBoats: { id: UUID; name: string }[];
+  /** Pre-selects "merge into" mode with this target — the suggestions block
+   * already knows which of the caller's boats matched, so there is no
+   * reason to make them pick it again from the dropdown. */
+  initialTargetBoatId?: UUID | null;
   onClose: () => void;
   onSubmitted: () => Promise<void>;
   onFailed: (err: unknown) => void;
 }) {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<"new" | "merge">("new");
-  const [mergeInto, setMergeInto] = useState<UUID | "">("");
+  const [mode, setMode] = useState<"new" | "merge">(initialTargetBoatId ? "merge" : "new");
+  const [mergeInto, setMergeInto] = useState<UUID | "">(initialTargetBoatId ?? "");
 
   const submit = useMutation({
     mutationFn: () => boatsService.createClaim(boat.id, mode === "merge" ? (mergeInto || null) : null),

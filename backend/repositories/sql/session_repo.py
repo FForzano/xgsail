@@ -89,9 +89,20 @@ class SqlSessionRepo:
                 .where(SessionORM.boat_id == boat_id)
             ) or 0
 
-    def list_for_user(self, user_id: uuid.UUID) -> "list[SessionORM]":
+    def list_for_user(self, user_id: uuid.UUID, *,
+                      aboard: Optional[bool] = None) -> "list[SessionORM]":
         """Sessions the user took part in: crew rows plus any session of a boat
-        they are a member of (``?mine=true``)."""
+        they are a member of (``?mine=true``).
+
+        ``aboard`` narrows that union without changing what's *visible* —
+        visibility (boat membership, at any role) is unaffected:
+        - ``True``: only sessions the user actually crewed.
+        - ``False``: only sessions visible via boat membership where the user
+          was NOT crew (e.g. a ``visitor`` browsing the boat's logbook).
+        - ``None`` (default): the full union, unfiltered — current behaviour.
+        Filtered in SQL rather than post-fetch, matching how ``_visibility_clause``
+        in the activity repo is documented — this method has no ``LIMIT`` today,
+        but a Python filter here would be the wrong pattern to copy elsewhere."""
         from ...db.models import UserBoatORM
 
         with self.Session() as s:
@@ -99,9 +110,14 @@ class SqlSessionRepo:
             crew_ids = select(SessionCrewORM.session_id).where(
                 SessionCrewORM.user_id == user_id
             )
-            q = select(SessionORM).where(
-                SessionORM.boat_id.in_(boat_ids) | SessionORM.id.in_(crew_ids)
-            ).order_by(SessionORM.started_at.desc().nulls_last())
+            if aboard is True:
+                condition = SessionORM.id.in_(crew_ids)
+            elif aboard is False:
+                condition = SessionORM.boat_id.in_(boat_ids) & SessionORM.id.not_in(crew_ids)
+            else:
+                condition = SessionORM.boat_id.in_(boat_ids) | SessionORM.id.in_(crew_ids)
+            q = select(SessionORM).where(condition).order_by(
+                SessionORM.started_at.desc().nulls_last())
             return list(s.scalars(q).all())
 
     def list_with_notes_for_boat(self, boat_id: uuid.UUID, *, limit: int = 50,
@@ -322,6 +338,38 @@ class SqlSessionRepo:
                     SessionCrewORM.user_id == user_id,
                 )
             ).first() is not None
+
+    def crew_session_ids(self, user_id: uuid.UUID,
+                         session_ids: "list[uuid.UUID]") -> "set[uuid.UUID]":
+        """Which of ``session_ids`` the user crews, in one query — the bulk
+        counterpart to ``is_crew`` for a list payload (``GET /sessions``),
+        where a per-row query would be an N+1."""
+        session_ids = list(session_ids)
+        if not session_ids:
+            return set()
+        with self.Session() as s:
+            rows = s.scalars(
+                select(SessionCrewORM.session_id).where(
+                    SessionCrewORM.user_id == user_id,
+                    SessionCrewORM.session_id.in_(session_ids),
+                )
+            ).all()
+            return set(rows)
+
+    def set_crew_role(self, session_id: uuid.UUID, user_id: uuid.UUID, *,
+                      sailing_role: str) -> bool:
+        with self.Session() as s:
+            orm = s.scalars(
+                select(SessionCrewORM).where(
+                    SessionCrewORM.session_id == session_id,
+                    SessionCrewORM.user_id == user_id,
+                )
+            ).first()
+            if orm is None:
+                return False
+            orm.sailing_role = sailing_role
+            s.commit()
+            return True
 
     def is_crew_in_activity(self, activity_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         """Whether `user_id` crews any session belonging to `activity_id` —

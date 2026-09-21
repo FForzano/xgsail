@@ -434,6 +434,12 @@ export function SessionDetail({
     mutationFn: (userId: UUID) => sessionsService.removeCrew(sessionId, userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.crew(sessionId) }),
   });
+  const updateCrewRole = useMutation({
+    mutationFn: ({ userId, role }: { userId: UUID; role: SailingRole }) =>
+      sessionsService.updateCrewRole(sessionId, userId, { sailing_role: role }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.crew(sessionId) }),
+    onError: (err) => notify(err instanceof ApiError ? err.detail : t("errors.generic"), "error"),
+  });
   const saveNotes = useMutation({
     mutationFn: () =>
       sessionsService.updateNotes(sessionId, {
@@ -980,32 +986,54 @@ export function SessionDetail({
       >
         {crew.data?.length ? (
           <div className="sf-strip">
-            {crew.data.map((c) => (
-              <div key={c.user_id} className="sf-strip__item sf-strip__item--muted">
-                <span className="sf-crew-row">
-                  <Avatar
-                    profileImage={c.user?.profile_image}
-                    firstName={c.user?.first_name}
-                    lastName={c.user?.last_name}
-                    size="sm"
-                  />
-                  <span>
-                    <strong>{userLabel(c.user)}</strong>{" "}
-                    <span className="sf-muted">{c.user?.email}</span>{" "}
-                    <span className="sf-badge">{t(`sessions.sailingRoles.${c.sailing_role}`)}</span>
+            {crew.data.map((c) => {
+              // Mirrors the backend rule exactly (PATCH /sessions/{id}/crew/{user_id}):
+              // a manager, or the crew member correcting their own role.
+              const canEditRole = manager || c.user_id === user?.id;
+              return (
+                <div key={c.user_id} className="sf-strip__item sf-strip__item--muted">
+                  <span className="sf-crew-row">
+                    <Avatar
+                      profileImage={c.user?.profile_image}
+                      firstName={c.user?.first_name}
+                      lastName={c.user?.last_name}
+                      size="sm"
+                    />
+                    <span>
+                      <strong>{userLabel(c.user)}</strong>{" "}
+                      <span className="sf-muted">{c.user?.email}</span>{" "}
+                      {canEditRole ? (
+                        <select
+                          className="sf-badge sf-badge--select"
+                          value={c.sailing_role}
+                          disabled={updateCrewRole.isPending}
+                          onChange={(e) =>
+                            updateCrewRole.mutate({ userId: c.user_id, role: e.target.value as SailingRole })
+                          }
+                        >
+                          {SAILING_ROLES.map((role) => (
+                            <option key={role} value={role}>
+                              {t(`sessions.sailingRoles.${role}`)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="sf-badge">{t(`sessions.sailingRoles.${c.sailing_role}`)}</span>
+                      )}
+                    </span>
                   </span>
-                </span>
-                {manager && (
-                  <Button
-                    variant="ghost"
-                    className="sf-btn--sm"
-                    onClick={() => removeCrew.mutate(c.user_id)}
-                  >
-                    {t("common.remove")}
-                  </Button>
-                )}
-              </div>
-            ))}
+                  {manager && (
+                    <Button
+                      variant="ghost"
+                      className="sf-btn--sm"
+                      onClick={() => removeCrew.mutate(c.user_id)}
+                    >
+                      {t("common.remove")}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="sf-muted">{t("common.none")}</p>

@@ -330,6 +330,9 @@ export const demoSession: Session = {
   id: DEMO_SESSION_ID,
   activity_id: DEMO_ACTIVITY_ID,
   boat_id: DEMO_BOAT_ID,
+  // The tour shows the demo outing as one the viewer sailed, so every
+  // crew-gated affordance renders the way it will on their own sessions.
+  was_aboard: true,
   started_at: demoStartIso,
   ended_at: demoEndIso,
   status: "processed",

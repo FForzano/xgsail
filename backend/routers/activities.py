@@ -28,7 +28,7 @@ from ..auth import (
 from ..db.models.activity import MARK_ROLES
 from ..schemas import ActivityWriteModel, MarkWriteModel
 from ..services import ingestion, media
-from ._common import activity_sensor_data, repos
+from ._common import activity_payload, activity_sensor_data, repos
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
 
@@ -37,12 +37,6 @@ router = APIRouter(prefix="/api/activities", tags=["activities"])
 # once ashore.
 ENTERED_WINDOW_PAST = timedelta(hours=12)
 ENTERED_WINDOW_AHEAD = timedelta(hours=36)
-
-
-def _with_thumbnail(activity) -> dict:
-    d = activity.to_dict()
-    d["thumbnail"] = media.image_payload(activity.thumbnail_image_id)
-    return d
 
 
 def _require_activity(activity_id: uuid.UUID):
@@ -85,7 +79,7 @@ def list_activities(request: Request, type: Optional[str] = None,
         # Races the caller's boats are entered for, around now — what the
         # recording screen offers as "the race I am about to sail".
         now = datetime.now(timezone.utc)
-        return [_with_thumbnail(a) for a in repos.activities.list_entered_for_user(
+        return [activity_payload(a) for a in repos.activities.list_entered_for_user(
             user.id,
             since=now - ENTERED_WINDOW_PAST,
             until=now + ENTERED_WINDOW_AHEAD,
@@ -98,7 +92,7 @@ def list_activities(request: Request, type: Optional[str] = None,
         viewer_is_superadmin=bool(user and user.is_superadmin),
         limit=limit, offset=offset,
     )
-    return [_with_thumbnail(a) for a in activities]
+    return [activity_payload(a) for a in activities]
 
 
 @router.get("/upcoming")
@@ -108,12 +102,12 @@ def list_upcoming_activities(request: Request, limit: int = 5):
     ``/{activity_id}`` so FastAPI doesn't try to parse "upcoming" as a UUID."""
     user = require_user(request)
     activities = repos.activities.list_upcoming_for_user(user.id, limit=limit)
-    return [_with_thumbnail(a) for a in activities if activity_visible_to(a, user)]
+    return [activity_payload(a) for a in activities if activity_visible_to(a, user)]
 
 
 @router.get("/{activity_id}")
 def get_activity(activity_id: uuid.UUID, request: Request):
-    return _with_thumbnail(_require_visible(activity_id, current_user(request)))
+    return activity_payload(_require_visible(activity_id, current_user(request)))
 
 
 @router.post("")
@@ -183,7 +177,15 @@ def regenerate_thumbnail(activity_id: uuid.UUID, request: Request):
 def list_activity_sessions(activity_id: uuid.UUID, request: Request):
     user = current_user(request)
     _require_visible(activity_id, user)
-    return [media.session_thumbnail_payload(s) for s in repos.sessions.list(activity_id=activity_id)]
+    sessions = repos.sessions.list(activity_id=activity_id)
+    # `was_aboard` is part of every session payload (see routers/sessions.py):
+    # an activity routinely holds sessions of several boats and crews, and this
+    # is the flag that separates the viewer's own outing from the others'. One
+    # bulk query rather than an is_crew() per row.
+    crew_ids = (repos.sessions.crew_session_ids(user.id, [s.id for s in sessions])
+                if user is not None else set())
+    return [{**media.session_thumbnail_payload(s), "was_aboard": s.id in crew_ids}
+            for s in sessions]
 
 
 @router.get("/{activity_id}/data")

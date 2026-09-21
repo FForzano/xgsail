@@ -190,6 +190,14 @@ export interface ClaimableBoat {
   created_by: UserSummary | null;
 }
 
+// A guest boat that looks like one the viewer already owns, matched on
+// (boat class, sail number) — the pair the fleet treats as unique. Computed on
+// demand by GET /boats/claim-suggestions; nothing is stored or notified.
+export interface ClaimSuggestion {
+  guest_boat: ClaimableBoat;
+  matches_boat: { id: UUID; name: string };
+}
+
 export type BoatClaimStatus = "pending" | "approved" | "rejected";
 
 export interface BoatClaim {
@@ -424,6 +432,11 @@ export interface Session {
   // visible). See sessionsService.updateNotes.
   notes?: string | null;
   notes_shared?: boolean;
+  // Whether the viewer is in this session's crew. Boat membership alone also
+  // grants read access (auth/permissions.py::session_visible_to), so a boat's
+  // owner sees outings they were not on — this is what lets the UI say so
+  // instead of presenting them as the viewer's own. False when logged out.
+  was_aboard: boolean;
 }
 
 export interface SessionStream {
@@ -1031,4 +1044,51 @@ export interface UserProgress {
   previous_by_month: number[];
   personal_bests: ProgressBest[];
   by_boat: ProgressBoat[];
+}
+
+// --- operator diagnostics (/api/admin, superadmin-only, audited) ----------------------
+
+export interface AdminUserDetail {
+  user: User & { profile_image?: ImageRef | null };
+  counts: {
+    boats: number;
+    activities: number;
+    sessions: number;
+    devices: number;
+    clubs: number;
+    groups: number;
+    roles: number;
+  };
+}
+
+// Deliberately without note text: crew notes are private to that session's crew
+// and the boat's managers, and a superadmin is not one of those audiences.
+export interface AdminSessionSummary {
+  id: UUID;
+  activity_id: UUID;
+  boat_id: UUID;
+  boat: { id: UUID; name: string; sail_number: string | null } | null;
+  started_at: string | null;
+  ended_at: string | null;
+  status: SessionStatus;
+  notes_shared: boolean;
+  has_notes: boolean;
+}
+
+export type AdminAccessAction =
+  | "user.detail"
+  | "user.boats"
+  | "user.activities"
+  | "user.sessions";
+
+// actor/target go null when that user is deleted (the FKs are ON DELETE SET
+// NULL) — the record that an access happened outlives its subject.
+export interface AdminAccessLogEntry {
+  id: UUID;
+  actor_user_id: UUID | null;
+  target_user_id: UUID | null;
+  action: AdminAccessAction;
+  created_at: string;
+  actor: UserSummary | null;
+  target: UserSummary | null;
 }

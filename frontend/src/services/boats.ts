@@ -9,6 +9,7 @@ import type {
   BoatRole,
   BoatSessionNote,
   ClaimableBoat,
+  ClaimSuggestion,
   FileUploadTicket,
   HullType,
   ImageUploadTicket,
@@ -27,6 +28,7 @@ export const boatKeys = {
   notes: (id: UUID) => ["boats", id, "notes"] as const,
   sessionNotes: (id: UUID, q = "") => ["boats", id, "session-notes", q] as const,
   claimable: (q: string) => ["boats", "claimable", q] as const,
+  claimSuggestions: ["boats", "claim-suggestions"] as const,
   claims: (id: UUID) => ["boats", id, "claims"] as const,
   claimsMine: ["boats", "claims", "mine"] as const,
   classes: (
@@ -66,6 +68,10 @@ export const boatsService = {
    * server-side (min 2 chars) so this never doubles as a generic boat list. */
   listClaimable: (q: string, limit = 20) =>
     api.get<ClaimableBoat[]>(`/boats/claimable?q=${encodeURIComponent(q)}&limit=${limit}`),
+  /** Guest boats that match a class + sail number the caller already owns —
+   * the pull side of the claim flow, so a real owner doesn't have to think
+   * to go search for their own boat. */
+  listClaimSuggestions: () => api.get<ClaimSuggestion[]>("/boats/claim-suggestions"),
   createClaim: (boatId: UUID, targetBoatId?: UUID | null) =>
     api.post<BoatClaim>(`/boats/${boatId}/claims`, { target_boat_id: targetBoatId ?? null }),
   listBoatClaims: (boatId: UUID, status?: string) =>

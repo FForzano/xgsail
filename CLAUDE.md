@@ -381,7 +381,7 @@ Shared UI primitives live in `components/ui/`; data fetching in
 ### Backend routers (`backend/routers/`)
 
 One module per resource, registered in `routers/__init__.py`
-(`ALL_ROUTERS`): `app_config`, `legal`, `auth`, `users`, `rbac`,
+(`ALL_ROUTERS`): `app_config`, `legal`, `auth`, `users`, `rbac`, `admin`,
 `boats`, `clubs`, `groups`, `posts`, `note_templates`, `devices`,
 `integrations`, `activities`, `sessions`, `live_recordings`, `polars`,
 `regattas`, `racedays`, `races`, `device_api`, `imports`, `ingest`,
@@ -975,6 +975,65 @@ Capacitor plugin changes, which still require a store release.
   background fills get the looser `BACKGROUND_FILL_BUDGET_S` because nobody
   is waiting on them.
 
+- **`was_aboard` is presentation, not authorization.** Boat membership at any
+  role still grants full read access to every session on that boat
+  (`session_visible_to`) — the flag only says whether the viewer is in *that*
+  session's `session_crew`, so the UI can mark an outing as somebody else's
+  instead of presenting it as the viewer's own. `GET /sessions?aboard=` narrows
+  the same union and changes nothing about what is visible. Every session
+  payload carries the field, including `GET /activities/{id}/sessions`, which
+  builds it in `activities.py` rather than in `media.session_thumbnail_payload`
+  — a new session-list endpoint that forgets it makes the TS `Session` type lie.
+- **`add_crew` does not upsert**, which is why `PATCH /sessions/{id}/crew/{user_id}`
+  exists: it returns `False` on a row that already exists, so before that
+  endpoint the only way to fix a role was remove + re-add. Crew is modelled
+  **per session** only — there is no `activity_crew` table, and an activity's
+  crew is the union across its sessions. Don't add an activity-level crew
+  endpoint; extend the session one.
+
+- **Guest-boat claim suggestions are computed, never stored.**
+  `GET /boats/claim-suggestions` matches the caller's own non-guest boats
+  against guest boats on `(boat_class_id, normalised sail_number)` at request
+  time. There is no notifications table in this codebase and this feature
+  deliberately did not add one. The sail-number normalisation must stay
+  identical on both sides of the join, and a NULL or blank class or sail number
+  must never match — same class of bug as the `get_entry(regatta_id, None)`
+  gotcha above.
+
+- **The explorer/Registra map and the replay map have different layer defaults
+  *and* different storage keys.** `EXPLORER_MAP_LAYERS` turns all four overlays
+  on (that map is for finding where to sail); `DEFAULT_MAP_LAYERS` keeps them
+  off for the replay map, where they bury the recorded track. The keys must
+  stay separate (`xgsail.map.layers` vs `xgsail.map.layers.explorer`) — with one
+  shared key, the first toggle in either map silently overwrites the other's
+  defaults, since `toggle` persists the whole object.
+
+- **A resource served by more than one router gets one payload builder, in
+  `routers/_common.py`.** `boat_payload` and `activity_payload` live there
+  because `admin` serves the same records as `boats`/`activities` do, and two
+  builders for one resource drift into subtly different shapes for the same
+  row. They were private helpers inside those two routers until `admin`
+  started importing them across modules — reaching for another router's
+  `_`-prefixed helper is the signal that it belongs in `_common.py`, not that
+  the import needs a comment.
+
+- **`/api/admin` is read-only, and that is what makes its audit log
+  best-effort.** Every handler in `backend/routers/admin.py` writes one
+  `admin_access_log` row and swallows a failure from that write (logged, never
+  raised): the log is accountability, not a gate — the caller is already
+  authorized, and failing the read would only take the operator's diagnostics
+  away while something is already broken. That trade holds *only* because
+  nothing there mutates. An admin **write** or impersonation endpoint must
+  instead fail the request when its audit write fails — a mutation nobody can
+  attribute should not happen. The table's two FKs are `ON DELETE SET NULL`,
+  not CASCADE: deleting either party must not erase the evidence that the
+  access happened, while still leaving a user erasable (`RESTRICT` would let
+  the log veto a GDPR erasure).
+- **A superadmin is not an audience for crew notes.** `session_notes_visible_to`
+  names the session's crew and the boat's owner/admin — the admin diagnostics
+  endpoints deliberately serve a `has_notes` boolean and never `sessions.notes`.
+  Being able to read a row is not being entitled to its private content; a new
+  admin view that "just includes the session payload" reintroduces that leak.
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 

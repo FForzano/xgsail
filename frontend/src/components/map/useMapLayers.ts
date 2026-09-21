@@ -19,6 +19,17 @@ export const DEFAULT_MAP_LAYERS: MapLayers = {
   stations: false,
 };
 
+/** Defaults for the explorer/registra map: all four overlays on, since the map
+ * is for finding where to sail and the overlays are the point. The replay map
+ * keeps everything off by default, where overlays would clutter the view of
+ * the recorded track. */
+export const EXPLORER_MAP_LAYERS: MapLayers = {
+  seamark: true,
+  poi: true,
+  clubs: true,
+  stations: true,
+};
+
 /** Clubs are point data spread over the whole world, so at a continental zoom
  * they collapse into an unreadable field of pins that says nothing about
  * anywhere. Below this zoom the layer stays off even when toggled on, and the
@@ -34,21 +45,31 @@ const STORAGE_KEY = "xgsail.map.layers";
 
 /** Which optional map overlays are on, remembered across pages and reloads so
  * a user who sails with the nautical chart on doesn't re-enable it every time
- * they open a session. Device-local (see usePersistentState). */
-export function useMapLayers(): {
+ * they open a session. Device-local (see usePersistentState).
+ *
+ * @param options.defaults - Which layers are on by default (DEFAULT_MAP_LAYERS for replay, EXPLORER_MAP_LAYERS for explorer)
+ * @param options.storageKey - localStorage key for persistence (different per context to prevent cross-map leakage)
+ */
+export function useMapLayers(options?: {
+  defaults?: MapLayers;
+  storageKey?: string;
+}): {
   layers: MapLayers;
   toggle: (key: keyof MapLayers, on: boolean) => void;
 } {
-  const [stored, setStored] = usePersistentState<MapLayers>(STORAGE_KEY, DEFAULT_MAP_LAYERS);
+  const defaults = options?.defaults ?? DEFAULT_MAP_LAYERS;
+  const key = options?.storageKey ?? STORAGE_KEY;
+
+  const [stored, setStored] = usePersistentState<MapLayers>(key, defaults);
   // Spread over the defaults so a key added in a later release doesn't come
   // back `undefined` for users with an older object already persisted.
-  const layers = { ...DEFAULT_MAP_LAYERS, ...stored };
+  const layers = { ...defaults, ...stored };
 
   const toggle = useCallback(
     (key: keyof MapLayers, on: boolean) => {
-      setStored({ ...DEFAULT_MAP_LAYERS, ...stored, [key]: on });
+      setStored({ ...defaults, ...stored, [key]: on });
     },
-    [stored, setStored],
+    [stored, setStored, defaults],
   );
 
   return { layers, toggle };
