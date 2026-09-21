@@ -245,6 +245,12 @@
     "claimMergeIntoHint": "Move sessions, entries and results to the boat you choose, then delete the guest boat.",
     "claimSubmit": "Submit request",
     "claimSent": "Request sent",
+    "claimSuggestionsTitle": "Might be yours",
+    "claimSuggestionsIntro": "Guest boats with the same class and sail number as a boat you already own. This isn't a certain match — check before you claim it, and whoever entered it still has to approve the request.",
+    "claimSuggestionMatch": "\"{{guestBoat}}\" might be your \"{{myBoat}}\"",
+    "claimSuggestionAction": "Check",
+    "claimSuggestionsHint_one": "{{count}} guest boat might be yours",
+    "claimSuggestionsHint_other": "{{count}} guest boats might be yours",
     "claimFailed": "Couldn't send request",
     "claimPending": "Pending",
     "claimApproved": "Approved",
@@ -257,7 +263,20 @@
     "claimReject": "Reject",
     "claimApproveWarning": "By approving, the person who requested it becomes the owner and can see the sessions logged on this boat. You'll stay as a visitor.",
     "claimMergeWarning": "Sessions, entries and results move to the boat you choose, then the guest boat is deleted. This can't be undone.",
-    "claimResolveFailed": "Couldn't complete the operation"
+    "claimResolveFailed": "Couldn't complete the operation",
+    "outings": {
+      "title": "Outings on this boat",
+      "empty": "No outings recorded on this boat yet.",
+      "filterAll": "All",
+      "filterMine": "Mine",
+      "filterOther": "Others'",
+      "status": {
+        "pending": "Queued",
+        "processing": "Processing…",
+        "processed": "Processed",
+        "failed": "Failed"
+      }
+    }
   },
   "boatNotes": {
     "title": "Setup notebook",

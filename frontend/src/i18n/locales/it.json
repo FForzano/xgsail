@@ -245,6 +245,12 @@
     "claimMergeIntoHint": "Sposta uscite, iscrizioni e risultati sulla barca che scegli, poi elimina la barca ospite.",
     "claimSubmit": "Invia richiesta",
     "claimSent": "Richiesta inviata",
+    "claimSuggestionsTitle": "Potrebbero essere tue",
+    "claimSuggestionsIntro": "Barche ospite con la stessa classe e lo stesso numero velico di una barca che possiedi già. Non è detto che siano la stessa barca: verifica prima di procedere, e chi l'ha inserita dovrà comunque approvare la richiesta.",
+    "claimSuggestionMatch": "\"{{guestBoat}}\" potrebbe essere la tua \"{{myBoat}}\"",
+    "claimSuggestionAction": "Verifica",
+    "claimSuggestionsHint_one": "{{count}} barca ospite potrebbe essere tua",
+    "claimSuggestionsHint_other": "{{count}} barche ospite potrebbero essere tue",
     "claimFailed": "Impossibile inviare la richiesta",
     "claimPending": "In attesa",
     "claimApproved": "Approvata",
@@ -257,7 +263,20 @@
     "claimReject": "Rifiuta",
     "claimApproveWarning": "Approvando, chi ha fatto la richiesta diventa proprietario e vedrà le uscite registrate su questa barca. Tu resterai come visitor.",
     "claimMergeWarning": "Le uscite, le iscrizioni e i risultati passano alla barca scelta e la barca ospite viene eliminata. L'operazione non è reversibile.",
-    "claimResolveFailed": "Impossibile completare l'operazione"
+    "claimResolveFailed": "Impossibile completare l'operazione",
+    "outings": {
+      "title": "Uscite di questa barca",
+      "empty": "Nessuna uscita registrata su questa barca.",
+      "filterAll": "Tutte",
+      "filterMine": "Le mie",
+      "filterOther": "Le altre",
+      "status": {
+        "pending": "In coda",
+        "processing": "Elaborazione…",
+        "processed": "Elaborata",
+        "failed": "Fallita"
+      }
+    }
   },
   "boatNotes": {
     "title": "Quaderno regolazioni",

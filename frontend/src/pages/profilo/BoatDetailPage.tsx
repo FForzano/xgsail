@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { boatsService, boatKeys } from "@/services/boats";
+import { sessionsService } from "@/services/sessions";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
@@ -14,15 +15,17 @@ import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Pagination, usePagination } from "@/components/ui/Pagination";
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { ClassPicker, ClassInfo } from "@/components/common/ClassPicker";
 import { UserPicker } from "@/components/common/UserPicker";
 import { AddDeviceDialog } from "@/components/common/AddDeviceDialog";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
-import { userLabel } from "@/utils/format";
+import { userLabel, fmtDateTime } from "@/utils/format";
 import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import { ApiError } from "@/api/client";
-import type { BoatClaim, BoatRole, UUID } from "@/types";
+import type { BoatClaim, BoatRole, Session, UUID } from "@/types";
 import { useRef } from "react";
 import { NotebookText, ChevronRight } from "lucide-react";
 import photoGridStyles from "@/components/common/photoGrid.module.css";
@@ -143,11 +146,20 @@ export function BoatDetailPage() {
     queryKey: boatKeys.classes(),
     queryFn: () => boatsService.listClasses({ limit: 1000, sort: "name" }),
   });
+  // Boat-scoped outings list. Membership already grants visibility server-side
+  // (session_visible_to), so this only fires once the viewer is a member —
+  // same gate as the notebook query above.
+  const boatSessions = useQuery({
+    queryKey: ["sessions", "boat", boatId!] as const,
+    queryFn: () => sessionsService.list({ boatId: boatId! }),
+    enabled: !!boatId && isMember,
+  });
   const [form, setForm] = useState({ name: "", sail_number: "", boat_class_id: "" });
   const [inviting, setInviting] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [approvingClaim, setApprovingClaim] = useState<BoatClaim | null>(null);
+  const [outingsFilter, setOutingsFilter] = useState<"all" | "mine" | "other">("all");
 
   const isGuest = !!boat.data?.is_guest;
   const boatClaims = useQuery({
@@ -251,6 +263,22 @@ export function BoatDetailPage() {
     onError: claimResolveError,
   });
 
+  // Newest first, then split by the filter the viewer picked. Filtering runs
+  // before pagination so the page count reflects the filtered set. Computed
+  // (and `usePagination` called) unconditionally, ahead of the loading/404
+  // early returns below, so hook order stays stable across renders.
+  const sortedOutings = [...(boatSessions.data ?? [])].sort((a, b) => {
+    const bt = b.started_at ? Date.parse(b.started_at) : 0;
+    const at = a.started_at ? Date.parse(a.started_at) : 0;
+    return bt - at;
+  });
+  const filteredOutings = sortedOutings.filter((s) => {
+    if (outingsFilter === "mine") return s.was_aboard;
+    if (outingsFilter === "other") return !s.was_aboard;
+    return true;
+  });
+  const outingsPage = usePagination(filteredOutings);
+
   if (boat.isLoading || !boatId) return <Spinner />;
   if (!boat.data) return null;
 
@@ -259,6 +287,13 @@ export function BoatDetailPage() {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     save.mutate();
+  };
+
+  const outingStatusBadgeClass = (status: Session["status"]) => {
+    if (status === "processed") return "sf-badge sf-badge--sm sf-badge--success";
+    if (status === "failed") return "sf-badge sf-badge--sm sf-badge--danger";
+    if (status === "processing") return "sf-badge sf-badge--sm sf-badge--warning";
+    return "sf-badge sf-badge--sm sf-badge--pending";
   };
 
   return (
@@ -377,6 +412,67 @@ export function BoatDetailPage() {
           </span>
           <ChevronRight size={18} className={styles.notebookChevron} aria-hidden />
         </Link>
+      )}
+
+      {isMember && (
+        <Section title={t("boats.outings.title")}>
+          <nav className="sf-tabs" aria-label={t("boats.outings.title")}>
+            <button
+              type="button"
+              className={`sf-tab ${outingsFilter === "all" ? "active" : ""}`}
+              onClick={() => setOutingsFilter("all")}
+            >
+              {t("boats.outings.filterAll")}
+            </button>
+            <button
+              type="button"
+              className={`sf-tab ${outingsFilter === "mine" ? "active" : ""}`}
+              onClick={() => setOutingsFilter("mine")}
+            >
+              {t("boats.outings.filterMine")}
+            </button>
+            <button
+              type="button"
+              className={`sf-tab ${outingsFilter === "other" ? "active" : ""}`}
+              onClick={() => setOutingsFilter("other")}
+            >
+              {t("boats.outings.filterOther")}
+            </button>
+          </nav>
+          {boatSessions.isLoading ? (
+            <Spinner />
+          ) : filteredOutings.length === 0 ? (
+            <EmptyState>{t("boats.outings.empty")}</EmptyState>
+          ) : (
+            <>
+              <div className="sf-strip">
+                {outingsPage.pageItems.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/diario/activities/${s.activity_id}/barche/${s.id}`}
+                    className="sf-strip__item"
+                  >
+                    <span>
+                      {fmtDateTime(s.started_at)}
+                      {s.was_aboard === false && (
+                        <span className="sf-badge sf-badge--sm">{t("sessions.notAboard")}</span>
+                      )}
+                    </span>
+                    <span className={outingStatusBadgeClass(s.status)}>
+                      {t(`boats.outings.status.${s.status}`)}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <Pagination
+                page={outingsPage.page}
+                pageCount={outingsPage.pageCount}
+                onPageChange={outingsPage.setPage}
+                label={t("boats.outings.title")}
+              />
+            </>
+          )}
+        </Section>
       )}
 
       {/* Card has no pass-through prop for arbitrary DOM attributes, so the

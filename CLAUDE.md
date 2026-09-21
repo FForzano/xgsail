@@ -991,6 +991,15 @@ Capacitor plugin changes, which still require a store release.
   crew is the union across its sessions. Don't add an activity-level crew
   endpoint; extend the session one.
 
+- **Guest-boat claim suggestions are computed, never stored.**
+  `GET /boats/claim-suggestions` matches the caller's own non-guest boats
+  against guest boats on `(boat_class_id, normalised sail_number)` at request
+  time. There is no notifications table in this codebase and this feature
+  deliberately did not add one. The sail-number normalisation must stay
+  identical on both sides of the join, and a NULL or blank class or sail number
+  must never match — same class of bug as the `get_entry(regatta_id, None)`
+  gotcha above.
+
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 

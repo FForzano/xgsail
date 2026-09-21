@@ -24,6 +24,10 @@ export function BoatsPage() {
   const [form, setForm] = useState({ name: "", sail_number: "", boat_class_id: "" });
 
   const boats = useQuery({ queryKey: boatKeys.mine, queryFn: () => boatsService.list(true) });
+  const claimSuggestions = useQuery({
+    queryKey: boatKeys.claimSuggestions,
+    queryFn: boatsService.listClaimSuggestions,
+  });
   const classes = useQuery({
     queryKey: boatKeys.classes(),
     queryFn: () => boatsService.listClasses({ limit: 1000, sort: "name" }),
@@ -67,6 +71,13 @@ export function BoatsPage() {
           <Button data-tour="profilo-add-boat" onClick={() => setCreating(true)}>{t("boats.addBoat")}</Button>
         </span>
       </div>
+      {!!claimSuggestions.data?.length && (
+        <p className={`sf-muted ${styles.claimHint}`}>
+          <Link to="/profilo/barche/rivendica">
+            {t("boats.claimSuggestionsHint", { count: claimSuggestions.data.length })}
+          </Link>
+        </p>
+      )}
       {boats.data?.length === 0 ? (
         <EmptyState>{t("boats.empty")}</EmptyState>
       ) : (

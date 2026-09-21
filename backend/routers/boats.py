@@ -227,6 +227,21 @@ def list_my_claims(request: Request):
     return out
 
 
+@router.get("/boats/claim-suggestions")
+def list_claim_suggestions(request: Request):
+    """Guest boats that plausibly are one of the caller's own boats, matched
+    on (boat class, sail number) — proactive discovery for someone who would
+    otherwise have to go to ``/boats/claimable`` and search by hand."""
+    user = require_user(request)
+    return [
+        {
+            "guest_boat": _claimable_payload(guest_boat),
+            "matches_boat": {"id": matching_boat.id, "name": matching_boat.name},
+        }
+        for guest_boat, matching_boat in repos.boats.find_guest_matches(user.id)
+    ]
+
+
 @router.post("/boats/{boat_id}/claims")
 def create_claim(boat_id: uuid.UUID, body: BoatClaimCreateModel, request: Request):
     """File a claim on a guest boat. Throttled: an authenticated caller could

@@ -190,6 +190,14 @@ export interface ClaimableBoat {
   created_by: UserSummary | null;
 }
 
+// A guest boat that looks like one the viewer already owns, matched on
+// (boat class, sail number) — the pair the fleet treats as unique. Computed on
+// demand by GET /boats/claim-suggestions; nothing is stored or notified.
+export interface ClaimSuggestion {
+  guest_boat: ClaimableBoat;
+  matches_boat: { id: UUID; name: string };
+}
+
 export type BoatClaimStatus = "pending" | "approved" | "rejected";
 
 export interface BoatClaim {
