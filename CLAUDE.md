@@ -874,7 +874,19 @@ Capacitor plugin changes, which still require a store release.
   POI **only while the clubs layer is on** — the club's pin is what replaces
   it, and hiding both would erase the place from the map. Same rule as the
   unnamed-POI filter next to it: never hide something whose replacement isn't
-  being drawn.
+  being drawn. The reverse direction — proposing the link from the club's side —
+  is `GET /clubs/{id}/osm-suggestions` (`backend/services/club_osm_match.py`):
+  computed per request from the `osm_pois` cache only, never stored and
+  **never** an Overpass call, so an unbrowsed area yields `[]` rather than a
+  slow request — same "computed, never stored" shape as the guest-boat claim
+  suggestions, and deliberately no notifications table. What filters there is
+  proximity (2 km) and `kind == "sailing_club"`; the **name only ranks**. Two
+  names for one club rarely match character for character ("Circolo Velico
+  Barcola Grignano" vs. "CV Barcola-Grignano", a typo in OSM), so
+  `name_similarity` is a `difflib` threshold, not an equality — and a POI with
+  no name at all is still suggested, because sitting on top of the club is the
+  stronger evidence. Promoting that hint to a filter would hide exactly the
+  elements a manager most needs to fix.
 
 - **A ticked map layer that draws nothing must always say why.** The browser no
   longer queries Overpass: it calls our own `GET /osm-poi`, and

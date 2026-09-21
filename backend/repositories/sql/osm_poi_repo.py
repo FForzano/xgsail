@@ -24,15 +24,18 @@ class SqlOsmPoiRepo:
 
     # --- POIs ---
 
-    def list_in_bbox(self, south: float, west: float, north: float,
-                     east: float) -> "list[OsmPoiORM]":
+    def list_in_bbox(self, south: float, west: float, north: float, east: float,
+                     *, kind: Optional[str] = None) -> "list[OsmPoiORM]":
+        """The cached POIs inside a bbox, optionally of one kind only. Reads
+        the cache and nothing else — it never triggers a fetch."""
         with self.Session() as s:
-            return list(s.scalars(
-                select(OsmPoiORM).where(
-                    OsmPoiORM.lat >= south, OsmPoiORM.lat <= north,
-                    OsmPoiORM.lng >= west, OsmPoiORM.lng <= east,
-                )
-            ).all())
+            stmt = select(OsmPoiORM).where(
+                OsmPoiORM.lat >= south, OsmPoiORM.lat <= north,
+                OsmPoiORM.lng >= west, OsmPoiORM.lng <= east,
+            )
+            if kind is not None:
+                stmt = stmt.where(OsmPoiORM.kind == kind)
+            return list(s.scalars(stmt).all())
 
     def replace_cell_pois(self, bounds: "tuple[float, float, float, float]",
                           rows: "list[dict]") -> "tuple[int, int, int]":

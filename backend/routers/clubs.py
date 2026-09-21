@@ -17,7 +17,7 @@ from ..auth import (
     verify_csrf,
 )
 from ..schemas import ClubMemberModel, ClubMemberStatusModel, ClubWriteModel
-from ..services import media
+from ..services import club_osm_match, media
 from ._common import repos, with_user
 
 router = APIRouter(prefix="/api/clubs", tags=["clubs"])
@@ -84,6 +84,29 @@ def update_club(club_id: uuid.UUID, body: ClubWriteModel, request: Request):
     # existing club.manage gate above is the right one — no extra permission.
     _check_osm_ref_free(body, club_id=club_id)
     return _club_payload(repos.clubs.update(club_id, body.model_dump(exclude_unset=True)))
+
+
+@router.get("/{club_id}/osm-suggestions")
+def list_osm_suggestions(club_id: uuid.UUID, request: Request):
+    """Cached OSM sailing-club elements that plausibly *are* this club, so its
+    managers can link it without first finding it on the explorer map — the
+    mirror of ``GET /boats/claim-suggestions``.
+
+    Reads only what ``osm_pois`` already holds: never an Overpass call, so an
+    area nobody has browsed yields ``[]`` rather than a slow request. An empty
+    list is also the answer when the club is already linked or has no
+    coordinates to search around — nothing here is an error.
+    """
+    club = _require_club(club_id)
+    require_permission(request, "club.manage", club_id=club_id)
+    if club.osm_ref is not None or club.lat is None or club.lng is None:
+        return []
+    south, west, north, east = club_osm_match.bbox_for_radius(club.lat, club.lng)
+    pois = repos.osm_pois.list_in_bbox(south, west, north, east,
+                                       kind=club_osm_match.CLUB_KIND)
+    taken = repos.clubs.osm_refs_taken([p.osm_ref for p in pois])
+    return club_osm_match.rank_suggestions(club.lat, club.lng, club.name, pois,
+                                           taken_refs=taken)
 
 
 @router.delete("/{club_id}")
