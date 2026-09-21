@@ -1,0 +1,166 @@
+.grid {
+  display: grid;
+  gap: 0.4rem;
+  border-radius: var(--sf-radius);
+  overflow: hidden;
+}
+
+.grid[data-count="1"] {
+  grid-template-areas: "a";
+  aspect-ratio: 16 / 9;
+}
+
+.grid[data-count="2"] {
+  grid-template-areas: "a b";
+  grid-template-columns: 1fr 1fr;
+  aspect-ratio: 2 / 1;
+}
+
+.grid[data-count="3"] {
+  grid-template-areas:
+    "a b"
+    "a c";
+  grid-template-columns: 1.7fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 3 / 2;
+}
+
+.grid[data-count="4"] {
+  grid-template-areas:
+    "a b"
+    "c d";
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1 / 1;
+}
+
+.tile {
+  position: relative;
+  display: block;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--sf-border);
+  border-radius: calc(var(--sf-radius) - 2px);
+  background: var(--sf-bg-2);
+  cursor: zoom-in;
+}
+
+.tile:nth-child(1) {
+  grid-area: a;
+}
+.tile:nth-child(2) {
+  grid-area: b;
+}
+.tile:nth-child(3) {
+  grid-area: c;
+}
+.tile:nth-child(4) {
+  grid-area: d;
+}
+
+.tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s ease;
+}
+
+.tile:hover img {
+  transform: scale(1.04);
+}
+
+.tile:active img {
+  transform: scale(0.99);
+}
+
+.tile:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
+}
+
+.tileScrim {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 1.6rem 0.6rem 0.5rem;
+  background: linear-gradient(to top, rgba(4, 15, 26, 0.8), transparent);
+  text-align: left;
+  pointer-events: none;
+}
+
+.tileCaption,
+.tileSubtitle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.tileCaption {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--sf-text);
+}
+
+.tileSubtitle {
+  font-size: 0.72rem;
+  color: var(--sf-muted);
+}
+
+.more {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 15, 26, 0.6);
+  color: var(--sf-text);
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Desktop: the page runs to 1180px (.sf-main), where the phone ratios would
+   make a 2x2 mosaic ~1140px tall — a whole viewport for four photos. Capping
+   the mosaic's *width* instead just stranded a narrow block under a
+   full-width Section heading. So drive the layout from a fixed height here:
+   extra width makes the tiles wider, never the block taller, and the mosaic
+   still fills its Section the way every other block on the page does. */
+@media (min-width: 700px) {
+  .grid[data-count="1"],
+  .grid[data-count="2"],
+  .grid[data-count="3"],
+  .grid[data-count="4"] {
+    aspect-ratio: auto;
+    height: clamp(280px, 30vw, 400px);
+  }
+  /* Wider tiles want a wider hero, or the two companions read as offcuts. */
+  .grid[data-count="3"] {
+    grid-template-columns: 1.9fr 1fr;
+  }
+  /* A square 2x2 goes letterbox once it's this wide — an editorial
+     hero + medium + two stacked keeps every tile a usable shape. */
+  .grid[data-count="4"] {
+    grid-template-areas:
+      "a b c"
+      "a b d";
+    grid-template-columns: 2fr 1.35fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Two narrow stacked tiles beside a hero become stamps at phone width —
+   * a hero over a pair reads better in the same space. */
+  .grid[data-count="3"] {
+    grid-template-areas:
+      "a a"
+      "b c";
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1.5fr 1fr;
+    aspect-ratio: 1 / 1;
+  }
+}

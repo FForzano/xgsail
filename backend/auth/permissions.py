@@ -239,6 +239,37 @@ def is_session_crew_or_manager(session, user) -> bool:
             or repos.boats.is_member(session.boat_id, user.id, roles=["owner", "admin"]))
 
 
+# Per-session photo caps. Two tiers because the two uses differ in kind, not
+# just in degree: a crew logging their own outing takes a handful of shots,
+# while the organiser of a club race posts the event's official set covering
+# every boat that sailed. A single number can only be wrong for one of them.
+PHOTOS_PER_SESSION_CREW = 50
+PHOTOS_PER_SESSION_ORGANIZER = 300
+
+
+def session_photo_limit(session, user) -> "Optional[int]":
+    """How many photos ``user`` may have on this session, or None if they may
+    add none at all — the gate and the cap in one answer, so the two can't
+    disagree about who an organiser is.
+
+    The organiser tier keys on ``can_edit_activity`` (the activity's creator,
+    or a club-scoped ``activity.manage`` holder): the same check that already
+    decides who runs the event. That also *widens* who may upload, and
+    deliberately so — ``routers/sessions.py``'s ``_can_edit`` already let an
+    activity creator delete a session's photos, while the upload gate
+    (crew/boat manager) excluded them. Add and remove now agree."""
+    from ..repositories import get_repos
+
+    if user is None:
+        return None
+    activity = get_repos().activities.get(session.activity_id)
+    if can_edit_activity(activity, user):
+        return PHOTOS_PER_SESSION_ORGANIZER
+    if is_session_crew_or_manager(session, user):
+        return PHOTOS_PER_SESSION_CREW
+    return None
+
+
 def session_notes_visible_to(session, user) -> bool:
     """The free-text crew notes are private to the session's crew/boat
     managers by default; ``notes_shared`` opts them into the same audience

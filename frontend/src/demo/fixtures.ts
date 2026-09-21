@@ -1,6 +1,7 @@
 import type {
   Activity,
   ActivityData,
+  ActivityPhoto,
   Boat,
   BoatMember,
   BoatNote,
@@ -18,6 +19,7 @@ import type {
   Session,
   SessionAnalysis,
   SessionCrew,
+  SessionPhoto,
   SessionPhysio,
   SessionStream,
   UserSummary,
@@ -80,6 +82,19 @@ const imageUrl = (from: string, to: string, glyph: string): ImageRef => ({
         `<rect width="320" height="200" fill="url(#g)"/>` +
         `<text x="160" y="128" font-size="88" text-anchor="middle">${glyph}</text></svg>`,
     ),
+});
+
+const sessionPhoto = (
+  from: string,
+  to: string,
+  glyph: string,
+  createdBy: UserSummary,
+  createdAt: string,
+): SessionPhoto => ({
+  ...imageUrl(from, to, glyph),
+  created_at: createdAt,
+  created_by: createdBy.id,
+  user: createdBy,
 });
 
 const daysFromNow = (days: number): string =>
@@ -222,6 +237,8 @@ export const demoClubActivities: Activity[] = [
     started_at: daysFromNow(4),
     ended_at: null,
     thumbnail: null,
+    cover_photo: null,
+    photo_count: 0,
   },
   {
     id: DEMO_PAST_ACTIVITY_ID,
@@ -237,6 +254,8 @@ export const demoClubActivities: Activity[] = [
     started_at: daysFromNow(-11),
     ended_at: daysFromNow(-11),
     thumbnail: null,
+    cover_photo: null,
+    photo_count: 0,
   },
 ];
 
@@ -308,6 +327,26 @@ export const demoDeviceHealth: DeviceHealth = {
 
 // --- activity / session ----------------------------------------------------------
 
+// Defined ahead of demoActivity/demoSession so both can carry a real
+// cover_photo/photo_count consistent with the gallery below — enough photos
+// (5) to exercise PhotoGallery's "+N" overflow tile (MAX_TILES = 4).
+export const demoSessionPhotos: SessionPhoto[] = [
+  sessionPhoto("#123a52", "#7fd0e0", "📸", skipper, daysFromNow(-11)),
+  sessionPhoto("#2a1f44", "#e0b24a", "📸", crewMember, daysFromNow(-11)),
+  sessionPhoto("#0f3a2a", "#4fd0e0", "🌊", skipper, daysFromNow(-11)),
+  sessionPhoto("#3a1f0f", "#e07a4a", "⛵", crewMember, daysFromNow(-11)),
+  sessionPhoto("#1f0f3a", "#7f4ae0", "🏁", skipper, daysFromNow(-11)),
+];
+
+// The activity's own gallery (GET /activities/{id}/photos) — same shots as
+// demoSessionPhotos, since the demo activity has a single session, plus the
+// session/boat provenance that view adds on top of SessionPhoto.
+export const demoActivityPhotos: ActivityPhoto[] = demoSessionPhotos.map((p) => ({
+  ...p,
+  session_id: DEMO_SESSION_ID,
+  boat: { id: DEMO_BOAT_ID, name: demoBoat.name, sail_number: demoBoat.sail_number },
+}));
+
 export const demoActivity: Activity = {
   id: DEMO_ACTIVITY_ID,
   name: "Allenamento con l'Ora — Campione",
@@ -324,6 +363,8 @@ export const demoActivity: Activity = {
   started_at: demoStartIso,
   ended_at: demoEndIso,
   thumbnail: imageUrl("#0b2239", "#2f9be0", "🗺"),
+  cover_photo: demoSessionPhotos[0],
+  photo_count: demoSessionPhotos.length,
 };
 
 export const demoSession: Session = {
@@ -337,6 +378,8 @@ export const demoSession: Session = {
   ended_at: demoEndIso,
   status: "processed",
   thumbnail: null,
+  cover_photo: demoSessionPhotos[0],
+  photo_count: demoSessionPhotos.length,
   trim_start_time: null,
   trim_end_time: null,
   notes:
@@ -476,11 +519,6 @@ export const demoPhysio: SessionPhysio[] = [
       },
     ],
   },
-];
-
-export const demoSessionPhotos: ImageRef[] = [
-  imageUrl("#123a52", "#7fd0e0", "📸"),
-  imageUrl("#2a1f44", "#e0b24a", "📸"),
 ];
 
 export const demoSessionVideos: FileRef[] = [];

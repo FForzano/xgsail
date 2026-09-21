@@ -124,10 +124,12 @@ def list_user_activities(user_id: uuid.UUID, request: Request,
     actor = require_superadmin(request)
     _require_target(user_id)
     _audit(actor, user_id, "user.activities")
-    return [activity_payload(a) for a in repos.activities.list(
+    activities = repos.activities.list(
         crewed_or_created_by=user_id, viewer_is_superadmin=True,
         limit=limit, offset=offset,
-    )]
+    )
+    covers = repos.activities.photo_covers([a.id for a in activities])
+    return [activity_payload(a, covers=covers) for a in activities]
 
 
 @router.get("/users/{user_id}/sessions")

@@ -1,5 +1,13 @@
 import { api } from "@/api/client";
-import type { Activity, ActivityData, ActivityStatus, Mark, Session, UUID } from "@/types";
+import type {
+  Activity,
+  ActivityData,
+  ActivityPhoto,
+  ActivityStatus,
+  Mark,
+  Session,
+  UUID,
+} from "@/types";
 
 export const activityKeys = {
   all: ["activities"] as const,
@@ -7,6 +15,7 @@ export const activityKeys = {
   detail: (id: UUID) => ["activities", id] as const,
   sessions: (id: UUID) => ["activities", id, "sessions"] as const,
   marks: (id: UUID) => ["activities", id, "marks"] as const,
+  photos: (id: UUID) => ["activities", id, "photos"] as const,
   data: (id: UUID) => ["activities", id, "data"] as const,
   upcoming: () => ["activities", "upcoming"] as const,
 };
@@ -51,6 +60,9 @@ export const activitiesService = {
   remove: (id: UUID) => api.del(`/activities/${id}`),
 
   sessions: (id: UUID) => api.get<Session[]>(`/activities/${id}/sessions`),
+  // Every photo of every session of the activity, attributed to its boat and
+  // uploader — an activity's gallery mixes several crews.
+  photos: (id: UUID) => api.get<ActivityPhoto[]>(`/activities/${id}/photos`),
   regenerateThumbnail: (id: UUID) => api.post<{ ok: boolean }>(`/activities/${id}/regenerate-thumbnail`),
   data: (id: UUID, opts: { sensors?: string; padStart?: number; padEnd?: number } = {}) =>
     api.get<ActivityData>(

@@ -975,6 +975,30 @@ Capacitor plugin changes, which still require a store release.
   background fills get the looser `BACKGROUND_FILL_BUDGET_S` because nobody
   is waiting on them.
 
+- **A session's photo cap is also its upload gate, and the organiser tier is
+  what fixed an old asymmetry.** `auth/permissions.py`'s `session_photo_limit`
+  returns the cap or `None` for "may not add any" — one answer, so the gate and
+  the cap can't disagree about who an organiser is. The organiser tier keys on
+  `can_edit_activity`, which *widens* who may upload: before this, the upload
+  gate was crew/boat-manager only, while `routers/sessions.py`'s `_can_edit`
+  already let an activity creator **delete** a session's photos. Add and remove
+  now agree. The count comes from `photo_covers`, which excludes deleted images,
+  so removing a photo frees its slot.
+
+- **`cover_photo` is a photograph, `thumbnail` is the track render, and the
+  `covers=` parameter is what keeps the payload builders off an N+1.** Both
+  `media.session_thumbnail_payload` and `_common.activity_payload` now serve
+  `cover_photo`/`photo_count` (the oldest non-deleted session photo, and how
+  many) alongside the worker-rendered `thumbnail` overlay they already served
+  — the two are unrelated images and the frontend fits them differently
+  (`EventRow.module.css`'s `data-fit`: `contain` for a track render, `cover`
+  for a photo). Both builders take an optional `covers=` batch map from
+  `repos.{sessions,activities}.photo_covers()`; omitted, each resolves for its
+  one row. That default is right for a detail endpoint and wrong for a list:
+  a new list endpoint that forgets to prefetch still returns correct data, so
+  nothing fails — it just quietly issues one extra query per row. Same class
+  of silent trap as the `include_guest=True` capabilities bullet above.
+
 - **`was_aboard` is presentation, not authorization.** Boat membership at any
   role still grants full read access to every session on that boat
   (`session_visible_to`) — the flag only says whether the viewer is in *that*

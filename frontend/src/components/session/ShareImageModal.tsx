@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useToast } from "@/hooks/useToast";
 import { renderShareCardToBlob, shareOrDownloadImage } from "@/utils/shareImage";
+import type { ImageRef } from "@/types";
 import { ShareCard, type ShareCardData } from "./ShareCard";
 import { ShareCameraModal, cameraCaptureSupported } from "./ShareCameraModal";
 import styles from "./ShareImageModal.module.css";
@@ -25,7 +26,19 @@ const TRACK_PRESETS = ["#ff9500", "#ffffff", "#2f9be0", "#3fbf7f", "#e05a5a"];
 /** Lets the user pick what shows up in a shareable image of their session
  * (see ShareCard) and then share it via the native share sheet or download
  * it — see docs discussion: deliberately image-only, no public link. */
-export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClose: () => void }) {
+export function ShareImageModal({
+  data,
+  sessionPhotos = [],
+  onClose,
+}: {
+  data: ShareCardData;
+  /** The session's own photos, offered as a background source alongside the
+   * boat photo / camera / gallery — kept as a separate prop rather than
+   * folded into `ShareCardData` so `ShareCard` itself never needs to know
+   * the list exists, only the one resolved background URL. */
+  sessionPhotos?: ImageRef[];
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const { notify } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -59,6 +72,10 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
   // `object-fit: cover` would silently cut its sides. The in-app camera skips
   // this: it already shoots in frame.
   const [pendingCropUrl, setPendingCropUrl] = useState<string | null>(null);
+  // Which session-photo thumbnail (if any) is the current background's
+  // source — cleared whenever a different source (camera/gallery) is picked,
+  // set when a thumbnail is tapped and left on through its crop step.
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
   const cardData = { ...data, boatPhotoUrl: customPhotoUrl ?? data.boatPhotoUrl };
 
   function commitPhoto(blob: Blob) {
@@ -75,8 +92,16 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
   const pickFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (file) setPendingCropUrl(URL.createObjectURL(file));
+    if (file) {
+      setSelectedPhotoUrl(null);
+      setPendingCropUrl(URL.createObjectURL(file));
+    }
   };
+
+  function pickSessionPhoto(url: string) {
+    setSelectedPhotoUrl(url);
+    setPendingCropUrl(url);
+  }
 
   async function handleShare() {
     if (!cardRef.current) return;
@@ -121,6 +146,25 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
         onChange={pickFile}
       />
       <input ref={galleryInputRef} type="file" accept="image/*" hidden onChange={pickFile} />
+      {sessionPhotos.length > 0 && (
+        <div className={styles.sessionPhotos}>
+          <span className={styles.sessionPhotosLabel}>{t("sessions.shareImage.sessionPhotos")}</span>
+          <div className={styles.sessionPhotoStrip}>
+            {sessionPhotos.map((p) => (
+              <button
+                key={p.image_id}
+                type="button"
+                className={`${styles.sessionPhotoThumb} ${
+                  selectedPhotoUrl === p.url ? styles.sessionPhotoThumbSelected : ""
+                }`}
+                onClick={() => pickSessionPhoto(p.url)}
+              >
+                <img src={p.url} alt="" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className={styles.options}>
         <label className={styles.option}>
           <input
@@ -202,6 +246,7 @@ export function ShareImageModal({ data, onClose }: { data: ShareCardData; onClos
         <ShareCameraModal
           onCancel={() => setCameraOpen(false)}
           onCaptured={(blob) => {
+            setSelectedPhotoUrl(null);
             commitPhoto(blob);
             setCameraOpen(false);
           }}

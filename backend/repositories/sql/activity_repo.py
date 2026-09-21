@@ -13,6 +13,7 @@ from sqlalchemy import and_, or_, select
 
 from ...db.models import (
     ActivityORM,
+    ImageORM,
     MarkORM,
     PermissionORM,
     RaceDayORM,
@@ -21,6 +22,7 @@ from ...db.models import (
     RolePermissionORM,
     SessionCrewORM,
     SessionORM,
+    SessionPhotoORM,
     UserBoatORM,
     UserClubORM,
     UserGroupORM,
@@ -238,6 +240,35 @@ class SqlActivityRepo:
     def get(self, activity_id: uuid.UUID) -> Optional[ActivityORM]:
         with self.Session() as s:
             return s.get(ActivityORM, activity_id)
+
+    def photo_covers(
+        self, activity_ids: "list[uuid.UUID]"
+    ) -> "dict[uuid.UUID, tuple[Optional[ImageORM], int]]":
+        """Oldest non-deleted photo + total count across all of an
+        activity's sessions, batched for N activities in one query — same
+        shape as ``SqlSessionRepo.photo_covers``, joined one level up
+        (sessions -> session_photos -> images)."""
+        if not activity_ids:
+            return {}
+        with self.Session() as s:
+            rows = s.execute(
+                select(SessionORM.activity_id, ImageORM)
+                .select_from(SessionPhotoORM)
+                .join(SessionORM, SessionORM.id == SessionPhotoORM.session_id)
+                .join(ImageORM, ImageORM.id == SessionPhotoORM.image_id)
+                .where(SessionORM.activity_id.in_(activity_ids))
+                .where(ImageORM.status != "deleted")
+                .order_by(SessionORM.activity_id, SessionPhotoORM.created_at)
+            ).all()
+            out: "dict[uuid.UUID, tuple[Optional[ImageORM], int]]" = {}
+            for activity_id, image in rows:
+                s.expunge(image)
+                if activity_id in out:
+                    cover, count = out[activity_id]
+                    out[activity_id] = (cover, count + 1)
+                else:
+                    out[activity_id] = (image, 1)
+            return out
 
     def get_by_race(self, race_id: uuid.UUID) -> Optional[ActivityORM]:
         """THE activity tracking a race (first match)."""
