@@ -1000,6 +1000,14 @@ Capacitor plugin changes, which still require a store release.
   must never match — same class of bug as the `get_entry(regatta_id, None)`
   gotcha above.
 
+- **The explorer/Registra map and the replay map have different layer defaults
+  *and* different storage keys.** `EXPLORER_MAP_LAYERS` turns all four overlays
+  on (that map is for finding where to sail); `DEFAULT_MAP_LAYERS` keeps them
+  off for the replay map, where they bury the recorded track. The keys must
+  stay separate (`xgsail.map.layers` vs `xgsail.map.layers.explorer`) — with one
+  shared key, the first toggle in either map silently overwrites the other's
+  defaults, since `toggle` persists the whole object.
+
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 

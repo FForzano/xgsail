@@ -9,7 +9,7 @@ import { WindBadge } from "./WindBadge";
 import { createBaseLayers } from "./baseLayers";
 import { installCompactAttribution } from "./compactAttribution";
 import { MapLayerToggles } from "./MapLayerToggles";
-import { useMapLayers } from "./useMapLayers";
+import { EXPLORER_MAP_LAYERS, useMapLayers } from "./useMapLayers";
 import { useNauticalLayers } from "./useNauticalLayers";
 import styles from "./ExplorerMap.module.css";
 
@@ -70,7 +70,10 @@ export function ExplorerMap({
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState(false);
 
-  const { layers, toggle } = useMapLayers();
+  const { layers, toggle } = useMapLayers({
+    defaults: EXPLORER_MAP_LAYERS,
+    storageKey: "xgsail.map.layers.explorer",
+  });
   const { clubsHidden, nearDetailHidden, poiFailed } = useNauticalLayers(map, layers);
   // No `at`: this map is about now, not about a recorded moment.
   const wind = useMapCenterWind(map);
