@@ -32,3 +32,11 @@
      the tile jitter as digit widths change. */
   font-variant-numeric: tabular-nums;
 }
+
+/* Opt-in 2-up variant (StatTiles `wide`): a row of only two tiles would sit as
+   a half-empty line in the 4-up grid, and its values carry a second line that
+   wants the width. Declared after the mobile rule above so it wins at equal
+   specificity. */
+.wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
