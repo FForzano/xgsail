@@ -1,6 +1,6 @@
 """Server-side cache of the nautical points of interest the explorer map
-draws from OpenStreetMap (marinas, harbours, slipways, sailing clubs,
-anchorages).
+draws from OpenStreetMap (marinas, harbours, slipways, sailing clubs and
+schools, anchorages).
 
 Two tables, because "what we know" and "where we have looked" are different
 questions:
@@ -29,24 +29,39 @@ whole staleness policy:
 Sizing, since the deployment target is a small private server: worldwide
 there are ~137k elements across every tag we query (leisure=marina 31.8k,
 leisure=slipway 68.1k, seamark:type=harbour 25.0k, harbour=yes 5.1k,
-seamark:type=anchorage 4.6k, sport=sailing 1.7k, club=sailing 0.55k). At
-~130 bytes a row that is ~18 MB for the entire planet — and only cells
-someone actually looked at are ever stored, so the real figure is a small
-fraction of that. The cache is bounded by construction; no eviction job.
+seamark:type=anchorage 4.6k, sport=<wind discipline> ~2.4k, club=sailing
+0.55k, amenity=sailing_school 0.2k).
+
+``osm_ref``/``kind``/``lat``/``lng``/``name`` are ~130 bytes a row, so those
+alone would be ~18 MB for the entire planet. ``tags`` is what now dominates:
+a nautical element's tag dict is typically 5-15 pairs and a few hundred bytes
+of JSON, with a well-mapped club (opening hours, contact details, addressing)
+reaching 1-2 kB. Budgeting ~600 bytes a row average puts a whole-planet cache
+at ~100 MB, call it ~150 MB with the index — five to ten times the old
+figure, and still an amount of disk a small VM does not notice.
+
+That is the price of not having to re-fetch: ``0056`` and ``0058`` are both
+cache-clearing migrations that exist *only* because the tags were thrown
+away, each costing every deployment a full Overpass refill to apply a rule
+change that is really an UPDATE. And the worldwide number is the pessimistic
+bound anyway — only cells someone actually looked at are ever stored, so a
+club near one coastline holds a small fraction of it. The cache is bounded by
+construction; no eviction job.
 """
 
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, Index, String, UniqueConstraint
+from sqlalchemy import JSON, DateTime, Float, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..base import Base, TimestampMixin, UUIDPKMixin, enum_check
 
-# Mirrors ``PoiKind`` in frontend/src/services/overpass.ts; the classification
-# that produces them lives in services/osm_poi.py.
-POI_KINDS = ("marina", "harbour", "slipway", "sailing_club", "sports_area",
-             "fuel", "anchorage")
+# Mirrors ``PoiKind`` in frontend/src/services/nauticalPoi.ts; the
+# classification that produces them lives in services/osm_poi.py, and the
+# CHECK below means adding one is a schema change needing a migration.
+POI_KINDS = ("marina", "harbour", "slipway", "sailing_club", "sailing_school",
+             "sports_area", "fuel", "anchorage")
 
 
 class OsmPoiORM(TimestampMixin, UUIDPKMixin, Base):
@@ -62,14 +77,23 @@ class OsmPoiORM(TimestampMixin, UUIDPKMixin, Base):
 
     # ``id`` is an internal surrogate; the client identifies a POI by its
     # ``osm_ref`` (and so does clubs.osm_ref), so the wire payload is exactly
-    # the five fields the map needs.
-    __wire_exclude__ = ("id", "created_at", "updated_at")
+    # the five fields the map needs. ``tags`` is excluded with it: a bbox
+    # response carries hundreds of POIs and no consumer reads them — they are
+    # stored so a rule change can be applied by UPDATE instead of by a
+    # planet-wide re-fetch, which is server-side work, not payload.
+    __wire_exclude__ = ("id", "created_at", "updated_at", "tags")
 
     osm_ref: Mapped[str] = mapped_column(String, nullable=False)  # "way/123456"
     kind: Mapped[str] = mapped_column(String, nullable=False)
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lng: Mapped[float] = mapped_column(Float, nullable=False)
     name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # The element's OSM tags, verbatim. Nullable and NULL on every row cached
+    # before revision ``0059``: nothing backfills it, because ``0058`` (same
+    # release) already clears every cell's ``fetched_at``, so the refill that
+    # is about to happen populates it for free. Anything reading it must cope
+    # with NULL until then.
+    tags: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
 
 class OsmPoiCellORM(UUIDPKMixin, Base):

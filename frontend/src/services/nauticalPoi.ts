@@ -11,6 +11,7 @@ export type PoiKind =
   | "harbour"
   | "slipway"
   | "sailing_club"
+  | "sailing_school"
   | "sports_area"
   | "fuel"
   | "anchorage";

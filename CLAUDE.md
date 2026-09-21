@@ -917,21 +917,68 @@ Capacitor plugin changes, which still require a store release.
   berths is a circolo velico, not a marina. With the old most- to
   least-specific order, two identical clubs got different pins purely from how
   each had been mapped — one tagged `leisure=marina` read as a marina, one
-  tagged only `club=sailing` read as a club — and nothing downstream could
-  recover the difference, because `osm_pois` stores the classified kind and
-  not the tags. Below the club rule the specificity order still stands
-  (`leisure=marina` + `harbour=yes` is a marina). Two things follow that are
-  easy to get wrong:
+  tagged only `club=sailing` read as a club. Below the club rule the
+  specificity order still stands (`leisure=marina` + `harbour=yes` is a
+  marina), and `sailing_school` slots in directly under the club rule for the
+  same reason: a club that also teaches is a club, a place that only teaches
+  is a school. Five things follow that are easy to get wrong:
+  - **An OSM tag value is a `;`-separated list, so `t.get("sport") ==
+    "sailing"` is a bug.** A real club is multi-discipline
+    (`sport=sailing;kitesurfing;sup;kayak` on "Circolo Nautico di Volano",
+    `way/1561055644`) and an exact comparison matches none of them — ~299
+    elements worldwide on `sport` alone. Every rule reading a list-valued tag
+    goes through `tag_values()`, and a match must be anchored
+    (`(^|;)…(;|$)`), or `parasailing` and `sailing_school` become false
+    positives.
+  - **The classifier and `build_query`'s selectors change together.** An
+    element the query does not fetch is never classified, so a `KIND_RULES`
+    branch without a matching selector is dead code — that is why the
+    `sport`/`club` selectors are the regex form built by
+    `_list_value_selector` (`[[:space:]]`, not `\s`: a backslash inside an
+    Overpass QL string is an escape character). What must *not* be added is a
+    bare `["club"="sport"]` — 39321 elements, i.e. every tennis and football
+    club on the planet. The documented tagging is `club=sport` +
+    `sport=<discipline>`, and the `sport` selector is how the sailing ones
+    reach us.
+  - **The discipline is any of `WIND_SPORTS`, not `sailing`.** Windsurf and
+    kite clubs are in scope, and the set deliberately carries the
+    non-standard spellings real data uses (`windsurf`, `kitesurf`,
+    `kite_surfing`, `wingfoil`) next to the canonical ones — the motivating
+    element carries both. It is one regex *alternation* per tag key rather
+    than one `nwr` clause per discipline (each clause is another index sweep
+    Overpass pays for), longest alternative first so an engine matching
+    leftmost-first still prefers `windsurfing` over its prefix `windsurf`.
+    The kind stays named `sailing_club`: it is the "an organisation runs this
+    place" pin, and renaming it would churn the enum, the migrations and
+    every frontend/i18n consumer for nothing. Do not widen the set to
+    surfing, canoe, kayak or rowing.
   - **The unnamed-element filter keys on tags (`has_facility`), never on the
     kind.** An unnamed `leisure=marina` + `club=sailing` classifies as a club,
     and a kind-based drop would delete it from the map for the sole reason
     that it declares itself a club. What earns an unnamed element its pin is
     being physically there — berths, a ramp, a harbour — not what it is
     called.
-  - **Reordering the rules needs a migration.** `osm_pois` holds the kind, so
-    cached rows keep the old classification until their cell is re-fetched,
+  - **Reordering the rules needs a migration, and adding a kind needs two.**
+    Cached rows keep the old classification until their cell is re-fetched,
     which without help is up to `CELL_TTL_DAYS` (60 days) away. `0056` is the
-    worked example: clear `fetched_at` on the affected cells only.
+    worked example: clear `fetched_at` on the affected cells only. **Widening
+    the query needs an *unscoped* one** — `0058`: when new elements can be
+    returned, a cell that today holds nothing at all can change too, so there
+    is no subset to scope to. A new value in `POI_KINDS` is on top of that a
+    *schema* change, because `enum_check("kind", POI_KINDS)` is a real CHECK
+    (`0060`) — and its `downgrade()` has to cope with rows already holding the
+    new kind. Deleting them is the honest answer for a cache; it also clears
+    `fetched_at` on their cells, so the map refills rather than serving a
+    quietly thinned version of itself.
+  - **`osm_pois.tags` now stores the element's OSM tags verbatim, which is
+    what makes a *future* reclassification an `UPDATE` instead of a
+    re-fetch** (`0059`) — the absence of that column is the sole reason
+    `0056` and `0058` had to throw the cache away. It is `__wire_exclude__`d:
+    a bbox response carries hundreds of POIs and the map needs only
+    kind/lat/lng/name. And it is **NULL on every row cached before `0059`**,
+    with no backfill — a migration cannot call Overpass, and it needs none
+    because `0058` (same release) already forces the refill that fills it.
+    Anything reading it must handle NULL.
 
 - **The Overpass endpoint list is configuration, and a single entry still has
   to be a list.** This happened: narrowing `ENDPOINTS` to one instance by

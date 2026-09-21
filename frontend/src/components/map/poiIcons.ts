@@ -7,6 +7,10 @@ import styles from "./PoiMarkers.module.css";
 const GLYPHS: Record<PoiKind, string> = {
   marina: "M22 18H2a4 4 0 0 0 4 4h12a4 4 0 0 0 4-4M21 14 10 2v12M3 14h18",
   sailing_club: "M22 18H2a4 4 0 0 0 4 4h12a4 4 0 0 0 4-4M21 14 10 2v12M3 14h18",
+  // Simplified lucide-react "graduation-cap": mortarboard + tassel + head
+  // band, distinct from the sail glyph marina/sailing_club share.
+  sailing_school:
+    "M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0zM22 10v6M6 12.5V16a6 3 0 0 0 12 0v-3.5",
   harbour: "M12 22V8M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6M5 12H2a10 10 0 0 0 20 0h-3",
   anchorage: "M12 22V8M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6M5 12H2a10 10 0 0 0 20 0h-3",
   slipway: "M3 20h18M6 20 16 9h4",
@@ -20,6 +24,7 @@ const KIND_CLASS: Record<PoiKind, string> = {
   anchorage: styles.kindAnchorage,
   slipway: styles.kindSlipway,
   sailing_club: styles.kindSailingClub,
+  sailing_school: styles.kindSailingSchool,
   sports_area: styles.kindSportsArea,
   fuel: styles.kindFuel,
 };

@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ...db.models import OsmPoiCellORM, OsmPoiORM
 
-_POI_FIELDS = ("kind", "lat", "lng", "name")
+_POI_FIELDS = ("kind", "lat", "lng", "name", "tags")
 
 
 class SqlOsmPoiRepo:
