@@ -64,6 +64,61 @@
    the regatta hero shows the same tinted stand-in, so the recipe is shared
    rather than copied per surface. */
 
+/* The photo inset on a track card. The track answers "where did this go?",
+   a photo answers "what was it like?" — the inset is how one card says both
+   without the track losing the slot that makes an outing recognisable at a
+   glance.
+
+   Sized in % of the media box, not in px, so it keeps the same proportion of
+   the card from a phone to a wide screen. The surface-coloured ring plus the
+   shadow are what make it read as lying *on* the map rather than as a hole
+   punched in it, and they are also what keeps a dark photo from dissolving
+   into a dark track render. */
+.inset {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.55rem;
+  width: 31%;
+  max-width: 132px;
+  aspect-ratio: 4 / 3;
+  border-radius: calc(var(--sf-radius) - 2px);
+  overflow: hidden;
+  /* The ring is drawn inside via box-shadow rather than as a border so it
+     does not add to the width the % above resolves to. */
+  box-shadow:
+    0 0 0 2px var(--sf-surface),
+    0 2px 8px rgba(0, 0, 0, 0.45);
+  background: var(--sf-bg-2);
+  transition: transform 0.15s ease;
+}
+.card:hover .inset {
+  transform: scale(1.04);
+}
+.insetImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* The tally rides on the inset instead of the card corner: with a photo
+   present, "4 photos" is a fact about that photo's set, and two separate
+   chips in the same corner would collide. */
+.insetCount {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.67rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 /* Unobtrusive "there are more photos" cue on a photo cover, echoing the
    camera-icon count used elsewhere for a photo tally. Kept clear of the
    badges/title in .body, which live outside this box entirely. */

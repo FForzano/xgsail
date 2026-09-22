@@ -40,6 +40,7 @@
     "delete": "Delete",
     "edit": "Edit",
     "close": "Close",
+    "sailingSchool": "Sailing school",
     "discardChanges": "Discard changes",
     "discardConfirm": "Discard the changes made since you opened the editor? The content will go back to how it was.",
     "discardConfirmNew": "This entry was just created and will be deleted. Continue?",
@@ -770,8 +771,7 @@
       "sailing_school": "Sailing school",
       "sports_area": "Sports area",
       "fuel": "Fuel",
-      "createClub": "Create club in XGSail",
-      "hasSchool": "Sailing school"
+      "createClub": "Create club in XGSail"
     },
     "openClub": "Open club page",
     "locate": "Center on my location",
