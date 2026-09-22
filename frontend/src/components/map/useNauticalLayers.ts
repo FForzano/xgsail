@@ -109,24 +109,19 @@ export function useNauticalLayers(
   // the chart off even an unnamed one still says something is there. Filtered
   // here, at display time, never in the fetch: a cached POI result must
   // not depend on which layers happen to be toggled.
-  //
-  // A POI already linked to a club (Club.osm_ref) is also dropped, since the
-  // club's own pin now stands for it — but only while the clubs layer is
-  // actually being drawn (`showClubs`, the same condition the clubs query is
-  // `enabled` on above). `clubs.data` otherwise lingers in the TanStack cache
-  // after the layer is toggled off, which would keep hiding the POI even
-  // though nothing was drawn in its place — making the place vanish from the
-  // map entirely.
-  // OSM elements a club has claimed as being itself: their POI pin is the
-  // duplicate the club's own pin replaces. Keyed on `showClubs`, not just on
-  // `clubs.data` — the club list lingers in the TanStack cache after the
-  // layer is switched off, and hiding the POI when nothing draws the club in
-  // its place would make the place vanish from the map entirely.
+
+  // OSM elements a club has claimed as being itself, either as the club's own
+  // element (`osm_ref`) or as its separate school element (`school_osm_ref`):
+  // their POI pin is the duplicate the club's own pin replaces (the club card
+  // shows the school marker too, see ClubsLayer). Keyed on `showClubs`, not
+  // just on `clubs.data` — the club list lingers in the TanStack cache after
+  // the layer is switched off, and hiding the POI when nothing draws the club
+  // in its place would make the place vanish from the map entirely.
   const linkedOsmRefs = useMemo(
     () =>
       new Set(
         (showClubs ? clubs.data ?? [] : [])
-          .map((c) => c.osm_ref)
+          .flatMap((c) => [c.osm_ref, c.school_osm_ref])
           .filter((ref): ref is string => !!ref),
       ),
     [showClubs, clubs.data],
@@ -152,14 +147,19 @@ export function useNauticalLayers(
         params.set("osm_lng", String(poi.lng));
         navigate(`/gruppi/clubs?${params.toString()}`);
       },
+      t("map.poi.hasSchool"),
     );
   }, [poiGroup, visiblePois, t, navigate]);
 
   const clubsGroup = useLayerGroup(map, showClubs);
   useEffect(() => {
     if (!map || !clubsGroup) return;
-    syncClubsLayer(map, clubsGroup, clubs.data ?? [], { open: t("map.openClub") }, (clubId) =>
-      navigate(`/gruppi/clubs/${clubId}`),
+    syncClubsLayer(
+      map,
+      clubsGroup,
+      clubs.data ?? [],
+      { open: t("map.openClub"), hasSchool: t("map.poi.hasSchool") },
+      (clubId) => navigate(`/gruppi/clubs/${clubId}`),
     );
   }, [map, clubsGroup, clubs.data, t, navigate]);
 

@@ -150,8 +150,62 @@ MAX_RETRY_AFTER_S = 3600
 # sweep the planet — 5 deg is already 100 cells.
 MAX_BBOX_SPAN_DEG = 5.0
 
-POI_KINDS = ("marina", "harbour", "slipway", "sailing_club", "sports_area",
-             "fuel", "anchorage")
+POI_KINDS = ("marina", "harbour", "slipway", "sailing_club", "sailing_school",
+             "sports_area", "fuel", "anchorage")
+
+# The disciplines this app is for. Windsurfers and kitesurfers are users too,
+# so a pure windsurf club is a club here, not an invisible element.
+#
+# The non-standard spellings are in the set because real data uses them, not
+# because they are correct: taginfo today counts sailing 1749, kitesurfing
+# 407, windsurfing 185, windsurf 9, kite_surfing 9, kitesurf 3, wing_foiling
+# 1, wingfoil 0. Tiny counts, but the element that motivated this — "Circolo
+# Nautico di Volano", way/1561055644 — is tagged
+# `sport=sailing;kitesurfing;sup;kayak;parasailing;windsurf;wingfoil`, i.e.
+# the sloppy spellings sit next to the canonical ones on exactly the clubs we
+# want. Deliberately *not* widened to surfing, canoe, kayak or rowing: those
+# are other sports that happen to share the water.
+WIND_SPORTS = frozenset((
+    "sailing", "windsurfing", "kitesurfing", "wing_foiling",
+    "windsurf", "kitesurf", "kite_surfing", "wingfoil",
+))
+
+
+def tag_values(tags: dict, key: str) -> "set[str]":
+    """The values of a list-valued OSM tag. OSM separates multiple values in
+    one tag with ``;`` (``sport=sailing;kitesurfing;sup``), so an ``==``
+    against the raw string silently misses every multi-discipline club.
+    Missing key, non-string value, empty string and stray whitespace all come
+    back as an empty set / clean members."""
+    raw = tags.get(key)
+    if not isinstance(raw, str):
+        return set()
+    return {part.strip().casefold() for part in raw.split(";") if part.strip()}
+
+
+def _list_value_selector(key: str, *values: str) -> str:
+    """An Overpass selector matching any of ``values`` as one member of a
+    ``;`` list — the query-side counterpart of ``tag_values``, and it has to
+    stay in step with it: a ``KIND_RULES`` branch for an element
+    ``build_query`` never fetches is dead code.
+
+    Several values become one alternation rather than one ``nwr`` clause
+    each: every extra clause is another index sweep Overpass pays for, and
+    this query already has nine. Longest alternative first, so an engine that
+    matches leftmost-*first* rather than leftmost-longest still prefers
+    ``windsurfing`` over its prefix ``windsurf``; the trailing anchor already
+    makes the short one fail there, and this means we don't depend on which
+    regex flavour the instance was built with.
+
+    Anchored on both sides so ``parasailing`` and ``sailing_school`` stay
+    false, which a substring match would not. ``[[:space:]]`` rather than
+    ``\\s`` on purpose: a backslash inside an Overpass QL string is an escape
+    character, so the class is the one spelling that needs no escaping to
+    survive the trip."""
+    ordered = sorted(values, key=lambda v: (-len(v), v))
+    alternation = ordered[0] if len(ordered) == 1 else "(" + "|".join(ordered) + ")"
+    return f'["{key}"~"(^|;)[[:space:]]*{alternation}[[:space:]]*(;|$)"]'
+
 
 # First match wins, and the order is the product decision this module makes.
 # It is now the only copy — the frontend mirror it was ported from is gone.
@@ -174,20 +228,54 @@ POI_KINDS = ("marina", "harbour", "slipway", "sailing_club", "sports_area",
 # untouched. Below the club rule the old most- to least-specific ordering
 # stands — an element tagged both `leisure=marina` and `harbour=yes` still
 # reads as a marina.
+#
+# A real club is rarely single-discipline, and OSM spells that as a `;` list
+# (`sport=sailing;kitesurfing;sup;kayak`), so every list-valued tag goes
+# through ``tag_values`` — an exact `==` never matched those elements. The
+# documented tagging for a sports club is `club=sport` + `sport=<discipline>`
+# (39321 vs. 559 uses of `club=sailing`), which is why the `sport` branch
+# carries the common case; it still requires *a* `club` tag, or a plain
+# sailing *area* would read as a club, which is what `sports_area` is for.
+#
+# The discipline tested is any of ``WIND_SPORTS``, not sailing alone — a pure
+# windsurf club used to classify as nothing at all. The kind stays named
+# `sailing_club` regardless: it is the map's "an organisation runs this
+# place" pin, and renaming it would churn the enum, the migrations and every
+# frontend/i18n consumer for no user-visible gain.
+#
+# `sailing_school` sits directly below the club rule and above `marina` for
+# exactly the reason the club rule sits where it does — who runs the place
+# outranks what the place has, and a school is one step less specific about
+# who runs it than a club is. A club that also teaches pins as a club; a
+# place that only teaches pins as a school. The "also a school" fact is not
+# lost either way: since this revision the element's raw tags are stored
+# alongside the kind, which is what makes the joint case answerable without
+# a combinatorial enum.
 KIND_RULES = (
-    ("sailing_club", lambda t: t.get("club") == "sailing"
-        or (t.get("sport") == "sailing" and bool(t.get("club")))),
+    ("sailing_club", lambda t: bool(WIND_SPORTS & tag_values(t, "club"))
+        or t.get("leisure") == "sailing_club"
+        or (bool(WIND_SPORTS & tag_values(t, "sport")) and bool(t.get("club")))),
+    ("sailing_school", lambda t: "sailing_school" in tag_values(t, "amenity")),
     ("marina", lambda t: t.get("leisure") == "marina"),
     ("slipway", lambda t: t.get("leisure") == "slipway"),
     ("anchorage", lambda t: t.get("seamark:type") == "anchorage"),
     ("fuel", lambda t: t.get("amenity") == "fuel" and bool(t.get("seamark:type"))),
     ("harbour", lambda t: t.get("seamark:type") == "harbour" or t.get("harbour") == "yes"),
-    ("sports_area", lambda t: t.get("sport") == "sailing"),
+    ("sports_area", lambda t: bool(WIND_SPORTS & tag_values(t, "sport"))),
 )
 
 # What makes an element a physical place rather than an activity label. Only
 # used to decide whether an unnamed element is worth a pin — see
 # ``parse_elements``.
+#
+# `amenity=sailing_school` is deliberately *not* here. The test is whether
+# something is physically at the spot — berths, a ramp, a harbour — and a
+# school is a service, not a structure: an unnamed one is a polygon saying
+# "lessons happen somewhere around here", which is the same noise as an
+# unnamed generic sailing area. A *named* school still gets its pin, and a
+# school with berths gets one through the marina tag it already carries, so
+# nothing physical is dropped. Note this keys on tags, never on the
+# classified kind — see the comment in ``parse_elements``.
 FACILITY_TAGS = (
     lambda t: t.get("leisure") in ("marina", "slipway"),
     lambda t: t.get("harbour") == "yes",
@@ -287,8 +375,12 @@ def build_query(south: float, west: float, north: float, east: float,
         for selector in (
             '["leisure"="marina"]',
             '["leisure"="slipway"]',
-            '["club"="sailing"]',
-            '["sport"="sailing"]',
+            '["leisure"="sailing_club"]',
+            _list_value_selector("club", *WIND_SPORTS),
+            # No bare ["club"="sport"]: that is every tennis and football club
+            # on the planet. The sailing ones reach us through this selector.
+            _list_value_selector("sport", *WIND_SPORTS),
+            _list_value_selector("amenity", "sailing_school"),
             '["seamark:type"="harbour"]',
             '["seamark:type"="anchorage"]',
             '["harbour"="yes"]',
@@ -305,9 +397,51 @@ def classify(tags: dict) -> Optional[str]:
     return None
 
 
+SCHOOL_KIND = "sailing_school"
+
+
+def has_sailing_school(kind: Optional[str], tags: Optional[dict]) -> bool:
+    """Does this element teach? The one derivation of the fact, used both by
+    the map payload below and by ``services/club_osm_match.py``.
+
+    Two ways to be true, because ``KIND_RULES`` deliberately collapses the
+    joint case: a club that also teaches classifies as ``sailing_club`` and
+    the school fact lives on only in ``tags`` (``amenity=sailing_school``),
+    while a place that *only* teaches classifies as ``sailing_school``. A
+    school pin being a school is the least surprising reading, and the kind
+    is also the only evidence left on the rows cached before ``0059``, whose
+    ``tags`` are NULL.
+
+    NULL ``tags`` on any other kind is "we don't know", and the honest
+    default for a badge is not to draw it — so False, never a third state.
+    Such a row refills with its tags the next time its cell is fetched.
+    """
+    if kind == SCHOOL_KIND:
+        return True
+    return "sailing_school" in tag_values(tags or {}, "amenity")
+
+
+def poi_payload(orm) -> dict:
+    """One cached POI as the map receives it: its columns minus the excluded
+    ones (``tags`` among them — hundreds of tag dicts per bbox response is
+    payload nobody reads), plus the single boolean derived from them."""
+    d = orm.to_dict()
+    d["has_school"] = has_sailing_school(orm.kind, orm.tags)
+    return d
+
+
 def parse_elements(payload: dict) -> "list[dict]":
     """Overpass JSON -> the rows ``osm_pois`` stores. Elements with no
-    position or no matching tag are dropped."""
+    position or no matching tag are dropped.
+
+    The element's raw tags are kept verbatim alongside the classified kind.
+    Storing only the kind is what forced both ``0056`` and ``0058`` to be
+    cache-clearing migrations: with the tags thrown away, the sole way to
+    apply a changed rule was to ask Overpass for everything again and wait
+    up to ``CELL_TTL_DAYS`` for it. With them, a reclassification is an
+    UPDATE. They are excluded from the wire payload (see the ORM) — a bbox
+    can hold hundreds of POIs and the map needs kind/lat/lng/name.
+    """
     rows = []
     for el in payload.get("elements") or []:
         center = el.get("center") or {}
@@ -331,7 +465,8 @@ def parse_elements(payload: dict) -> "list[dict]":
         if not osm_type or osm_id is None:
             continue
         rows.append({"osm_ref": f"{osm_type}/{osm_id}", "kind": kind,
-                     "lat": float(lat), "lng": float(lng), "name": name})
+                     "lat": float(lat), "lng": float(lng), "name": name,
+                     "tags": tags})
     return rows
 
 
@@ -621,7 +756,8 @@ def pois_in_bbox(repos, south: float, west: float, north: float, east: float) ->
             cells[key] = repos.osm_pois.get_cell(*key)
 
     complete = all(is_covered(cells.get(key)) for key in keys)
-    pois = [p.to_dict() for p in repos.osm_pois.list_in_bbox(south, west, north, east)]
+    pois = [poi_payload(p)
+            for p in repos.osm_pois.list_in_bbox(south, west, north, east)]
     return {"pois": pois, "coverage": "complete" if complete else "partial"}
 
 

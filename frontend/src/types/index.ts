@@ -213,6 +213,22 @@ export interface ClubOsmSuggestion {
   name_match: boolean;
 }
 
+// A candidate OSM sailing-school element for a club — computed on demand by
+// GET /clubs/{id}/school-suggestion; nothing is stored or notified.
+// `source === "linked"` means the club's own OSM element already carries
+// `amenity=sailing_school` (certain — `distance_m` is null, the element *is*
+// the club); `source === "nearby"` is a proximity heuristic to confirm, not
+// a fact, and only ever has candidates with a `distance_m`.
+export interface ClubSchoolSuggestion {
+  source: "linked" | "nearby" | null;
+  candidates: {
+    osm_ref: string;
+    name: string | null;
+    kind: string;
+    distance_m: number | null;
+  }[];
+}
+
 export type BoatClaimStatus = "pending" | "approved" | "rejected";
 
 export interface BoatClaim {
@@ -277,6 +293,14 @@ export interface Club {
    * linked — the same string `NauticalPoi.id` computes, so matching is a
    * plain equality (see components/map/useNauticalLayers.ts). */
   osm_ref: string | null;
+  /** Authoritative "this club runs a sailing school" flag, independent of
+   * OSM — set from the club edit form. */
+  has_sailing_school: boolean;
+  /** `"{osm_type}/{osm_id}"` of the OSM element that is this club's school,
+   * a *different* element from `osm_ref` — nullable, and only meaningful
+   * when `has_sailing_school` is true (server-enforced, see
+   * GET /clubs/{id}/school-suggestion). */
+  school_osm_ref: string | null;
   // Embedded unconditionally by the backend (`ClubORM.__wire_children__`) —
   // raw membership rows (no joined `user`), enough to compute a member count
   // without a separate request to the permission-gated `/members` endpoint.

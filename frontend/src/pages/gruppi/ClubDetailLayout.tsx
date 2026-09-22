@@ -56,7 +56,13 @@ export function ClubDetailLayout() {
   const boats = useQuery({ queryKey: boatKeys.all, queryFn: () => boatsService.list() });
 
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", city: "", website: "" });
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    city: "",
+    website: "",
+    hasSailingSchool: false,
+  });
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
@@ -66,6 +72,7 @@ export function ClubDetailLayout() {
         description: club.data.description ?? "",
         city: club.data.city ?? "",
         website: club.data.website ?? "",
+        hasSailingSchool: club.data.has_sailing_school,
       });
       setPosition(
         club.data.lat != null && club.data.lng != null
@@ -88,6 +95,7 @@ export function ClubDetailLayout() {
         website: form.website || null,
         lat: position?.lat ?? null,
         lng: position?.lng ?? null,
+        has_sailing_school: form.hasSailingSchool,
       }),
     onSuccess: async () => {
       setEditing(false);
@@ -239,6 +247,14 @@ export function ClubDetailLayout() {
                 onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
               />
             </div>
+            <label className="sf-field">
+              <input
+                type="checkbox"
+                checked={form.hasSailingSchool}
+                onChange={(e) => setForm((f) => ({ ...f, hasSailingSchool: e.target.checked }))}
+              />{" "}
+              {t("gruppi.hasSailingSchool")}
+            </label>
             <LocationPicker
               value={position}
               address={{ city: form.city, country: c.country }}

@@ -108,6 +108,11 @@
   font-size: 0.78rem;
   line-height: 1.25;
 }
+.cardSchool {
+  opacity: 0.75;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
 .cardOpen {
   padding: 0;
   border: none;

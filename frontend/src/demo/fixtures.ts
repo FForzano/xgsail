@@ -199,6 +199,8 @@ export const demoClub: Club = {
   founded_year: 1968,
   is_active: true,
   osm_ref: null,
+  has_sailing_school: false,
+  school_osm_ref: null,
   logo: imageUrl("#0f2f3f", "#3fbf7f", "🏛"),
   members: [
     { user_id: DEMO_SKIPPER_ID, status: "active", created_at: daysFromNow(-720), user: skipper },

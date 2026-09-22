@@ -51,6 +51,16 @@
 .kindSailingClub {
   --pin-color: var(--sf-success);
 }
+/* Deliberately the club's colour, not a new one: the categorical set above is
+   fully consumed by the seven older kinds, and the only unused token left was
+   --sf-danger — a semantic "something is wrong" red, a near-twin of
+   --sf-gybe (#e05a5a vs #e0654f) and, on a nautical chart, a loaded signal.
+   A school and a club are the same family anyway ("someone runs sailing
+   here"), so they share the hue and the glyph tells them apart. A distinct
+   colour here needs a new token put through the CVD validator first. */
+.kindSailingSchool {
+  --pin-color: var(--sf-success);
+}
 .kindSportsArea {
   --pin-color: var(--sf-gybe);
 }
@@ -78,6 +88,11 @@
   color: var(--sf-primary);
 }
 .popupKind {
+  display: block;
+  opacity: 0.75;
+  font-size: 0.78rem;
+}
+.popupSchool {
   display: block;
   opacity: 0.75;
   font-size: 0.78rem;

@@ -80,7 +80,8 @@ def test_parses_a_named_marina():
                  leisure="marina", name="Porto Vecchio"),
     ]})
     assert rows == [{"osm_ref": "way/42", "kind": "marina", "lat": 44.1,
-                     "lng": 9.2, "name": "Porto Vecchio"}]
+                     "lng": 9.2, "name": "Porto Vecchio",
+                     "tags": {"leisure": "marina", "name": "Porto Vecchio"}}]
 
 
 def test_way_center_is_used_when_there_is_no_node_position():
@@ -119,7 +120,10 @@ def test_an_empty_response_parses_to_nothing():
 def test_query_covers_every_tag_the_frontend_asked_for():
     q = osm_poi.build_query(44.0, 9.0, 44.5, 9.5)
     for selector in ['["leisure"="marina"]', '["leisure"="slipway"]',
-                     '["club"="sailing"]', '["sport"="sailing"]',
+                     '["leisure"="sailing_club"]',
+                     osm_poi._list_value_selector("club", *osm_poi.WIND_SPORTS),
+                     osm_poi._list_value_selector("sport", *osm_poi.WIND_SPORTS),
+                     osm_poi._list_value_selector("amenity", "sailing_school"),
                      '["seamark:type"="harbour"]', '["seamark:type"="anchorage"]',
                      '["harbour"="yes"]', '["amenity"="fuel"]["seamark:type"]']:
         assert f"nwr{selector}(44.0,9.0,44.5,9.5);" in q
@@ -874,3 +878,232 @@ def test_something_physically_there_is_worth_a_pin_without_a_name(tags):
 def test_an_unnamed_activity_label_is_still_noise(tags):
     assert not osm_poi.has_facility(tags)
     assert osm_poi.parse_elements({"elements": [_element(**tags)]}) == []
+
+
+# --- tag_values: the ``;`` multi-value splitter -----------------------------
+
+def test_tag_values_missing_key_is_empty():
+    assert osm_poi.tag_values({}, "sport") == set()
+
+
+def test_tag_values_non_string_value_is_empty():
+    assert osm_poi.tag_values({"sport": 3}, "sport") == set()
+    assert osm_poi.tag_values({"sport": None}, "sport") == set()
+    assert osm_poi.tag_values({"sport": ["sailing"]}, "sport") == set()
+
+
+def test_tag_values_empty_string_is_empty():
+    assert osm_poi.tag_values({"sport": ""}, "sport") == set()
+
+
+def test_tag_values_strips_whitespace_around_each_member():
+    assert osm_poi.tag_values({"sport": " ; sailing ; kitesurfing ; "}, "sport") == {
+        "sailing", "kitesurfing",
+    }
+
+
+def test_tag_values_casefolds():
+    assert osm_poi.tag_values({"sport": "Sailing;WINDSURF"}, "sport") == {
+        "sailing", "windsurf",
+    }
+
+
+def test_tag_values_single_value_with_no_separator():
+    assert osm_poi.tag_values({"sport": "sailing"}, "sport") == {"sailing"}
+
+
+# --- classification: the multi-value / wind-sports regression suite --------
+#
+# Keyed on real tag dicts, since this is the bug: an ``==`` comparison against
+# a ``;``-joined tag silently dropped every multi-discipline club, and the
+# motivating element is exactly this shape.
+
+def test_the_motivating_element_classifies_as_a_sailing_club():
+    """Circolo Nautico di Volano, way/1561055644 — used to classify as None
+    and never even reach the Overpass selector."""
+    tags = {
+        "club": "sport",
+        "sport": "sailing;kitesurfing;sup;kayak;parasailing;windsurf;wingfoil",
+        "amenity": "sailing_school;boat_storage",
+        "name": "Circolo Nautico di Volano",
+    }
+    assert osm_poi.classify(tags) == "sailing_club"
+
+
+def test_a_pure_windsurf_club_is_a_club_not_invisible():
+    assert osm_poi.classify({"sport": "windsurfing", "club": "sport"}) == "sailing_club"
+
+
+@pytest.mark.parametrize("alias", sorted(osm_poi.WIND_SPORTS))
+def test_every_wind_sport_alias_reaches_the_club_rule(alias):
+    assert osm_poi.classify({"sport": alias, "club": "sport"}) == "sailing_club"
+
+
+def test_a_wind_sport_with_no_club_tag_is_a_sports_area_not_a_club():
+    assert osm_poi.classify({"sport": "kitesurfing"}) == "sports_area"
+
+
+def test_parasailing_does_not_false_positive_off_the_sailing_substring():
+    """The whole reason ``_list_value_selector``/the club rule anchor the
+    match: ``parasailing`` contains ``sailing`` as a substring but is a
+    different, unlisted activity."""
+    assert osm_poi.classify({"sport": "parasailing", "club": "sport"}) is None
+
+
+@pytest.mark.parametrize("sport", ["surfing", "rowing"])
+def test_out_of_scope_water_sports_are_not_sailing_clubs(sport):
+    """Deliberate scope decision: surfing/canoe/rowing clubs share the water
+    but are not what this app is for, even with an explicit club tag."""
+    assert osm_poi.classify({"sport": sport, "club": "sport"}) != "sailing_club"
+    assert osm_poi.classify({"sport": sport, "club": "sport"}) is None
+
+
+def test_amenity_sailing_school_alone_is_a_sailing_school():
+    assert osm_poi.classify({"amenity": "sailing_school"}) == "sailing_school"
+
+
+def test_a_club_that_also_teaches_pins_as_a_club_not_a_school():
+    """The single most important assertion in this suite: a club offering
+    lessons (``amenity`` carries ``sailing_school`` alongside ``boat_storage``)
+    must still win the ``sailing_club`` rule, since who runs the place
+    outranks what services it also offers — the school rule only fires for a
+    place with no club identity at all."""
+    tags = {"amenity": "sailing_school;boat_storage", "club": "sport", "sport": "sailing"}
+    assert osm_poi.classify(tags) == "sailing_club"
+
+
+def test_a_multidiscipline_club_with_berths_still_outranks_the_facility_tags():
+    tags = {"leisure": "marina", "club": "sport", "sport": "sailing;rowing"}
+    assert osm_poi.classify(tags) == "sailing_club"
+
+
+# --- _list_value_selector / build_query: one alternation, not N clauses ----
+
+def test_selector_is_one_alternation_anchored_on_both_sides():
+    selector = osm_poi._list_value_selector("sport", "sailing", "windsurf")
+    # One alternation of two values needs exactly one "|" between them; the
+    # two anchors ("(^|;)" and "(;|$)") contribute one "|" each.
+    assert selector.count("|") == 3
+    assert selector.startswith('["sport"~"(^|;)')
+    assert selector.endswith('(;|$)"]')
+
+
+def test_selector_orders_longest_alternative_first():
+    """So a leftmost-first (not leftmost-longest) regex engine still prefers
+    ``windsurfing`` over its own prefix ``windsurf`` — the trailing anchor
+    already makes the short one fail there, but the ordering means this
+    doesn't depend on which behaviour the Overpass instance implements."""
+    selector = osm_poi._list_value_selector("sport", "windsurf", "windsurfing", "sup")
+    alternation = selector.split('~"(^|;)[[:space:]]*')[1].split("[[:space:]]*(;|$)")[0]
+    values = alternation.strip("()").split("|")
+    assert values.index("windsurfing") < values.index("windsurf")
+
+
+def test_query_clause_count_does_not_grow_with_the_number_of_wind_sports():
+    """The whole point of collapsing to one alternation: this query already
+    has ten clauses, and it must not gain one per discipline."""
+    q = osm_poi.build_query(44.0, 9.0, 44.5, 9.5)
+    assert q.count("nwr[") == 10
+    club_selector = osm_poi._list_value_selector("club", *osm_poi.WIND_SPORTS)
+    sport_selector = osm_poi._list_value_selector("sport", *osm_poi.WIND_SPORTS)
+    # One clause each for club and sport, however many aliases WIND_SPORTS holds.
+    assert q.count(club_selector) == 1
+    assert q.count(sport_selector) == 1
+    # One "|" per value beyond the first, plus one each for the two anchors.
+    assert club_selector.count("|") == len(osm_poi.WIND_SPORTS) + 1
+
+
+def test_query_still_carries_every_non_sport_selector():
+    q = osm_poi.build_query(44.0, 9.0, 44.5, 9.5)
+    for selector in ('["leisure"="marina"]', '["leisure"="slipway"]',
+                     '["leisure"="sailing_club"]', '["seamark:type"="harbour"]',
+                     '["seamark:type"="anchorage"]', '["harbour"="yes"]',
+                     '["amenity"="fuel"]["seamark:type"]'):
+        assert f"nwr{selector}(44.0,9.0,44.5,9.5);" in q
+
+
+def _posix_class_to_python_re(selector: str) -> str:
+    """Test-only shim: Overpass's ``[[:space:]]`` (chosen specifically because
+    it needs no backslash-escaping inside an Overpass QL string) has no
+    meaning to Python's ``re`` — swap it for ``\\s`` so the *exact* emitted
+    pattern can be exercised here. This is not what Overpass runs; it is a
+    faithful stand-in for testing the anchoring logic without a network."""
+    inner = selector.split('~"', 1)[1].rsplit('"]', 1)[0]
+    return inner.replace("[[:space:]]", r"\s")
+
+
+def test_the_anchoring_actually_matches_and_rejects_the_right_strings():
+    import re
+    pattern = _posix_class_to_python_re(
+        osm_poi._list_value_selector("sport", *osm_poi.WIND_SPORTS))
+    assert re.search(pattern, "parasailing") is None
+    assert re.search(pattern, "sailing_school") is None
+    assert re.search(pattern, "windsurfing") is not None
+    assert re.search(pattern, " kitesurf ; sup") is not None
+    assert re.search(pattern, "football") is None
+    assert re.search(pattern, "sailing") is not None
+    assert re.search(pattern, "sup;kayak;kitesurfing;parasailing") is not None
+
+
+# --- parse_elements: tags carried through verbatim --------------------------
+
+def test_parse_elements_keeps_the_raw_tags_on_the_row():
+    rows = osm_poi.parse_elements({"elements": [
+        _element(osm_id=1, leisure="marina", name="Porto",
+                 **{"opening_hours": "Mo-Fr 08:00-18:00"}),
+    ]})
+    assert rows[0]["tags"] == {
+        "leisure": "marina", "name": "Porto", "opening_hours": "Mo-Fr 08:00-18:00",
+    }
+
+
+def test_parse_elements_round_trips_unexpected_tag_keys():
+    tags = {"leisure": "marina", "name": "Porto", "wikidata": "Q123",
+            "some:unexpected:namespaced:key": "value"}
+    rows = osm_poi.parse_elements({"elements": [
+        {"type": "node", "id": 1, "lat": 1.0, "lon": 1.0, "tags": tags},
+    ]})
+    assert rows[0]["tags"] == tags
+
+
+# --- the ``tags`` column through the repo -----------------------------------
+
+def _row_with_tags(osm_ref, tags, kind="marina", lat=45.5, lng=9.0, name="Porto"):
+    return {"osm_ref": osm_ref, "kind": kind, "lat": lat, "lng": lng, "name": name,
+            "tags": tags}
+
+
+def test_replace_cell_pois_persists_tags_on_insert(repo):
+    tags = {"leisure": "marina", "name": "Porto", "opening_hours": "Mo-Fr"}
+    repo.replace_cell_pois(BOUNDS, [_row_with_tags("way/1", tags)])
+    assert repo.list_in_bbox(*BOUNDS)[0].tags == tags
+
+
+def test_replace_cell_pois_updates_tags_on_a_later_upsert():
+    """The transitional state every row cached before revision 0059 goes
+    through: ``tags`` starts NULL (an old row inserted with no ``tags`` key at
+    all, exactly what a pre-0059 upsert wrote) and a later refetch of the same
+    ``osm_ref`` must populate it, not leave it NULL forever."""
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine, tables=[OsmPoiORM.__table__, OsmPoiCellORM.__table__])
+    r = SqlOsmPoiRepo(sessionmaker(bind=engine, future=True))
+
+    # Simulate a pre-0059 row: no "tags" key in the upserted dict at all.
+    old_row = {"osm_ref": "way/1", "kind": "marina", "lat": 45.5, "lng": 9.0, "name": "Porto"}
+    r.replace_cell_pois(BOUNDS, [old_row])
+    assert r.list_in_bbox(*BOUNDS)[0].tags is None
+
+    new_tags = {"leisure": "marina", "name": "Porto", "opening_hours": "Mo-Fr"}
+    r.replace_cell_pois(BOUNDS, [_row_with_tags("way/1", new_tags)])
+    assert r.list_in_bbox(*BOUNDS)[0].tags == new_tags
+
+
+# --- __wire_exclude__: tags never reaches the wire --------------------------
+
+def test_tags_is_excluded_from_the_wire_payload_but_the_rest_is_not(repo):
+    tags = {"leisure": "marina", "name": "Porto"}
+    repo.replace_cell_pois(BOUNDS, [_row_with_tags("way/1", tags)])
+    payload = repo.list_in_bbox(*BOUNDS)[0].to_dict()
+    assert "tags" not in payload
+    assert payload == {"osm_ref": "way/1", "kind": "marina", "lat": 45.5,
+                       "lng": 9.0, "name": "Porto"}

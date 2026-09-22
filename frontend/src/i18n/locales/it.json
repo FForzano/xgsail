@@ -546,7 +546,13 @@
     "osmSuggestionsTitle": "Questo circolo è su OpenStreetMap?",
     "osmSuggestionUnnamed": "Elemento senza nome",
     "osmSuggestionDistance": "a {{distance}} m",
-    "osmSuggestionLinked": "Circolo collegato a OpenStreetMap."
+    "osmSuggestionLinked": "Circolo collegato a OpenStreetMap.",
+    "hasSailingSchool": "Il circolo gestisce una scuola di vela",
+    "schoolSuggestionsTitle": "Scuola di vela su OpenStreetMap?",
+    "schoolSuggestionLinked": "Su OpenStreetMap questo circolo risulta avere una scuola di vela.",
+    "schoolSuggestionNearby": "C'è una scuola di vela ({{name}}) a {{distance}} m da qui — è del circolo?",
+    "schoolSuggestionAction": "Conferma",
+    "schoolSuggestionConfirmed": "Scuola di vela confermata."
   },
   "sessions": {
     "title": "Le mie sessioni",
@@ -761,9 +767,11 @@
       "anchorage": "Ancoraggio",
       "slipway": "Scivolo di alaggio",
       "sailing_club": "Circolo velico",
+      "sailing_school": "Scuola di vela",
       "sports_area": "Area sportiva",
       "fuel": "Rifornimento",
-      "createClub": "Crea circolo in XGSail"
+      "createClub": "Crea circolo in XGSail",
+      "hasSchool": "Scuola di vela"
     },
     "openClub": "Apri scheda circolo",
     "locate": "Centra sulla mia posizione",

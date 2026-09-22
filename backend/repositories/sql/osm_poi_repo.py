@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ...db.models import OsmPoiCellORM, OsmPoiORM
 
-_POI_FIELDS = ("kind", "lat", "lng", "name")
+_POI_FIELDS = ("kind", "lat", "lng", "name", "tags")
 
 
 class SqlOsmPoiRepo:
@@ -36,6 +36,15 @@ class SqlOsmPoiRepo:
             if kind is not None:
                 stmt = stmt.where(OsmPoiORM.kind == kind)
             return list(s.scalars(stmt).all())
+
+    def get_by_osm_ref(self, osm_ref: str) -> Optional[OsmPoiORM]:
+        """The cached element a club declares itself to be (``clubs.osm_ref``
+        holds the same ``"{osm_type}/{osm_id}"`` string). Cache-only: a club
+        pointing at an element nobody has browsed yet simply returns None."""
+        with self.Session() as s:
+            return s.scalars(
+                select(OsmPoiORM).where(OsmPoiORM.osm_ref == osm_ref)
+            ).first()
 
     def replace_cell_pois(self, bounds: "tuple[float, float, float, float]",
                           rows: "list[dict]") -> "tuple[int, int, int]":

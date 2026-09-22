@@ -11,6 +11,7 @@ export type PoiKind =
   | "harbour"
   | "slipway"
   | "sailing_club"
+  | "sailing_school"
   | "sports_area"
   | "fuel"
   | "anchorage";
@@ -24,6 +25,11 @@ export interface NauticalPoi {
   lat: number;
   lng: number;
   name: string | null;
+  /** True when this element itself carries `amenity=sailing_school` — always
+   * true when `kind === "sailing_school"`, but also set on e.g. a marina or
+   * a sailing club that also runs a school, which is why the popup checks
+   * this separately from `kind`. */
+  has_school: boolean;
   /** OSM element type + numeric id, for the "view on OSM" popup link —
    * derived from `id`, which the backend sends as a single "{type}/{id}"
    * string. */
@@ -41,6 +47,7 @@ interface OsmPoiResponseItem {
   lat: number;
   lng: number;
   name: string | null;
+  has_school: boolean;
 }
 
 interface OsmPoiResponse {
@@ -68,6 +75,7 @@ export async function fetchNauticalPoi(bbox: Bbox, signal?: AbortSignal): Promis
       lat: item.lat,
       lng: item.lng,
       name: item.name,
+      has_school: item.has_school,
       osmType,
       osmId: Number(osmIdStr),
     };
