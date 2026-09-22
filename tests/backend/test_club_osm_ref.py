@@ -6,7 +6,10 @@ Two halves, both database-free in the sense the suite means it (no Postgres):
 - the uniqueness lookup ``SqlClubRepo.get_by_osm_ref`` against an in-memory
   SQLite engine with the ``clubs`` table (plus ``user_clubs``, which
   ``ClubORM.members`` eagerly selects), following
-  ``test_boat_claims_repo.py``.
+  ``test_boat_claims_repo.py``. That lookup now spans both of a club's OSM
+  ref columns (``osm_ref`` and ``school_osm_ref``) — see
+  ``test_club_sailing_school.py`` for the ``school_osm_ref`` half; this file
+  sticks to ``osm_ref`` only.
 
 ``backend/routers/clubs.py`` cannot be imported here (its storage layer needs
 AWS credentials), so the router's conflict rule is expressed as the one

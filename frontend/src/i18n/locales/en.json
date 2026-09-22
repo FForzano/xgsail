@@ -546,7 +546,13 @@
     "osmSuggestionsTitle": "Is this club on OpenStreetMap?",
     "osmSuggestionUnnamed": "Unnamed element",
     "osmSuggestionDistance": "{{distance}} m away",
-    "osmSuggestionLinked": "Club linked to OpenStreetMap."
+    "osmSuggestionLinked": "Club linked to OpenStreetMap.",
+    "hasSailingSchool": "The club runs a sailing school",
+    "schoolSuggestionsTitle": "Sailing school on OpenStreetMap?",
+    "schoolSuggestionLinked": "On OpenStreetMap this club shows a sailing school.",
+    "schoolSuggestionNearby": "There's a sailing school ({{name}}) {{distance}} m from here — is it the club's?",
+    "schoolSuggestionAction": "Confirm",
+    "schoolSuggestionConfirmed": "Sailing school confirmed."
   },
   "sessions": {
     "title": "My sessions",
@@ -764,7 +770,8 @@
       "sailing_school": "Sailing school",
       "sports_area": "Sports area",
       "fuel": "Fuel",
-      "createClub": "Create club in XGSail"
+      "createClub": "Create club in XGSail",
+      "hasSchool": "Sailing school"
     },
     "openClub": "Open club page",
     "locate": "Center on my location",

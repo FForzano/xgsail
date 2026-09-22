@@ -888,6 +888,34 @@ Capacitor plugin changes, which still require a store release.
   stronger evidence. Promoting that hint to a filter would hide exactly the
   elements a manager most needs to fix.
 
+- **A club has *two* links to an OSM element, and an element taken in either
+  role is taken in both.** `clubs.osm_ref` is the element the club *is*;
+  `clubs.school_osm_ref` is the **separate** element that is its sailing
+  school — the "nearby" tier of `GET /clubs/{id}/school-suggestion`, where the
+  school has its own pin a few hundred metres away. `has_sailing_school` alone
+  could not stop that duplicate pin: it says *that* a club teaches, not *which*
+  element the school is, so the map has nothing to compare against. Both
+  columns are UNIQUE and `routers/clubs.py`'s `_check_osm_refs_free` checks a
+  claimed ref against **both** in one query (`SqlClubRepo.get_by_osm_ref`),
+  because one OSM element is one place: claiming as your school the element
+  another club declares itself to be puts back the very duplicate these
+  columns remove. Two states are rejected rather than stored:
+  - `school_osm_ref == the club's own osm_ref` is a 422. That is the "linked"
+    tier (the school tagged on the club's own element), where there is one
+    element and `osm_ref` already dedupes it — a second copy would only drift
+    the moment the club re-claims a different element. Say it with
+    `has_sailing_school` instead.
+  - `school_osm_ref` set with `has_sailing_school = false` is normalised away
+    (`club_osm_match.normalise_school_changes`: setting a ref implies the
+    flag, clearing the flag clears the ref), and a body asking for both at
+    once is a 422. Tolerated, it would hide the school's POI while the club
+    renders no school at all — the place vanishes with nothing drawn in its
+    stead, the same failure the clubs-layer condition above exists to avoid.
+  Because non-NULL implies the flag, the existing `has_sailing_school`
+  short-circuit in `GET /clubs/{id}/school-suggestion` already suppresses a
+  suggestion for a school that has been recorded; don't add a second condition
+  that can fall out of step with it.
+
 - **A ticked map layer that draws nothing must always say why.** The browser no
   longer queries Overpass: it calls our own `GET /osm-poi`, and
   `backend/services/osm_poi.py` owns the Overpass fetch behind a per-cell cache

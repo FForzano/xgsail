@@ -80,7 +80,9 @@ class OsmPoiORM(TimestampMixin, UUIDPKMixin, Base):
     # the five fields the map needs. ``tags`` is excluded with it: a bbox
     # response carries hundreds of POIs and no consumer reads them — they are
     # stored so a rule change can be applied by UPDATE instead of by a
-    # planet-wide re-fetch, which is server-side work, not payload.
+    # planet-wide re-fetch, which is server-side work, not payload. What the
+    # map actually needs from them is one derived boolean, ``has_school``,
+    # added by ``services/osm_poi.poi_payload``.
     __wire_exclude__ = ("id", "created_at", "updated_at", "tags")
 
     osm_ref: Mapped[str] = mapped_column(String, nullable=False)  # "way/123456"

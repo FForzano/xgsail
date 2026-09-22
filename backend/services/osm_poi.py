@@ -397,6 +397,39 @@ def classify(tags: dict) -> Optional[str]:
     return None
 
 
+SCHOOL_KIND = "sailing_school"
+
+
+def has_sailing_school(kind: Optional[str], tags: Optional[dict]) -> bool:
+    """Does this element teach? The one derivation of the fact, used both by
+    the map payload below and by ``services/club_osm_match.py``.
+
+    Two ways to be true, because ``KIND_RULES`` deliberately collapses the
+    joint case: a club that also teaches classifies as ``sailing_club`` and
+    the school fact lives on only in ``tags`` (``amenity=sailing_school``),
+    while a place that *only* teaches classifies as ``sailing_school``. A
+    school pin being a school is the least surprising reading, and the kind
+    is also the only evidence left on the rows cached before ``0059``, whose
+    ``tags`` are NULL.
+
+    NULL ``tags`` on any other kind is "we don't know", and the honest
+    default for a badge is not to draw it — so False, never a third state.
+    Such a row refills with its tags the next time its cell is fetched.
+    """
+    if kind == SCHOOL_KIND:
+        return True
+    return "sailing_school" in tag_values(tags or {}, "amenity")
+
+
+def poi_payload(orm) -> dict:
+    """One cached POI as the map receives it: its columns minus the excluded
+    ones (``tags`` among them — hundreds of tag dicts per bbox response is
+    payload nobody reads), plus the single boolean derived from them."""
+    d = orm.to_dict()
+    d["has_school"] = has_sailing_school(orm.kind, orm.tags)
+    return d
+
+
 def parse_elements(payload: dict) -> "list[dict]":
     """Overpass JSON -> the rows ``osm_pois`` stores. Elements with no
     position or no matching tag are dropped.
@@ -723,7 +756,8 @@ def pois_in_bbox(repos, south: float, west: float, north: float, east: float) ->
             cells[key] = repos.osm_pois.get_cell(*key)
 
     complete = all(is_covered(cells.get(key)) for key in keys)
-    pois = [p.to_dict() for p in repos.osm_pois.list_in_bbox(south, west, north, east)]
+    pois = [poi_payload(p)
+            for p in repos.osm_pois.list_in_bbox(south, west, north, east)]
     return {"pois": pois, "coverage": "complete" if complete else "partial"}
 
 

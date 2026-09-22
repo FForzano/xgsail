@@ -92,6 +92,11 @@
   opacity: 0.75;
   font-size: 0.78rem;
 }
+.popupSchool {
+  display: block;
+  opacity: 0.75;
+  font-size: 0.78rem;
+}
 .popupCreateClub {
   display: block;
   margin-top: 6px;

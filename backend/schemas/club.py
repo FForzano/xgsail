@@ -43,6 +43,11 @@ class ClubWriteModel(BaseModel):
     contact_email: Optional[str] = None
     osm_ref: OsmRef = None
     is_active: Optional[bool] = None
+    has_sailing_school: Optional[bool] = None
+    # Same validated type as ``osm_ref``: the two hold the same kind of string
+    # (the club itself vs. the separate element that is its sailing school),
+    # so they get the same 422 on a malformed one.
+    school_osm_ref: OsmRef = None
 
 
 class ClubMemberModel(BaseModel):

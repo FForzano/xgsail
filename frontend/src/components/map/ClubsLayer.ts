@@ -19,7 +19,7 @@ export function syncClubsLayer(
   map: L.Map,
   group: L.LayerGroup,
   clubs: Club[],
-  labels: { open: string },
+  labels: { open: string; hasSchool: string },
   onOpen: (clubId: string) => void,
 ): void {
   group.clearLayers();
@@ -46,6 +46,9 @@ export function syncClubsLayer(
           `<span class="${styles.cardText}">` +
           `<strong class="${styles.cardName}">${escapeHtml(club.name)}</strong>` +
           (club.city ? `<span class="${styles.cardCity}">${escapeHtml(club.city)}</span>` : "") +
+          (club.has_sailing_school
+            ? `<span class="${styles.cardSchool}">${escapeHtml(labels.hasSchool)}</span>`
+            : "") +
           `</span></span>` +
           `<button type="button" class="${styles.cardOpen}">${escapeHtml(labels.open)}</button>` +
           `</span>` +

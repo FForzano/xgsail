@@ -21,6 +21,7 @@ export function syncPoiLayer(
   kindLabel: (poi: NauticalPoi) => string,
   createClubLabel: string,
   onCreateClub: (poi: NauticalPoi) => void,
+  schoolLabel: string,
 ): void {
   group.clearLayers();
   for (const poi of pois) {
@@ -30,9 +31,17 @@ export function syncPoiLayer(
       poi.kind === "sailing_club"
         ? `<button type="button" class="${styles.popupCreateClub}">${escapeHtml(createClubLabel)}</button>`
         : "";
+    // A sailing_school pin already says "school" via its kind label — the
+    // extra line would repeat the same fact, so it only fires for a POI
+    // whose *other* kind (marina, sailing club, ...) also runs a school.
+    const schoolLine =
+      poi.has_school && poi.kind !== "sailing_school"
+        ? `<span class="${styles.popupSchool}">${escapeHtml(schoolLabel)}</span>`
+        : "";
     marker.bindPopup(
       `<strong>${escapeHtml(poi.name ?? kindLabel(poi))}</strong>` +
         `<span class="${styles.popupKind}">${escapeHtml(kindLabel(poi))}</span>` +
+        schoolLine +
         `<a href="${osmUrl}" target="_blank" rel="noreferrer">OpenStreetMap</a>` +
         createClubButton,
       { className: styles.popup },

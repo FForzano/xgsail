@@ -5,7 +5,7 @@ ids. Ownership is no longer a column — it's the scoped ``club_admin`` role."""
 import uuid
 from typing import Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 
 from ...db.models import ClubORM, UserClubORM
 
@@ -23,23 +23,40 @@ class SqlClubRepo:
             return s.get(ClubORM, club_id)
 
     def get_by_osm_ref(self, osm_ref: str) -> Optional[ClubORM]:
-        """The club already linked to an OSM element, if any — the router's
-        409 check before the UNIQUE constraint would raise an IntegrityError."""
+        """The club that has already spoken for an OSM element, if any — the
+        router's 409 check before the UNIQUE constraints would raise an
+        IntegrityError.
+
+        One query spanning **both** ref columns, because either one makes the
+        element taken: ``osm_ref`` says a club *is* that element,
+        ``school_osm_ref`` says it is that club's sailing school. An OSM
+        element is one place, so a second club claiming it in the other role
+        would put the very duplicate pin back that these columns remove.
+        """
         with self.Session() as s:
             return s.scalars(
-                select(ClubORM).where(ClubORM.osm_ref == osm_ref)
+                select(ClubORM).where(
+                    or_(ClubORM.osm_ref == osm_ref,
+                        ClubORM.school_osm_ref == osm_ref)
+                )
             ).first()
 
     def osm_refs_taken(self, osm_refs: "list[str]") -> "set[str]":
-        """Which of ``osm_refs`` some club already *is* — one query, so a
-        suggestion list of any size costs the same. Suggesting a taken element
-        would only produce a 409 on the link (``clubs.osm_ref`` is UNIQUE)."""
+        """Which of ``osm_refs`` some club has already spoken for, in either
+        role — one query, so a suggestion list of any size costs the same.
+        Suggesting a taken element would only produce a 409 on the link, per
+        ``get_by_osm_ref`` above."""
         if not osm_refs:
             return set()
+        wanted = set(osm_refs)
         with self.Session() as s:
-            return set(s.scalars(
-                select(ClubORM.osm_ref).where(ClubORM.osm_ref.in_(osm_refs))
-            ).all())
+            rows = s.execute(
+                select(ClubORM.osm_ref, ClubORM.school_osm_ref).where(
+                    or_(ClubORM.osm_ref.in_(osm_refs),
+                        ClubORM.school_osm_ref.in_(osm_refs))
+                )
+            ).all()
+        return {ref for row in rows for ref in row if ref in wanted}
 
     def create(self, data: dict) -> ClubORM:
         with self.Session() as s:
@@ -78,7 +95,7 @@ class SqlClubRepo:
         allowed = ("name", "description", "address_line_1", "address_line_2",
                    "city", "state_province", "postal_code", "country", "lat", "lng",
                    "founded_year", "website", "contact_email", "logo_id", "osm_ref",
-                   "is_active")
+                   "is_active", "has_sailing_school", "school_osm_ref")
         with self.Session() as s:
             orm = s.get(ClubORM, club_id)
             if orm is None:
