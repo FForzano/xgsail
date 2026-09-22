@@ -168,7 +168,7 @@ export function ClubOverview() {
           </p>
           {club.has_sailing_school && (
             <span className={`sf-badge ${styles.schoolBadge}`}>
-              <GraduationCap size={13} aria-hidden />
+              <GraduationCap size={14} className={styles.schoolIcon} aria-hidden />
               {t("common.sailingSchool")}
             </span>
           )}
