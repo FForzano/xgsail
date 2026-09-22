@@ -147,7 +147,7 @@ export function useNauticalLayers(
         params.set("osm_lng", String(poi.lng));
         navigate(`/gruppi/clubs?${params.toString()}`);
       },
-      t("map.poi.hasSchool"),
+      t("common.sailingSchool"),
     );
   }, [poiGroup, visiblePois, t, navigate]);
 
@@ -158,7 +158,7 @@ export function useNauticalLayers(
       map,
       clubsGroup,
       clubs.data ?? [],
-      { open: t("map.openClub"), hasSchool: t("map.poi.hasSchool") },
+      { open: t("map.openClub"), hasSchool: t("common.sailingSchool") },
       (clubId) => navigate(`/gruppi/clubs/${clubId}`),
     );
   }, [map, clubsGroup, clubs.data, t, navigate]);

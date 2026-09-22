@@ -247,12 +247,12 @@ export function ClubDetailLayout() {
                 onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
               />
             </div>
-            <label className="sf-field">
+            <label className="sf-check">
               <input
                 type="checkbox"
                 checked={form.hasSailingSchool}
                 onChange={(e) => setForm((f) => ({ ...f, hasSailingSchool: e.target.checked }))}
-              />{" "}
+              />
               {t("gruppi.hasSailingSchool")}
             </label>
             <LocationPicker

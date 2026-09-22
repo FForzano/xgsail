@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { GraduationCap } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +11,7 @@ import { clubsService, clubKeys } from "@/services/clubs";
 import { useOsmLinkErrorNotifier } from "@/hooks/useOsmLinkErrorNotifier";
 import { useToast } from "@/hooks/useToast";
 import { useClubContext } from "./ClubDetailLayout";
+import styles from "./ClubOverview.module.css";
 
 export function ClubOverview() {
   const { t } = useTranslation();
@@ -164,6 +166,12 @@ export function ClubOverview() {
               </a>
             )}
           </p>
+          {club.has_sailing_school && (
+            <span className={`sf-badge ${styles.schoolBadge}`}>
+              <GraduationCap size={13} aria-hidden />
+              {t("common.sailingSchool")}
+            </span>
+          )}
         </Card>
       </div>
 

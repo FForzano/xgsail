@@ -40,6 +40,7 @@
     "delete": "Elimina",
     "edit": "Modifica",
     "close": "Chiudi",
+    "sailingSchool": "Scuola di vela",
     "discardChanges": "Scarta modifiche",
     "discardConfirm": "Scartare le modifiche fatte da quando hai aperto l'editor? Il contenuto tornerà com'era.",
     "discardConfirmNew": "Questa annotazione è stata creata ora e verrà eliminata. Procedere?",
@@ -770,8 +771,7 @@
       "sailing_school": "Scuola di vela",
       "sports_area": "Area sportiva",
       "fuel": "Rifornimento",
-      "createClub": "Crea circolo in XGSail",
-      "hasSchool": "Scuola di vela"
+      "createClub": "Crea circolo in XGSail"
     },
     "openClub": "Apri scheda circolo",
     "locate": "Centra sulla mia posizione",

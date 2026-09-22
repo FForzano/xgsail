@@ -1,0 +1,12 @@
+/* The club's own "we teach" mark. A badge rather than a line of prose: it
+   sits next to city/website as one more fact about the place, and it is the
+   same claim the map's club card and POI popup make, so it reads as the same
+   thing in all three. */
+.schoolBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+  background: color-mix(in srgb, var(--sf-success) 18%, transparent);
+  color: var(--sf-success);
+}

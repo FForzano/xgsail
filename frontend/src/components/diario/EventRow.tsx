@@ -75,13 +75,20 @@ export function EventRow({
   const [announcing, setAnnouncing] = useState(false);
   const description = item.kind === "activity" ? item.activity.description : item.regatta.description;
   const href = item.kind === "activity" ? `/diario/activities/${item.id}` : `/diario/regate/regatta/${item.id}`;
-  // An activity prefers a real photo from one of its sessions over the
-  // worker-rendered track overlay; a regatta only ever has the one hero image.
-  const isPhoto = item.kind === "activity" && !!item.activity.cover_photo;
+  // The track render is what identifies an outing at a glance — where it went
+  // and what shape it was — so it stays the card's main image and the photo
+  // rides along as an inset. A photo only takes the main slot when there is
+  // no track to show (a manual activity, a worker render that never landed),
+  // where it beats the tinted placeholder. A regatta has one hero image and
+  // no track at all.
+  const track = item.kind === "activity" ? item.activity.thumbnail : null;
+  const photo = item.kind === "activity" ? item.activity.cover_photo : null;
+  const inset = track && photo ? photo : null;
   const imageUrl =
     item.kind === "activity"
-      ? (item.activity.cover_photo?.url ?? item.activity.thumbnail?.url)
+      ? (track?.url ?? photo?.url)
       : item.regatta.image?.url;
+  const isPhoto = item.kind === "activity" && !track && !!photo;
   const photoCount = item.kind === "activity" ? item.activity.photo_count : 0;
 
   return (
@@ -102,6 +109,24 @@ export function EventRow({
             />
           ) : (
             <MediaPlaceholder kind={item.kind} />
+          )}
+          {inset && (
+            // The photo lifted off the track as its own tile rather than
+            // shown beside it: the card's media box is a fixed 4/3 slot, so
+            // splitting it would shrink both images instead of letting the
+            // track stay readable.
+            <span className={styles.inset}>
+              <img src={inset.url} alt="" className={styles.insetImg} />
+              {photoCount > 1 && (
+                <span
+                  className={styles.insetCount}
+                  aria-label={t("sessions.photoCount", { count: photoCount })}
+                >
+                  <Camera size={11} aria-hidden />
+                  {photoCount}
+                </span>
+              )}
+            </span>
           )}
           {isPhoto && photoCount > 1 && (
             <span
