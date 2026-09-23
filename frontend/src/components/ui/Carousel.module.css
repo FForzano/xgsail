@@ -1,0 +1,49 @@
+.carousel {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "prev track next" ". dots .";
+  align-items: center;
+  gap: 0.25rem;
+}
+.arrow {
+  flex-shrink: 0;
+}
+.arrow:first-child {
+  grid-area: prev;
+}
+.arrow:last-of-type {
+  grid-area: next;
+}
+.track {
+  grid-area: track;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.track::-webkit-scrollbar {
+  display: none;
+}
+.slide {
+  flex: 0 0 100%;
+  width: 100%;
+  scroll-snap-align: center;
+  display: flex;
+  justify-content: center;
+}
+.dots {
+  grid-area: dots;
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  padding-top: 0.5rem;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sf-border);
+}
+.dotActive {
+  background: var(--sf-primary);
+}

@@ -15,6 +15,8 @@ import { ToastViewport } from "@/components/ui/ToastViewport";
 import { Avatar } from "@/components/ui/Avatar";
 import { ProfileMenu } from "@/components/layout/ProfileMenu";
 import { SupportPromptBanner } from "@/components/common/SupportPromptBanner";
+import { InstallAppBanner } from "@/components/common/InstallAppBanner";
+import { FeatureSuggestionBanner } from "@/components/common/FeatureSuggestionBanner";
 import { usersService, userKeys } from "@/services/users";
 import { unitsStore } from "@/stores/unitsStore";
 import { useNavMode } from "@/stores/navModeStore";
@@ -149,6 +151,8 @@ function AppShellInner() {
   return (
     <div className="sf-shell" aria-hidden={navMode || undefined} {...inertProps}>
       {canShowSupportLinks && <SupportPromptBanner />}
+      <InstallAppBanner />
+      <FeatureSuggestionBanner />
       <header className="sf-navbar">
         <NavLink to="/" className="sf-navbar__brand">
           <img src="/logo.svg" alt="" className="sf-navbar__logo" />

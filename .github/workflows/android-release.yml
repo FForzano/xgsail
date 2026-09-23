@@ -110,9 +110,16 @@ jobs:
         working-directory: frontend/android
         run: ./gradlew assembleRelease --no-daemon ${{ steps.version.outputs.gradle_args }}
 
+      # Renamed from Gradle's default app-release.apk so the file a user
+      # downloads and sees in their downloads/installer is "XGSail.apk", not
+      # a generic build artifact name.
       - name: Locate APK
         id: apk
-        run: echo "path=$(find frontend/android/app/build/outputs/apk/release -name '*.apk' | head -n1)" >> "$GITHUB_OUTPUT"
+        run: |
+          found=$(find frontend/android/app/build/outputs/apk/release -name '*.apk' | head -n1)
+          renamed="$(dirname "$found")/XGSail.apk"
+          mv "$found" "$renamed"
+          echo "path=$renamed" >> "$GITHUB_OUTPUT"
 
       - name: Clean up signing material
         if: always()

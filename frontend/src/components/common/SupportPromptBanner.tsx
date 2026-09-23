@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { authService } from "@/services/auth";
 import { BUY_ME_A_COFFEE_URL } from "@/config/links";
-import styles from "./SupportPromptBanner.module.css";
+import { SlimBanner } from "@/components/common/SlimBanner";
 
 /** Dismissible reminder shown to authed users once the backend says it's due
  * (capabilities `support.shouldShow` — 30 days after registration, then
@@ -27,26 +26,16 @@ export function SupportPromptBanner() {
   };
 
   return (
-    <div className={styles.banner} role="note">
-      <span className={styles.text}>☕ {t("support.reminder.text")}</span>
-      <a
-        href={BUY_ME_A_COFFEE_URL}
-        target="_blank"
-        rel="noreferrer"
-        className={styles.cta}
-        onClick={() => void dismiss(true)}
-      >
-        {t("support.cta")}
-      </a>
-      <button
-        type="button"
-        className={styles.dismiss}
-        onClick={() => void dismiss(false)}
-        aria-label={t("support.reminder.dismiss")}
-        title={t("support.reminder.dismiss")}
-      >
-        <X size={16} />
-      </button>
-    </div>
+    <SlimBanner
+      tint="warning"
+      icon="☕"
+      text={t("support.reminder.text")}
+      ctaLabel={t("support.cta")}
+      ctaHref={BUY_ME_A_COFFEE_URL}
+      ctaTarget="_blank"
+      onCtaClick={() => void dismiss(true)}
+      onDismiss={() => void dismiss(false)}
+      dismissLabel={t("support.reminder.dismiss")}
+    />
   );
 }
