@@ -101,6 +101,38 @@
     "contact": "Contact",
     "sourceCode": "Source code"
   },
+  "installPrompt": {
+    "banner": "You're on Android: you can install the XGSail app.",
+    "cta": "How?",
+    "dismiss": "Not now",
+    "sheetTitle": "Install XGSail",
+    "whyNotStore": "XGSail for Android isn't on the Play Store yet: publishing there needs a one-time fee the project can't cover yet. You can install anyway by downloading the signed APK straight.",
+    "featuresHeading": "What the app adds",
+    "feature1Title": "Background GPS recording",
+    "feature1Body": "Record a session even with the screen locked.",
+    "feature2Title": "Bluetooth pairing",
+    "feature2Body": "Connect your XGSail E1 (or another tracker) over Bluetooth straight from your phone.",
+    "feature3Title": "Share from other apps",
+    "feature3Body": "Share a GPX file from another app: it lands ready-made in XGSail.",
+    "stepsHeading": "How to install",
+    "step1Title": "Download",
+    "step1Body": "Download the APK with the button below.",
+    "step2Title": "Allow the install",
+    "step2Body": "Open the downloaded file: if prompted, allow installs from this source (\"unknown apps\") just for this download.",
+    "step3Title": "Confirm",
+    "step3Body": "Confirm the install: XGSail will show up among your apps like any other.",
+    "download": "Download the APK",
+    "supportBody": "if you like the project and want to support its development.",
+    "suggestCta": "Get in touch",
+    "suggestBody": "to suggest a new feature or report an issue.",
+    "suggestSubject": "XGSail feature suggestion"
+  },
+  "featureSuggestion": {
+    "text": "Got an idea for XGSail?",
+    "cta": "Get in touch",
+    "dismiss": "Not now",
+    "subject": "XGSail feature suggestion"
+  },
   "errors": {
     "generic": "Something went wrong",
     "notFound": "This page does not exist"

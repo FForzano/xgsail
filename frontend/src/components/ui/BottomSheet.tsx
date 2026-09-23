@@ -15,11 +15,16 @@ export function BottomSheet({
   onClose,
   title,
   children,
+  footer,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** Rendered below the scrollable content, outside it — for a primary
+   * action (e.g. a download/confirm button) that must stay reachable
+   * without scrolling to the end of long content. */
+  footer?: React.ReactNode;
 }) {
   useEscapeKey(onClose);
 
@@ -53,6 +58,7 @@ export function BottomSheet({
           </button>
         </div>
         <div className={styles.content}>{children}</div>
+        {footer && <div className={styles.footer}>{footer}</div>}
       </div>
     </div>,
     document.body,
