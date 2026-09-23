@@ -1,7 +1,10 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  /* Same level as Modal/ImageLightbox (100) — must stay above
+     TourHelpButton's fixed "?" button (90), or it floats on top of an open
+     sheet's content instead of being covered by it. */
+  z-index: 100;
   background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: flex-end;
