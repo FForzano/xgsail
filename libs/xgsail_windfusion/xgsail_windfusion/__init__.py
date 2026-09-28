@@ -38,8 +38,15 @@ from dataclasses import dataclass, field
 # NWP models beat global ones; a grid estimate is prior knowledge; a wind
 # direction guessed from a GPS tack pattern is the weakest.
 SOURCE_PRIORS: "dict[str, float]" = {
-    "onboard_sensor": 1.0,
-    "real_station": 0.9,
+    # Up to 4 Open-Meteo models can contribute at once, each queried at the
+    # waypoint with no spatial decay, so their *summed* weight (~1.9-2.4 with
+    # a grid estimate) otherwise drowns out a real station even directly on
+    # top of it, or the boat's own instrument. Both are weighed near/above
+    # that summed model contribution so a healthy nearby station — and the
+    # boat's own sensor, kept above it — dominate that consensus rather than
+    # being outvoted by it.
+    "onboard_sensor": 2.2,
+    "real_station": 2.0,
     "model_regional": 0.6,   # Open-Meteo icon_d2 / icon_eu
     "model_global": 0.35,    # Open-Meteo gfs_seamless / ecmwf_ifs025
     "grid_estimate": 0.5,
