@@ -87,3 +87,32 @@ def test_source_weight_scales_with_internal_confidence():
     assert half == pytest.approx(full * 0.5)
     # negative confidence is clamped to zero, never negative weight
     assert wf.source_weight("grid_estimate", internal_confidence=-1.0) == 0.0
+
+
+def test_gps_tack_decays_on_its_own_short_distance_scale():
+    """A tack bisector is local: 2 km decay instead of the 15 km every other
+    source uses, so ~no influence 10 km away."""
+    near = wf.source_weight("gps_tack", distance_km=0.0)
+    assert wf.source_weight("gps_tack", distance_km=2.0) == pytest.approx(near / math.e)
+    assert wf.source_weight("gps_tack", distance_km=10.0) < 0.01 * near
+    assert wf.source_weight("gps_tack", dt_seconds=3600) < wf.source_weight("gps_tack", dt_seconds=60)
+    # Fades on its own ~half-hour scale, centred on the tack; other sources keep 30 min.
+    assert wf.source_weight("gps_tack", dt_seconds=15 * 60) == pytest.approx(near / math.e)
+    assert wf.source_weight("gps_tack", dt_seconds=-30 * 60) == pytest.approx(near / math.e ** 2)
+    assert wf.source_weight("real_station", dt_seconds=30 * 60) == pytest.approx(
+        wf.source_weight("real_station") / math.e)
+
+
+@pytest.mark.parametrize("source", ["onboard_sensor", "real_station", "model_regional",
+                                    "model_global", "grid_estimate", "gps_estimate", "unknown"])
+def test_per_source_decay_leaves_every_other_source_unchanged(source):
+    prior = wf.SOURCE_PRIORS.get(source, 0.1)
+    expected = prior * math.exp(-7.0 / 15.0) * math.exp(-600.0 / 1800.0) * 0.5
+    got = wf.source_weight(source, distance_km=7.0, dt_seconds=600, internal_confidence=0.5)
+    assert got == pytest.approx(expected, rel=1e-12)
+
+
+def test_calibration_grid_keeps_the_per_source_decay():
+    import xgsail_windfusion.calibration as cal
+    grid = cal.candidate_grid(distance_decay_km=[10.0, 20.0])
+    assert all(c.distance_decay_km_by_source == {"gps_tack": 2.0} for c in grid)

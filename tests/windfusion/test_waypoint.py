@@ -1,0 +1,213 @@
+"""Point fusion of one wind_cache.json waypoint (``xgsail_windfusion.waypoint``)
+— the estimate the worker evaluates along a whole track and the backend at a
+single point/time. Pure Python, no numpy: runs in the backend image too."""
+
+import math
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+import xgsail_windfusion as wf
+
+T0 = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+E0 = T0.timestamp()
+
+
+def _diff(a, b):
+    return abs((a - b + 180.0) % 360.0 - 180.0)
+
+
+def _waypoint(when=lambda dt: T0 + timedelta(seconds=dt)):
+    """A station, two models and a grid estimate, timestamps built by ``when``."""
+    return {
+        "lat": 44.8, "lng": 12.3,
+        "real_stations": [
+            {"station_id": 7, "distance_km": 4.0, "observed_at": when(0), "twd_deg": 350.0,
+             "tws_kts": 10.0, "gust_kts": 14.0},
+            {"station_id": 7, "distance_km": 4.0, "observed_at": when(3600), "twd_deg": 10.0,
+             "tws_kts": 12.0, "gust_kts": 16.0},
+        ],
+        "model_candidates": {
+            "icon_d2": [{"observed_at": when(0), "twd_deg": 20.0, "tws_kts": 8.0},
+                        {"observed_at": when(3600), "twd_deg": 30.0, "tws_kts": 9.0}],
+            "gfs_seamless": [{"observed_at": when(-3600), "twd_deg": 0.0, "tws_kts": 7.0},
+                             {"observed_at": when(7200), "twd_deg": 0.0, "tws_kts": 7.0}],
+        },
+        "grid_estimates": [{"time_bucket": when(0), "twd_deg": 5.0, "tws_kts": 11.0,
+                            "gust_kts": None, "confidence": 0.5},
+                           {"time_bucket": when(1800), "twd_deg": 5.0, "tws_kts": 11.0,
+                            "gust_kts": None, "confidence": 0.5}],
+        "track_observations": [],
+    }
+
+
+@pytest.mark.parametrize("when", [
+    lambda dt: T0 + timedelta(seconds=dt),                           # datetime (backend)
+    lambda dt: (T0 + timedelta(seconds=dt)).isoformat(),             # ISO string (worker JSON)
+    lambda dt: (T0 + timedelta(seconds=dt)).isoformat().replace("+00:00", "Z"),
+    lambda dt: E0 + dt,                                              # epoch float
+    lambda dt: (T0 + timedelta(seconds=dt)).replace(tzinfo=None),    # naive = UTC
+])
+def test_every_timestamp_type_fuses_identically(when):
+    reference = wf.fuse_waypoint(_waypoint(), E0 + 900)
+    fused = wf.fuse_waypoint(_waypoint(when), E0 + 900)
+    assert fused == reference
+
+
+@pytest.mark.parametrize("t", [E0 + 900, T0 + timedelta(seconds=900),
+                               (T0 + timedelta(seconds=900)).isoformat()])
+def test_target_time_accepts_every_type(t):
+    assert wf.fuse_waypoint(_waypoint(), t) == wf.fuse_waypoint(_waypoint(), E0 + 900)
+
+
+def test_fuses_in_vector_space_and_reports_every_contribution():
+    fused = wf.fuse_waypoint(_waypoint(), E0 + 900)
+    assert _diff(fused.twd_deg, 5.0) < 15  # 350..30 around north, never ~180
+    assert 7.0 <= fused.tws_kts <= 12.0
+    names = {(c[0], c[1]) for c in fused.contributions}
+    assert names == {("real_station", 7), ("model_regional", "icon_d2"),
+                     ("model_global", "gfs_seamless"), ("grid_estimate", None)}
+    assert fused.confidence == pytest.approx(sum(c[2] for c in fused.contributions))
+    station_w = wf.source_weight("real_station", distance_km=4.0)
+    assert ("real_station", 7, station_w) in fused.contributions
+
+
+def test_station_name_is_preferred_over_its_id():
+    wp = _waypoint()
+    for r in wp["real_stations"]:
+        r["station_name"] = "Lido"
+    names = [c[1] for c in wf.fuse_waypoint(wp, E0).contributions if c[0] == "real_station"]
+    assert names == ["Lido"]
+
+
+def test_a_source_never_extrapolates_past_its_span():
+    # 2 h in: only gfs_seamless (-1 h .. +2 h) still covers it.
+    fused = wf.fuse_waypoint(_waypoint(), E0 + 7200)
+    assert [c[1] for c in fused.contributions] == ["gfs_seamless"]
+    assert _diff(fused.twd_deg, 0.0) < 1e-9
+    assert fused.tws_kts == pytest.approx(7.0)
+    assert fused.gust_kts is None
+    # Outside every source's span there is nothing to report.
+    assert wf.fuse_waypoint(_waypoint(), E0 + 7201) is None
+    assert wf.fuse_waypoint(_waypoint(), E0 - 3601) is None
+
+
+def test_gust_is_the_weighted_mean_of_the_sources_that_have_one():
+    fused = wf.fuse_waypoint(_waypoint(), E0 + 1800)
+    # Only the station reports gusts: halfway between 14 and 16.
+    assert fused.gust_kts == pytest.approx(15.0)
+
+    wp = _waypoint()
+    wp["grid_estimates"] = [dict(g, gust_kts=20.0) for g in wp["grid_estimates"]]
+    fused = wf.fuse_waypoint(wp, E0 + 1800)
+    w_station = wf.source_weight("real_station", distance_km=4.0)
+    w_grid = wf.source_weight("grid_estimate", internal_confidence=0.5)
+    assert fused.gust_kts == pytest.approx((15.0 * w_station + 20.0 * w_grid) / (w_station + w_grid))
+
+
+def test_interpolates_direction_on_the_circle():
+    # Station 350 -> 10 over an hour: halfway is north, not 180.
+    wp = {"real_stations": _waypoint()["real_stations"]}
+    fused = wf.fuse_waypoint(wp, E0 + 1800)
+    assert _diff(fused.twd_deg, 0.0) < 1e-6
+    assert fused.tws_kts == pytest.approx(11.0)  # speed interpolates linearly
+
+
+def test_stations_are_weighted_separately_not_interleaved():
+    rows = [
+        {"station_id": "near", "distance_km": 2.0, "observed_at": E0, "twd_deg": 10.0, "tws_kts": 10.0},
+        {"station_id": "far", "distance_km": 45.0, "observed_at": E0, "twd_deg": 200.0, "tws_kts": 10.0},
+    ]
+    fused = wf.fuse_waypoint({"real_stations": rows}, E0)
+    assert len(fused.contributions) == 2
+    assert _diff(fused.twd_deg, 10.0) < 10
+
+
+def test_legacy_rows_without_station_id_group_by_coordinates():
+    rows = [{"station_lat": 45.0, "station_lng": 12.0, "distance_km": 3.0,
+             "observed_at": E0 + dt, "twd_deg": 90.0, "tws_kts": 8.0} for dt in (0, 3600)]
+    fused = wf.fuse_waypoint({"real_stations": rows}, E0 + 60)
+    assert len(fused.contributions) == 1
+
+
+def test_unknown_model_is_weighed_as_global():
+    rows = [{"observed_at": E0, "twd_deg": 90.0, "tws_kts": 8.0}]
+    fused = wf.fuse_waypoint({"model_candidates": {"some_new_model": rows}}, E0)
+    assert fused.contributions == (("model_global", "some_new_model", wf.SOURCE_PRIORS["model_global"]),)
+
+
+def test_rows_without_a_usable_time_or_value_are_ignored():
+    rows = [{"observed_at": "not a date", "twd_deg": 90.0, "tws_kts": 8.0},
+            {"observed_at": None, "twd_deg": 90.0, "tws_kts": 8.0},
+            {"observed_at": E0, "twd_deg": None, "tws_kts": 8.0}]
+    assert wf.fuse_waypoint({"model_candidates": {"icon_d2": rows}}, E0) is None
+    assert wf.fuse_waypoint({}, E0) is None
+    assert wf.fuse_waypoint(_waypoint(), "garbage") is None
+
+
+# --- blend_direction ------------------------------------------------------------
+
+def _obs(twd, *, t=E0, lat=44.8, lng=12.3, confidence=0.95):
+    return {"observed_at": t, "lat": lat, "lng": lng, "twd_deg": twd, "confidence": confidence}
+
+
+def test_blend_pulls_toward_nearby_observations():
+    assert _diff(wf.blend_direction(30.0, 1.9, 44.8, 12.3, E0, [_obs(0.0)] * 5), 0.0) < 10
+
+
+def test_blend_is_local_in_space_and_time():
+    far = wf.blend_direction(30.0, 1.9, 44.8, 12.3, E0, [_obs(0.0, lat=44.9)])  # ~11 km
+    late = wf.blend_direction(30.0, 1.9, 44.8, 12.3, E0 + 3600, [_obs(0.0)])
+    near = wf.blend_direction(30.0, 1.9, 44.8, 12.3, E0, [_obs(0.0)])
+    assert _diff(far, 30.0) < 0.5 and _diff(late, 30.0) < 1.0
+    assert _diff(near, 30.0) > 5.0
+
+
+def test_blend_weights_match_source_weight():
+    own = 1.0
+    w = wf.source_weight("gps_tack", distance_km=0.0, dt_seconds=0.0, internal_confidence=0.95)
+    expected = wf.weighted_wind_mean([(30.0, 1.0, own), (0.0, 1.0, w)])[0]
+    assert wf.blend_direction(30.0, own, 44.8, 12.3, E0, [_obs(0.0)]) == pytest.approx(expected)
+
+
+def test_blend_accepts_datetime_and_iso_times_and_wraps_north():
+    obs = [_obs(350.0, t=T0.isoformat())] * 20
+    assert _diff(wf.blend_direction(10.0, 1.0, 44.8, 12.3, T0, obs), 350.0) < 3
+
+
+def test_blend_without_weight_or_observations_is_a_no_op():
+    assert wf.blend_direction(42.0, 1.0, 44.8, 12.3, E0, []) == pytest.approx(42.0)
+    assert wf.blend_direction(42.0, 0.0, 44.8, 12.3, E0, [_obs(0.0, t="bad")]) == 42.0
+
+
+# --- hold_latest_seconds ---------------------------------------------------
+
+def test_hold_latest_seconds_defaults_to_no_extrapolation():
+    wp = {"real_stations": [{"station_id": 1, "distance_km": 2.0, "observed_at": E0,
+                             "twd_deg": 10.0, "tws_kts": 8.0}]}
+    assert wf.fuse_waypoint(wp, E0 + 1200) is None  # byte-identical to before this param existed
+
+
+def test_hold_latest_seconds_holds_a_stale_source_with_decayed_weight():
+    wp = {"real_stations": [{"station_id": 1, "distance_km": 2.0, "observed_at": E0,
+                             "twd_deg": 10.0, "tws_kts": 8.0}]}
+    gap = 1200.0
+    fused = wf.fuse_waypoint(wp, E0 + gap, hold_latest_seconds=3600)
+    assert fused is not None
+    assert _diff(fused.twd_deg, 10.0) < 1e-9
+    base_weight = wf.source_weight("real_station", distance_km=2.0)
+    assert fused.confidence == pytest.approx(base_weight * math.exp(-gap / wf.TIME_DECAY_SECONDS))
+    # Beyond the hold window, it's back to nothing.
+    assert wf.fuse_waypoint(wp, E0 + 4000, hold_latest_seconds=3600) is None
+
+
+def test_hold_latest_seconds_does_not_affect_a_source_still_ahead_of_t():
+    wp = {"real_stations": [{"station_id": 1, "distance_km": 2.0, "observed_at": E0 + 3600,
+                             "twd_deg": 10.0, "tws_kts": 8.0}]}
+    # t is before the source's only reading — holding is only ever forward.
+    assert wf.fuse_waypoint(wp, E0, hold_latest_seconds=3600) is None
+
+
+def test_haversine_km():
+    assert wf.haversine_km(0.0, 0.0, 0.0, 1.0) == pytest.approx(111.19, abs=0.01)
+    assert wf.haversine_km(44.8, 12.3, 44.8, 12.3) == 0.0
