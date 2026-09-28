@@ -19,9 +19,14 @@ model_candidates: {model_name: [...]}, grid_estimates: [...]}, ...]`` — a
 strategy sees *everything* fetched for the session's track, not a single
 pre-picked series.
 
+Both strategies return ``[]`` when there is neither an onboard sensor nor a
+single station/model/grid source: a direction guessed from the GPS track
+alone carries no speed, and the wind-dependent analysis is simply not done
+then (``analyzer.analyze_session`` reports ``analysis_unavailable``).
+
 Two strategies ship:
 
-- ``sensor_cache_gps`` (legacy): picks ONE source per waypoint — and, for
+- ``sensor_cache`` (legacy): picks ONE source per waypoint — and, for
   real stations, the nearest one only (``_flatten_bundle``) — no blending.
 - ``weighted_fusion`` (default): blends every source per waypoint with the
   shared ``xgsail_windfusion`` weighting (``_fuse_bundle``), so a real
@@ -29,20 +34,21 @@ Two strategies ship:
   proportion to their reliability instead of the first one winning.
 """
 
-import math
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
-import numpy as np
-
-from xgsail_windfusion import source_weight, weighted_wind_mean
+from xgsail_windfusion import (
+    fuse_sources,
+    prepare_sources,
+    source_weight,
+    station_groups,
+    weighted_wind_mean,
+)
 
 from .models import GpsPoint, ImuReading, WindReading
 from .wind import (
-    _to_timestamp,
     compute_true_wind_series,
     estimate_wind_axis_from_gps,
-    estimate_wind_from_gps,
     true_wind_from_cached,
 )
 
@@ -51,37 +57,12 @@ WindEstimator = Callable[
     "list[dict]",
 ]
 
-# Open-Meteo model name -> reliability class for ``source_weight``. Regional
-# high-resolution models are trusted over the global fallback (see
-# ``MODEL_CANDIDATES`` in ``backend/services/wind_providers/open_meteo.py``).
-_MODEL_SOURCE_TYPE = {
-    "icon_d2": "model_regional",
-    "icon_eu": "model_regional",
-    "gfs_seamless": "model_global",
-    "ecmwf_ifs025": "model_global",
-}
-
-
-def _station_groups(rows: "list[dict]") -> "list[tuple[Optional[float], list[dict]]]":
-    """Split a waypoint's ``real_stations`` rows into one group per station,
-    as ``(distance_km, rows)`` in first-seen order. Caches written before
-    multi-station support carry no ``station_id``, so the key falls back to
-    the station's coordinates — an old single-station cache still yields
-    exactly one group with exactly one distance."""
-    groups: "dict[object, list[dict]]" = {}
-    for r in rows:
-        key = r.get("station_id")
-        if key is None:
-            key = (r.get("station_lat"), r.get("station_lng"))
-        groups.setdefault(key, []).append(r)
-    return [(g[0].get("distance_km"), g) for g in groups.values()]
-
 
 def _nearest_station_rows(rows: "list[dict]") -> "list[dict]":
     """The rows of the closest station only. A station with no coordinates
     (``distance_km is None``) sorts last, so it is used only if it is all
     there is."""
-    groups = _station_groups(rows)
+    groups = station_groups(rows)
     if not groups:
         return []
     nearest = min(groups, key=lambda g: (g[0] is None, g[0] if g[0] is not None else 0.0))
@@ -120,53 +101,13 @@ def _flatten_bundle(raw_wind_bundle: "list[dict]") -> "list[dict]":
     return flat
 
 
-def _series_arrays(rows: "list[dict]", *, time_key: str = "observed_at"):
-    """Turn a source's rows into sorted numpy arrays ``(times, sin, cos, tws)``
-    ready for time-interpolation — direction as sin/cos so it interpolates on
-    the circle, not linearly across the 0/360 wrap. ``None`` if the source has
-    no usable rows."""
-    triples = []
-    for r in rows:
-        twd, tws, t = r.get("twd_deg"), r.get("tws_kts"), r.get(time_key)
-        if twd is None or tws is None or t is None:
-            continue
-        triples.append((_to_timestamp(t), twd, tws))
-    if not triples:
-        return None
-    triples.sort(key=lambda x: x[0])
-    times = np.array([x[0] for x in triples], dtype=float)
-    sin_a = np.array([math.sin(math.radians(x[1])) for x in triples], dtype=float)
-    cos_a = np.array([math.cos(math.radians(x[1])) for x in triples], dtype=float)
-    tws_a = np.array([x[2] for x in triples], dtype=float)
-    return times, sin_a, cos_a, tws_a
-
-
-def _interp_at(arrays, t: float):
-    """Interpolate a prepared source series to time ``t`` (circular for
-    direction). ``None`` outside the source's own time span — a source never
-    contributes where it has no data (no extrapolation)."""
-    times, sin_a, cos_a, tws_a = arrays
-    if t < times[0] or t > times[-1]:
-        return None
-    s = float(np.interp(t, times, sin_a))
-    c = float(np.interp(t, times, cos_a))
-    tws = float(np.interp(t, times, tws_a))
-    twd = (math.degrees(math.atan2(s, c)) + 360.0) % 360.0
-    return twd, tws
-
-
 def _fuse_bundle(raw_wind_bundle: "list[dict]") -> "list[dict]":
     """Blend every source of each waypoint into one fused time series, in the
     same flat shape ``_flatten_bundle`` returns (so ``true_wind_from_cached``
-    can interpolate it onto the track unchanged). For each waypoint:
-
-    1. prepare each source (every real station present, every Open-Meteo
-       model, grid) as an interpolatable series with a reliability weight from
-       ``xgsail_windfusion.source_weight`` — stations are grouped per station,
-       so each is decayed by its own distance rather than interpolated across
-       its neighbours;
-    2. on the union of all their timestamps, interpolate each source to that
-       time and ``weighted_wind_mean`` the ones that cover it.
+    can interpolate it onto the track unchanged). The fusion itself is
+    ``xgsail_windfusion.fuse_sources`` — the same function the backend uses for
+    a single point/time — evaluated here on the union of every source's
+    timestamps.
 
     A time covered by a single source still yields that source's value (a
     one-element weighted mean) — so this never drops data the pick-first
@@ -174,53 +115,20 @@ def _fuse_bundle(raw_wind_bundle: "list[dict]") -> "list[dict]":
     flat = []
     for wp in raw_wind_bundle or []:
         lat, lng = wp.get("lat"), wp.get("lng")
-
-        # (source_type, weight_kwargs, prepared_arrays) for every source present.
-        sources = []
-
-        for distance_km, station_rows in _station_groups(wp.get("real_stations") or []):
-            arrays = _series_arrays(station_rows)
-            if arrays is not None:
-                sources.append(("real_station", {"distance_km": distance_km}, arrays))
-
-        for model, rows in (wp.get("model_candidates") or {}).items():
-            arrays = _series_arrays(rows or [])
-            if arrays is not None:
-                # Open-Meteo is queried AT the waypoint → no spatial offset.
-                sources.append((_MODEL_SOURCE_TYPE.get(model, "model_global"), {}, arrays))
-
-        grid = wp.get("grid_estimates") or []
-        arrays = _series_arrays(grid, time_key="time_bucket")
-        if arrays is not None:
-            confs = [g.get("confidence") for g in grid if g.get("confidence") is not None]
-            grid_conf = (sum(confs) / len(confs)) if confs else None
-            sources.append(("grid_estimate", {"internal_confidence": grid_conf}, arrays))
-
-        if not sources:
-            continue
-
-        all_times = sorted({float(t) for _, _, arr in sources for t in arr[0]})
-        for t in all_times:
-            contributions = []
-            for source_type, weight_kwargs, arrays in sources:
-                interp = _interp_at(arrays, t)
-                if interp is None:
-                    continue
-                twd, tws = interp
-                contributions.append((twd, tws, source_weight(source_type, **weight_kwargs)))
-            fused = weighted_wind_mean(contributions)
+        sources = prepare_sources(wp)
+        for t in sorted({t for s in sources for t in s.times}):
+            fused = fuse_sources(sources, t)
             if fused is None:
                 continue
-            twd, tws, confidence = fused
             flat.append({
                 "station_lat": lat,
                 "station_lng": lng,
                 "observed_at": t,  # epoch seconds; _to_timestamp() handles floats
-                "twd_deg": twd,
-                "tws_kts": tws,
+                "twd_deg": fused.twd_deg,
+                "tws_kts": fused.tws_kts,
                 # Total fused weight, used to balance the low-weight GPS-axis
                 # nudge below; ignored by true_wind_from_cached.
-                "confidence": confidence,
+                "confidence": fused.confidence,
             })
     return flat
 
@@ -252,27 +160,6 @@ def _nudge_with_gps_axis(fused_rows: "list[dict]", axis_deg: float, gps_confiden
     return fused_rows
 
 
-def _gps_estimate_series(gps: "list[GpsPoint]") -> "list[dict]":
-    """Last-resort tier shared by every strategy: a rough wind *direction*
-    from the GPS tack pattern alone, normalized to the standard series shape.
-    No speed (``tws_kts``/``twa_deg`` left ``None``), tagged
-    ``"gps_estimate"``. Empty if the track doesn't support even that."""
-    est = estimate_wind_from_gps(gps)
-    if est is None:
-        return []
-    twd, confidence = est
-    return [{
-        "timestamp": p.timestamp,
-        "twd_deg": twd,
-        "tws_kts": None,
-        "twa_deg": None,
-        "boat_speed_kts": p.speed_kts,
-        "heading_deg": p.heading_deg,
-        "source": "gps_estimate",
-        "confidence": confidence,
-    } for p in gps]
-
-
 def _cache_series(gps: "list[GpsPoint]", flat_rows: "list[dict]", *, source: str) -> "list[dict]":
     """Interpolate flat, lat/lng-tagged wind rows onto the track via the
     shared ``true_wind_from_cached``, retagging ``source`` so a plain
@@ -286,7 +173,7 @@ def _cache_series(gps: "list[GpsPoint]", flat_rows: "list[dict]", *, source: str
     return series
 
 
-def sensor_then_cache_then_gps(
+def sensor_then_cache(
     gps: "list[GpsPoint]",
     wind: "list[WindReading]",
     imu: "Optional[list[ImuReading]]",
@@ -296,15 +183,11 @@ def sensor_then_cache_then_gps(
 
     1. onboard wind sensor (measured apparent -> true),
     2. raw wind bundle reduced to ONE source per waypoint (``_flatten_bundle``,
-       no blending) interpolated onto the track,
-    3. a rough direction estimated from the GPS tack pattern alone."""
+       no blending) interpolated onto the track."""
     true_wind = compute_true_wind_series(gps, wind, imu)
     if true_wind:
         return true_wind
-    cached = _cache_series(gps, _flatten_bundle(raw_wind_bundle), source="cache")
-    if cached:
-        return cached
-    return _gps_estimate_series(gps)
+    return _cache_series(gps, _flatten_bundle(raw_wind_bundle), source="cache")
 
 
 def weighted_fusion(
@@ -313,7 +196,7 @@ def weighted_fusion(
     imu: "Optional[list[ImuReading]]",
     raw_wind_bundle: "list[dict]",
 ) -> "list[dict]":
-    """Default behavior. Same tiering as ``sensor_then_cache_then_gps``, but
+    """Default behavior. Same tiering as ``sensor_then_cache``, but
     tier 2 *blends* every source per waypoint (``_fuse_bundle``) instead of
     picking the first, weighting each by reliability (source type, station
     distance, grid confidence) via the shared ``xgsail_windfusion``.
@@ -336,14 +219,11 @@ def weighted_fusion(
         axis = estimate_wind_axis_from_gps(gps)
         if axis is not None:
             fused_rows = _nudge_with_gps_axis(fused_rows, axis[0], axis[1])
-    fused = _cache_series(gps, fused_rows, source="fusion")
-    if fused:
-        return fused
-    return _gps_estimate_series(gps)
+    return _cache_series(gps, fused_rows, source="fusion")
 
 
 STRATEGIES: "dict[str, WindEstimator]" = {
-    "sensor_cache_gps": sensor_then_cache_then_gps,
+    "sensor_cache": sensor_then_cache,
     "weighted_fusion": weighted_fusion,
 }
 

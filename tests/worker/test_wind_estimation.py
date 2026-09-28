@@ -176,3 +176,99 @@ def test_flatten_bundle_with_two_stations_returns_only_nearest():
     assert len(flat) == 1
     assert flat[0]["twd_deg"] == 10
     assert flat[0]["tws_kts"] == 10
+
+
+# --- the pure-python lib fusion reproduces the numpy one it replaced -----------
+
+def _numpy_reference_fuse(raw_wind_bundle):
+    """The worker's pre-lib ``_fuse_bundle`` (numpy time interpolation), kept
+    verbatim here as the oracle the shared ``xgsail_windfusion.fuse_sources``
+    has to match."""
+    import math
+
+    import numpy as np
+
+    from xgsail_windfusion import MODEL_SOURCE_TYPE, source_weight, station_groups, to_epoch, weighted_wind_mean
+
+    def arrays(rows, time_key="observed_at"):
+        triples = sorted((to_epoch(r[time_key]), r["twd_deg"], r["tws_kts"]) for r in rows
+                         if r.get("twd_deg") is not None and r.get("tws_kts") is not None)
+        if not triples:
+            return None
+        return (np.array([x[0] for x in triples]),
+                np.array([math.sin(math.radians(x[1])) for x in triples]),
+                np.array([math.cos(math.radians(x[1])) for x in triples]),
+                np.array([x[2] for x in triples], dtype=float))
+
+    flat = []
+    for wp in raw_wind_bundle:
+        sources = []
+        for distance_km, rows in station_groups(wp.get("real_stations") or []):
+            sources.append((source_weight("real_station", distance_km=distance_km), arrays(rows)))
+        for model, rows in (wp.get("model_candidates") or {}).items():
+            sources.append((source_weight(MODEL_SOURCE_TYPE.get(model, "model_global")), arrays(rows)))
+        grid = wp.get("grid_estimates") or []
+        confs = [g["confidence"] for g in grid if g.get("confidence") is not None]
+        sources.append((source_weight("grid_estimate",
+                                      internal_confidence=sum(confs) / len(confs) if confs else None),
+                        arrays(grid, "time_bucket")))
+        sources = [s for s in sources if s[1] is not None]
+        for t in sorted({float(t) for _, a in sources for t in a[0]}):
+            contributions = []
+            for w, (times, s, c, tws) in sources:
+                if times[0] <= t <= times[-1]:
+                    twd = (math.degrees(math.atan2(np.interp(t, times, s), np.interp(t, times, c))) + 360) % 360
+                    contributions.append((twd, float(np.interp(t, times, tws)), w))
+            twd, tws, conf = weighted_wind_mean(contributions)
+            flat.append({"observed_at": t, "twd_deg": twd, "tws_kts": tws, "confidence": conf})
+    return flat
+
+
+def _realistic_bundle():
+    """Four waypoints, each with three stations (one legacy, no station_id) at
+    staggered 10-minute cadences, four Open-Meteo models + an unknown one at
+    hourly cadence offset from the stations, and a grid estimate — ISO strings
+    as the worker reads them back from wind_cache.json."""
+    import random
+    from datetime import datetime, timezone
+
+    rnd = random.Random(7)
+    t0 = 1_800_000_000
+
+    def iso(t):
+        return datetime.fromtimestamp(t, tz=timezone.utc).isoformat()
+
+    bundle = []
+    for w in range(4):
+        wp = {"lat": 44.8 + w * 0.01, "lng": 12.3 + w * 0.01, "real_stations": [],
+              "model_candidates": {}, "grid_estimates": []}
+        for sid, dist in (("a", 3.0 + w), ("b", 20.0), (None, 9.0)):
+            for k in range(8):
+                row = {"distance_km": dist, "observed_at": iso(t0 + k * 600 + (137 if sid == "b" else 0)),
+                       "twd_deg": rnd.uniform(340, 400) % 360, "tws_kts": rnd.uniform(6, 14),
+                       "gust_kts": rnd.choice([None, 15.0])}
+                if sid:
+                    row["station_id"] = sid
+                else:
+                    row["station_lat"], row["station_lng"] = 45.0, 12.0
+                wp["real_stations"].append(row)
+        for m in ("icon_d2", "icon_eu", "gfs_seamless", "ecmwf_ifs025", "unknown_model"):
+            wp["model_candidates"][m] = [{"observed_at": iso(t0 - 1800 + k * 3600),
+                                          "twd_deg": rnd.uniform(0, 60), "tws_kts": rnd.uniform(5, 12)}
+                                         for k in range(4)]
+        wp["grid_estimates"] = [{"time_bucket": iso(t0 + k * 900), "twd_deg": rnd.uniform(0, 30),
+                                 "tws_kts": 9.0, "confidence": rnd.random()} for k in range(3)]
+        bundle.append(wp)
+    return bundle
+
+
+def test_lib_fusion_matches_the_numpy_implementation_it_replaced():
+    bundle = _realistic_bundle()
+    expected = _numpy_reference_fuse(bundle)
+    actual = _fuse_bundle(bundle)
+    assert len(actual) == len(expected) == 80
+    for a, e in zip(actual, expected):
+        assert a["observed_at"] == e["observed_at"]
+        assert abs((a["twd_deg"] - e["twd_deg"] + 180) % 360 - 180) < 1e-9
+        assert a["tws_kts"] == pytest.approx(e["tws_kts"], abs=1e-9)
+        assert a["confidence"] == pytest.approx(e["confidence"], abs=1e-12)

@@ -267,6 +267,10 @@ def process_compute_maneuver(bucket: str, prefix: str, spec: dict):
         ctx = load_session_context(tmp_path)
         if ctx is None:
             raise ValueError(f"No GPS data found at {bucket}/{prefix}")
+        if not ctx.true_wind:
+            # Same rule as analyze_session: no sensor and no station/model
+            # source means no wind-dependent analysis, a maneuver's included.
+            raise ValueError(f"No wind data for {bucket}/{prefix}: maneuver not computed")
 
         maneuver = compute_manual_maneuver(
             ctx.gps, ctx.imu, ctx.avg_twd, ctx.true_wind,
