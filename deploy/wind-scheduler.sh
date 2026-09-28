@@ -20,6 +20,14 @@
 #                                                  the source, so a much
 #                                                  shorter cadence than NDBC's
 #                                                  synoptic data is warranted)
+#   WIND_AUTO_REFRESH_INTERVAL_MIN               (default 10 — kicks the
+#                                                  neighbour wind re-analysis
+#                                                  processor, backend/services/
+#                                                  wind_auto_refresh.py; it
+#                                                  debounces, rate-limits and
+#                                                  single-flights on its own,
+#                                                  so this is only how often it
+#                                                  gets to look. 0 disables.)
 set -eu
 
 BACKEND_URL="${BACKEND_URL:-http://backend:8000}"
@@ -34,6 +42,9 @@ cumulus_last=0
 CUMULUS_GAUGES_INTERVAL_MIN="${WIND_FETCH_INTERVAL_MIN_CUMULUS_GAUGES_JSON:-5}"
 cumulus_gauges_last=0
 
+AUTO_REFRESH_INTERVAL_MIN="${WIND_AUTO_REFRESH_INTERVAL_MIN:-10}"
+auto_refresh_last=0
+
 fetch() {
     provider="$1"
     echo "[wind-scheduler] fetching provider=$provider"
@@ -46,7 +57,16 @@ fetch() {
     echo ""
 }
 
-echo "[wind-scheduler] started (noaa_ndbc every ${NDBC_INTERVAL_MIN}m, cumulus_realtime every ${CUMULUS_INTERVAL_MIN}m, cumulus_gauges_json every ${CUMULUS_GAUGES_INTERVAL_MIN}m)"
+auto_refresh() {
+    echo "[wind-scheduler] kicking neighbour wind auto-refresh"
+    curl -fsS -X POST \
+        -H "Authorization: Bearer $TOKEN" \
+        "$BACKEND_URL/api/system/wind/auto-refresh" \
+        || echo "[wind-scheduler] auto-refresh kick failed (will retry next cycle)"
+    echo ""
+}
+
+echo "[wind-scheduler] started (noaa_ndbc every ${NDBC_INTERVAL_MIN}m, cumulus_realtime every ${CUMULUS_INTERVAL_MIN}m, cumulus_gauges_json every ${CUMULUS_GAUGES_INTERVAL_MIN}m, wind auto-refresh every ${AUTO_REFRESH_INTERVAL_MIN}m)"
 while true; do
     now=$(date +%s)
     if [ $((now - ndbc_last)) -ge $((NDBC_INTERVAL_MIN * 60)) ]; then
@@ -60,6 +80,11 @@ while true; do
     if [ $((now - cumulus_gauges_last)) -ge $((CUMULUS_GAUGES_INTERVAL_MIN * 60)) ]; then
         fetch "cumulus_gauges_json"
         cumulus_gauges_last=$now
+    fi
+    if [ "$AUTO_REFRESH_INTERVAL_MIN" -gt 0 ] && \
+       [ $((now - auto_refresh_last)) -ge $((AUTO_REFRESH_INTERVAL_MIN * 60)) ]; then
+        auto_refresh
+        auto_refresh_last=$now
     fi
     sleep 60
 done

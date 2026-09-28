@@ -17,7 +17,8 @@ from pydantic import AwareDatetime, BaseModel
 from ..auth import require_system
 from ..schemas import WindFetchModel
 from ..services import (
-    ingestion, media, osm_poi, wind_estimate_refinement, wind_estimates,
+    ingestion, media, osm_poi, session_analysis, track_wind, wind_auto_refresh,
+    wind_estimate_refinement, wind_estimates,
 )
 from ..services.wind_providers import PROVIDERS
 from ._common import repos
@@ -143,13 +144,11 @@ def upsert_session_stats(session_id: uuid.UUID, payload: SessionStatsPayload,
 @router.post("/session-uploads/{upload_id}/analysis")
 def upsert_session_analysis(upload_id: uuid.UUID, payload: dict, request: Request,
                             background_tasks: BackgroundTasks):
-    """Persist the worker's analysis for an upload's session, fanning it out to
-    its normalized homes: scalar aggregates → ``session_stats``, the empirical
-    polar curve → ``polar_points``, discrete tacks/gybes → ``session_maneuvers``,
-    legs → ``session_legs``, and the remaining matrices/series/distributions →
-    ``session_analysis`` (JSON). The worker stays DB-blind: it posts the whole
-    ``analysis.json`` dict and the backend owns the writes. Idempotent — every
-    child set is replaced wholesale on re-runs."""
+    """Persist the worker's analysis for an upload's session — the fan-out to
+    its normalized homes is ``services/session_analysis.py``. The worker stays
+    DB-blind: it posts the whole ``analysis.json`` dict and the backend owns
+    the writes. Idempotent — every child set is replaced wholesale on re-runs,
+    including by a payload flagged ``analysis_unavailable``."""
     require_system(request)
     upload = repos.ingest.get_upload(upload_id)
     if upload is None:
@@ -157,13 +156,6 @@ def upsert_session_analysis(upload_id: uuid.UUID, payload: dict, request: Reques
     sid = upload.session_id
     now = datetime.now(timezone.utc)
 
-    summary = payload.get("summary") or {}
-    if summary:
-        repos.sessions.upsert_stats(sid, {**summary, "computed_at": now})
-    repos.polars.bulk_upsert(session_id=sid, source="empirical",
-                             points=payload.get("polar_points") or [])
-    repos.sessions.upsert_maneuvers(sid, payload.get("maneuvers") or [])
-    repos.sessions.upsert_legs(sid, payload.get("legs") or [])
     # Estimated position/motion blobs (see processing/track.py) — registered
     # the same way any other sensor stream is, just sourced from analysis
     # instead of raw ingestion.
@@ -171,26 +163,16 @@ def upsert_session_analysis(upload_id: uuid.UUID, payload: dict, request: Reques
     if streams:
         repos.ingest.upsert_streams(upload_id, streams)
 
-    analysis_fields = {
-        "correlations": payload.get("correlations"),
-        "violin": payload.get("violin"),
-        "maneuver_summary": payload.get("maneuver_summary"),
-        "leg_comparison": payload.get("leg_comparison"),
-        "sensor_stats": payload.get("session_stats"),
-        "vmg_series": payload.get("vmg_series"),
-        "polar_target": payload.get("polar_target"),
-        "true_wind": payload.get("true_wind"),
-        "computed_at": now,
-    }
     # The worker already wrote the PNG straight to storage (it stays DB-blind)
     # — the backend just registers the resulting `images` row. Re-analyze
     # replaces it, so the old row (if any) is cleaned up rather than leaked.
+    thumbnail_fields = {}
     thumbnail_ref = payload.get("thumbnail_ref")
     if thumbnail_ref:
         thumbnail_image_id = media.register_processed_image(thumbnail_ref)
         if thumbnail_image_id is not None:
             previous = repos.sessions.get_analysis(sid)
-            analysis_fields["thumbnail_image_id"] = thumbnail_image_id
+            thumbnail_fields["thumbnail_image_id"] = thumbnail_image_id
             if previous and previous.thumbnail_image_id:
                 # The worker always overwrites the same key (`{prefix}thumbnail.png`)
                 # rather than rendering to a fresh one each time, so the "previous"
@@ -200,8 +182,12 @@ def upsert_session_analysis(upload_id: uuid.UUID, payload: dict, request: Reques
                 same_key = prev_image is not None and prev_image.ref == thumbnail_ref
                 media.delete_image(previous.thumbnail_image_id, deleted_by=None,
                                    keep_blob=same_key)
-    repos.sessions.upsert_analysis(sid, analysis_fields)
+    session_analysis.apply_payload(sid, payload, now, thumbnail_fields)
     _apply_wind_refinements(sid, payload.get("wind_refinements") or [])
+    # An analysis that answers an automatic neighbour refresh marks nobody in
+    # turn — one generation only (services/wind_auto_refresh.py).
+    auto_refresh = wind_auto_refresh.consume_auto_flag(sid)
+    track_wind.apply_analysis_payload(sid, payload, mark_neighbours=not auto_refresh)
 
     # This session now has a track to show — (re)build the parent activity's
     # overlay thumbnail from every sibling session's most recently processed
@@ -350,6 +336,19 @@ def wind_fetch(payload: WindFetchModel, request: Request):
             except Exception as exc:  # one bad station must not stop the sweep
                 errors.append(f"{provider}/{station.external_station_id}: {exc}")
     return {"stations": stations_hit, "inserted": inserted, "errors": errors}
+
+
+@router.post("/wind/auto-refresh", status_code=202)
+def wind_auto_refresh_run(request: Request, background_tasks: BackgroundTasks):
+    """Periodic kick (wind-scheduler service) for the neighbour wind
+    re-analysis processor — see ``services/wind_auto_refresh.py``. Runs in
+    the background: a run dispatches up to a few worker analyses one after
+    another. A kick while a run is in progress is a no-op."""
+    require_system(request)
+    if not wind_auto_refresh.enabled():
+        return {"started": False, "reason": "disabled"}
+    background_tasks.add_task(wind_auto_refresh.run_pending)
+    return {"started": True}
 
 
 @router.post("/osm-poi/refresh")

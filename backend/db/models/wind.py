@@ -15,6 +15,10 @@
   observations turn into (or refine) a cell's estimate is a pluggable
   algorithm — see ``services/wind_estimate_refinement.py`` — deliberately
   left as a skeleton here.
+- ``wind_track_observations``: wind directions the analysis worker inferred
+  from one session's own tacks/gybes, shared with *other* sessions sailed
+  nearby at the same time. Owned by the session (replaced wholesale on every
+  re-analysis, never accumulated — the flaw ``wind_estimates``' merge has).
 """
 
 import uuid
@@ -24,11 +28,12 @@ from typing import Optional
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ..base import Base, UUIDPKMixin, enum_check
+from ..base import Base, CreatedAtMixin, UUIDPKMixin, enum_check
 
 WIND_PROVIDERS = ("noaa_ndbc", "noaa_metar", "custom_device", "cumulus_realtime",
                   "cumulus_gauges_json")
 WIND_STATION_TYPES = ("buoy", "metar", "custom_device")
+TRACK_WIND_KINDS = ("tack", "gybe")
 
 
 class WindStationORM(UUIDPKMixin, Base):
@@ -107,3 +112,27 @@ class WindEstimateORM(UUIDPKMixin, Base):
     refined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class WindTrackObservationORM(UUIDPKMixin, CreatedAtMixin, Base):
+    """One wind direction inferred from a single maneuver of one session.
+
+    Replaced as a set per session on every analysis upsert, so re-processing
+    never double-counts. Served to *other* sessions' wind caches stripped of
+    ``session_id`` — which boat sailed where and when is not theirs to know —
+    and never exposed by any API endpoint."""
+
+    __tablename__ = "wind_track_observations"
+    __table_args__ = (enum_check("kind", TRACK_WIND_KINDS),)
+    __wire_exclude__ = ("session_id",)
+
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False,
+                                                  index=True)
+    lat: Mapped[float] = mapped_column(Float, nullable=False)
+    lng: Mapped[float] = mapped_column(Float, nullable=False)
+    twd_deg: Mapped[float] = mapped_column(Float, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    kind: Mapped[str] = mapped_column(String, nullable=False)

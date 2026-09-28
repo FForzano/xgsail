@@ -49,6 +49,10 @@ class FakeWindRepo:
     def list_estimates_for_cells(self, cells, start, end):
         return []
 
+    def list_track_observations_near(self, lat, lng, radius_km, start, end, *,
+                                     exclude_session_id):
+        return []
+
 
 def _fake_repos(wind_repo):
     return SimpleNamespace(wind=wind_repo)
@@ -104,6 +108,9 @@ def test_station_with_no_observations_contributes_no_rows():
 
 
 def test_live_snapshot_falls_back_to_second_station_when_nearest_is_offline():
+    """live_snapshot now fuses every source, so "falls back" means the
+    offline station simply contributes nothing rather than blocking the
+    online one — not that it hands back one station's raw reading."""
     s1 = _station("s1", provider="noaa_ndbc", name="Nearest Buoy")
     s2 = _station("s2", provider="noaa_metar", name="Second Station")
     repo = FakeWindRepo(
@@ -113,12 +120,14 @@ def test_live_snapshot_falls_back_to_second_station_when_nearest_is_offline():
             "s2": [_obs(datetime(2026, 7, 1, 10, 0, tzinfo=timezone.utc), twd_deg=250, tws_kts=14)],
         },
     )
-    with patch("backend.services.wind_lookup.get_repos", return_value=_fake_repos(repo)):
+    with patch("backend.services.wind_lookup.get_repos", return_value=_fake_repos(repo)), \
+         patch("backend.services.wind_lookup.open_meteo.fetch_historical", return_value={}):
         result = wind_lookup.live_snapshot(45.0, 9.0, at=datetime(2026, 7, 1, 10, 0, tzinfo=timezone.utc))
 
     assert result is not None
-    assert result["provider"] == "noaa_metar"
-    assert result["station_name"] == "Second Station"
+    assert result["provider"] == "fusion"
+    names = {s["name"] for s in result["sources"] if s["type"] == "real_station"}
+    assert names == {"Second Station"}
 
 
 def test_live_snapshot_falls_through_to_open_meteo_only_when_no_station_has_data():
@@ -130,8 +139,9 @@ def test_live_snapshot_falls_through_to_open_meteo_only_when_no_station_has_data
         result = wind_lookup.live_snapshot(45.0, 9.0, at=at)
 
     assert result is not None
-    assert result["provider"] == "open_meteo"
-    assert result["model"] == "icon_d2"
+    assert result["provider"] == "fusion"
+    assert {s["type"] for s in result["sources"]} == {"model_regional"}
+    assert result["sources"][0]["name"] == "icon_d2"
 
 
 def test_gather_raw_wind_passes_max_real_stations_as_find_within_limit():

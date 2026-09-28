@@ -22,7 +22,7 @@ import requests
 
 from ..repositories import get_repos
 from ..storage import get_blob_store
-from . import wind_estimates, wind_lookup
+from . import nav_source, wind_estimates, wind_lookup
 
 logger = logging.getLogger(__name__)
 
@@ -292,7 +292,7 @@ def _previous_wind_cache_by_cell(store, prefix: str) -> dict:
 
 
 def write_wind_cache(prefix: str, waypoints: "list[tuple[float, float]]",
-                     start: datetime, end: datetime) -> None:
+                     start: datetime, end: datetime, *, session_id: uuid.UUID) -> None:
     """Pre-fetch every raw wind source relevant to a session's track/time
     window, sampled at several points along the track (``waypoints`` — see
     ``sample_wind_waypoints``) rather than just the start, and drop it in
@@ -318,7 +318,11 @@ def write_wind_cache(prefix: str, waypoints: "list[tuple[float, float]]",
     the worker's existing per-observation time decay (``source_weight``'s
     ``dt_seconds``) naturally discounts it as it ages, same as any other
     observation. The worker falls back to GPS-estimated wind only if a cell
-    has neither a fresh nor a previous bundle."""
+    has neither a fresh nor a previous bundle.
+
+    ``session_id`` is the session this cache belongs to, so its own
+    maneuver-derived wind observations are left out of the neighbours'
+    ``track_observations`` it bundles."""
     store = get_blob_store()
     previous_by_cell = _previous_wind_cache_by_cell(store, prefix)
 
@@ -330,7 +334,8 @@ def write_wind_cache(prefix: str, waypoints: "list[tuple[float, float]]",
             continue  # nearby waypoints share a cell — no need to fetch it twice
         seen_cells.add(cell)
         try:
-            bundle = wind_lookup.gather_raw_wind(lat, lng, start, end, gps_points=waypoints)
+            bundle = wind_lookup.gather_raw_wind(lat, lng, start, end, gps_points=waypoints,
+                                                 session_id=session_id)
         except Exception:
             logger.warning("wind cache pre-fetch failed for waypoint (%s, %s) prefix %s",
                            lat, lng, prefix, exc_info=True)
@@ -399,7 +404,7 @@ def register_gps_stream(upload_id: uuid.UUID, session_id: uuid.UUID,
     repos.sessions.rollup_status(session_id)
     try:
         waypoints = sample_wind_waypoints(points)
-        write_wind_cache(prefix, waypoints, started_at, ended_at)
+        write_wind_cache(prefix, waypoints, started_at, ended_at, session_id=session_id)
     except Exception:
         pass
     if background_tasks is not None:
@@ -423,13 +428,18 @@ def stage_raw_upload(upload_id: uuid.UUID, filename: str, data: bytes) -> str:
 
 
 def refresh_wind_cache(session_id: uuid.UUID) -> str:
-    """Recompute ``wind_cache.json`` for a session's most recently uploaded
-    processed prefix, sampling waypoints from its already-stored
-    ``gps.json`` — for a session ingested before the current wind-gathering
-    logic landed, so it can pick up improvements without a full re-import.
-    Re-dispatches analysis afterwards so VMG/polar/true-wind reflect the
-    refreshed cache. Raises ``ValueError`` (caller's job to turn into an
-    HTTP error) if there's nothing to refresh from.
+    """Recompute ``wind_cache.json`` for a session's resolved navigation
+    upload (``nav_source.resolve_nav_upload`` — NOT simply the most recently
+    uploaded one: a phone + Apple Watch pair uploads the watch's
+    physiological stream last, which has no ``gps.json`` at all, so picking
+    by upload recency used to fail with "No GPS track to sample wind from"
+    even though the boat/phone's track was right there), sampling waypoints
+    from its already-stored ``gps.json`` — for a session ingested before the
+    current wind-gathering logic landed, so it can pick up improvements
+    without a full re-import. Re-dispatches analysis afterwards so
+    VMG/polar/true-wind reflect the refreshed cache. Raises ``ValueError``
+    (caller's job to turn into an HTTP error) if there's nothing to refresh
+    from.
 
     Works for both manual GPX imports and device uploads: the worker
     normalizes every source to the same ``{lat, lon, ...}`` shape in
@@ -438,10 +448,9 @@ def refresh_wind_cache(session_id: uuid.UUID) -> str:
     session = repos.sessions.get(session_id)
     if session is None:
         raise ValueError("Session not found")
-    uploads = repos.ingest.list_uploads(session_id=session_id)
-    if not uploads:
+    upload = nav_source.resolve_nav_upload(session_id)
+    if upload is None:
         raise ValueError("No processed data for this session")
-    upload = max(uploads, key=lambda u: u.uploaded_at)
     prefix = processed_prefix(upload.id)
     try:
         points = get_blob_store().get_json(f"{prefix}gps.json")
@@ -451,7 +460,7 @@ def refresh_wind_cache(session_id: uuid.UUID) -> str:
         raise ValueError("No GPS track to sample wind from")
     waypoints = sample_wind_waypoints(points)
     end = session.ended_at or session.started_at
-    write_wind_cache(prefix, waypoints, session.started_at, end)
+    write_wind_cache(prefix, waypoints, session.started_at, end, session_id=session_id)
     dispatch_analysis(bucket_name(), prefix,
                       trim_start=session.trim_start_time, trim_end=session.trim_end_time)
     return prefix

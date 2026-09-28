@@ -3,6 +3,7 @@ a waypoint whose fetch raises falls back to its own prior bundle instead of
 being dropped; a waypoint that succeeds (even with legitimately empty
 sources) is never overridden by stale data."""
 
+import uuid
 from unittest.mock import patch
 
 import pytest
@@ -27,6 +28,7 @@ class FakeStore:
 
 
 PREFIX = "processed/uploads/test-upload/"
+SESSION_ID = uuid.uuid4()
 START = None
 END = None
 
@@ -40,7 +42,7 @@ def test_no_previous_cache_failure_drops_the_cell_as_before():
     with patch("backend.services.ingestion.get_blob_store", return_value=store), \
          patch("backend.services.ingestion.wind_lookup.gather_raw_wind",
                side_effect=RuntimeError("provider trimmed history")):
-        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0)], START, END)
+        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0)], START, END, session_id=SESSION_ID)
     # Nothing succeeded and nothing to fall back to -> no file written at all.
     assert f"{PREFIX}wind_cache.json" not in store._blobs
 
@@ -57,7 +59,7 @@ def test_partial_failure_falls_back_to_previous_bundle_for_that_cell():
     with patch("backend.services.ingestion.get_blob_store", return_value=store), \
          patch("backend.services.ingestion.wind_lookup.gather_raw_wind",
                side_effect=RuntimeError("provider trimmed history")):
-        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0)], START, END)
+        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0)], START, END, session_id=SESSION_ID)
 
     new_payload = store._blobs[f"{PREFIX}wind_cache.json"]
     assert len(new_payload) == 1
@@ -75,7 +77,7 @@ def test_successful_fetch_overwrites_the_old_bundle_not_merged_with_it():
     with patch("backend.services.ingestion.get_blob_store", return_value=store), \
          patch("backend.services.ingestion.wind_lookup.gather_raw_wind",
                return_value=fresh_bundle):
-        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0)], START, END)
+        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0)], START, END, session_id=SESSION_ID)
 
     new_payload = store._blobs[f"{PREFIX}wind_cache.json"]
     assert len(new_payload) == 1
@@ -94,7 +96,7 @@ def test_legitimately_empty_result_is_not_treated_as_a_failure():
     with patch("backend.services.ingestion.get_blob_store", return_value=store), \
          patch("backend.services.ingestion.wind_lookup.gather_raw_wind",
                return_value=empty_bundle):
-        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0)], START, END)
+        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0)], START, END, session_id=SESSION_ID)
 
     new_payload = store._blobs[f"{PREFIX}wind_cache.json"]
     assert new_payload[0]["real_stations"] == []  # not the old station
@@ -107,14 +109,14 @@ def test_partial_failure_across_multiple_cells_mixes_fresh_and_stale():
             "model_candidates": {}, "grid_estimates": []}
     store = FakeStore({f"{PREFIX}wind_cache.json": [old_a, old_b]})
 
-    def gather(lat, lng, start, end, gps_points=None):
+    def gather(lat, lng, start, end, gps_points=None, session_id=None):
         if lat == 45.0:
             raise RuntimeError("cell A's provider failed this time")
         return {"real_stations": [{"observed_at": "fresh_b"}], "model_candidates": {}, "grid_estimates": []}
 
     with patch("backend.services.ingestion.get_blob_store", return_value=store), \
          patch("backend.services.ingestion.wind_lookup.gather_raw_wind", side_effect=gather):
-        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0), (46.0, 10.0)], START, END)
+        ingestion.write_wind_cache(PREFIX, [(45.0, 9.0), (46.0, 10.0)], START, END, session_id=SESSION_ID)
 
     new_payload = store._blobs[f"{PREFIX}wind_cache.json"]
     by_lat = {e["lat"]: e for e in new_payload}

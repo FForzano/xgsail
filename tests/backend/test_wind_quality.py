@@ -120,6 +120,10 @@ class _FakeRepo:
     def list_estimates_for_cells(self, cells, start, end):
         return []
 
+    def list_track_observations_near(self, lat, lng, radius_km, start, end, *,
+                                     exclude_session_id):
+        return []
+
 
 def _station(station_id, name):
     return SimpleNamespace(id=station_id, provider="cumulus_realtime",
@@ -162,7 +166,9 @@ def test_live_snapshot_skips_the_faulty_station_for_the_next_one():
         snapshot = wind_lookup.live_snapshot(44.74, 12.24, at=START + timedelta(minutes=20))
 
     assert snapshot is not None
-    assert snapshot["station_name"] == "Volano"
+    assert snapshot["provider"] == "fusion"
+    names = {s["name"] for s in snapshot["sources"] if s["type"] == "real_station"}
+    assert names == {"Volano"}
 
 
 # --- operator-facing health --------------------------------------------
