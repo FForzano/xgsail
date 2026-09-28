@@ -20,6 +20,9 @@ Two ideas, both borrowed from how a Kalman filter fuses sensors:
    per-source-type prior times spatial and temporal decay times the source's
    own confidence — the one place reliability policy lives.
 
+``waypoint`` builds on both to fuse a whole ``wind_cache.json`` waypoint at
+one instant — the per-session estimate and the backend's live point value.
+
 Dependency-free on purpose (stdlib ``math`` only) so it can live in the
 numpy-free backend image as well as the worker.
 """
@@ -41,13 +44,29 @@ SOURCE_PRIORS: "dict[str, float]" = {
     "model_global": 0.35,    # Open-Meteo gfs_seamless / ecmwf_ifs025
     "grid_estimate": 0.5,
     "gps_estimate": 0.2,
+    # Wind direction bisected from one tack/gybe (``process_upload/processing/
+    # tack_wind.py``), already scaled by that maneuver's own confidence. Above
+    # the sensor prior because it is weighed against a row's *summed* model
+    # weight (~1.9 for four Open-Meteo models sharing one bias), and it only
+    # holds that strength within a couple of km and ~half an hour — see the
+    # overrides below.
+    "gps_tack": 2.0,
 }
 _DEFAULT_PRIOR = 0.1  # unknown source type — trusted little, never zero
 
 # Characteristic scales for the exponential decays. A contribution loses a
 # factor 1/e of its weight per this much distance / time offset.
 DISTANCE_DECAY_KM = 15.0
+# Per-source override of ``DISTANCE_DECAY_KM``. A tack bisector describes the
+# wind where the boat was, not a weather system: its influence should end
+# around the next headland, not 15 km away.
+DISTANCE_DECAY_KM_BY_SOURCE: "dict[str, float]" = {"gps_tack": 2.0}
 TIME_DECAY_SECONDS = 30.0 * 60.0  # 30 minutes
+# Per-source override of ``TIME_DECAY_SECONDS``. Coastal/thermal wind shifts
+# over tens of minutes, so a tack bisector is trusted most at its own moment
+# and fades within about half an hour either side (weight 1/e at 15 min,
+# ~0.14 at 30 min).
+TIME_DECAY_SECONDS_BY_SOURCE: "dict[str, float]" = {"gps_tack": 15.0 * 60.0}
 
 
 @dataclass(frozen=True)
@@ -60,7 +79,11 @@ class WeightConfig:
     priors: "dict[str, float]" = field(default_factory=lambda: dict(SOURCE_PRIORS))
     default_prior: float = _DEFAULT_PRIOR
     distance_decay_km: float = DISTANCE_DECAY_KM
+    distance_decay_km_by_source: "dict[str, float]" = field(
+        default_factory=lambda: dict(DISTANCE_DECAY_KM_BY_SOURCE))
     time_decay_seconds: float = TIME_DECAY_SECONDS
+    time_decay_seconds_by_source: "dict[str, float]" = field(
+        default_factory=lambda: dict(TIME_DECAY_SECONDS_BY_SOURCE))
 
 
 DEFAULT_CONFIG = WeightConfig()
@@ -102,9 +125,11 @@ def source_weight(
     cfg = config or DEFAULT_CONFIG
     w = cfg.priors.get(source_type, cfg.default_prior)
     if distance_km is not None:
-        w *= math.exp(-max(distance_km, 0.0) / cfg.distance_decay_km)
+        decay_km = cfg.distance_decay_km_by_source.get(source_type, cfg.distance_decay_km)
+        w *= math.exp(-max(distance_km, 0.0) / decay_km)
     if dt_seconds is not None:
-        w *= math.exp(-abs(dt_seconds) / cfg.time_decay_seconds)
+        decay_s = cfg.time_decay_seconds_by_source.get(source_type, cfg.time_decay_seconds)
+        w *= math.exp(-abs(dt_seconds) / decay_s)
     if internal_confidence is not None:
         w *= max(internal_confidence, 0.0)
     return w
@@ -139,10 +164,36 @@ def weighted_wind_mean(
     return twd, tws, sum_w
 
 
+# Imported last: ``waypoint`` builds on the weighting defined above.
+from .waypoint import (  # noqa: E402
+    MODEL_SOURCE_TYPE,
+    FusedWind,
+    WindSource,
+    blend_direction,
+    fuse_sources,
+    fuse_waypoint,
+    haversine_km,
+    prepare_sources,
+    station_groups,
+    to_epoch,
+)
+
 __all__ = [
+    "MODEL_SOURCE_TYPE",
+    "FusedWind",
+    "WindSource",
+    "blend_direction",
+    "fuse_sources",
+    "fuse_waypoint",
+    "haversine_km",
+    "prepare_sources",
+    "station_groups",
+    "to_epoch",
     "SOURCE_PRIORS",
     "DISTANCE_DECAY_KM",
+    "DISTANCE_DECAY_KM_BY_SOURCE",
     "TIME_DECAY_SECONDS",
+    "TIME_DECAY_SECONDS_BY_SOURCE",
     "WeightConfig",
     "DEFAULT_CONFIG",
     "to_uv",

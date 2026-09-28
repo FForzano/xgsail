@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 
 from ...richtext import to_plain_text
 from ...db.models import (
@@ -63,7 +63,7 @@ _LEG_FIELDS = ("leg_type", "start_time", "end_time", "duration_sec", "distance_n
                "start_lon", "end_lat", "end_lon")
 _ANALYSIS_FIELDS = ("correlations", "violin", "maneuver_summary", "leg_comparison",
                     "sensor_stats", "vmg_series", "polar_target", "true_wind",
-                    "thumbnail_image_id", "computed_at")
+                    "thumbnail_image_id", "unavailable_reason", "computed_at")
 
 
 class SqlSessionRepo:
@@ -197,6 +197,118 @@ class SqlSessionRepo:
             s.delete(orm)
             s.commit()
             return True
+
+    # --- neighbour wind auto-refresh (services/wind_auto_refresh.py) ---
+
+    def wind_neighbour_points(self, *, exclude_session_id: uuid.UUID,
+                              lat_min: float, lat_max: float, lng_min: float, lng_max: float,
+                              t_min: datetime, t_max: datetime) -> "list[tuple]":
+        """``(session_id, started_at, ended_at, lat, lng)`` for every leg
+        endpoint and maneuver start inside the box, of every other session
+        whose window overlaps ``[t_min, t_max]`` and whose analysis could use
+        a neighbour's tack/gybe wind: one exists, it is not
+        ``unavailable_reason``-flagged, and its true wind is not from an
+        onboard sensor (the worker keys that on the first sample's source, so
+        this does too). The caller decides the exact distance/time match."""
+        end = func.coalesce(SessionORM.ended_at, SessionORM.started_at)
+        first_source = func.coalesce(
+            SessionAnalysisORM.true_wind[(0, "source")].as_string(), "")
+        base = (
+            select(SessionORM.id, SessionORM.started_at, SessionORM.ended_at)
+            .join(SessionAnalysisORM, SessionAnalysisORM.session_id == SessionORM.id)
+            .where(SessionORM.id != exclude_session_id,
+                   SessionORM.started_at.is_not(None),
+                   SessionORM.started_at <= t_max, end >= t_min,
+                   SessionAnalysisORM.unavailable_reason.is_(None),
+                   first_source != "sensor")
+        )
+
+        def in_box(lat_col, lng_col):
+            return lat_col.between(lat_min, lat_max) & lng_col.between(lng_min, lng_max)
+
+        leg, man = SessionLegORM, SessionManeuverORM
+        with self.Session() as s:
+            legs = s.execute(
+                base.add_columns(leg.start_lat, leg.start_lon, leg.end_lat, leg.end_lon)
+                .join(leg, leg.session_id == SessionORM.id)
+                .where(or_(in_box(leg.start_lat, leg.start_lon),
+                           in_box(leg.end_lat, leg.end_lon)))
+            ).all()
+            maneuvers = s.execute(
+                base.add_columns(man.start_lat, man.start_lon)
+                .join(man, man.session_id == SessionORM.id)
+                .where(in_box(man.start_lat, man.start_lon))
+            ).all()
+        out = []
+        for sid, started, ended, slat, slng, elat, elng in legs:
+            out.append((sid, started, ended, slat, slng))
+            if elat is not None and elng is not None:
+                out.append((sid, started, ended, elat, elng))
+        out.extend(maneuvers)
+        return [p for p in out if p[3] is not None and p[4] is not None]
+
+    def mark_wind_stale(self, session_ids: "list[uuid.UUID]", at: datetime) -> None:
+        if not session_ids:
+            return
+        with self.Session() as s:
+            s.execute(update(SessionORM).where(SessionORM.id.in_(session_ids))
+                      .values(wind_stale_at=at))
+            s.commit()
+
+    def list_wind_stale(self, *, stale_before: datetime, cooldown_before: datetime,
+                        limit: int) -> "list[SessionORM]":
+        """Sessions marked no later than ``stale_before`` and not attempted
+        since ``cooldown_before``, longest-waiting first."""
+        with self.Session() as s:
+            return list(s.scalars(
+                select(SessionORM)
+                .where(SessionORM.wind_stale_at.is_not(None),
+                       SessionORM.wind_stale_at <= stale_before,
+                       or_(SessionORM.wind_auto_refreshed_at.is_(None),
+                           SessionORM.wind_auto_refreshed_at <= cooldown_before))
+                .order_by(SessionORM.wind_stale_at)
+                .limit(limit)
+            ).all())
+
+    def drop_wind_stale_before(self, cutoff: datetime) -> int:
+        """Forget marks nobody has renewed since ``cutoff`` — the give-up for
+        a session whose refresh keeps failing."""
+        with self.Session() as s:
+            result = s.execute(update(SessionORM)
+                               .where(SessionORM.wind_stale_at < cutoff)
+                               .values(wind_stale_at=None))
+            s.commit()
+            return result.rowcount or 0
+
+    def set_wind_refresh_state(self, session_id: uuid.UUID, **changes) -> None:
+        allowed = {"wind_stale_at", "wind_auto_refreshed_at", "wind_auto_refresh_pending_at"}
+        unknown = set(changes) - allowed
+        if unknown:
+            raise ValueError(f"not wind refresh state: {sorted(unknown)}")
+        with self.Session() as s:
+            s.execute(update(SessionORM).where(SessionORM.id == session_id).values(**changes))
+            s.commit()
+
+    def pop_wind_auto_refresh_flag(self, session_id: uuid.UUID) -> Optional[datetime]:
+        """Read and clear ``wind_auto_refresh_pending_at`` in one transaction."""
+        with self.Session() as s:
+            orm = s.get(SessionORM, session_id, with_for_update=True)
+            if orm is None or orm.wind_auto_refresh_pending_at is None:
+                return None
+            flagged = orm.wind_auto_refresh_pending_at
+            orm.wind_auto_refresh_pending_at = None
+            s.commit()
+            return flagged
+
+    def clear_wind_stale_not_after(self, session_id: uuid.UUID, cutoff: datetime) -> None:
+        """Clear the mark only if it predates ``cutoff`` — a mark that
+        arrived while the refresh was running is newer data it did not see."""
+        with self.Session() as s:
+            s.execute(update(SessionORM)
+                      .where(SessionORM.id == session_id,
+                             SessionORM.wind_stale_at <= cutoff)
+                      .values(wind_stale_at=None))
+            s.commit()
 
     # --- find-or-create support ---
 

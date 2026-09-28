@@ -1,6 +1,18 @@
 /* Shared by SessionAnalysis and its AnalysisLegs/AnalysisManeuvers siblings —
    one feature area, one stylesheet. */
 
+/* The "no wind data" explainer — muted prose with its optional refresh
+   action inline, same spacing rhythm as .analysisBlock but no heading of
+   its own since it replaces the blocks rather than introducing one. */
+.noWindData {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  color: var(--sf-muted);
+}
+
 /* A top-level region of the analysis (polar / legs / maneuvers). Same rule as
    .sf-block + .sf-block in global.css: with no border or surface of their own,
    stacked regions read apart via a hairline plus air, never by boxing each one.

@@ -1,7 +1,7 @@
 """Wind direction calculation and true wind estimation.
 
-Computes true wind from apparent wind + boat speed/heading,
-with fallback estimation when sensors are unavailable.
+Computes true wind from apparent wind + boat speed/heading, interpolates
+cached/fused wind onto the track, and reads a wind axis off the GPS track.
 """
 
 import math
@@ -108,7 +108,7 @@ def compute_true_wind_series(
             "boat_speed_kts": round(speed, 2),
             "heading_deg": round(heading, 1),
             # A real measurement (onboard sensor) — distinguishes this from
-            # "cache"/"gps_estimate" so callers know it's safe to feed back
+            # "cache"/"fusion" so callers know it's safe to feed back
             # into the wind_estimates grid (see wind_estimation.refinements_from).
             "source": "sensor",
         })
@@ -144,7 +144,7 @@ def true_wind_from_cached(
             continue
         key = (o.get("station_lat"), o.get("station_lng"))
         by_station.setdefault(key, []).append(
-            (_to_timestamp(o["observed_at"]), o["twd_deg"], o["tws_kts"])
+            (_to_timestamp(o["observed_at"]), o["twd_deg"], o["tws_kts"], o.get("confidence"))
         )
     if not by_station:
         return []
@@ -157,7 +157,10 @@ def true_wind_from_cached(
         # Circular interpolation of direction: interpolate the unit vector,
         # not the raw degrees (which wrap at 360 and would average 350°+10°
         # to 180°).
-        series[key] = (times, np.sin(twd), np.cos(twd), np.array([o[2] for o in obs]))
+        # A fused row's total source weight, carried so a later blend can weigh
+        # this row against other evidence (``tack_wind.blend_observations``).
+        conf = None if any(o[3] is None for o in obs) else np.array([o[3] for o in obs])
+        series[key] = (times, np.sin(twd), np.cos(twd), np.array([o[2] for o in obs]), conf)
 
     single_station = len(series) == 1
     only_key = next(iter(series)) if single_station else None
@@ -168,7 +171,7 @@ def true_wind_from_cached(
             key = only_key
         else:
             key = min(series, key=lambda k: _haversine_nm(p.lat, p.lon, k[0], k[1]))
-        times, obs_sin, obs_cos, obs_tws = series[key]
+        times, obs_sin, obs_cos, obs_tws, obs_conf = series[key]
 
         t = _to_timestamp(p.timestamp)
         tws = float(np.interp(t, times, obs_tws))
@@ -179,7 +182,7 @@ def true_wind_from_cached(
         # TWA: signed angle of the wind (from) relative to the bow, in (-180,180].
         twa = ((twd - p.heading_deg + 180) % 360) - 180
 
-        results.append({
+        row = {
             "timestamp": t,
             "tws_kts": round(tws, 2),
             "twa_deg": round(twa, 1),
@@ -187,7 +190,10 @@ def true_wind_from_cached(
             "boat_speed_kts": round(p.speed_kts, 2),
             "heading_deg": round(p.heading_deg, 1),
             "source": "cache",
-        })
+        }
+        if obs_conf is not None:
+            row["confidence"] = round(float(np.interp(t, times, obs_conf)), 3)
+        results.append(row)
 
     return results
 
@@ -214,52 +220,6 @@ def _tack_axis(headings_rad: "np.ndarray") -> "tuple[float, float]":
     return axis_rad, concentration
 
 
-def estimate_wind_from_gps(
-    gps: list[GpsPoint],
-    min_speed_kts: float = 2.0,
-) -> Optional[tuple[float, float]]:
-    """Fallback: estimate true wind direction from GPS tracks.
-
-    Assumes upwind legs have lower speeds and clusters heading around
-    the wind direction. Returns (estimated_twd_deg, confidence 0-1). The
-    result is a tack *axis*, so it carries an unresolved 180° ambiguity —
-    acceptable for this last-resort tier; the fusion path uses the gated
-    ``estimate_wind_axis_from_gps`` below and resolves the ambiguity against
-    other sources instead.
-    """
-    if len(gps) < 60:
-        return None
-
-    speeds = np.array([p.speed_kts for p in gps])
-    headings = np.array([p.heading_deg for p in gps])
-
-    # Filter stationary points
-    mask = speeds > min_speed_kts
-    if mask.sum() < 30:
-        return None
-
-    headings_rad = np.radians(headings[mask])
-    speeds_filt = speeds[mask]
-
-    # Low speed points are more likely upwind - weight them
-    median_speed = np.median(speeds_filt)
-    upwind_mask = speeds_filt < median_speed
-    upwind_headings = headings_rad[upwind_mask]
-
-    if len(upwind_headings) < 10:
-        return None
-
-    # Find the axis the upwind legs (two tacks) cluster around.
-    axis_rad, _ = _tack_axis(upwind_headings)
-    estimated_twd = math.degrees(axis_rad) % 360
-
-    # Confidence based on how bimodal the upwind headings are
-    spread = np.std(np.cos(upwind_headings - axis_rad))
-    confidence = min(1.0, max(0.0, 1.0 - spread))
-
-    return estimated_twd, confidence
-
-
 def estimate_wind_axis_from_gps(
     gps: list[GpsPoint],
     min_speed_kts: float = 2.0,
@@ -267,8 +227,7 @@ def estimate_wind_axis_from_gps(
     """Gated tack-axis estimate, for use as a low-weight *direction* signal in
     the fusion. Returns ``(axis_deg in [0, 180), confidence)`` or ``None``.
 
-    Unlike ``estimate_wind_from_gps`` (an unconditional last resort), this
-    only returns a value when the track actually *works a wind axis* —
+    Only returns a value when the track actually *works a wind axis* —
     tacking or gybing across a consistent line, with both tacks genuinely
     sailed. A boat motoring straight, reaching steadily, or drifting reveals
     no wind axis and yields ``None`` (its GPS heading would otherwise inject

@@ -1,0 +1,20 @@
+/* Compact attribution list for the fused reading's top contributing
+   sources — scoped here since WindCard is its only consumer. */
+.sources {
+  margin-top: 0.6rem;
+}
+
+.sourcesLabel {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sourcesList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}

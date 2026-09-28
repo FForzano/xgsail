@@ -35,7 +35,9 @@ from .session import (
     SessionAnalysisORM,
 )
 from .ingest import ImportORM, SessionUploadORM, SessionStreamORM
-from .wind import WindStationORM, WindObservationORM, WindEstimateORM
+from .wind import (
+    WindStationORM, WindObservationORM, WindEstimateORM, WindTrackObservationORM,
+)
 from .osm_poi import OsmPoiORM, OsmPoiCellORM
 from .admin_access_log import AdminAccessLogORM
 
@@ -91,6 +93,7 @@ __all__ = [
     "WindStationORM",
     "WindObservationORM",
     "WindEstimateORM",
+    "WindTrackObservationORM",
     "OsmPoiORM",
     "OsmPoiCellORM",
     "AdminAccessLogORM",

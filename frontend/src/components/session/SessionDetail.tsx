@@ -1153,7 +1153,13 @@ export function SessionDetail({
       ) : null}
 
       <div id="session-analysis" data-tour="activity-analysis">
-        <SessionAnalysis sessionId={sessionId} editMode={maneuverEditMode} />
+        <SessionAnalysis
+          sessionId={sessionId}
+          editMode={maneuverEditMode}
+          maxSpeedKts={stats.data?.max_speed_kts}
+          onRefreshWind={manager ? () => refreshWind.mutate() : undefined}
+          refreshingWind={refreshWind.isPending || reanalysisPolling}
+        />
       </div>
 
       {addingCrew && (

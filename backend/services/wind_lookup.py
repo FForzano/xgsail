@@ -8,20 +8,34 @@ Two distinct jobs, kept separate:
   algorithm to decide what to do with (see
   ``workers/process_upload/processing/wind_estimation.py``). No picking
   happens here anymore — that decision moved to the worker.
-- ``live_snapshot`` — a quick, ephemeral "what's the wind here right now"
-  for the WindCard/map display, unrelated to session analysis. Never
-  blends: it walks the in-range real stations nearest-first and shows the
-  first one with data, otherwise the first available Open-Meteo candidate,
-  unblended. Nothing is persisted — this is *not* the rigorous
-  per-session estimate.
+- ``live_snapshot`` — a quick "what's the wind here right now" for the
+  WindCard/map display, unrelated to session analysis (nothing is
+  persisted). It fuses the same waypoint bundle the same way the analysis
+  estimate does — ``xgsail_windfusion.fuse_waypoint`` then
+  ``blend_direction`` toward nearby tack/gybe observations — so the live
+  badge and the session's own estimate never disagree about "the wind
+  here". See its own docstring for how it handles the point directly
+  under "now", where a real station's newest reading is usually a few
+  minutes stale.
 
 Both go through ``_real_station_observations``, which returns up to
 ``MAX_REAL_STATIONS`` stations rather than only the nearest one.
 """
 
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional
+
+from xgsail_windfusion import (
+    MODEL_SOURCE_TYPE,
+    blend_direction,
+    fuse_waypoint,
+    haversine_km,
+    source_weight,
+    station_groups,
+    to_epoch,
+)
 
 from ..repositories import get_repos
 from . import wind_estimates, wind_quality
@@ -44,6 +58,15 @@ MAX_REAL_STATIONS = 3
 # taken on all of them, while only the rows actually inside [start, end] are
 # handed on. One wider query, not a second one: this runs per waypoint.
 FAULT_CHECK_PAD = timedelta(hours=3)
+
+# Maneuver-derived wind observations from *other* sessions (see
+# ``services/track_wind.py``): how far from a waypoint, and how far outside
+# the session's own window, one still counts as relevant. The ``gps_tack``
+# weight decays with a 2 km e-folding distance, so past ~3 km an observation
+# weighs under 22% — not worth a neighbour's wind cache, nor (same constant,
+# ``services/wind_auto_refresh.py``) a neighbour's re-analysis.
+TRACK_OBS_RADIUS_KM = 3.0
+TRACK_OBS_TIME_PAD = timedelta(minutes=30)
 
 
 def _real_station_observations(lat: float, lng: float, start: datetime, end: datetime
@@ -89,7 +112,8 @@ def _real_station_observations(lat: float, lng: float, start: datetime, end: dat
 
 
 def gather_raw_wind(lat: float, lng: float, start: datetime, end: datetime,
-                    gps_points: "Optional[list[tuple[float, float]]]" = None) -> dict:
+                    gps_points: "Optional[list[tuple[float, float]]]" = None, *,
+                    session_id: Optional[uuid.UUID] = None) -> dict:
     """Bundle every raw wind source for a coordinate/time window:
 
     - ``real_stations``: cached observations from every real station in
@@ -104,11 +128,17 @@ def gather_raw_wind(lat: float, lng: float, start: datetime, end: datetime,
     - ``grid_estimates``: any ``wind_estimates`` rows already on file for
       this cell within the window — reusable/refinable knowledge from
       earlier sessions at the same place.
+    - ``track_observations``: wind directions inferred from the tacks/gybes
+      of *other* sessions (never ``session_id``'s own — it would be fed its
+      own estimate back) within ``TRACK_OBS_RADIUS_KM`` and ``[start, end]``
+      padded by ``TRACK_OBS_TIME_PAD``. Rows carry no session, user or boat:
+      another crew's whereabouts are not this session's to know.
 
     No selection happens here — see ``workers/process_upload/processing/
     wind_estimation.py`` for the algorithm that decides how to use this."""
     repos = get_repos()
-    bundle: dict = {"real_stations": [], "model_candidates": {}, "grid_estimates": []}
+    bundle: dict = {"real_stations": [], "model_candidates": {}, "grid_estimates": [],
+                    "track_observations": []}
 
     for station, distance_km, rows in _real_station_observations(lat, lng, start, end):
         # Every row carries its own station's position and distance from this
@@ -116,6 +146,7 @@ def gather_raw_wind(lat: float, lng: float, start: datetime, end: datetime,
         # point offset from the track; the wind field differs across a bay).
         bundle["real_stations"].extend({
             "station_id": station.id, "provider": station.provider,
+            "station_name": station.name,
             "station_lat": station.lat, "station_lng": station.lng,
             "distance_km": round(distance_km, 3),
             "observed_at": o.observed_at, "twd_deg": o.twd_deg,
@@ -139,52 +170,137 @@ def gather_raw_wind(lat: float, lng: float, start: datetime, end: datetime,
         "confidence": e.confidence,
     } for e in repos.wind.list_estimates_for_cells([cell], start, end)]
 
+    bundle["track_observations"] = [{
+        "id": str(o.id), "observed_at": o.observed_at.isoformat(),
+        "lat": o.lat, "lng": o.lng, "twd_deg": o.twd_deg,
+        "confidence": o.confidence, "kind": o.kind,
+    } for o in repos.wind.list_track_observations_near(
+        lat, lng, TRACK_OBS_RADIUS_KM, start - TRACK_OBS_TIME_PAD, end + TRACK_OBS_TIME_PAD,
+        exclude_session_id=session_id,
+    )]
+
     return bundle
 
 
+# Real stations report every ~10-60 min, Open-Meteo models hourly — a window
+# this wide on each side of ``at`` reliably brackets it for interpolation
+# (and gives ``_real_station_observations``'s fault check, itself padded by
+# another ``FAULT_CHECK_PAD``, a real sample to judge). Unlike the old
+# nearest-station walk, there's no need for this to reach out 12h: the "now"
+# edge case (a station's newest reading trailing behind ``at``) is handled
+# below via ``LIVE_HOLD_LATEST``, not by widening the query.
+LIVE_SNAPSHOT_WINDOW = timedelta(hours=3)
+
+# How long a source may lag behind ``at`` and still count, decayed by the
+# gap — see ``xgsail_windfusion.fuse_sources``'s ``hold_latest_seconds``. A
+# live query is overwhelmingly "what's the wind right now": without this, a
+# station reporting every 30-60 min would drop out of *every* live snapshot
+# taken between two readings, leaving only the (less trusted) forecast
+# models. Comfortably longer than a station's own reporting interval, safely
+# inside ``LIVE_SNAPSHOT_WINDOW`` so the held reading was already fetched.
+LIVE_HOLD_LATEST = timedelta(hours=2)
+
+
 def live_snapshot(lat: float, lng: float, at: Optional[datetime] = None) -> Optional[dict]:
-    """Quick display value for WindCard/map — not the per-session estimate.
-    Walks the in-range real stations nearest-first and reports the first one
-    with data near ``at``, so an offline nearest station falls back to the
-    next one instead of dropping to a model; otherwise the first Open-Meteo
-    candidate model with data. Never blends — this is one source's reading,
-    attributed to it. Returns ``None`` if nothing is available."""
+    """Quick display value for WindCard/map, the navigation overlay and the
+    explorer/Registra map badge — fused the same way the session-analysis
+    estimate is, so the live number and the per-session one never disagree
+    about "the wind here": every raw source in range
+    (``gather_raw_wind``) fused with ``xgsail_windfusion.fuse_waypoint``,
+    then pulled toward nearby tack/gybe observations with
+    ``blend_direction`` — the two-step estimate ``workers/process_upload/
+    processing/wind_estimation.py`` + ``tack_wind.py`` apply per-session.
+
+    ``at`` defaults to now, the case a real station is least likely to
+    have a reading for: its own last observation typically trails "now" by
+    however long its reporting interval is, and a source never
+    extrapolates past its own span. ``LIVE_HOLD_LATEST`` lets a source hold
+    its last reading across that gap, weight decayed accordingly, rather
+    than silently dropping to forecast-model-only every time nobody has
+    reported in the last few seconds.
+
+    Returns ``None`` if no source covers ``at`` at all (station, model,
+    grid estimate) — same "nothing to report" case ``fuse_waypoint``
+    itself returns ``None`` for."""
     at = at or datetime.now(timezone.utc)
-    window = timedelta(hours=12)
+    bundle = gather_raw_wind(lat, lng, at - LIVE_SNAPSHOT_WINDOW, at + LIVE_SNAPSHOT_WINDOW,
+                             session_id=None)
+    waypoint = {"lat": lat, "lng": lng, **bundle}
+    fused = fuse_waypoint(waypoint, at, hold_latest_seconds=LIVE_HOLD_LATEST.total_seconds())
+    if fused is None:
+        return None
 
-    in_range = _real_station_observations(lat, lng, at - window, at + window)
-    if in_range:
-        station, _distance_km, rows = in_range[0]
-        closest = min(rows, key=lambda o: abs((o.observed_at - at).total_seconds()))
-        return {
-            "provider": station.provider, "station_name": station.name,
-            "lat": station.lat, "lng": station.lng,
-            "observed_at": closest.observed_at, "twd_deg": closest.twd_deg,
-            "tws_kts": closest.tws_kts, "gust_kts": closest.gust_kts,
-        }
+    at_epoch = to_epoch(at)
+    observations = bundle["track_observations"]
+    twd = blend_direction(fused.twd_deg, fused.confidence, lat, lng, at, observations)
 
-    external_id = f"{lat},{lng}"
-    try:
-        if at < datetime.now(timezone.utc):
-            candidates = open_meteo.fetch_historical(external_id, at.date().isoformat(), at.date().isoformat())
-        else:
-            candidates = open_meteo.fetch_station(external_id)
-    except Exception:
-        logger.warning("open_meteo live snapshot failed for (%s, %s)", lat, lng, exc_info=True)
-        candidates = {}
-
-    for model in open_meteo.MODEL_CANDIDATES:
-        rows = candidates.get(model)
-        if not rows:
+    tack_weight = 0.0
+    for o in observations:
+        observed_at = to_epoch(o.get("observed_at"))
+        if at_epoch is None or observed_at is None:
             continue
-        closest = min(rows, key=lambda r: abs((r["observed_at"] - at).total_seconds()))
-        return {
-            "provider": "open_meteo", "model": model, "lat": lat, "lng": lng,
-            "observed_at": closest["observed_at"], "twd_deg": closest["twd_deg"],
-            "tws_kts": closest["tws_kts"], "gust_kts": closest["gust_kts"],
-        }
-    return None
+        tack_weight += source_weight(
+            "gps_tack",
+            distance_km=haversine_km(lat, lng, o["lat"], o["lng"]),
+            dt_seconds=at_epoch - observed_at,
+            internal_confidence=o["confidence"],
+        )
+
+    total_weight = fused.confidence + tack_weight
+    sources = [
+        {"type": source_type, "name": name, "weight_share": round(weight / total_weight, 2)}
+        for source_type, name, weight in fused.contributions
+    ] if total_weight > 0.0 else []
+    if tack_weight > 0.0 and total_weight > 0.0:
+        sources.append({"type": "gps_tack", "name": None,
+                        "weight_share": round(tack_weight / total_weight, 2)})
+    sources.sort(key=lambda s: s["weight_share"], reverse=True)
+
+    return {
+        "provider": "fusion", "station_name": None, "model": None,
+        "lat": lat, "lng": lng,
+        "observed_at": at.isoformat(),
+        "twd_deg": round(twd, 1), "tws_kts": round(fused.tws_kts, 1),
+        "gust_kts": round(fused.gust_kts, 1) if fused.gust_kts is not None else None,
+        "confidence": round(total_weight, 3),
+        "latest_observed_at": _latest_contributing_reading(bundle, fused.contributions),
+        "sources": sources,
+    }
+
+
+def _latest_contributing_reading(bundle: dict, contributions) -> Optional[str]:
+    """ISO timestamp of the newest raw reading among the real stations/models
+    that actually contributed to a fused estimate (``fused.contributions``)
+    — i.e. excluding a source that was in range but didn't cover ``at`` and
+    so was already dropped by ``fuse_sources``. ``None`` if nothing
+    contributing carries a usable timestamp (e.g. only a grid estimate did)."""
+    contributing = {(source_type, name) for source_type, name, _weight in contributions}
+    latest_epoch: Optional[float] = None
+
+    for _distance_km, rows in station_groups(bundle["real_stations"]):
+        first = rows[0]
+        name = first.get("station_name") or first.get("station_id")
+        if ("real_station", name) not in contributing:
+            continue
+        for r in rows:
+            epoch = to_epoch(r.get("observed_at"))
+            if epoch is not None and (latest_epoch is None or epoch > latest_epoch):
+                latest_epoch = epoch
+
+    for model, rows in (bundle.get("model_candidates") or {}).items():
+        source_type = MODEL_SOURCE_TYPE.get(model, "model_global")
+        if (source_type, model) not in contributing:
+            continue
+        for r in rows or []:
+            epoch = to_epoch(r.get("observed_at"))
+            if epoch is not None and (latest_epoch is None or epoch > latest_epoch):
+                latest_epoch = epoch
+
+    if latest_epoch is None:
+        return None
+    return datetime.fromtimestamp(latest_epoch, tz=timezone.utc).isoformat()
 
 
 __all__ = ["gather_raw_wind", "live_snapshot", "REAL_SENSOR_PROVIDERS",
-           "REAL_SENSOR_RADIUS_KM", "MAX_REAL_STATIONS"]
+           "REAL_SENSOR_RADIUS_KM", "MAX_REAL_STATIONS", "TRACK_OBS_RADIUS_KM",
+           "LIVE_SNAPSHOT_WINDOW", "LIVE_HOLD_LATEST"]

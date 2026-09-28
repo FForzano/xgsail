@@ -87,8 +87,11 @@ type CompareRow = { key: string; label: string; port: number | null; starboard: 
 /** Port vs starboard as one diverging bar per metric, both halves growing from
  * a shared centre line so the asymmetry is the shape rather than a subtraction
  * the reader has to do. `bestTack` is the conclusion of this comparison, so it
- * closes the element instead of sitting as a peer tile next to its own inputs. */
-function TackCompare({ rows }: { rows: CompareRow[] }) {
+ * closes the element instead of sitting as a peer tile next to its own inputs.
+ *
+ * Every bar shares one full scale, the session's max speed, so the upwind and
+ * downwind blocks are comparable with each other too, not just side to side. */
+function TackCompare({ rows, scaleMax }: { rows: CompareRow[]; scaleMax: number }) {
   const { t } = useTranslation();
   const unit = splitKnots(0).unit;
   const vmg = rows[0];
@@ -107,14 +110,14 @@ function TackCompare({ rows }: { rows: CompareRow[] }) {
           <span className={styles.swatch} style={{ background: PORT_COLOR }} />
           {t("sessions.tackSide.port")}
         </span>
+        <span>{t("sessions.barScale", { value: fmtKnots(scaleMax) })}</span>
         <span className={styles.compareSide}>
           {t("sessions.tackSide.starboard")}
           <span className={styles.swatch} style={{ background: STARBOARD_COLOR }} />
         </span>
       </div>
       {rows.map((row) => {
-        const max = Math.max(row.port ?? 0, row.starboard ?? 0);
-        const width = (v: number | null) => (v == null || max <= 0 ? 0 : (v / max) * 100);
+        const width = (v: number | null) => (v == null || scaleMax <= 0 ? 0 : Math.min(v / scaleMax, 1) * 100);
         const win =
           row.port == null || row.starboard == null || row.port === row.starboard
             ? null
@@ -163,9 +166,11 @@ function TackCompare({ rows }: { rows: CompareRow[] }) {
 /** Per-point-of-sail synthesis, the part a casual reader is meant to stop at:
  * the raw leg list below it is opt-in. Reaches are skipped — a port/starboard
  * comparison is only meaningful upwind and downwind. */
-export function TackBreakdown({ legs }: { legs: SessionLeg[] }) {
+export function TackBreakdown({ legs, maxSpeedKts }: { legs: SessionLeg[]; maxSpeedKts?: number | null }) {
   const { t } = useTranslation();
   const seq = legSequence(legs);
+  // Session stats may not be computed yet; the fastest leg is the next best ceiling.
+  const scaleMax = Math.max(maxSpeedKts ?? 0, ...legs.map((l) => l.max_speed_kts));
   // Fixed order rather than first-seen order, so the two groups don't swap
   // places between sessions depending on which leg was sailed first.
   const groups = (["upwind", "downwind"] as const)
@@ -245,7 +250,7 @@ export function TackBreakdown({ legs }: { legs: SessionLeg[] }) {
                 }
               />
             </StatTiles>
-            {hasTacks && <TackCompare rows={compare} />}
+            {hasTacks && <TackCompare rows={compare} scaleMax={scaleMax} />}
           </div>
         );
       })}

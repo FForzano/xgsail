@@ -36,18 +36,8 @@ from backend.repositories import get_repos
 from backend.services.geo import haversine_m
 from backend.services.wind_lookup import REAL_SENSOR_PROVIDERS
 from backend.services.wind_providers import open_meteo
-from xgsail_windfusion import DEFAULT_CONFIG
+from xgsail_windfusion import DEFAULT_CONFIG, MODEL_SOURCE_TYPE
 from xgsail_windfusion import calibration as cal
-
-# Open-Meteo model name -> reliability class. Mirrors the worker's
-# _MODEL_SOURCE_TYPE (workers/process_upload/processing/wind_estimation.py);
-# both derive from open_meteo.MODEL_CANDIDATES (regional first, global last).
-MODEL_RELIABILITY = {
-    "icon_d2": "model_regional",
-    "icon_eu": "model_regional",
-    "gfs_seamless": "model_global",
-    "ecmwf_ifs025": "model_global",
-}
 
 # Only fuse other stations within this range of the held-out one — a station on
 # the far side of the region says little about it.
@@ -75,7 +65,7 @@ def _model_contributions(lat, lng, when):
             continue
         out.append({
             "twd": row["twd_deg"], "tws": row["tws_kts"],
-            "source_type": MODEL_RELIABILITY.get(model, "model_global"),
+            "source_type": MODEL_SOURCE_TYPE.get(model, "model_global"),
             "dt_seconds": abs((row["observed_at"] - when).total_seconds()),
         })
     return out

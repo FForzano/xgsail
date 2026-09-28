@@ -37,6 +37,9 @@ MANEUVER_TYPES = ("tack", "gybe", "course_change")
 MANEUVER_SOURCES = ("detected", "manual")
 LEG_TYPES = ("upwind", "downwind", "reach")
 TACK_SIDES = ("port", "starboard")
+# Why a session carries no wind-dependent analysis at all. NULL is the normal
+# case (the analysis ran); a value means the worker refused rather than guess.
+ANALYSIS_UNAVAILABLE_REASONS = ("no_wind_data",)
 
 
 class SessionORM(UUIDPKMixin, Base):
@@ -44,7 +47,9 @@ class SessionORM(UUIDPKMixin, Base):
     __table_args__ = (enum_check("status", SESSION_STATUSES),)
     # Search mirror only: `notes` is HTML, and a LIKE over markup would match
     # tag names and entities. Never served — clients read `notes`.
-    __wire_exclude__ = ("notes_plain",)
+    # The wind auto-refresh bookkeeping is backend-internal scheduling state.
+    __wire_exclude__ = ("notes_plain", "wind_stale_at", "wind_auto_refreshed_at",
+                        "wind_auto_refresh_pending_at")
 
     activity_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("activities.id", ondelete="CASCADE"), nullable=False, index=True
@@ -88,6 +93,24 @@ class SessionORM(UUIDPKMixin, Base):
     primary_nav_upload_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("session_uploads.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
+    )
+    # Neighbour-driven wind re-analysis (services/wind_auto_refresh.py).
+    # ``wind_stale_at``: last time another session's tack/gybe wind
+    # observations changed near this one in space and time — re-stamped on
+    # every new mark, so a burst of uploads coalesces into one refresh.
+    # ``wind_auto_refreshed_at``: when the last automatic refresh was
+    # *attempted* (the cooldown, stamped before dispatch so a failing session
+    # cannot be retried every tick). ``wind_auto_refresh_pending_at``: set
+    # right before an automatic dispatch and consumed by that analysis's
+    # upsert — what stops an auto-refreshed analysis from marking anyone else.
+    wind_stale_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    wind_auto_refreshed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    wind_auto_refresh_pending_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
 
@@ -309,6 +332,7 @@ class SessionAnalysisORM(Base):
     ``session_maneuvers``/``session_legs``."""
 
     __tablename__ = "session_analysis"
+    __table_args__ = (enum_check("unavailable_reason", ANALYSIS_UNAVAILABLE_REASONS),)
 
     session_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("sessions.id", ondelete="CASCADE"), primary_key=True
@@ -336,6 +360,11 @@ class SessionAnalysisORM(Base):
     thumbnail_image_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("images.id", ondelete="SET NULL"), nullable=True
     )
+    # Set when the worker had no wind source at all (no onboard sensor, no
+    # station/model): every wind-dependent child set above is then empty on
+    # purpose, and the frontend explains why instead of rendering nothing.
+    # Rewritten on every upsert, so a later successful analysis clears it.
+    unavailable_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

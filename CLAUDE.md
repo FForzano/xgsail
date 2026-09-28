@@ -221,10 +221,15 @@ Two authorization models:
 video transcoding, maneuver-detector training). Invoked by the backend
 over HTTP; the same container image also runs as a Lambda in AWS.
 
-**`libs/xgsail_windfusion`** — standalone Python package (own
+**`libs/xgsail_windfusion`** — standalone, stdlib-only Python package (own
 `pyproject.toml`) implementing the wind-fusion/calibration algorithm,
 imported by both `backend/services/` and `workers/process_upload/` —
-the reason the shared logic lives here instead of duplicated in each.
+the reason the shared logic lives here instead of duplicated in each. Its
+`waypoint` module (`fuse_waypoint`/`fuse_sources`/`blend_direction`) fuses
+one `wind_cache.json` waypoint bundle at one instant, and is the single
+implementation both the worker's per-session `true_wind` estimate and the
+backend's live `GET /wind/nearest` snapshot call — see the Gotchas entry
+below before adding a second one.
 
 **`ota-service/`** — standalone Node/Express service (own `package.json`,
 Dockerfile), no dependency on the FastAPI backend or Postgres. Serves a
@@ -453,7 +458,8 @@ Services (see `docker-compose.yml`): `postgres` (metadata), `minio`
 backend, same-origin), `ota-service` (Express, :8081, native-app OTA
 updates — talks only to MinIO, no backend/DB dependency), `wind-scheduler`
 (a `curl` loop that periodically triggers the backend's weather-provider
-fetch), plus the `process_upload`/`video` workers invoked by the backend
+fetch and kicks the neighbour wind auto-refresh processor), plus the
+`process_upload`/`video` workers invoked by the backend
 on MinIO upload events. `train_maneuver` is defined in the same file but
 sits behind the `training` Compose profile, so a plain `docker compose up`
 does **not** start it — see `deploy/README.md` for the full request-flow
@@ -511,6 +517,10 @@ Capacitor plugin changes, which still require a store release.
   estimation algorithms that turn raw observations into a usable wind
   signal are documented in `docs/estimation-pipeline.md`; the underlying fusion/calibration math
   lives in `libs/xgsail_windfusion`, shared with `workers/process_upload`.
+- `wind_track_observations` (see `docs/estimation-pipeline.md` §2) adds a
+  third acquisition: wind directions bisected from a session's own
+  tacks/gybes, blended into that session's `true_wind` and shared with
+  *other* sessions sailed nearby — its own gotchas are below.
 
 ---
 
@@ -838,12 +848,31 @@ Capacitor plugin changes, which still require a store release.
   station's series.** `gather_raw_wind` now fuses up to 3 in-range stations
   instead of only the nearest, concatenating every station's rows into that
   one list — a consumer must group them by `station_id` first
-  (`_station_groups` in `workers/process_upload/processing/
-  wind_estimation.py`) or it interpolates two stations' readings across each
-  other into a zig-zag. A cache written before this change carries no
-  `station_id` at all, which is why the grouping key falls back to the
-  station's `(station_lat, station_lng)`. Getting this wrong degrades the
-  wind series silently — nothing errors.
+  (`xgsail_windfusion.station_groups`, shared by the worker and the backend)
+  or it interpolates two stations' readings across each other into a
+  zig-zag. A cache written before this change carries no `station_id` at
+  all, which is why the grouping key falls back to the station's
+  `(station_lat, station_lng)`. Getting this wrong degrades the wind series
+  silently — nothing errors.
+- **The live snapshot and a session's own wind estimate must go through
+  the same `xgsail_windfusion.waypoint` functions, never a second
+  implementation.** `wind_lookup.live_snapshot` (`GET /wind/nearest`) and
+  the worker's `_fuse_bundle`/`tack_wind.blend_observations` both call
+  `fuse_waypoint`/`fuse_sources`/`blend_direction` on the same
+  `wind_cache.json` shape — the reason the package is stdlib-only (no
+  numpy) is so the numpy-free backend image can import it too. A second,
+  backend-local blend would drift from the worker's and the live badge
+  would disagree with the session's own analysis about "the wind here".
+- **A session's `analysis_unavailable` reason is rewritten on every
+  upsert, so a normal run must send it explicitly as `None`.** `analyzer.
+  analyze_session` always sets the key (`None` on a successful analysis,
+  `"no_wind_data"` when there's no sensor and no station/model/grid
+  source), and `session_analysis.apply_payload` writes whatever it gets to
+  `session_analysis.unavailable_reason` — so a session that recovers wind
+  data on reprocessing has the flag cleared automatically. A worker image
+  predating the flag simply omits the key, which `session_analysis.
+  unavailable_reason()` treats as "available" rather than failing the
+  upsert.
 
 - **A real weather station reporting nonsense is worse than one
   reporting nothing, because it outweighs every model in the fusion.** A
@@ -861,6 +890,43 @@ Capacitor plugin changes, which still require a store release.
   components. Wrong coordinates and a misconfigured wind unit stay
   undetectable from the data; only `calibrate_wind_weights.py
   --ablate-stations` surfaces those.
+
+- **`wind_track_observations` is replaced per session, never merged — don't
+  route it through `wind_estimates`/`weighted_merge`.** That grid
+  accumulates provenance across sessions by design; doing the same for a
+  session's own tack/gybe observations would double (and triple, and...)
+  count them on every reprocess, since `POST /sessions/{id}/refresh-wind`
+  and a plain reanalyze both regenerate the same maneuvers from scratch.
+  `backend/services/track_wind.py::replace_for_session` deletes and
+  re-inserts the session's whole set in one transaction for exactly this
+  reason — a partial write there would leave a session between two
+  observation sets, not zero or one.
+- **A tack/gybe observation must never carry a session, user, or boat id,
+  and the table must never be served by an API endpoint.** It's shared
+  with *other* sailors' sessions specifically so their wind estimate
+  improves — not so anyone can reconstruct where and when a given boat
+  was sailing. `WindTrackObservationORM.__wire_exclude__ = ("session_id",)`
+  and `wind_lookup.gather_raw_wind`'s `track_observations` only ever emit
+  `{id, observed_at, lat, lng, twd_deg, confidence, kind}`; a new consumer
+  that joins back to `sessions`/`boats` to enrich the payload reintroduces
+  exactly the leak this table was built to avoid.
+- **The neighbour wind auto-refresh's one-generation flag and single-flight/
+  sequential rule are what stop a regatta's uploads from cascading into a
+  compute/Open-Meteo storm.** `wind_auto_refresh_pending_at`
+  (`backend/services/wind_auto_refresh.py`) is stamped right before dispatch
+  and consumed by the analysis upsert that answers it, which then marks
+  nobody — boat A's refresh, caused by boat B, must never refresh C, D...
+  in turn. Never dispatch a neighbour refresh inline from
+  `track_wind.apply_analysis_payload`'s upsert (it's a mark only, consumed
+  later by the scheduler-kicked processor), and never let an
+  auto-produced analysis call `mark_neighbours`. Same reasoning behind the
+  process-local `_run_gate` and the sequential, paused refreshes: the local
+  Lambda RIE worker crashes on overlapping invocations.
+- **Tack/gybe evidence is COG-based, so current biases it.** The bisector
+  in `tack_wind.py` reads the boat's heading (course over ground), not its
+  heading through water — in a current, the true wind axis and the
+  COG-bisected axis differ by however much the current sets the boat
+  off its heading. Known limitation, not yet guarded against.
 
 - **A club and an OSM sailing club can be the same place, and `clubs.osm_ref`
   is the only thing that says so.** The explorer map draws clubs from two
@@ -1174,6 +1240,10 @@ See `.env.example` for the full list with defaults. Grouped by concern:
 - **Auth/JWT:** JWT signing secret, token expiry
 - **Weather APIs:** NOAA/METAR/Cumulus endpoints — optional, provider
   is skipped if unset
+- **Neighbour wind auto-refresh** (`backend/services/wind_auto_refresh.py`):
+  `WIND_AUTO_REFRESH_ENABLED` (kill switch, default on),
+  `WIND_AUTO_REFRESH_INTERVAL_MIN` (how often `wind-scheduler` kicks the
+  processor, default 10, `0` disables the kick)
 - **Frontend:** API base URL, map tile provider
 - **App:** debug flag, environment name, frontend URL (CORS)
 

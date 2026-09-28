@@ -27,7 +27,8 @@ def _to_timestamp(t) -> float:
         return t.timestamp()
     return 0.0
 
-from processing import track
+from processing import tack_wind, track
+from processing.angles import circular_mean
 from processing.maneuvers import detect_maneuvers, maneuver_summary
 from processing.models import GpsPoint, ImuReading, SessionMetadata, WindReading
 from processing.polar import generate_polar, polar_to_chart_data
@@ -105,7 +106,12 @@ class SessionContext:
     prefix — the setup step every entry point into the maneuver pipeline
     needs, whether that's a full session analysis (``analyze_session``) or a
     single manual maneuver's on-demand stat computation
-    (``workers/process_upload/handler.py::process_compute_maneuver``)."""
+    (``workers/process_upload/handler.py::process_compute_maneuver``).
+
+    ``true_wind``/``avg_twd`` are already refined by the tack/gybe
+    observations, which is why the detected ``maneuvers`` live here too: the
+    refinement needs them, and a manual maneuver must be measured against the
+    same wind the full analysis used."""
     gps: list
     imu: list
     wind: list
@@ -114,6 +120,8 @@ class SessionContext:
     estimated_position: list
     estimated_motion: list
     wind_refinements: list
+    maneuvers: list
+    track_wind_observations: list
 
 
 def load_session_context(
@@ -147,7 +155,7 @@ def load_session_context(
 
     # True wind calculation is a pluggable seam — see
     # ``processing/wind_estimation.py`` for the strategy (today: onboard
-    # sensor > cached regional wind > rough GPS-tack estimate). wind_cache.json
+    # sensor > fused stations/models/grid, else nothing). wind_cache.json
     # is the backend's raw multi-source bundle (real stations, every
     # Open-Meteo candidate model, existing grid estimates) — see
     # ``backend/services/wind_lookup.gather_raw_wind``, not a single
@@ -156,18 +164,85 @@ def load_session_context(
     true_wind = estimate_wind(gps, wind, imu, raw_wind_bundle)
     # Only non-empty when true_wind came from a real onboard sensor — fed
     # back to the backend's wind_estimates grid (see routers/system.py::
-    # _apply_wind_refinements). Never derived from cache/GPS-estimate.
+    # _apply_wind_refinements). Never derived from cache/fusion.
     wind_refinements = refinements_from(gps, true_wind)
 
-    avg_twd = None
-    if true_wind:
-        avg_twd = float(np.mean([tw["twd_deg"] for tw in true_wind]))
+    if not true_wind:
+        # No sensor and no station/model source: nothing wind-dependent is
+        # computed, maneuvers included (see analyze_session).
+        return SessionContext(
+            gps=gps, imu=imu, wind=wind, true_wind=[], avg_twd=None,
+            estimated_position=estimated_position, estimated_motion=estimated_motion,
+            wind_refinements=wind_refinements, maneuvers=[], track_wind_observations=[],
+        )
+
+    true_wind, maneuvers, observations = _refine_wind_with_maneuvers(
+        gps, imu, true_wind, tack_wind.observations_from_bundle(raw_wind_bundle),
+    )
 
     return SessionContext(
-        gps=gps, imu=imu, wind=wind, true_wind=true_wind, avg_twd=avg_twd,
+        gps=gps, imu=imu, wind=wind, true_wind=true_wind, avg_twd=_avg_twd(true_wind),
         estimated_position=estimated_position, estimated_motion=estimated_motion,
-        wind_refinements=wind_refinements,
+        wind_refinements=wind_refinements, maneuvers=maneuvers,
+        track_wind_observations=tack_wind.to_payload(observations),
     )
+
+
+# Re-classification stops once the session's mean wind moves less than this
+# between passes, or after MAX_REFINE_PASSES whatever happens.
+REFINE_CONVERGED_DEG = 2.0
+MAX_REFINE_PASSES = 4
+
+
+def _refine_wind_with_maneuvers(gps: list, imu: list, model_wind: list, bundle_observations: list):
+    """Model wind → ``(true_wind, maneuvers, own observations)``, iterated to
+    a fixed point.
+
+    Tack vs gybe vs course change is decided against the wind axis, and the
+    tacks are what correct that axis (``processing/tack_wind.py``) — so one
+    pass classifies against the very wind being corrected. Each pass
+    re-classifies against the previous pass's corrected wind and re-blends
+    from the *model* wind (never on top of an earlier blend, which would count
+    the same tacks twice), until the mean direction settles. Detection itself
+    is wind-agnostic, so only the labels and wind-relative features change.
+
+    When a pass finds no tack at all, the model may be too far off for the
+    classifier to see one: ``seed_observations`` then moves the axis for the
+    next pass only. Seeds never reach the result — if the classifier still
+    calls nothing a tack, the model wind stands.
+
+    Emitted for sensor sessions too: a bisector is read off GPS headings alone,
+    so it is independent evidence for the neighbours that receive it; sensor
+    rows themselves are never blended."""
+    def blend(evidence: list) -> list:
+        return tack_wind.blend_observations(
+            gps, [dict(r) for r in model_wind], evidence + bundle_observations)
+
+    true_wind = model_wind
+    axis = _avg_twd(model_wind)
+    for _ in range(MAX_REFINE_PASSES):
+        maneuvers = detect_maneuvers(gps, imu, axis, true_wind)
+        observations = tack_wind.observations_from_maneuvers(gps, maneuvers)
+        seeds = [] if observations else tack_wind.seed_observations(gps, maneuvers, axis)
+        true_wind = blend(observations or seeds)
+        new_axis = _avg_twd(true_wind)
+        moved = abs(((new_axis - axis + 180.0) % 360.0) - 180.0)
+        axis = new_axis
+        if not seeds and moved < REFINE_CONVERGED_DEG:
+            return true_wind, maneuvers, observations
+
+    if seeds:
+        # The seeds never turned into tacks the classifier agrees with: drop
+        # them, and label the maneuvers against the wind that actually stands.
+        true_wind = blend([])
+        maneuvers = detect_maneuvers(gps, imu, _avg_twd(true_wind), true_wind)
+        return true_wind, maneuvers, []
+    return true_wind, maneuvers, observations
+
+
+def _avg_twd(true_wind: list) -> Optional[float]:
+    twds = [tw["twd_deg"] for tw in true_wind if tw.get("twd_deg") is not None]
+    return circular_mean(np.array(twds)) if twds else None
 
 
 def analyze_session(
@@ -189,14 +264,31 @@ def analyze_session(
     if ctx is None:
         return {"error": "No GPS data found"}
     gps, imu, wind = ctx.gps, ctx.imu, ctx.wind
-    true_wind, avg_twd = ctx.true_wind, ctx.avg_twd
-    estimated_position, estimated_motion = ctx.estimated_position, ctx.estimated_motion
-    wind_refinements = ctx.wind_refinements
 
-    # Maneuver detection. avg_twd sets the wind axis (detection/classification);
-    # the full true_wind series only feeds the TWA/VMG-based maneuver features,
-    # so passing it does not change which maneuvers are detected.
-    maneuvers = detect_maneuvers(gps, imu, avg_twd, true_wind)
+    # What needs no wind. Every key the backend reads is always present, so a
+    # re-analysis that loses its wind also clears the stale wind-dependent rows.
+    base = {
+        "summary": _session_summary(gps),
+        "session_stats": session_statistics(gps, wind, imu),
+        # Persisted separately as their own blob artifacts by the caller
+        # (handler.py::process_analyze_prefix) — not written directly here
+        # since analyze_session stays a pure function (dict in, dict out).
+        # The caller pops these back out before posting the rest of `result`
+        # to the backend, so they're stored once, not duplicated into
+        # analysis.json too.
+        "estimated_position": ctx.estimated_position,
+        "estimated_motion": ctx.estimated_motion,
+        "wind_refinements": ctx.wind_refinements,
+        # Stored per session by the backend and shared with neighbouring
+        # sessions' wind_cache.json (backend/services/track_wind.py).
+        "track_wind_observations": ctx.track_wind_observations,
+        "analysis_unavailable": None,
+    }
+    if not ctx.true_wind:
+        return {**base, **_no_wind_analysis(), "analysis_unavailable": "no_wind_data"}
+
+    true_wind = ctx.true_wind
+    maneuvers = ctx.maneuvers
     m_summary = maneuver_summary(maneuvers)
 
     # Leg segmentation
@@ -213,17 +305,12 @@ def analyze_session(
     vmg_series = compute_vmg_series(gps, true_wind)
 
     # Statistics
-    sess_stats = session_statistics(gps, wind, imu)
     violin = violin_plot_data(maneuvers)
     correlations = correlation_matrix(gps, true_wind, imu)
     leg_ranking = leg_performance_ranking(legs)
 
-    # Scalar aggregates for the DB session_stats table (distance/duration/speed).
-    summary = _session_summary(gps)
-
-    # Build result
-    result = {
-        "summary": summary,
+    return {
+        **base,
         "maneuvers": [asdict(m) for m in maneuvers],
         "maneuver_summary": m_summary,
         "legs": [asdict(l) for l in legs],
@@ -243,22 +330,31 @@ def analyze_session(
         } for p in polar_target_points],
         "vmg_series": [asdict(v) for v in vmg_series],
         "true_wind": true_wind,
-        "session_stats": sess_stats,
         "violin": violin,
         "correlations": correlations,
         "leg_ranking": leg_ranking,
-        # Persisted separately as their own blob artifacts by the caller
-        # (handler.py::process_analyze_prefix) — not written directly here
-        # since analyze_session stays a pure function (dict in, dict out).
-        # The caller pops these back out before posting the rest of `result`
-        # to the backend, so they're stored once, not duplicated into
-        # analysis.json too.
-        "estimated_position": estimated_position,
-        "estimated_motion": estimated_motion,
-        "wind_refinements": wind_refinements,
     }
 
-    return result
+
+def _no_wind_analysis() -> dict:
+    """The wind-dependent half of an analysis, empty: what a session with
+    neither an onboard sensor nor any station/model source gets. The product
+    decision is no analysis rather than one against a guessed direction with
+    no speed."""
+    return {
+        "maneuvers": [],
+        "maneuver_summary": None,
+        "legs": [],
+        "leg_comparison": None,
+        "polar": None,
+        "polar_points": [],
+        "polar_target": [],
+        "vmg_series": [],
+        "true_wind": [],
+        "violin": None,
+        "correlations": None,
+        "leg_ranking": None,
+    }
 
 
 def _session_summary(gps: list[GpsPoint]) -> dict:

@@ -3,11 +3,13 @@ observations, plus a live snapshot for the WindCard/map display.
 
 Matrix: stations/observations are pub-readable; writes are system (fetch
 job) or superadmin (station registration). ``/nearest`` is any authenticated
-user, and is a quick display value only (see ``services/wind_lookup.
-live_snapshot``) — it is *not* the rigorous per-session wind estimate used
-by analysis (that lives with the session's own processed data, computed by
-the worker). The periodic fetch for real stations is triggered on
-``/api/system/wind/fetch`` by the wind-scheduler service.
+user, and is a quick display value (see ``services/wind_lookup.
+live_snapshot``) fused the same way the per-session analysis estimate is —
+not a second, independent number, just an ephemeral one: nothing here is
+persisted, the rigorous estimate still lives with the session's own
+processed data, computed by the worker. The periodic fetch for real
+stations is triggered on ``/api/system/wind/fetch`` by the wind-scheduler
+service.
 """
 
 import uuid
@@ -59,9 +61,10 @@ def list_sources():
     station list it complements.
 
     The models are derived from ``open_meteo.MODEL_CANDIDATES`` rather than
-    restated here: that tuple is already mirrored in the worker's
-    ``_MODEL_SOURCE_TYPE`` and in the calibration script, and a fourth
-    hand-maintained copy in the frontend would be the one nobody updates."""
+    restated here: that tuple is already mirrored in
+    ``xgsail_windfusion.MODEL_SOURCE_TYPE`` and in the calibration script,
+    and a fourth hand-maintained copy in the frontend would be the one
+    nobody updates."""
     return {
         "models": [
             {"id": model, "kind": "regional" if model.startswith("icon") else "global"}
@@ -160,10 +163,12 @@ def list_observations(station_id: uuid.UUID,
 
 @router.get("/nearest")
 def nearest_wind(lat: float, lng: float, request: Request, at: Optional[datetime] = None):
-    """Quick live snapshot for a coordinate/time — WindCard/map display
-    only. Prefers a real station in range with data near ``at``; otherwise
-    an unblended Open-Meteo candidate model. Nothing is created/persisted —
-    see ``services/wind_lookup.live_snapshot``."""
+    """Quick live snapshot for a coordinate/time — WindCard/map display,
+    the navigation overlay and the explorer/Registra map badge. Fuses every
+    raw source in range the same way the session-analysis estimate does, so
+    this and a session's own wind never disagree about "the wind here".
+    Nothing is created/persisted — see ``services/wind_lookup.
+    live_snapshot``."""
     require_user(request)
     snapshot = wind_lookup.live_snapshot(lat, lng, at)
     if snapshot is None:

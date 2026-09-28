@@ -676,6 +676,7 @@
     "reanalyzing": "Updating…",
     "reanalyzeDone": "Update complete",
     "refreshWind": "Refresh wind data",
+    "analysisNoWindData": "Analysis unavailable: this outing has no wind data at all (no onboard sensor, no weather station or model in range). At least one wind source is needed to compute points of sail, legs and the polar.",
     "menuSectionSession": "Edit session",
     "openBoatNotebook": "Boat setup notebook",
     "share": "Share",
@@ -715,6 +716,7 @@
     "longestLeg": "Longest leg",
     "avgVmg": "Avg VMG",
     "avgPerLeg": "Avg per leg",
+    "barScale": "Scale: max {{value}}",
     "legNumber": "Leg #{{n}}",
     "tackSide": {
       "starboard": "Starboard",
@@ -1114,6 +1116,16 @@
       "text": "Know a local weather station — a club anemometer, a Cumulus PWS, a nearby buoy? Tell us and we'll add it, improving wind data for everyone at your club.",
       "cta": "Report a station",
       "subject": "Local weather station report"
+    },
+    "fusedSource": "Combined estimate ({{count}} sources)",
+    "sourcesLabel": "Sources",
+    "ageMin": "{{minutes}} min ago",
+    "sourceType": {
+      "real_station": "Real station",
+      "model_regional": "Regional model",
+      "model_global": "Global model",
+      "grid_estimate": "Grid estimate",
+      "gps_tack": "GPS tacking"
     }
   },
   "admin": {

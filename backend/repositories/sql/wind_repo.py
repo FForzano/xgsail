@@ -8,21 +8,29 @@
   read/written by whatever refinement strategy is active (see
   ``services/wind_estimate_refinement.py``) — this repo only stores
   whatever it decides, no logic of its own.
+- ``wind_track_observations``: per-session maneuver-derived wind directions,
+  replaced as a set per session (never merged) and read back for *other*
+  sessions nearby in space and time.
 """
 
+import math
 import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from ...db.models import WindEstimateORM, WindObservationORM, WindStationORM
+from ...db.models import (
+    WindEstimateORM, WindObservationORM, WindStationORM, WindTrackObservationORM,
+)
 
 _STATION_FIELDS = ("provider", "external_station_id", "name", "station_type", "lat", "lng",
                    "keeps_local_history", "source_url")
 _OBS_FIELDS = ("observed_at", "twd_deg", "tws_kts", "gust_kts")
 _ESTIMATE_FIELDS = ("twd_deg", "tws_kts", "gust_kts", "confidence", "sources")
+_TRACK_OBS_FIELDS = ("observed_at", "lat", "lng", "twd_deg", "confidence", "kind")
+_KM_PER_DEG_LAT = 111.32
 
 
 class SqlWindRepo:
@@ -206,3 +214,54 @@ class SqlWindRepo:
                 WindEstimateORM.time_bucket <= end,
             )
             return list(s.scalars(q).all())
+
+    # --- track wind observations (maneuver-derived, per session) ---
+
+    def replace_track_observations(self, session_id: uuid.UUID, rows: "list[dict]") -> int:
+        """Make ``rows`` the session's complete set: delete-then-insert in one
+        transaction, so a re-analysis replaces instead of accumulating and an
+        empty list clears. Returns the number inserted."""
+        with self.Session() as s:
+            s.execute(delete(WindTrackObservationORM)
+                      .where(WindTrackObservationORM.session_id == session_id))
+            s.add_all([
+                WindTrackObservationORM(session_id=session_id,
+                                        **{k: r[k] for k in _TRACK_OBS_FIELDS})
+                for r in rows
+            ])
+            s.commit()
+        return len(rows)
+
+    def list_track_observations(self, session_id: uuid.UUID
+                                ) -> "list[WindTrackObservationORM]":
+        """One session's own complete set, oldest first."""
+        with self.Session() as s:
+            return list(s.scalars(
+                select(WindTrackObservationORM)
+                .where(WindTrackObservationORM.session_id == session_id)
+                .order_by(WindTrackObservationORM.observed_at)
+            ).all())
+
+    def list_track_observations_near(self, lat: float, lng: float, radius_km: float,
+                                     start: datetime, end: datetime, *,
+                                     exclude_session_id: Optional[uuid.UUID]
+                                     ) -> "list[WindTrackObservationORM]":
+        """Observations within ``radius_km`` of (lat, lng) and ``[start, end]``,
+        from every session except ``exclude_session_id``, oldest first. A
+        lat/lng bounding box narrows the rows in SQL and haversine decides
+        exactly — no PostGIS. The box does not wrap the antimeridian."""
+        from ...services.geo import haversine_m
+
+        dlat = radius_km / _KM_PER_DEG_LAT
+        dlng = radius_km / (_KM_PER_DEG_LAT * max(math.cos(math.radians(lat)), 0.01))
+        with self.Session() as s:
+            q = select(WindTrackObservationORM).where(
+                WindTrackObservationORM.observed_at >= start,
+                WindTrackObservationORM.observed_at <= end,
+                WindTrackObservationORM.lat.between(lat - dlat, lat + dlat),
+                WindTrackObservationORM.lng.between(lng - dlng, lng + dlng),
+            )
+            if exclude_session_id is not None:
+                q = q.where(WindTrackObservationORM.session_id != exclude_session_id)
+            rows = list(s.scalars(q.order_by(WindTrackObservationORM.observed_at)).all())
+        return [o for o in rows if haversine_m(lat, lng, o.lat, o.lng) / 1000 <= radius_km]
