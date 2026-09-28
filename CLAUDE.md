@@ -707,8 +707,11 @@ Capacitor plugin changes, which still require a store release.
   images; it is a *fresh* `docker compose up --build` that fails, i.e. exactly
   the getting-started path. So both compose files pin
   `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` and
-  `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z`, and CI installs `mc` by
-  `docker run --entrypoint cat` on that image instead of curling it. Don't
+  `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z`. **quay.io now 401s both
+  as well** (checked 2026-09-28): those pins only resolve on a host that
+  already has them cached, so the compose images still need a new source.
+  CI no longer needs `mc` at all — `scripts/deploy-ota.sh` uploads with the
+  runner's AWS CLI; don't reintroduce an `mc` download there. Don't
   "simplify" those back to `minio/minio:latest` — the short name is
   unresolvable now. Keep the pins: these are the final community releases, so
   the tags never move again, and the newer `*.hotfix.*` tags on quay are

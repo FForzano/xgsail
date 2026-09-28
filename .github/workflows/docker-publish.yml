@@ -199,18 +199,11 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      # Pulled out of the quay.io image rather than downloaded from dl.min.io,
-      # which now answers 410 Gone for every community binary (see the minio
-      # images in docker-compose.yml). The old `curl -sSL` had no -f, so it
-      # wrote that 410's body to the file and exited 0 — the step passed and
-      # bash failed much later trying to execute English prose. `mc --version`
-      # below is what turns a repeat of that into a failure here instead.
-      - name: Install MinIO client (mc)
-        run: |
-          docker run --rm --entrypoint cat \
-            quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z /usr/bin/mc > /usr/local/bin/mc
-          chmod +x /usr/local/bin/mc
-          mc --version
+      # deploy-ota.sh uploads with the runner's preinstalled AWS CLI: MinIO no
+      # longer distributes `mc` anywhere (Docker Hub, dl.min.io, and quay.io
+      # now 401s). Fail here, not mid-upload, if a runner image drops it.
+      - name: Check AWS CLI
+        run: aws --version
 
       - name: Publish OTA update
         env:

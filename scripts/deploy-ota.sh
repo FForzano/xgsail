@@ -60,45 +60,66 @@ cat > "$WORKDIR/manifest.json" <<EOF
 {"version": "$VERSION", "checksum": "$CHECKSUM"}
 EOF
 
-echo "==> uploading bundle + manifest to MinIO (local/$BUCKET/$OTA_PREFIX)"
-mc alias set ota-deploy "$SAILFRAMES_S3_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
+echo "==> uploading bundle + manifest to MinIO ($BUCKET/$OTA_PREFIX)"
+# AWS CLI, not `mc`: MinIO withdrew every community `mc` distribution (Docker
+# Hub, dl.min.io, and quay.io now answers 401), while the AWS CLI ships on
+# every GitHub runner. Path-style addressing because the bucket is not a
+# subdomain of the tunneled endpoint; checksums only when an API requires
+# them, because AWS CLI v2's default trailing checksums use aws-chunked
+# uploads that proxies and older MinIO reject.
+cat > "$WORKDIR/aws-config" <<EOF
+[default]
+region = us-east-1
+s3 =
+  addressing_style = path
+request_checksum_calculation = when_required
+response_checksum_validation = when_required
+EOF
+export AWS_CONFIG_FILE="$WORKDIR/aws-config"
+export AWS_SHARED_CREDENTIALS_FILE=/dev/null
+export AWS_ACCESS_KEY_ID="$MINIO_ROOT_USER"
+export AWS_SECRET_ACCESS_KEY="$MINIO_ROOT_PASSWORD"
+unset AWS_PROFILE AWS_SESSION_TOKEN
+s3() { aws --endpoint-url "$SAILFRAMES_S3_ENDPOINT" "$@"; }
 
-# `mc cp` intermittently fails against the public (Cloudflare-tunneled) MinIO
+# Uploads intermittently fail against the public (Cloudflare-tunneled) MinIO
 # endpoint with "You must provide the Content-Length HTTP header" — seen on
 # both a multi-MB bundle and a tiny manifest.json, so it's a transient
 # tunnel/proxy hiccup rather than anything about the payload. Retry a few
 # times with backoff instead of failing the whole deploy on a blip.
-mc_cp_retry() {
+s3_cp_retry() {
   local src="$1" dst="$2" attempt
   for attempt in 1 2 3 4 5; do
-    if mc cp "$src" "$dst"; then
+    if s3 s3 cp --only-show-errors "$src" "$dst"; then
       return 0
     fi
-    echo "  mc cp failed (attempt $attempt/5), retrying in $((attempt * 3))s..." >&2
+    echo "  upload failed (attempt $attempt/5), retrying in $((attempt * 3))s..." >&2
     sleep "$((attempt * 3))"
   done
   return 1
 }
 
-mc_cp_retry "$WORKDIR/bundle.zip" "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/$VERSION.zip"
-mc_cp_retry "$WORKDIR/manifest.json" "ota-deploy/$BUCKET/$OTA_PREFIX/manifest.json"
+s3_cp_retry "$WORKDIR/bundle.zip" "s3://$BUCKET/$OTA_PREFIX/bundles/$VERSION.zip"
+s3_cp_retry "$WORKDIR/manifest.json" "s3://$BUCKET/$OTA_PREFIX/manifest.json"
 
 echo "==> pruning old bundles (keeping newest $KEEP_VERSIONS)"
 # Best-effort: the publish above already succeeded, so a prune failure (seen
-# in practice when the public/tunneled S3 endpoint rejects the HEAD a `mc rm`
-# does internally, even though GET/PUT through the same endpoint are fine —
-# looks like a Cloudflare-side method restriction, not a MinIO permissions
-# issue) must not fail the whole deploy over what's just server-side cleanup.
-mc ls --json "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/" \
-  | jq -r '[.lastModified, .key] | @tsv' \
+# in practice when the public/tunneled S3 endpoint rejects a request method
+# even though GET/PUT through the same endpoint are fine — looks like a
+# Cloudflare-side method restriction, not a MinIO permissions issue) must
+# not fail the whole deploy over what's just server-side cleanup.
+{ s3 s3api list-objects-v2 --bucket "$BUCKET" --prefix "$OTA_PREFIX/bundles/" \
+    --query 'Contents[].[LastModified, Key]' --output text \
+    || echo "  warning: could not list old bundles, skipping prune" >&2; } \
+  | grep -v '^None$' \
   | sort -r \
   | tail -n +"$((KEEP_VERSIONS + 1))" \
   | cut -f2 \
   | while IFS= read -r old; do
       [ -z "$old" ] && continue
-      echo "  removing bundles/$old"
-      mc rm "ota-deploy/$BUCKET/$OTA_PREFIX/bundles/$old" \
-        || echo "  warning: failed to remove bundles/$old, leaving it in place"
-    done
+      echo "  removing $old"
+      s3 s3 rm --only-show-errors "s3://$BUCKET/$old" \
+        || echo "  warning: failed to remove $old, leaving it in place"
+    done || true
 
 echo "==> done: version $VERSION published (checksum $CHECKSUM)"

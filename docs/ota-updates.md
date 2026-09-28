@@ -126,7 +126,10 @@ for manual debugging.
 script builds the frontend with `VITE_API_BASE` set to the real backend
 origin (required — see `docs/native-apps.md`), zips `dist/`, computes a
 sha256 checksum, and uploads both the bundle and a refreshed
-`manifest.json` to MinIO via `mc`.
+`manifest.json` to MinIO with the AWS CLI (`aws s3` against
+`SAILFRAMES_S3_ENDPOINT`, path-style, checksums only when required — see the
+comment in the script). `mc` is no longer an option: MinIO withdrew every
+community distribution of it.
 
 ## Running `ota-service`
 
