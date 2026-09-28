@@ -3,12 +3,11 @@
 A station whose vane or anemometer has died keeps serving well-formed
 numbers, so nothing upstream errors: the feed simply repeats one value
 forever. That is worse than an outage here, because a real station near
-the sailing area outweighs every model in the fusion
-(``xgsail_windfusion.source_weight``: ``real_station`` prior 2.0 at zero
-distance vs. a summed ~1.9-2.4 across every Open-Meteo model that covers
-the point), so a frozen direction would silently define the fused wind —
-and with it TWA, points of sail, VMG and the polar — for every session at
-that spot.
+the sailing area dominates the fusion (``xgsail_windfusion.source_weight``:
+``real_station`` prior 10.0 at zero distance vs. a summed ~1.9-2.4 across
+every Open-Meteo model that covers the point), so a frozen direction would
+silently define the fused wind — and with it TWA, points of sail, VMG and
+the polar — for every session at that spot.
 
 Pure functions over observation rows: anything with ``observed_at``
 (tz-aware), ``twd_deg``, ``tws_kts`` and ``gust_kts`` attributes. No ORM,

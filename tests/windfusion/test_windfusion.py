@@ -103,7 +103,7 @@ def test_gps_tack_decays_on_its_own_short_distance_scale():
         wf.source_weight("real_station") / math.e)
 
 
-@pytest.mark.parametrize("source", ["onboard_sensor", "real_station", "model_regional",
+@pytest.mark.parametrize("source", ["onboard_sensor", "model_regional",
                                     "model_global", "grid_estimate", "gps_estimate", "unknown"])
 def test_per_source_decay_leaves_every_other_source_unchanged(source):
     prior = wf.SOURCE_PRIORS.get(source, 0.1)
@@ -112,7 +112,17 @@ def test_per_source_decay_leaves_every_other_source_unchanged(source):
     assert got == pytest.approx(expected, rel=1e-12)
 
 
+def test_real_station_decays_faster_than_the_default_distance_scale():
+    # A real station's prior fades on its own 5 km scale, not the default 15 km
+    # one, so it dominates near itself but doesn't stay dominant far away.
+    prior = wf.SOURCE_PRIORS["real_station"]
+    expected = prior * math.exp(-7.0 / 5.0) * math.exp(-600.0 / 1800.0) * 0.5
+    got = wf.source_weight("real_station", distance_km=7.0, dt_seconds=600, internal_confidence=0.5)
+    assert got == pytest.approx(expected, rel=1e-12)
+
+
 def test_calibration_grid_keeps_the_per_source_decay():
     import xgsail_windfusion.calibration as cal
     grid = cal.candidate_grid(distance_decay_km=[10.0, 20.0])
-    assert all(c.distance_decay_km_by_source == {"gps_tack": 2.0} for c in grid)
+    assert all(c.distance_decay_km_by_source == {"gps_tack": 2.0, "real_station": 5.0}
+               for c in grid)

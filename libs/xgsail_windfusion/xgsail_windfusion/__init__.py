@@ -33,30 +33,36 @@ from dataclasses import dataclass, field
 # --- reliability policy (starting values; calibrate with the leave-one-out
 # harness in ``xgsail_windfusion.calibration``) --------------------------
 
-# Base reliability per source type, before any spatial/temporal decay.
-# Onboard sensor and a real fixed station are the most trustworthy; regional
-# NWP models beat global ones; a grid estimate is prior knowledge; a wind
-# direction guessed from a GPS tack pattern is the weakest.
+# Base reliability per source type, before any spatial/temporal decay. A
+# measurement (onboard sensor, real station) is what "the wind here" means —
+# a forecast model is a guess at it. So near a healthy measurement it must
+# decisively win, not merely outvote any single model: up to 4 Open-Meteo
+# models can contribute to the same waypoint at once, each queried right at
+# the point with no spatial decay, so their *summed* weight (~1.9-2.4 with a
+# grid estimate) would otherwise out-weight a station priced only "a bit"
+# above any one model — which is exactly how a station reading 0.2kt still
+# came out ~2.5kt fused: a ~2.0 prior was only ever ~45-50% of the total.
+# Priced instead at several times that combined ceiling, a station/sensor
+# holds an ~80%+ share even when every model and the grid estimate agree
+# with each other and disagree with it. Regional NWP models beat global
+# ones; a grid estimate is prior knowledge; a wind direction guessed from a
+# GPS tack pattern is the weakest.
 SOURCE_PRIORS: "dict[str, float]" = {
-    # Up to 4 Open-Meteo models can contribute at once, each queried at the
-    # waypoint with no spatial decay, so their *summed* weight (~1.9-2.4 with
-    # a grid estimate) otherwise drowns out a real station even directly on
-    # top of it, or the boat's own instrument. Both are weighed near/above
-    # that summed model contribution so a healthy nearby station — and the
-    # boat's own sensor, kept above it — dominate that consensus rather than
-    # being outvoted by it.
-    "onboard_sensor": 2.2,
-    "real_station": 2.0,
+    # Kept just above ``real_station`` (see below) — it's the same kind of
+    # ground truth, at zero distance always.
+    "onboard_sensor": 10.5,
+    "real_station": 10.0,
     "model_regional": 0.6,   # Open-Meteo icon_d2 / icon_eu
     "model_global": 0.35,    # Open-Meteo gfs_seamless / ecmwf_ifs025
     "grid_estimate": 0.5,
     "gps_estimate": 0.2,
     # Wind direction bisected from one tack/gybe (``process_upload/processing/
-    # tack_wind.py``), already scaled by that maneuver's own confidence. Above
-    # the sensor prior because it is weighed against a row's *summed* model
-    # weight (~1.9 for four Open-Meteo models sharing one bias), and it only
-    # holds that strength within a couple of km and ~half an hour — see the
-    # overrides below.
+    # tack_wind.py``), already scaled by that maneuver's own confidence. Held
+    # well below a real measurement — it's an inference from track geometry,
+    # not a reading — but still above a single model, since it is weighed
+    # against a row's *summed* model weight (~1.9 for four Open-Meteo models
+    # sharing one bias). It only holds that strength within a couple of km
+    # and ~half an hour — see the overrides below.
     "gps_tack": 2.0,
 }
 _DEFAULT_PRIOR = 0.1  # unknown source type — trusted little, never zero
@@ -66,8 +72,13 @@ _DEFAULT_PRIOR = 0.1  # unknown source type — trusted little, never zero
 DISTANCE_DECAY_KM = 15.0
 # Per-source override of ``DISTANCE_DECAY_KM``. A tack bisector describes the
 # wind where the boat was, not a weather system: its influence should end
-# around the next headland, not 15 km away.
-DISTANCE_DECAY_KM_BY_SOURCE: "dict[str, float]" = {"gps_tack": 2.0}
+# around the next headland, not 15 km away. A real station's own high prior
+# above must fade faster than a model's too, or it would go on dominating
+# far past the range its reading is actually representative of (thermal/
+# coastal effects, a station in the lee of different terrain) — 5 km puts it
+# back to roughly parity with the models around 8-10 km out, negligible
+# beyond, while still prevailing decisively in its immediate vicinity.
+DISTANCE_DECAY_KM_BY_SOURCE: "dict[str, float]" = {"gps_tack": 2.0, "real_station": 5.0}
 TIME_DECAY_SECONDS = 30.0 * 60.0  # 30 minutes
 # Per-source override of ``TIME_DECAY_SECONDS``. Coastal/thermal wind shifts
 # over tens of minutes, so a tack bisector is trusted most at its own moment

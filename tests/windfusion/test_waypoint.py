@@ -130,6 +130,29 @@ def test_legacy_rows_without_station_id_group_by_coordinates():
     assert len(fused.contributions) == 1
 
 
+def test_a_calm_station_prevails_over_disagreeing_models_right_on_top_of_it():
+    # Regression: standing right on a station reading 0.2 kt while every
+    # Open-Meteo model (queried with no spatial offset, so they'd otherwise
+    # carry full weight regardless of distance) disagrees at 5 kt used to
+    # fuse to ~2.5 kt — the models' summed weight nearly matched the
+    # station's. At distance ~0 the station must now dominate instead.
+    wp = {
+        "real_stations": [{"station_id": 1, "distance_km": 0.05, "observed_at": E0,
+                           "twd_deg": 180.0, "tws_kts": 0.2}],
+        "model_candidates": {
+            "icon_d2": [{"observed_at": E0, "twd_deg": 180.0, "tws_kts": 5.0}],
+            "icon_eu": [{"observed_at": E0, "twd_deg": 180.0, "tws_kts": 5.0}],
+            "gfs_seamless": [{"observed_at": E0, "twd_deg": 180.0, "tws_kts": 5.0}],
+            "ecmwf_ifs025": [{"observed_at": E0, "twd_deg": 180.0, "tws_kts": 5.0}],
+        },
+        "grid_estimates": [{"time_bucket": E0, "twd_deg": 180.0, "tws_kts": 5.0,
+                            "gust_kts": None, "confidence": 1.0}],
+        "track_observations": [],
+    }
+    fused = wf.fuse_waypoint(wp, E0)
+    assert fused.tws_kts < 1.5  # close to the station's 0.2, not the models' 5.0
+
+
 def test_unknown_model_is_weighed_as_global():
     rows = [{"observed_at": E0, "twd_deg": 90.0, "tws_kts": 8.0}]
     fused = wf.fuse_waypoint({"model_candidates": {"some_new_model": rows}}, E0)
