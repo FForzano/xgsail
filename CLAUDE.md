@@ -699,23 +699,26 @@ Capacitor plugin changes, which still require a store release.
   (`.github/workflows/docker-publish.yml`'s `deploy-ota` job) at the same
   time as `.env.native.example`, or it silently drops out of every OTA
   update after the first.
-- **MinIO is archived upstream: its images come from quay.io, pinned, and
-  there is no `mc` binary left to download.** MinIO withdrew the open-source
-  server/mc/KES projects — the `minio/*` Docker Hub repos are gone (every tag
-  401s) and `dl.min.io` answers `410 Gone` for every community binary. Nothing
-  here noticed for a while because an existing host keeps running from cached
-  images; it is a *fresh* `docker compose up --build` that fails, i.e. exactly
-  the getting-started path. So both compose files pin
-  `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` and
-  `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z`. **quay.io now 401s both
-  as well** (checked 2026-09-28): those pins only resolve on a host that
-  already has them cached, so the compose images still need a new source.
-  CI no longer needs `mc` at all — `scripts/deploy-ota.sh` uploads with the
-  runner's AWS CLI; don't reintroduce an `mc` download there. Don't
-  "simplify" those back to `minio/minio:latest` — the short name is
-  unresolvable now. Keep the pins: these are the final community releases, so
-  the tags never move again, and the newer `*.hotfix.*` tags on quay are
-  commercial builds, not a continuation of these.
+- **MinIO is archived upstream: its images come from the `pgsty` community
+  fork, pinned, and there is no official `mc` left to download.** MinIO
+  withdrew the open-source server/mc/KES projects — the `minio/*` Docker Hub
+  repos are gone, `dl.min.io` answers `410 Gone` for every community binary,
+  and since 2026-09 quay.io 401s anonymous pulls of `minio/minio` and
+  `minio/mc` as well. Nothing here noticed each time for a while because an
+  existing host keeps running from cached images; it is a *fresh*
+  `docker compose up --build` that fails, i.e. exactly the getting-started
+  path. So both compose files pin `pgsty/minio:RELEASE.2026-08-04T00-00-00Z`
+  and `pgsty/mc:RELEASE.2026-09-16T00-00-00Z` — the same code line (verified
+  to read a volume written by the official `RELEASE.2025-09-07`, pass
+  `mc ready local`, run `deploy/minio-init.sh` unchanged and deliver the
+  `/hooks/minio` webhook in the same `Records[]`/`s3:ObjectCreated:*`
+  shape). Bump those tags deliberately, never to `latest`, and snapshot
+  `minio-data` before a production bump. CI does not need `mc` at all —
+  `scripts/deploy-ota.sh` uploads with the runner's AWS CLI; don't
+  reintroduce an `mc` download there. A move to a different store (RustFS,
+  SeaweedFS, Garage) is a separate decision: RustFS's webhook uses a
+  different event schema, and Garage has no bucket notifications, which the
+  whole ingestion pipeline depends on.
 - **A `curl` that installs something needs `-f`, or an HTTP error installs
   itself.** This is how the above surfaced: `curl -sSL <url> -o /usr/local/bin/mc`
   wrote the 410 response *body* — 405 bytes of English prose — into the file
