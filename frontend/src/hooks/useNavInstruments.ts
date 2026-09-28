@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useLiveState } from "@/services/liveFix";
 import { useWindAt } from "@/hooks/useWindAt";
 import { roundCoord } from "@/utils/geo";
 import { tackOf, trueWindAngle, vmg, type Tack } from "@/utils/nav";
+import { windAgeMinutes, windSourceLabel } from "@/utils/windSnapshot";
 
 // The one composition point for navigation mode's numbers: live GPS + the
 // wind lookup + the sailing math, so the display components stay dumb and
@@ -20,7 +22,7 @@ export type GpsQuality = "good" | "fair" | "poor" | "lost";
 export interface NavInstruments {
   sogKts: number | null;
   cogDeg: number | null;
-  /** True wind, from the backend's nearest station/model — never a masthead
+  /** True wind, from the backend's fused wind estimate — never a masthead
    * sensor. Null wherever there's no coverage, which is normal offshore. */
   twdDeg: number | null;
   twsKts: number | null;
@@ -48,6 +50,7 @@ function gpsQualityOf(accuracyM: number | null, fixAt: number | null, now: numbe
 }
 
 export function useNavInstruments(): NavInstruments {
+  const { t } = useTranslation();
   const { fix, distanceM, maxSogKts, avgSogKts } = useLiveState();
 
   // "Lost" has to become true from the passage of time alone, with no new fix
@@ -78,8 +81,8 @@ export function useNavInstruments(): NavInstruments {
     twaDeg,
     tack: twaDeg == null ? null : tackOf(twaDeg),
     vmgKts: twaDeg != null && fix?.sogKts != null ? vmg(fix.sogKts, twaDeg) : null,
-    windSource: wind ? (wind.station_name ?? wind.model ?? wind.provider) : null,
-    windAgeMin: wind ? Math.max(0, Math.round((now - Date.parse(wind.observed_at)) / 60_000)) : null,
+    windSource: wind ? windSourceLabel(wind, t) : null,
+    windAgeMin: wind ? windAgeMinutes(wind, now) : null,
     distanceM,
     maxSogKts,
     avgSogKts,

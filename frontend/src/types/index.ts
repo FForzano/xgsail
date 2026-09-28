@@ -757,6 +757,10 @@ export interface SessionAnalysis {
   polar_target: PolarPoint[] | null;
   true_wind: TrueWindPoint[] | null;
   computed_at: string | null;
+  /** `"no_wind_data"` when the session had neither an onboard sensor nor a
+   * station/model wind source — every wind-dependent block is empty, but
+   * summary stats (distance, speed) still exist elsewhere on the page. */
+  unavailable_reason?: "no_wind_data" | null;
 }
 
 export interface ViolinMetric {
@@ -1033,16 +1037,37 @@ export interface WindObservation {
  * determined wind estimate (see MapView's `sessionWind` prop for that).
  * Nothing behind this is persisted; `provider` is either a real station's
  * (with `station_name`) or `"open_meteo"` (with `model`). */
+/** A single contributing reading behind a fused `WindSnapshot` — see
+ * `sources` below. Sorted by `weight_share` descending by the backend. */
+export interface WindSnapshotSource {
+  type: "real_station" | "model_regional" | "model_global" | "grid_estimate" | "gps_tack";
+  name: string | null;
+  weight_share: number; // 0..1
+}
+
+/** `GET /wind/nearest` response. Since the fusion rollout this is the same
+ * estimator the per-session analysis uses, evaluated live at one point —
+ * `sources`/`confidence`/`latest_observed_at` are present on that shape
+ * (`provider: "fusion"`). An older server may still answer with the
+ * pre-fusion single-source shape (a real station or an unblended Open-Meteo
+ * reading) — `station_name`/`model` set, no `sources` — so every consumer
+ * of this type has to tolerate both. */
 export interface WindSnapshot {
   provider: string;
   station_name?: string | null;
-  model?: string;
+  model?: string | null;
   lat: number;
   lng: number;
   observed_at: string;
   twd_deg: number | null;
   tws_kts: number | null;
   gust_kts: number | null;
+  confidence?: number;
+  /** Newest underlying reading behind the estimate — absent (and thus
+   * falling back to `observed_at`) on the pre-fusion shape. */
+  latest_observed_at?: string | null;
+  /** Present only on the fused shape, sorted by `weight_share` descending. */
+  sources?: WindSnapshotSource[];
 }
 
 // --- rbac ------------------------------------------------------------------------------

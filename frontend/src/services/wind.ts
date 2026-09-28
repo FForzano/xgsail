@@ -41,10 +41,11 @@ export const windService = {
     const s = p.toString();
     return api.get<WindObservation[]>(`/wind/stations/${id}/observations${s ? `?${s}` : ""}`);
   },
-  /** Quick live value for WindCard/map display — a real station in range
-   * wins if it has data near `at`, otherwise an unblended Open-Meteo
-   * candidate. NOT the per-session determined wind estimate — nothing here
-   * is persisted. Any authenticated user. */
+  /** Live value for WindCard/map display — the fused best estimate (same
+   * estimator the per-session analysis uses), evaluated at one point/time.
+   * An older server may still answer with the pre-fusion single-source
+   * shape (`provider` a station provider or "open_meteo", no `sources`) —
+   * see `WindSnapshot`. Nothing here is persisted. Any authenticated user. */
   nearest: (lat: number, lng: number, at?: string) => {
     const p = new URLSearchParams({ lat: String(lat), lng: String(lng) });
     if (at) p.set("at", at);

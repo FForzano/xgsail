@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { windService, windKeys } from "@/services/wind";
 import type { WindSnapshot } from "@/types";
 
-/** Quick live wind value for a coordinate/time — WindCard/map display only,
- * not the rigorous per-session estimate (see MapView's `sessionWind` prop
- * for that, when a session has one). Nothing is persisted; see
+/** Live wind value for a coordinate/time — WindCard/map display, evaluated
+ * on demand rather than read from a session's stored analysis (see
+ * MapView's `sessionWind` prop for that, when a session has one). Since the
+ * fusion rollout it's the same estimator the per-session analysis uses,
+ * just evaluated live at one point — nothing is persisted; see
  * backend/services/wind_lookup.live_snapshot. */
 export function useWindAt(
   lat: number | undefined,

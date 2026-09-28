@@ -676,6 +676,7 @@
     "reanalyzing": "Aggiornamento in corso…",
     "reanalyzeDone": "Aggiornamento completato",
     "refreshWind": "Aggiorna dati vento",
+    "analysisNoWindData": "Analisi non disponibile: per questa uscita non c'è alcun dato di vento (né sensore a bordo, né stazioni o modelli meteo). Serve almeno una fonte di vento per calcolare andature, bordi e polare.",
     "menuSectionSession": "Modifica sessione",
     "openBoatNotebook": "Quaderno regolazioni barca",
     "share": "Condividi",
@@ -715,6 +716,7 @@
     "longestLeg": "Bordo più lungo",
     "avgVmg": "VMG medio",
     "avgPerLeg": "Media per bordo",
+    "barScale": "Scala: max {{value}}",
     "legNumber": "Bordo #{{n}}",
     "tackSide": {
       "starboard": "Dritta",
@@ -1114,6 +1116,16 @@
       "text": "Conosci una stazione meteo locale — un anemometro del circolo, una stazione Cumulus, una boa vicina? Segnalacela e la aggiungeremo, migliorando i dati del vento per tutto il tuo circolo.",
       "cta": "Segnala una stazione",
       "subject": "Segnalazione stazione meteo locale"
+    },
+    "fusedSource": "Stima combinata ({{count}} fonti)",
+    "sourcesLabel": "Fonti",
+    "ageMin": "{{minutes}} min fa",
+    "sourceType": {
+      "real_station": "Stazione reale",
+      "model_regional": "Modello regionale",
+      "model_global": "Modello globale",
+      "grid_estimate": "Stima da griglia",
+      "gps_tack": "Virate GPS"
     }
   },
   "admin": {

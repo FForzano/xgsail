@@ -6,6 +6,7 @@ import { sessionsService, sessionKeys } from "@/services/sessions";
 import { polarsService, polarKeys } from "@/services/polars";
 import { Section } from "@/components/ui/Section";
 import { Spinner } from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatTile, StatTiles } from "./StatTile";
 import styles from "./SessionAnalysis.module.css";
@@ -30,7 +31,22 @@ import type { PolarPoint, SessionManeuver, UUID } from "@/types";
  * delete_maneuver`. Outside edit mode, rejected maneuvers are hidden from
  * both the table and the summary/comparison charts below (they're not real
  * maneuvers, by the user's own say-so). */
-export function SessionAnalysis({ sessionId, editMode = false }: { sessionId: UUID; editMode?: boolean }) {
+export function SessionAnalysis({
+  sessionId,
+  editMode = false,
+  maxSpeedKts,
+  onRefreshWind,
+  refreshingWind = false,
+}: {
+  sessionId: UUID;
+  editMode?: boolean;
+  maxSpeedKts?: number | null;
+  /** Reuses the boat manager's existing "refresh wind" action (see
+   * SessionDetail) — offered from the "no wind data" message below.
+   * Omitted for a caller who can't trigger it (not a manager). */
+  onRefreshWind?: () => void;
+  refreshingWind?: boolean;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [deletingManeuverId, setDeletingManeuverId] = useState<UUID | null>(null);
@@ -66,12 +82,26 @@ export function SessionAnalysis({ sessionId, editMode = false }: { sessionId: UU
   if (analysis.isLoading) return <Section title={t("sessions.analysis")}><Spinner /></Section>;
   if (!analysis.data) return null; // no analysis yet — hide the section entirely
   const a = analysis.data;
+  const noWindData = a.unavailable_reason === "no_wind_data";
   const visibleManeuvers = editMode ? a.maneuvers : a.maneuvers.filter((m) => !m.rejected);
+  // No sensor and no station/model source means no wind-derived maneuvers
+  // either, but a user-edited one (added by hand on the map) doesn't depend
+  // on wind — this block still shows those exactly like the normal path.
   const hasManeuverBlock = !!(a.maneuver_summary || a.violin || visibleManeuvers.length);
 
   return (
     <Section title={t("sessions.analysis")}>
       <div className="sf-section__body">
+        {noWindData && (
+          <p className={styles.noWindData}>
+            {t("sessions.analysisNoWindData")}
+            {onRefreshWind && (
+              <Button variant="ghost" onClick={onRefreshWind} disabled={refreshingWind}>
+                {t("sessions.refreshWind")}
+              </Button>
+            )}
+          </p>
+        )}
         {!!polar.data?.length && (
           <AnalysisBlock title={t("sessions.polar")}>
             <PolarChart points={polar.data} targetPoints={a.polar_target} />
@@ -80,7 +110,7 @@ export function SessionAnalysis({ sessionId, editMode = false }: { sessionId: UU
         )}
         {!!a.legs.length && (
           <AnalysisBlock title={t("sessions.legsSection")}>
-            <TackBreakdown legs={a.legs} />
+            <TackBreakdown legs={a.legs} maxSpeedKts={maxSpeedKts} />
             <CollapsibleList label={t("sessions.legs")} count={a.legs.length}>
               <LegsTable legs={a.legs} />
             </CollapsibleList>
