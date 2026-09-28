@@ -150,12 +150,17 @@ acquisition, then estimation.
 
 The two processes deliberately share **one** small pure-Python package,
 `libs/xgsail_windfusion` (blend math + source-reliability weighting),
-installed into both images — because the per-session estimate (worker) and
-the grid refinement (backend) must weigh sources identically or they'd
-disagree. It's dependency-free (stdlib `math` only) so it doesn't pull numpy
-into the otherwise numpy-free backend image. Both images build from the repo
-root so the build can reach it (see `docker-compose.yml` /
-`scripts/build-images.sh`). Everything else stays unshared.
+installed into both images — because the per-session estimate (worker), the
+grid refinement (backend), and the backend's own live snapshot (below) must
+weigh sources identically or they'd disagree. Its `waypoint` module
+(`fuse_waypoint`/`fuse_sources`/`prepare_sources`/`blend_direction`/
+`station_groups`) fuses one `wind_cache.json` waypoint bundle at one instant
+— the worker's `_fuse_bundle`/`tack_wind.blend_observations` and the
+backend's `wind_lookup.live_snapshot` all call into it rather than each
+re-implementing the blend. It's dependency-free (stdlib `math` only) so it
+doesn't pull numpy into the otherwise numpy-free backend image. Both images
+build from the repo root so the build can reach it (see `docker-compose.yml`
+/ `scripts/build-images.sh`). Everything else stays unshared.
 
 ### Acquisition — two very different kinds of source
 
@@ -214,7 +219,8 @@ WindEstimator = Callable[
     list[dict],
 ]
 # raw_wind_bundle (4th arg) — one entry per track waypoint:
-# {lat, lng, real_stations: [...], model_candidates: {model_name: [...]}, grid_estimates: [...]}
+# {lat, lng, real_stations: [...], model_candidates: {model_name: [...]}, grid_estimates: [...],
+#  track_observations: [...]}
 ```
 
 `raw_wind_bundle` comes from `backend/services/ingestion.py::write_wind_cache()`
@@ -222,9 +228,11 @@ WindEstimator = Callable[
 different — richer — contents), which calls
 `backend/services/wind_lookup.py::gather_raw_wind()` per waypoint: up to
 `MAX_REAL_STATIONS` (3) in-range real stations that actually have
-observations for the window, every Open-Meteo candidate model, and any
-existing `wind_estimates` rows for that cell — no selection, just
-acquisition, same principle as above. `SqlWindRepo.find_within(lat, lng,
+observations for the window, every Open-Meteo candidate model, any
+existing `wind_estimates` rows for that cell, and other sessions' nearby
+tack/gybe observations (`track_observations` — see "Sharing across
+sessions" below) — no selection, just acquisition, same principle as
+above. `SqlWindRepo.find_within(lat, lng,
 providers=..., max_km=50, limit=3)` returns the closest in-range stations
 ascending by distance; `_real_station_observations` then drops any that have
 no cached observations in `[start, end]`, which is deliberately the only
@@ -326,10 +334,92 @@ The shipped `weighted_fusion` strategy, in order:
    track is a genuine windward beat/run (`estimate_wind_axis_from_gps`), its
    tack axis additionally nudges the fused *direction* with a small weight,
    its 180° ambiguity resolved against the speed-bearing sources
-   (`_nudge_with_gps_axis`);
-3. a rough direction from the GPS tack pattern alone
-   (`estimate_wind_from_gps`) — tagged `"source": "gps_estimate"`, no speed
-   data (`tws_kts: None`).
+   (`_nudge_with_gps_axis`).
+
+Without an onboard sensor and without a single station/model/grid source
+for the whole track, there is no fallback tier: `estimate()` returns `[]`,
+and `analyze_session` reports `analysis_unavailable: "no_wind_data"` instead
+of guessing a direction with no speed behind it (see "No wind at all"
+below). `estimate_wind_axis_from_gps`/`_nudge_with_gps_axis` (a GPS-derived
+wind *axis*, ambiguous by 180°) still exist and still only ever *nudge* an
+existing fused series — they never stand as the wind on their own.
+
+`_nudge_with_gps_axis` is blind to a realistic beat, though: at a ~90°
+tacking angle the doubled headings cancel and the gate rejects it, so a
+model/station direction off by tens of degrees went uncorrected and filed
+one tack's legs as reaches (every upwind leg on one side). That gap is now
+closed by **per-maneuver tack/gybe observations**
+(`workers/process_upload/processing/tack_wind.py`), run after maneuver
+detection in `analyzer.load_session_context`:
+
+1. **Reading a bisector off each maneuver.** For a tack, the wind sits on
+   the bisector of the steady headings just before and just after the turn
+   (a boat sails a beat at about the same angle on both tacks); for a gybe
+   it's that bisector + 180°. A candidate is hard-filtered on minimum
+   speed, a plausible tack/gybe angle range, and steady-course windows long
+   enough to trust, then scored into a `confidence` in `(0, 1]` — the
+   product of heading steadiness (circular std in the two windows), how
+   close this maneuver's angle is to the session's own median for its kind
+   (an outlier bisector is almost always asymmetric — tacked onto a reach,
+   a mark rounding, a mid-tack shift), a type prior (tacks are read more
+   reliably than gybes — run angles vary far more than beat angles), and
+   window length.
+2. **Blending, direction only.** `blend_observations` pulls each modelled
+   row (`fusion`/`cache` — never `sensor`, which is a measurement) toward
+   the nearby observations as a weighted vector mean,
+   using the same `xgsail_windfusion.source_weight` every other source goes
+   through, under the `"gps_tack"` prior (`SOURCE_PRIORS["gps_tack"] =
+   2.0`, above a station's own prior — it's weighed against a row's
+   *summed* model weight). A tack observation's influence is deliberately
+   local: `DISTANCE_DECAY_KM_BY_SOURCE["gps_tack"] = 2.0` km and
+   `TIME_DECAY_SECONDS_BY_SOURCE["gps_tack"] = 900` s (weight 1/e at 15
+   min, ~0.14 at 30 min) — a bisector describes the wind where the boat
+   was, at that moment, not a weather system 15 km or half a day away.
+   Only direction is touched; wind speed is untouched (a heading says
+   nothing about it). `avg_twd` (the maneuver-detection axis) is the
+   circular mean of the *blended* series, so classification and the leg
+   split both see the corrected wind.
+
+   Steps 1–2 are iterated to a fixed point
+   (`analyzer._refine_wind_with_maneuvers`), because tack vs gybe vs course
+   change is itself decided against the wind axis being corrected. Each pass
+   re-classifies against the previous pass's blended wind and re-blends
+   **from the model wind** (blending on top of a blend would count the same
+   tacks twice), stopping once the mean direction moves less than
+   `REFINE_CONVERGED_DEG` (2°) or after `MAX_REFINE_PASSES` (4). Detection is
+   wind-agnostic, so a pass only relabels. When a pass sees no tack at all —
+   a model ~50° off makes every tack of a beat look like a same-tack course
+   change — `tack_wind.seed_observations` reads the course changes of a
+   tacking angle as tacks, but only as a group of ≥3 whose bisectors agree
+   within 10° (a beat's tacks all bisect to one direction; turns around
+   marks scatter). Seeds only move the axis for the next pass and are never
+   persisted or shared: if the classifier still recognises no tack, they are
+   dropped and the model wind stands. This all runs in the worker, which is
+   already asynchronous to the user (~2 s for a 2.5 h session).
+3. **Sharing across sessions.** Every maneuver observation is stored per
+   session (`wind_track_observations`, migration `0063`, applied by
+   `backend/services/track_wind.py::apply_analysis_payload` from the
+   worker's `track_wind_observations` payload key) and **replaced
+   wholesale** on each re-analysis — never merged, unlike the
+   `wind_estimates` grid. `wind_lookup.gather_raw_wind(..., session_id=)`
+   folds nearby *other* sessions' observations into
+   `wind_cache.json`'s `track_observations` (radius
+   `TRACK_OBS_RADIUS_KM` = 3 km — the `gps_tack` weight's 2 km e-folding
+   distance means an observation beyond that already weighs under 22%,
+   window padded ±`TRACK_OBS_TIME_PAD` = 30 min, always excluding the
+   session's own rows so it is never fed its own estimate back), stripped
+   of any session/user/boat identifier. An already-processed session isn't
+   stuck with what was on file when its cache was written: when a
+   session's stored observation set materially changes (one added/removed,
+   or an existing one's TWD moved more than 3°), `services/track_wind.py`
+   marks every other analysed, non-sensor, wind-available session within
+   the same radius and a ±30 min window as `wind_stale_at`
+   (`services/wind_auto_refresh.py`). A debounced, rate-limited processor
+   — kicked periodically by `wind-scheduler`, single-flighted and run
+   strictly sequentially per process — then re-runs `refresh_wind_cache`
+   for each, one generation only: a refresh triggered this way never
+   marks further neighbours in turn. See the Gotchas entry in `CLAUDE.md`
+   before changing any part of this.
 
 The reliability weighting (per-source priors, spatial/temporal decay) lives
 in the shared `libs/xgsail_windfusion` package, so the per-session blend
@@ -345,9 +435,10 @@ the models it's blended with. `scripts/calibrate_wind_weights.py
 --ablate-stations` re-scores the same leave-one-out sites with every
 `real_station` contribution removed, to check empirically whether fusing in
 neighbouring stations is actually earning its keep. The legacy pick-first
-`sensor_then_cache_then_gps`/`_flatten_bundle` strategy is still registered
-for A/B comparison (`ACTIVE_STRATEGY`) — it takes only the single nearest
-station's rows, never blending across stations.
+`sensor_cache`/`_flatten_bundle` strategy is still registered for A/B
+comparison (`ACTIVE_STRATEGY`) — it takes only the single nearest station's
+rows, never blending across stations, and shares the same "no sensor, no
+source at all → `[]`" fallback as `weighted_fusion`.
 
 ### Closing the loop: sensor readings refine the grid
 
@@ -362,18 +453,59 @@ boat with its own sensor passes through a point → refine our knowledge of
 that point" loop — never triggered by cache or GPS-only estimates, since
 those aren't measurements.
 
+### No wind at all
+
+When a session has neither an onboard sensor nor any real station, model or
+grid source covering its track, `load_session_context` returns an empty
+`true_wind`, and `analyze_session` short-circuits: `summary`/`session_stats`
+are still computed (they need no wind), but `maneuvers`/`legs`/`polar`/
+`vmg_series`/`true_wind` all come back empty and the payload carries
+`analysis_unavailable: "no_wind_data"` (`analyzer._no_wind_analysis`). A
+normal analysis explicitly sets the same key to `None`, because
+`backend/services/session_analysis.py::apply_payload` writes it verbatim to
+`session_analysis.unavailable_reason` (migration `0064`, checked against
+`ANALYSIS_UNAVAILABLE_REASONS` in `backend/db/models/session.py`) on every
+upsert — a session that gains wind coverage on reprocessing has the reason
+cleared automatically, and `avg_polar_pct`/`max_polar_pct` are nulled
+explicitly alongside it so a stale value doesn't survive next to an empty
+analysis. A worker image predating the flag simply omits the key, which
+`session_analysis.unavailable_reason()` reads as "available" rather than
+failing the upsert. The frontend's `SessionAnalysis` component shows an
+explanation in place of the missing charts, plus the existing "refresh
+wind" action.
+
+`routers/system.py::upsert_session_analysis` delegates the whole
+worker-payload → DB fan-out (stats, polar points, maneuvers, legs, the
+`session_analysis` JSON blob) to `session_analysis.apply_payload` — that
+module, not the router, is now the single place a new worker-payload field
+needs wiring on the way in.
+
 ### Persistence & display
 
 - `session_analysis.true_wind` — this session's own determined wind series,
-  written by `routers/system.py::upsert_session_analysis` from the
-  worker's `wind_refinements`/`true_wind` payload.
+  written by `routers/system.py::upsert_session_analysis` (via
+  `session_analysis.apply_payload`) from the worker's `wind_refinements`/
+  `true_wind` payload.
 - The session/activity map (`MapView`, via the `sessionWind` prop) prefers
-  the closest-in-time point from `true_wind` over the ephemeral WindCard/
-  map live snapshot (`services/wind_lookup.live_snapshot`, `GET /api/wind/
-  nearest`) whenever it's available — the live snapshot is a quick,
-  unpersisted "what's the wind here now" value for pages that don't have a
-  full session analysis to draw from, not the rigorous per-session
-  estimate.
+  the closest-in-time point from `true_wind` over the WindCard/map live
+  snapshot (`services/wind_lookup.live_snapshot`, `GET /api/wind/nearest`)
+  whenever it's available. The live snapshot is unpersisted and evaluated
+  at a single point/time rather than interpolated onto a track, but it is
+  **not** a lesser or independent number: it fuses the same
+  `gather_raw_wind` bundle through the same `xgsail_windfusion.
+  fuse_waypoint`/`blend_direction` the per-session estimate uses, so the
+  two never disagree about "the wind here". `gather_raw_wind` is queried
+  over a `LIVE_SNAPSHOT_WINDOW` of ±3h around the requested instant (wide
+  enough to bracket a real station's/model's reporting interval for
+  interpolation). It differs from the per-track estimate in two ways a
+  single live query needs and a full-track analysis doesn't: real stations
+  may hold their last reading up to `LIVE_HOLD_LATEST` (2h, weight-decayed)
+  past their own span rather than dropping out between reports, and the
+  response adds `confidence` (total fused weight), `latest_observed_at`
+  (the newest raw reading that actually contributed) and `sources[{type,
+  name, weight_share}]` for the WindCard's source breakdown — while keeping
+  the old flat fields (`twd_deg`/`tws_kts`/`gust_kts`/...) and
+  `provider: "fusion"` so an older OTA bundle still parses the response.
 
 ---
 
