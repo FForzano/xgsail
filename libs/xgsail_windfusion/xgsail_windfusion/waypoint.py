@@ -21,7 +21,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
-from . import TIME_DECAY_SECONDS, source_weight, weighted_wind_mean
+from . import (
+    MEASUREMENT_SOURCES,
+    TIME_DECAY_SECONDS,
+    measurement_dominance,
+    source_weight,
+    weighted_wind_mean,
+)
 
 # Open-Meteo model name -> reliability class for ``source_weight``. Regional
 # high-resolution models are trusted over the global fallback (see
@@ -64,6 +70,8 @@ class WindSource:
     tws: "list[float]"
     gust_times: "list[float]"
     gusts: "list[float]"
+    # From the point of interest; ``None`` for a source queried at the point.
+    distance_km: Optional[float] = None
 
 
 def to_epoch(t) -> Optional[float]:
@@ -120,7 +128,8 @@ def _interp(t: float, xs: "list[float]", ys: "list[float]") -> float:
 
 
 def _prepare(source_type: str, name, weight: float, rows: "list[dict]",
-             time_key: str = "observed_at") -> Optional[WindSource]:
+             time_key: str = "observed_at",
+             distance_km: Optional[float] = None) -> Optional[WindSource]:
     parsed = []
     for r in rows:
         twd, tws = r.get("twd_deg"), r.get("tws_kts")
@@ -140,6 +149,7 @@ def _prepare(source_type: str, name, weight: float, rows: "list[dict]",
         tws=[float(p[2]) for p in parsed],
         gust_times=[g[0] for g in with_gust],
         gusts=[float(g[1]) for g in with_gust],
+        distance_km=distance_km,
     )
 
 
@@ -153,7 +163,8 @@ def prepare_sources(waypoint: dict) -> "list[WindSource]":
         first = rows[0]
         name = first.get("station_name") or first.get("station_id")
         src = _prepare("real_station", name,
-                       source_weight("real_station", distance_km=distance_km), rows)
+                       source_weight("real_station", distance_km=distance_km), rows,
+                       distance_km=distance_km)
         if src is not None:
             sources.append(src)
 
@@ -186,17 +197,34 @@ def fuse_sources(sources: "list[WindSource]", t: float,
     reading is typically some minutes old and would otherwise drop out on
     every request. ``_interp`` already clamps to the last value past a
     source's span, so only the weight decay needs the gap; a source still
-    ahead of ``t`` (``t < s.times[0]``) is untouched by this."""
-    wind, gusts, contributions = [], [], []
+    ahead of ``t`` (``t < s.times[0]``) is untouched by this.
+
+    Every non-measurement source's weight is then scaled by ``1 - dominance``
+    of the strongest measurement covering ``t`` (``measurement_dominance``,
+    times the same staleness decay), so near a working station the models
+    drop out instead of being averaged in. Only a measurement that actually
+    covers ``t`` counts: across a station's data gap the models are back."""
+    covering = []
+    dominance = 0.0
     for s in sources:
         if t < s.times[0]:
             continue
         gap = max(0.0, t - s.times[-1])
         if gap > hold_latest_seconds:
             continue
+        freshness = math.exp(-gap / TIME_DECAY_SECONDS) if gap > 0.0 else 1.0
+        covering.append((s, s.weight * freshness))
+        if s.source_type in MEASUREMENT_SOURCES:
+            dominance = max(dominance, measurement_dominance(s.distance_km) * freshness)
+
+    wind, gusts, contributions = [], [], []
+    for s, weight in covering:
+        if s.source_type not in MEASUREMENT_SOURCES:
+            weight *= 1.0 - dominance
+        if weight <= 0.0:
+            continue  # silenced: it must not show up as a contributor either
         twd = (math.degrees(math.atan2(_interp(t, s.times, s.sin), _interp(t, s.times, s.cos)))
                + 360.0) % 360.0
-        weight = s.weight * math.exp(-gap / TIME_DECAY_SECONDS) if gap > 0.0 else s.weight
         wind.append((twd, _interp(t, s.times, s.tws), weight))
         if s.gust_times and s.gust_times[0] <= t <= s.gust_times[-1] and weight > 0.0:
             gusts.append((_interp(t, s.gust_times, s.gusts), weight))

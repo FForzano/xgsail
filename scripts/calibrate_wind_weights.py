@@ -172,6 +172,7 @@ def main():
         },
         distance_decay_km=[10.0, 15.0, 25.0],
         time_decay_seconds=[15 * 60, 30 * 60, 60 * 60],
+        station_dominance_km=[(0.0, 0.0), (3.0, 12.0), (5.0, 20.0)],
     )
     print(f"Searching {len(candidates)} candidate configs ...")
     best, best_score = cal.calibrate(sites, candidates)
@@ -181,6 +182,8 @@ def main():
           f"over {best_score['n']} sites")
     print(f"distance_decay_km  = {best.distance_decay_km}")
     print(f"time_decay_seconds = {best.time_decay_seconds}")
+    print(f"station_dominance  = full {best.station_dominance_full_km} km, "
+          f"fade {best.station_dominance_fade_km} km")
     for source_type, weight in sorted(best.priors.items()):
         print(f"  prior[{source_type}] = {weight:.3f}")
 

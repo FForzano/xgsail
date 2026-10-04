@@ -881,7 +881,11 @@ Capacitor plugin changes, which still require a store release.
   upsert.
 
 - **A real weather station reporting nonsense is worse than one
-  reporting nothing, because it outweighs every model in the fusion.** A
+  reporting nothing, because near it the models are switched off.**
+  Within `STATION_DOMINANCE_FULL_KM` (3 km) a covering station is not
+  weighed against the models — `measurement_dominance` zeroes them, fading
+  back to plain weighting by 12 km (`libs/xgsail_windfusion`). Don't
+  "soften" that by re-adding the models; the guards below are the defence. A
   dead vane keeps serving well-formed numbers — one frozen direction
   forever — so nothing errors while TWA, points of sail, VMG and the polar
   all come out ~190° wrong for every session at that spot (this is real,

@@ -26,11 +26,20 @@ A ``Site`` is one held-out truth plus the contributions available to predict it:
     }
 """
 
+import math
 from dataclasses import replace
 from itertools import product
 from typing import Iterable, Optional
 
-from . import DEFAULT_CONFIG, WeightConfig, source_weight, weighted_wind_mean
+from . import (
+    DEFAULT_CONFIG,
+    MEASUREMENT_SOURCES,
+    TIME_DECAY_SECONDS,
+    WeightConfig,
+    measurement_dominance,
+    source_weight,
+    weighted_wind_mean,
+)
 
 Site = dict
 
@@ -42,7 +51,13 @@ def angular_error_deg(predicted_twd: float, true_twd: float) -> float:
 
 def _fuse_site(site: Site, config: WeightConfig):
     """Fuse a site's contributions under ``config`` → ``(twd, tws, conf)`` or
-    ``None`` (nothing usable)."""
+    ``None`` (nothing usable). A nearby measurement silences the other sources
+    exactly as ``waypoint.fuse_sources`` does, or the harness would score a
+    policy that isn't the one shipped."""
+    measured = [c for c in site.get("contributions", []) if c["source_type"] in MEASUREMENT_SOURCES]
+    dominance = max((measurement_dominance(c.get("distance_km"), config)
+                     * math.exp(-abs(c.get("dt_seconds") or 0.0) / TIME_DECAY_SECONDS)
+                     for c in measured), default=0.0)
     contributions = []
     for c in site.get("contributions", []):
         w = source_weight(
@@ -52,6 +67,8 @@ def _fuse_site(site: Site, config: WeightConfig):
             internal_confidence=c.get("internal_confidence"),
             config=config,
         )
+        if c["source_type"] not in MEASUREMENT_SOURCES:
+            w *= 1.0 - dominance
         contributions.append((c["twd"], c["tws"], w))
     return weighted_wind_mean(contributions)
 
@@ -103,10 +120,12 @@ def candidate_grid(
     prior_scales: "Optional[dict[str, Iterable[float]]]" = None,
     distance_decay_km: "Optional[Iterable[float]]" = None,
     time_decay_seconds: "Optional[Iterable[float]]" = None,
+    station_dominance_km: "Optional[Iterable[tuple[float, float]]]" = None,
 ) -> "list[WeightConfig]":
     """Build a search grid around ``base``. ``prior_scales`` maps a source
     type to the multipliers to try on its base prior; ``distance_decay_km`` /
-    ``time_decay_seconds`` are absolute values to try. The Cartesian product of
+    ``time_decay_seconds`` are absolute values to try, ``station_dominance_km``
+    ``(full_km, fade_km)`` pairs (``(0, 0)`` = no override). The Cartesian product of
     everything provided is returned (parameters not given are held at ``base``).
 
     Kept coarse on purpose — a handful of values per axis over a few axes.
@@ -114,6 +133,8 @@ def candidate_grid(
     prior_scales = prior_scales or {}
     dist_values = list(distance_decay_km) if distance_decay_km is not None else [base.distance_decay_km]
     time_values = list(time_decay_seconds) if time_decay_seconds is not None else [base.time_decay_seconds]
+    dominance_values = (list(station_dominance_km) if station_dominance_km is not None
+                        else [(base.station_dominance_full_km, base.station_dominance_fade_km)])
 
     scaled_types = list(prior_scales.keys())
     scale_axes = [list(prior_scales[t]) for t in scaled_types]
@@ -125,9 +146,11 @@ def candidate_grid(
             priors[t] = base.priors.get(t, base.default_prior) * factor
         for dist in dist_values:
             for tdecay in time_values:
-                configs.append(replace(
-                    base, priors=priors, distance_decay_km=dist, time_decay_seconds=tdecay,
-                ))
+                for full_km, fade_km in dominance_values:
+                    configs.append(replace(
+                        base, priors=priors, distance_decay_km=dist, time_decay_seconds=tdecay,
+                        station_dominance_full_km=full_km, station_dominance_fade_km=fade_km,
+                    ))
     return configs
 
 

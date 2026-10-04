@@ -101,7 +101,8 @@ def test_gust_is_the_weighted_mean_of_the_sources_that_have_one():
     wp["grid_estimates"] = [dict(g, gust_kts=20.0) for g in wp["grid_estimates"]]
     fused = wf.fuse_waypoint(wp, E0 + 1800)
     w_station = wf.source_weight("real_station", distance_km=4.0)
-    w_grid = wf.source_weight("grid_estimate", internal_confidence=0.5)
+    w_grid = (wf.source_weight("grid_estimate", internal_confidence=0.5)
+              * (1.0 - wf.measurement_dominance(4.0)))
     assert fused.gust_kts == pytest.approx((15.0 * w_station + 20.0 * w_grid) / (w_station + w_grid))
 
 
@@ -234,3 +235,66 @@ def test_hold_latest_seconds_does_not_affect_a_source_still_ahead_of_t():
 def test_haversine_km():
     assert wf.haversine_km(0.0, 0.0, 0.0, 1.0) == pytest.approx(111.19, abs=0.01)
     assert wf.haversine_km(44.8, 12.3, 44.8, 12.3) == 0.0
+
+
+def _station_vs_models(distance_km, station_rows=None):
+    """A station reading 0.2 kt from the south against two models and a grid
+    estimate agreeing on 12 kt from the north — the case where averaging the
+    station in is exactly the wrong answer."""
+    rows = station_rows or [{"station_id": 1, "distance_km": distance_km, "observed_at": E0 + dt,
+                             "twd_deg": 180.0, "tws_kts": 0.2} for dt in (0, 3600)]
+    flat = [{"observed_at": E0 + dt, "twd_deg": 0.0, "tws_kts": 12.0} for dt in (0, 3600)]
+    return {"real_stations": rows,
+            "model_candidates": {"icon_d2": flat, "gfs_seamless": flat},
+            "grid_estimates": [{"time_bucket": E0 + dt, "twd_deg": 0.0, "tws_kts": 12.0,
+                                "confidence": 1.0} for dt in (0, 3600)]}
+
+
+def test_a_nearby_station_is_the_wind_not_one_vote_in_an_average():
+    fused = wf.fuse_waypoint(_station_vs_models(wf.STATION_DOMINANCE_FULL_KM), E0 + 1800)
+    assert fused.twd_deg == pytest.approx(180.0)
+    assert fused.tws_kts == pytest.approx(0.2)
+    # Silenced models are not reported as contributors (the live badge lists them).
+    assert [c[0] for c in fused.contributions] == ["real_station"]
+
+
+def test_station_dominance_fades_smoothly_with_distance():
+    assert wf.measurement_dominance(0.0) == 1.0
+    assert wf.measurement_dominance(wf.STATION_DOMINANCE_FADE_KM) == 0.0
+    assert wf.measurement_dominance(None) == 0.0
+    off = wf.WeightConfig(station_dominance_full_km=0.0, station_dominance_fade_km=0.0)
+    assert wf.measurement_dominance(0.0, off) == 0.0
+    ds = [wf.STATION_DOMINANCE_FULL_KM + k * 0.5 for k in range(20)]
+    values = [wf.measurement_dominance(d) for d in ds]
+    assert values == sorted(values, reverse=True)
+
+    speeds = [wf.fuse_waypoint(_station_vs_models(d), E0 + 1800).tws_kts for d in (2.0, 7.5, 20.0)]
+    assert speeds[0] == pytest.approx(0.2)
+    assert speeds[0] < speeds[1] < speeds[2]
+
+
+def test_far_station_is_weighed_exactly_as_before():
+    fused = wf.fuse_waypoint(_station_vs_models(wf.STATION_DOMINANCE_FADE_KM), E0 + 1800)
+    w_station = wf.source_weight("real_station", distance_km=wf.STATION_DOMINANCE_FADE_KM)
+    assert dict(((c[0], c[1]), c[2]) for c in fused.contributions)[("real_station", 1)] \
+        == pytest.approx(w_station)
+    assert {c[0] for c in fused.contributions} == {"real_station", "model_regional",
+                                                    "model_global", "grid_estimate"}
+
+
+def test_models_come_back_across_a_station_data_gap():
+    rows = [{"station_id": 1, "distance_km": 1.0, "observed_at": E0, "twd_deg": 180.0,
+             "tws_kts": 0.2}]
+    fused = wf.fuse_waypoint(_station_vs_models(1.0, rows), E0 + 1800)
+    assert fused.tws_kts == pytest.approx(12.0)
+
+
+def test_a_stale_live_reading_only_partly_silences_the_models():
+    rows = [{"station_id": 1, "distance_km": 1.0, "observed_at": E0 + dt, "twd_deg": 180.0,
+             "tws_kts": 0.2} for dt in (-600, 0)]
+    gap = wf.TIME_DECAY_SECONDS  # last reading 30 min old
+    fused = wf.fuse_waypoint(_station_vs_models(1.0, rows), E0 + gap, hold_latest_seconds=3600)
+    weights = {c[1]: c[2] for c in fused.contributions}
+    freshness = math.exp(-1.0)
+    assert weights[1] == pytest.approx(wf.source_weight("real_station", distance_km=1.0) * freshness)
+    assert weights["icon_d2"] == pytest.approx(wf.source_weight("model_regional") * (1.0 - freshness))
