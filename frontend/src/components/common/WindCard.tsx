@@ -27,9 +27,9 @@ export function WindCard({ lat, lng, at }: { lat: number; lng: number; at?: stri
             <tr>
               <th>TWD</th>
               <td>{snapshot.twd_deg != null ? `${snapshot.twd_deg}°` : "—"}</td>
-              <th>TWS</th>
+              <th>{t("wind.mean")}</th>
               <td>{snapshot.tws_kts != null ? `${snapshot.tws_kts} kn` : "—"}</td>
-              <th>Gust</th>
+              <th>{t("wind.gust")}</th>
               <td>{snapshot.gust_kts != null ? `${snapshot.gust_kts} kn` : "—"}</td>
             </tr>
             <tr>

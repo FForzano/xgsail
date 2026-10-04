@@ -124,7 +124,7 @@ def true_wind_from_cached(
     weather station / forecast grid) when there is no onboard wind sensor.
 
     ``cached_obs`` are hourly, sparse rows ``{observed_at, twd_deg, tws_kts,
-    station_lat, station_lng}`` (from the backend's ``wind_cache.json``) —
+    gust_kts, station_lat, station_lng}`` (from the backend's ``wind_cache.json``) —
     the backend now samples several points along the track rather than just
     the start, so rows may come from more than one station. For each GPS
     point we pick the spatially nearest station (``station_lat``/
@@ -144,7 +144,8 @@ def true_wind_from_cached(
             continue
         key = (o.get("station_lat"), o.get("station_lng"))
         by_station.setdefault(key, []).append(
-            (_to_timestamp(o["observed_at"]), o["twd_deg"], o["tws_kts"], o.get("confidence"))
+            (_to_timestamp(o["observed_at"]), o["twd_deg"], o["tws_kts"], o.get("confidence"),
+             o.get("gust_kts"))
         )
     if not by_station:
         return []
@@ -160,7 +161,12 @@ def true_wind_from_cached(
         # A fused row's total source weight, carried so a later blend can weigh
         # this row against other evidence (``tack_wind.blend_observations``).
         conf = None if any(o[3] is None for o in obs) else np.array([o[3] for o in obs])
-        series[key] = (times, np.sin(twd), np.cos(twd), np.array([o[2] for o in obs]), conf)
+        # Gusts only where a source reported one, and never extrapolated past
+        # them: ``np.interp`` would otherwise clamp a lone reading onto the
+        # whole track.
+        gusts = [(o[0], o[4]) for o in obs if o[4] is not None]
+        gust = (np.array([g[0] for g in gusts]), np.array([g[1] for g in gusts])) if gusts else None
+        series[key] = (times, np.sin(twd), np.cos(twd), np.array([o[2] for o in obs]), conf, gust)
 
     single_station = len(series) == 1
     only_key = next(iter(series)) if single_station else None
@@ -171,7 +177,7 @@ def true_wind_from_cached(
             key = only_key
         else:
             key = min(series, key=lambda k: _haversine_nm(p.lat, p.lon, k[0], k[1]))
-        times, obs_sin, obs_cos, obs_tws, obs_conf = series[key]
+        times, obs_sin, obs_cos, obs_tws, obs_conf, obs_gust = series[key]
 
         t = _to_timestamp(p.timestamp)
         tws = float(np.interp(t, times, obs_tws))
@@ -193,6 +199,10 @@ def true_wind_from_cached(
         }
         if obs_conf is not None:
             row["confidence"] = round(float(np.interp(t, times, obs_conf)), 3)
+        if obs_gust is not None and obs_gust[0][0] <= t <= obs_gust[0][-1]:
+            # A gust below the mean is not a gust — possible here because the
+            # two are interpolated over different knots.
+            row["gust_kts"] = round(max(float(np.interp(t, obs_gust[0], obs_gust[1])), tws), 2)
         results.append(row)
 
     return results

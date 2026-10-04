@@ -178,7 +178,7 @@ export function ExplorerMap({
   return (
     <div className={`${styles.map} ${fill ? styles.mapFill : ""} ${className}`} data-tour={dataTour}>
       <div ref={elRef} className={styles.surface} />
-      <WindBadge twdDeg={wind?.twd_deg} twsKts={wind?.tws_kts} className={styles.wind} />
+      <WindBadge twdDeg={wind?.twd_deg} twsKts={wind?.tws_kts} gustKts={wind?.gust_kts} className={styles.wind} />
       <div className={styles.options}>
         <MapLayerToggles
           layers={layers}

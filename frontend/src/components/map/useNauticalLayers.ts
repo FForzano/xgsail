@@ -168,6 +168,7 @@ export function useNauticalLayers(
     if (!map || !stationsGroup) return;
     syncStationsLayer(map, stationsGroup, stations.data ?? [], {
       noReading: t("map.stations.noReading"),
+      gust: t("wind.gustShort"),
       ago: (minutes: number) => t("map.stations.ago", { minutes }),
     });
   }, [map, stationsGroup, stations.data, t]);

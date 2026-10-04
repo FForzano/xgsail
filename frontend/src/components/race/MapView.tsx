@@ -223,9 +223,9 @@ export function MapView({
       : best;
   }, null);
   const displayWind = sessionWindPoint
-    ? { twd_deg: sessionWindPoint.twd_deg, tws_kts: sessionWindPoint.tws_kts }
+    ? { twd_deg: sessionWindPoint.twd_deg, tws_kts: sessionWindPoint.tws_kts, gust_kts: sessionWindPoint.gust_kts }
     : windAt
-    ? { twd_deg: windAt.twd_deg, tws_kts: windAt.tws_kts }
+    ? { twd_deg: windAt.twd_deg, tws_kts: windAt.tws_kts, gust_kts: windAt.gust_kts }
     : null;
 
   // One-time map + static layer setup (rebuilt when the data identity changes).
@@ -586,7 +586,7 @@ export function MapView({
         </div>
       )}
       {controls && <div className={styles.controls}>{controls}</div>}
-      <WindBadge twdDeg={displayWind?.twd_deg} twsKts={displayWind?.tws_kts} />
+      <WindBadge twdDeg={displayWind?.twd_deg} twsKts={displayWind?.tws_kts} gustKts={displayWind?.gust_kts} />
     </div>
   );
 }

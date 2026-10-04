@@ -19,7 +19,7 @@ export function syncStationsLayer(
   map: L.Map,
   group: L.LayerGroup,
   stations: WindStation[],
-  labels: { noReading: string; ago: (minutes: number) => string },
+  labels: { noReading: string; gust: string; ago: (minutes: number) => string },
 ): void {
   group.clearLayers();
   for (const station of stations) {
@@ -36,6 +36,9 @@ export function syncStationsLayer(
           `<span class="${styles.readingValue}">` +
           (last.tws_kts != null ? `${escapeHtml(String(last.tws_kts))} kn` : "—") +
           `</span>` +
+          (last.gust_kts != null
+            ? `<span>${escapeHtml(labels.gust)} ${escapeHtml(String(last.gust_kts))} kn</span>`
+            : "") +
           `</span>` +
           `<span class="${styles.cardMeta}">` +
           escapeHtml(labels.ago(minutesSince(last.observed_at))) +

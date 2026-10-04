@@ -277,3 +277,30 @@ def test_lib_fusion_matches_the_numpy_implementation_it_replaced():
         assert abs((a["twd_deg"] - e["twd_deg"] + 180) % 360 - 180) < 1e-9
         assert a["tws_kts"] == pytest.approx(e["tws_kts"], abs=1e-9)
         assert a["confidence"] == pytest.approx(e["confidence"], abs=1e-12)
+
+
+def _gusty_bundle(gusts):
+    rows = [{"station_id": 1, "distance_km": 1.0, "observed_at": t, "twd_deg": 200.0,
+             "tws_kts": 10.0, "gust_kts": g} for t, g in gusts]
+    return [{"lat": 45.0, "lng": 9.0, "real_stations": rows}]
+
+
+def test_fused_series_carries_the_station_gust_onto_the_track():
+    gps = [GpsPoint(timestamp=float(t), lat=45.0, lon=9.0, speed_kts=5, heading_deg=100)
+           for t in (1000, 1500, 2000)]
+    series = weighted_fusion(gps, [], None, _gusty_bundle([(1000, 14.0), (2000, 18.0)]))
+    assert [r["gust_kts"] for r in series] == pytest.approx([14.0, 16.0, 18.0])
+
+
+def test_gust_is_not_extrapolated_past_the_readings_that_reported_one():
+    gps = [GpsPoint(timestamp=float(t), lat=45.0, lon=9.0, speed_kts=5, heading_deg=100)
+           for t in (1000, 2000, 3000)]
+    series = weighted_fusion(gps, [], None,
+                             _gusty_bundle([(1000, 14.0), (2000, 15.0), (3000, None)]))
+    assert [r.get("gust_kts") for r in series] == pytest.approx([14.0, 15.0, None])
+
+
+def test_no_gust_key_without_any_gust_reading():
+    gps = [GpsPoint(timestamp=1000.0, lat=45.0, lon=9.0, speed_kts=5, heading_deg=100)]
+    series = weighted_fusion(gps, [], None, _gusty_bundle([(1000, None), (2000, None)]))
+    assert "gust_kts" not in series[0]

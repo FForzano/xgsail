@@ -1,4 +1,5 @@
 import { ArrowUp } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { fmtKnots } from "@/utils/format";
 import styles from "./WindBadge.module.css";
 
@@ -9,15 +10,20 @@ import styles from "./WindBadge.module.css";
 export function WindBadge({
   twdDeg,
   twsKts,
+  gustKts,
   className = "",
 }: {
   twdDeg: number | null | undefined;
   twsKts: number | null | undefined;
+  gustKts?: number | null;
   className?: string;
 }) {
+  const { t } = useTranslation();
   if (twdDeg == null) return null;
+  const title =
+    `${t("wind.mean")} ${fmtKnots(twsKts)}` + (gustKts != null ? ` · ${t("wind.gust")} ${fmtKnots(gustKts)}` : "");
   return (
-    <div className={`${styles.wind} ${className}`} title={fmtKnots(twsKts)}>
+    <div className={`${styles.wind} ${className}`} title={title}>
       <span
         className={styles.windArrow}
         // twd_deg is where the wind comes FROM; rotate by +180 so the arrow
@@ -28,6 +34,11 @@ export function WindBadge({
         <ArrowUp size={16} strokeWidth={2.5} />
       </span>
       <span className={styles.windSpeed}>{fmtKnots(twsKts)}</span>
+      {gustKts != null && (
+        <span className={styles.windGust}>
+          {t("wind.gustShort")} {fmtKnots(gustKts)}
+        </span>
+      )}
     </div>
   );
 }
