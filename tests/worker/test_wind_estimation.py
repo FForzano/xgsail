@@ -188,7 +188,8 @@ def _numpy_reference_fuse(raw_wind_bundle):
 
     import numpy as np
 
-    from xgsail_windfusion import MODEL_SOURCE_TYPE, source_weight, station_groups, to_epoch, weighted_wind_mean
+    from xgsail_windfusion import (MODEL_SOURCE_TYPE, measurement_dominance, source_weight,
+                                   station_groups, to_epoch, weighted_wind_mean)
 
     def arrays(rows, time_key="observed_at"):
         triples = sorted((to_epoch(r[time_key]), r["twd_deg"], r["tws_kts"]) for r in rows
@@ -204,21 +205,25 @@ def _numpy_reference_fuse(raw_wind_bundle):
     for wp in raw_wind_bundle:
         sources = []
         for distance_km, rows in station_groups(wp.get("real_stations") or []):
-            sources.append((source_weight("real_station", distance_km=distance_km), arrays(rows)))
+            sources.append((source_weight("real_station", distance_km=distance_km), arrays(rows),
+                            measurement_dominance(distance_km)))
         for model, rows in (wp.get("model_candidates") or {}).items():
-            sources.append((source_weight(MODEL_SOURCE_TYPE.get(model, "model_global")), arrays(rows)))
+            sources.append((source_weight(MODEL_SOURCE_TYPE.get(model, "model_global")), arrays(rows), None))
         grid = wp.get("grid_estimates") or []
         confs = [g["confidence"] for g in grid if g.get("confidence") is not None]
         sources.append((source_weight("grid_estimate",
                                       internal_confidence=sum(confs) / len(confs) if confs else None),
-                        arrays(grid, "time_bucket")))
+                        arrays(grid, "time_bucket"), None))
         sources = [s for s in sources if s[1] is not None]
-        for t in sorted({float(t) for _, a in sources for t in a[0]}):
+        for t in sorted({float(t) for _, a, _ in sources for t in a[0]}):
+            covering = [src for src in sources if src[1][0][0] <= t <= src[1][0][-1]]
+            dominance = max((d for _, _, d in covering if d is not None), default=0.0)
             contributions = []
-            for w, (times, s, c, tws) in sources:
-                if times[0] <= t <= times[-1]:
-                    twd = (math.degrees(math.atan2(np.interp(t, times, s), np.interp(t, times, c))) + 360) % 360
-                    contributions.append((twd, float(np.interp(t, times, tws)), w))
+            for w, (times, s, c, tws), d in covering:
+                if d is None:
+                    w *= 1.0 - dominance
+                twd = (math.degrees(math.atan2(np.interp(t, times, s), np.interp(t, times, c))) + 360) % 360
+                contributions.append((twd, float(np.interp(t, times, tws)), w))
             twd, tws, conf = weighted_wind_mean(contributions)
             flat.append({"observed_at": t, "twd_deg": twd, "tws_kts": tws, "confidence": conf})
     return flat

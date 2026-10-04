@@ -38,8 +38,8 @@ def test_score_infinite_when_nothing_predictable():
 
 def _biased_station_sites(n=6):
     """Truth ~100°. The nearby 'real_station' is systematically 60° off; the
-    regional model is spot-on. The shipped weights over-trust the station, so
-    calibration should up-weight the model."""
+    regional model is spot-on. The shipped policy lets the station replace the
+    model outright, so calibration should drop that and up-weight the model."""
     sites = []
     for i in range(n):
         truth = 100.0 + (i - n / 2)          # a little spread so it's not degenerate
@@ -60,12 +60,14 @@ def test_calibrate_recovers_a_better_config():
     sites = _biased_station_sites()
     candidates = cal.candidate_grid(
         prior_scales={"model_regional": [1.0, 5.0]},   # try trusting the model much more
+        station_dominance_km=[(3.0, 12.0), (0.0, 0.0)],
     )
     best, best_score = cal.calibrate(sites, candidates)
     default_score = cal.score(sites, wf.DEFAULT_CONFIG)
     # The search finds a lower-error config...
     assert best_score["twd_mae"] < default_score["twd_mae"]
-    # ...by up-weighting the model that actually matched the truth.
+    # ...by not letting the station silence the model, and up-weighting it.
+    assert best.station_dominance_fade_km == 0.0
     assert best.priors["model_regional"] > wf.DEFAULT_CONFIG.priors["model_regional"]
 
 
@@ -75,6 +77,7 @@ def test_candidate_grid_shape_and_defaults():
         distance_decay_km=[10.0, 20.0],
     )
     assert len(grid) == 2 * 2                     # 2 scales x 2 decays
+    assert all(c.station_dominance_fade_km == wf.STATION_DOMINANCE_FADE_KM for c in grid)
     # Every config keeps the untouched axes at the base value.
     assert all(c.time_decay_seconds == wf.DEFAULT_CONFIG.time_decay_seconds for c in grid)
     assert {round(c.distance_decay_km) for c in grid} == {10, 20}

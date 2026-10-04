@@ -426,12 +426,21 @@ in the shared `libs/xgsail_windfusion` package, so the per-session blend
 here and the grid refinement on the backend
 (`wind_estimate_refinement.weighted_merge`) weigh sources identically. In
 practice this makes the 50 km radius above an *admissibility* cutoff, not a
-radius of real influence: a real station's weight is `0.9 * exp(-distance_km
-/ 15km)` (`SOURCE_PRIORS["real_station"]` × `DISTANCE_DECAY_KM`), which
-already drops below a regional Open-Meteo model's flat `0.6` prior at
-roughly **6.1 km** and below a global model's `0.35` at roughly **14.2 km**
-— a station near the edge of the radius contributes almost nothing next to
-the models it's blended with. `scripts/calibrate_wind_weights.py
+radius of real influence. A real station's weight is `10.0 * exp(-distance_km
+/ 5km)` (`SOURCE_PRIORS["real_station"]` × `DISTANCE_DECAY_KM_BY_SOURCE`), and
+on top of that a healthy measurement close to the point is not averaged with
+the models at all: `measurement_dominance` scales every non-measurement
+source (models, grid estimate) by `1 - dominance`, where dominance is 1 up to
+`STATION_DOMINANCE_FULL_KM` (3 km) — the fused wind there *is* the station —
+and fades with a smoothstep to 0 at `STATION_DOMINANCE_FADE_KM` (12 km), past
+which the plain weighting applies unchanged. Only a station that actually
+covers the instant counts (across its data gap the models are back), and a
+stale live reading claims proportionally less (same `TIME_DECAY_SECONDS`
+decay as its weight). Several nearby stations still average among
+themselves. Silenced sources are dropped from `FusedWind.contributions`, so
+the live badge doesn't list them. This is why the station-fault guards above
+matter so much: near a station, a broken one is the whole answer.
+`scripts/calibrate_wind_weights.py
 --ablate-stations` re-scores the same leave-one-out sites with every
 `real_station` contribution removed, to check empirically whether fusing in
 neighbouring stations is actually earning its keep. The legacy pick-first

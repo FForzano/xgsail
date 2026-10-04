@@ -79,6 +79,18 @@ DISTANCE_DECAY_KM = 15.0
 # back to roughly parity with the models around 8-10 km out, negligible
 # beyond, while still prevailing decisively in its immediate vicinity.
 DISTANCE_DECAY_KM_BY_SOURCE: "dict[str, float]" = {"gps_tack": 2.0, "real_station": 5.0}
+# A healthy measurement near the point is not one more vote to average: it
+# *is* the wind there, and no model is more reliable than it. So beyond the
+# weighting above, a measurement this close silences the models outright
+# (``measurement_dominance``): within ``STATION_DOMINANCE_FULL_KM`` the
+# fused wind is the measurement alone, and the models' weight comes back
+# smoothly only between that and ``STATION_DOMINANCE_FADE_KM``, past which
+# the plain weighting applies unchanged. Measurements still average among
+# themselves — two nearby stations are both ground truth. ``(0, 0)`` turns
+# the override off, which is how calibration compares against plain weighting.
+STATION_DOMINANCE_FULL_KM = 3.0
+STATION_DOMINANCE_FADE_KM = 12.0
+MEASUREMENT_SOURCES = frozenset({"onboard_sensor", "real_station"})
 TIME_DECAY_SECONDS = 30.0 * 60.0  # 30 minutes
 # Per-source override of ``TIME_DECAY_SECONDS``. Coastal/thermal wind shifts
 # over tens of minutes, so a tack bisector is trusted most at its own moment
@@ -102,6 +114,8 @@ class WeightConfig:
     time_decay_seconds: float = TIME_DECAY_SECONDS
     time_decay_seconds_by_source: "dict[str, float]" = field(
         default_factory=lambda: dict(TIME_DECAY_SECONDS_BY_SOURCE))
+    station_dominance_full_km: float = STATION_DOMINANCE_FULL_KM
+    station_dominance_fade_km: float = STATION_DOMINANCE_FADE_KM
 
 
 DEFAULT_CONFIG = WeightConfig()
@@ -151,6 +165,24 @@ def source_weight(
     if internal_confidence is not None:
         w *= max(internal_confidence, 0.0)
     return w
+
+
+def measurement_dominance(distance_km: "float | None",
+                          config: "WeightConfig | None" = None) -> float:
+    """How completely a healthy measurement at ``distance_km`` replaces the
+    non-measurement sources, in ``[0, 1]``: 1 up to the config's
+    ``station_dominance_full_km``, 0 from ``station_dominance_fade_km``, a
+    smoothstep in between so the fused wind has no jump along a track moving
+    away from the station. An unknown distance claims nothing — it can't be
+    shown to be close."""
+    cfg = config or DEFAULT_CONFIG
+    if distance_km is None or distance_km >= cfg.station_dominance_fade_km:
+        return 0.0
+    if distance_km <= cfg.station_dominance_full_km:
+        return 1.0
+    x = ((cfg.station_dominance_fade_km - distance_km)
+         / (cfg.station_dominance_fade_km - cfg.station_dominance_full_km))
+    return x * x * (3.0 - 2.0 * x)
 
 
 def weighted_wind_mean(
@@ -208,6 +240,9 @@ __all__ = [
     "station_groups",
     "to_epoch",
     "SOURCE_PRIORS",
+    "STATION_DOMINANCE_FULL_KM",
+    "STATION_DOMINANCE_FADE_KM",
+    "MEASUREMENT_SOURCES",
     "DISTANCE_DECAY_KM",
     "DISTANCE_DECAY_KM_BY_SOURCE",
     "TIME_DECAY_SECONDS",
@@ -217,5 +252,6 @@ __all__ = [
     "to_uv",
     "from_uv",
     "source_weight",
+    "measurement_dominance",
     "weighted_wind_mean",
 ]
