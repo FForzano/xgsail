@@ -314,6 +314,7 @@ export const demoTrueWind: TrueWindPoint[] = steps
     timestamp: Math.round(s.ms / 1000),
     twd_deg: round(TWD_DEG + 6 * Math.sin(i / 4), 1),
     tws_kts: round(TWS_KTS + 1.6 * Math.sin(i / 3), 1),
+    gust_kts: round(TWS_KTS + 4 + 2.2 * Math.sin(i / 2), 1),
     twa_deg: round(s.twa, 1),
     boat_speed_kts: round(s.sog, 2),
     heading_deg: round(s.heading, 1),

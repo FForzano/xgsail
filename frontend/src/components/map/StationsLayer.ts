@@ -19,7 +19,7 @@ export function syncStationsLayer(
   map: L.Map,
   group: L.LayerGroup,
   stations: WindStation[],
-  labels: { noReading: string; gust: string; ago: (minutes: number) => string },
+  labels: { noReading: string; ago: (minutes: number) => string },
 ): void {
   group.clearLayers();
   for (const station of stations) {
@@ -34,11 +34,14 @@ export function syncStationsLayer(
         ? `<span class="${styles.reading}">` +
           (last.twd_deg != null ? directionMarkup(last.twd_deg) : "") +
           `<span class="${styles.readingValue}">` +
-          (last.tws_kts != null ? `${escapeHtml(String(last.tws_kts))} kn` : "—") +
+          // "12–18 kn": mean, then how high the gusts reach — same reading
+          // as the map's WindBadge.
+          (last.tws_kts != null
+            ? escapeHtml(String(last.tws_kts)) +
+              (last.gust_kts != null ? `<span class="${styles.readingGust}">–${escapeHtml(String(last.gust_kts))}</span>` : "") +
+              " kn"
+            : "—") +
           `</span>` +
-          (last.gust_kts != null
-            ? `<span>${escapeHtml(labels.gust)} ${escapeHtml(String(last.gust_kts))} kn</span>`
-            : "") +
           `</span>` +
           `<span class="${styles.cardMeta}">` +
           escapeHtml(labels.ago(minutesSince(last.observed_at))) +

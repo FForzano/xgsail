@@ -78,6 +78,10 @@
 .readingValue {
   font-weight: 700;
 }
+.readingGust {
+  font-weight: 400;
+  opacity: 0.7;
+}
 
 /* Wind direction: arrow glyph + degrees. The rotation itself is per-marker
    data, so it stays an inline transform on the glyph (see StationsLayer). */

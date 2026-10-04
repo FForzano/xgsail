@@ -28,7 +28,5 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .windGust {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
-  opacity: 0.8;
+  opacity: 0.7;
 }

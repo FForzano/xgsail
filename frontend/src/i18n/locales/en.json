@@ -1115,8 +1115,8 @@
     "mean": "Mean",
     "peak": "Peak",
     "gust": "Gust",
-    "gustShort": "gust",
     "maxGust": "Max gust",
+    "gusts": "Gusts",
     "stationHint": {
       "text": "Know a local weather station — a club anemometer, a Cumulus PWS, a nearby buoy? Tell us and we'll add it, improving wind data for everyone at your club.",
       "cta": "Report a station",
