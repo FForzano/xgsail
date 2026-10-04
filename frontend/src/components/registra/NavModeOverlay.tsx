@@ -11,7 +11,7 @@ import { useUnits } from "@/stores/unitsStore";
 import { navModeStore } from "@/stores/navModeStore";
 import * as screenWakeLock from "@/services/screenWakeLock";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { fmtBearing, fmtDistance, fmtDuration, splitKnots } from "@/utils/format";
+import { fmtBearing, fmtDistance, fmtDuration, fmtKnots, splitKnots } from "@/utils/format";
 import type { RecordingMeta } from "@/services/nativeRecording";
 import { NavStartTimer } from "./NavStartTimer";
 import { NavTile } from "./NavTile";
@@ -196,6 +196,7 @@ export function NavModeOverlay({
               unit={tws.unit}
               hint={
                 <>
+                  {instruments.gustKts != null && `${t("wind.gust")} ${fmtKnots(instruments.gustKts)} · `}
                   ≈ {t("registra.nav.wind.source", { source: instruments.windSource })}
                   {instruments.windAgeMin != null &&
                     ` · ${t("registra.nav.wind.age", { minutes: instruments.windAgeMin })}`}

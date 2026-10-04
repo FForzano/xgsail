@@ -298,3 +298,13 @@ def test_a_stale_live_reading_only_partly_silences_the_models():
     freshness = math.exp(-1.0)
     assert weights[1] == pytest.approx(wf.source_weight("real_station", distance_km=1.0) * freshness)
     assert weights["icon_d2"] == pytest.approx(wf.source_weight("model_regional") * (1.0 - freshness))
+
+
+def test_a_gust_never_reads_below_the_mean_wind():
+    # Only the weak model reports a gust; the strong station sets the mean.
+    flat = lambda tws, gust: [{"observed_at": E0 + dt, "twd_deg": 0.0, "tws_kts": tws,
+                               "gust_kts": gust} for dt in (0, 3600)]
+    wp = {"real_stations": [dict(r, station_id=1, distance_km=20.0) for r in flat(15.0, None)],
+          "model_candidates": {"icon_d2": flat(8.0, 9.0)}}
+    fused = wf.fuse_waypoint(wp, E0 + 1800)
+    assert fused.gust_kts == pytest.approx(fused.tws_kts)

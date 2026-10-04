@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatTile, StatTiles } from "./StatTile";
 import styles from "./SessionAnalysis.module.css";
 import { fmtKnots } from "@/utils/format";
+import { windSummary } from "@/utils/windStats";
 import { PolarChart } from "./PolarChart";
 import { LegsTable, TackBreakdown } from "./AnalysisLegs";
 import { ManeuverCounts, ManeuverStatsChart, ManeuversTable } from "./AnalysisManeuvers";
@@ -88,6 +89,7 @@ export function SessionAnalysis({
   // either, but a user-edited one (added by hand on the map) doesn't depend
   // on wind — this block still shows those exactly like the normal path.
   const hasManeuverBlock = !!(a.maneuver_summary || a.violin || visibleManeuvers.length);
+  const wind = windSummary(a.true_wind);
 
   return (
     <Section title={t("sessions.analysis")}>
@@ -101,6 +103,15 @@ export function SessionAnalysis({
               </Button>
             )}
           </p>
+        )}
+        {wind && (
+          <AnalysisBlock title={t("wind.title")}>
+            <StatTiles>
+              <StatTile label={t("wind.mean")} value={fmtKnots(wind.meanKts)} />
+              <StatTile label={t("wind.peak")} value={fmtKnots(wind.peakKts)} />
+              {wind.maxGustKts != null && <StatTile label={t("wind.maxGust")} value={fmtKnots(wind.maxGustKts)} />}
+            </StatTiles>
+          </AnalysisBlock>
         )}
         {!!polar.data?.length && (
           <AnalysisBlock title={t("sessions.polar")}>

@@ -727,6 +727,8 @@ export interface TrueWindPoint {
   timestamp: number;
   twd_deg: number | null;
   tws_kts: number | null;
+  /** Only where a source behind the estimate reported gusts. */
+  gust_kts?: number | null;
   twa_deg?: number | null;
   boat_speed_kts?: number;
   heading_deg?: number;

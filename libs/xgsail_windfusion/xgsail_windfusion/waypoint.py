@@ -234,6 +234,10 @@ def fuse_sources(sources: "list[WindSource]", t: float,
         return None
     gust_weight = sum(w for _, w in gusts)
     gust = sum(g * w for g, w in gusts) / gust_weight if gust_weight > 0.0 else None
+    if gust is not None:
+        # Only some sources report gusts, so their mean can fall below the
+        # mean wind of all of them — a "gust" weaker than the wind it gusts.
+        gust = max(gust, fused[1])
     return FusedWind(twd_deg=fused[0], tws_kts=fused[1], gust_kts=gust,
                      confidence=fused[2], contributions=tuple(contributions))
 

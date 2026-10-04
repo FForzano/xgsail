@@ -126,6 +126,7 @@ def _fuse_bundle(raw_wind_bundle: "list[dict]") -> "list[dict]":
                 "observed_at": t,  # epoch seconds; _to_timestamp() handles floats
                 "twd_deg": fused.twd_deg,
                 "tws_kts": fused.tws_kts,
+                "gust_kts": fused.gust_kts,
                 # Total fused weight, used to balance the low-weight GPS-axis
                 # nudge below; ignored by true_wind_from_cached.
                 "confidence": fused.confidence,
