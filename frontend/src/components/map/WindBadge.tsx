@@ -1,6 +1,6 @@
 import { ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { fmtKnots } from "@/utils/format";
+import { fmtKnots, splitKnots } from "@/utils/format";
 import styles from "./WindBadge.module.css";
 
 /** Floating wind direction/speed pill for a map surface (see
@@ -20,6 +20,8 @@ export function WindBadge({
 }) {
   const { t } = useTranslation();
   if (twdDeg == null) return null;
+  const mean = splitKnots(twsKts);
+  const gust = gustKts != null ? splitKnots(gustKts) : null;
   const title =
     `${t("wind.mean")} ${fmtKnots(twsKts)}` + (gustKts != null ? ` · ${t("wind.gust")} ${fmtKnots(gustKts)}` : "");
   return (
@@ -33,12 +35,12 @@ export function WindBadge({
       >
         <ArrowUp size={16} strokeWidth={2.5} />
       </span>
-      <span className={styles.windSpeed}>{fmtKnots(twsKts)}</span>
-      {gustKts != null && (
-        <span className={styles.windGust}>
-          {t("wind.gustShort")} {fmtKnots(gustKts)}
-        </span>
-      )}
+      {/* "12–18 kn", the way forecasts and dock talk quote it: the mean,
+          then how high the gusts reach — one reading, not two labels. */}
+      <span className={styles.windSpeed}>
+        {mean.value}
+        {gust && <span className={styles.windGust}>–{gust.value}</span>} {mean.unit}
+      </span>
     </div>
   );
 }

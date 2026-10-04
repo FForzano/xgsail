@@ -1115,8 +1115,8 @@
     "mean": "Medio",
     "peak": "Picco",
     "gust": "Raffica",
-    "gustShort": "raff.",
     "maxGust": "Raffica max",
+    "gusts": "Raffiche",
     "stationHint": {
       "text": "Conosci una stazione meteo locale — un anemometro del circolo, una stazione Cumulus, una boa vicina? Segnalacela e la aggiungeremo, migliorando i dati del vento per tutto il tuo circolo.",
       "cta": "Segnala una stazione",
