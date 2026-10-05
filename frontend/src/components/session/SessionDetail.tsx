@@ -46,6 +46,7 @@ import type { GpsPoint, SailingRole, UUID } from "@/types";
 import photoGridStyles from "@/components/common/photoGrid.module.css";
 import legendStyles from "@/components/race/legend.module.css";
 import styles from "./SessionDetail.module.css";
+import { legLabel } from "./AnalysisLegs";
 
 const MAP_LEGEND_DOT_CLASS: Record<string, string> = {
   "leg-upwind": legendStyles.dotLegUpwind,
@@ -370,7 +371,7 @@ export function SessionDetail({
           kind: "leg",
           seq: seq.get(l.id),
           legType: l.leg_type,
-          mark_role: t(`sessions.${l.leg_type}`),
+          mark_role: legLabel(t, l),
           lat,
           lng,
         });

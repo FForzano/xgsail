@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Trophy } from "lucide-react";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
 import { StatTile, StatTiles } from "./StatTile";
@@ -7,6 +8,10 @@ import styles from "./SessionAnalysis.module.css";
 import { fmtDuration, fmtDistanceNm, fmtKnots, splitKnots } from "@/utils/format";
 import { legSequence } from "@/utils/legSequence";
 import type { SessionLeg } from "@/types";
+
+export function legLabel(t: TFunction, leg: Pick<SessionLeg, "leg_type" | "in_beat">): string {
+  return leg.leg_type === "reach" && leg.in_beat ? t("sessions.reachInBeat") : t(`sessions.${leg.leg_type}`);
+}
 
 /** The raw leg list, ranked by VMG. The `#` column is the *chronological*
  * sequence number (`legSequence`), shared with the map's leg markers, so it
@@ -40,7 +45,7 @@ export function LegsTable({ legs }: { legs: SessionLeg[] }) {
             {pageItems.map((l) => (
               <tr key={l.id}>
                 <td data-head>#{seq.get(l.id)}</td>
-                <td data-head>{t(`sessions.${l.leg_type}`)}</td>
+                <td data-head>{legLabel(t, l)}</td>
                 <td>
                   <span className={styles.cellLabel}>VMG</span>{fmtKnots(l.avg_vmg_kts)}</td>
                 <td>
@@ -164,8 +169,11 @@ function TackCompare({ rows, scaleMax }: { rows: CompareRow[]; scaleMax: number 
 }
 
 /** Per-point-of-sail synthesis, the part a casual reader is meant to stop at:
- * the raw leg list below it is opt-in. Reaches are skipped — a port/starboard
- * comparison is only meaningful upwind and downwind. */
+ * the raw leg list below it is opt-in. Reaches are skipped, except those sailed
+ * in a beat, which count as upwind — a port/starboard comparison is only
+ * meaningful upwind and downwind. */
+const breakdownType = (l: SessionLeg) => (l.leg_type === "reach" && l.in_beat ? "upwind" : l.leg_type);
+
 export function TackBreakdown({ legs, maxSpeedKts }: { legs: SessionLeg[]; maxSpeedKts?: number | null }) {
   const { t } = useTranslation();
   const seq = legSequence(legs);
@@ -174,7 +182,7 @@ export function TackBreakdown({ legs, maxSpeedKts }: { legs: SessionLeg[]; maxSp
   // Fixed order rather than first-seen order, so the two groups don't swap
   // places between sessions depending on which leg was sailed first.
   const groups = (["upwind", "downwind"] as const)
-    .map((legType) => ({ legType, group: legs.filter((l) => l.leg_type === legType) }))
+    .map((legType) => ({ legType, group: legs.filter((l) => breakdownType(l) === legType) }))
     .filter(({ group }) => group.length > 0);
   if (!groups.length) return null;
 

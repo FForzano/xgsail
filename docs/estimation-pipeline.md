@@ -524,6 +524,20 @@ needs wiring on the way in.
   the old flat fields (`twd_deg`/`tws_kts`/`gust_kts`/...) and
   `provider: "fusion"` so an older OTA bundle still parses the response.
 
+### Points of sail on legs
+
+`straight_lines.segment_legs` files each leg by its mean |TWA| into three
+deliberately broad classes — `upwind` (< 70°, "Bolina"), `reach` (70–120°,
+"Traverso"), `downwind` (> 120°, "Lasco/Poppa") — because the wind behind
+them is an estimate, and a narrower split (close/broad reach, run) would
+mostly measure that estimate's error. On top of the angle, a `reach` leg
+under `IN_BEAT_MAX_TWA_DEG` (95°) with a **tack on both sides** gets
+`in_beat = true` (`session_legs.in_beat`): nobody tacks on a beam reach, so
+it is a loosely trimmed beat, or the wind is a few degrees off. It keeps its
+`reach` type (shown as "Traverso (in risalita)") but counts with the upwind
+legs in the port/starboard comparison. Legs analysed before revision `0066`
+read `false` until their session is reanalysed.
+
 ---
 
 ## 3. Building your own algorithm

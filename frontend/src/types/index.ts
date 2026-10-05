@@ -693,6 +693,8 @@ export interface SessionManeuver {
 export interface SessionLeg {
   id: UUID;
   leg_type: "upwind" | "downwind" | "reach";
+  /** A reach leg sailed as part of an upwind beat (tacks on both sides). */
+  in_beat: boolean;
   start_time: number;
   end_time: number;
   duration_sec: number;

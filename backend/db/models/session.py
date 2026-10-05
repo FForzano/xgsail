@@ -22,6 +22,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -322,6 +323,11 @@ class SessionLegORM(UUIDPKMixin, Base):
     start_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     end_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     end_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Reach leg sailed within a windward beat, see
+    # workers/process_upload/processing/straight_lines.py.
+    in_beat: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
 
 class SessionAnalysisORM(Base):

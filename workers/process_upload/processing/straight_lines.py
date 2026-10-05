@@ -8,7 +8,7 @@ import math
 
 import numpy as np
 
-from .models import GpsPoint, ImuReading, LegType, Maneuver, StraightLineLeg
+from .models import GpsPoint, ImuReading, LegType, Maneuver, ManeuverType, StraightLineLeg
 
 # Minimum duration for a leg to be considered (seconds)
 MIN_LEG_DURATION_SEC = 15
@@ -16,6 +16,9 @@ MIN_LEG_DURATION_SEC = 15
 MIN_LEG_POINTS = 5
 # Max heading deviation for "straight line" (degrees STD)
 MAX_HEADING_STD_DEG = 15.0
+# A reach tacked on at both ends was a loosely-trimmed beat (or the wind
+# estimate is off): nobody tacks on a beam reach.
+IN_BEAT_MAX_TWA_DEG = 95.0
 
 
 def segment_legs(
@@ -41,8 +44,9 @@ def segment_legs(
     gps_times = np.array([p.timestamp for p in gps])
 
     # Build segment boundaries from maneuver times
+    sorted_maneuvers = sorted(maneuvers, key=lambda x: x.start_time)
     boundaries = [gps_times[0]]
-    for m in sorted(maneuvers, key=lambda x: x.start_time):
+    for m in sorted_maneuvers:
         boundaries.append(m.start_time)
         boundaries.append(m.end_time)
     boundaries.append(gps_times[-1])
@@ -120,6 +124,18 @@ def segment_legs(
                 avg_speed = np.mean(speeds)
                 avg_vmg = float(avg_speed * abs(math.cos(math.radians(avg_twa))))
 
+        # Leg k lies between sorted maneuvers k-1 and k.
+        k = i // 2
+        in_beat = (
+            leg_type == LegType.REACH
+            and avg_twa is not None
+            and avg_twa < IN_BEAT_MAX_TWA_DEG
+            and k >= 1
+            and k < len(sorted_maneuvers)
+            and sorted_maneuvers[k - 1].maneuver_type == ManeuverType.TACK
+            and sorted_maneuvers[k].maneuver_type == ManeuverType.TACK
+        )
+
         # Heel from IMU
         avg_heel = None
         if imu_times is not None:
@@ -139,6 +155,7 @@ def segment_legs(
             avg_heel_deg=round(avg_heel, 1) if avg_heel is not None else None,
             avg_twa_deg=round(avg_twa, 1) if avg_twa is not None else None,
             tack=tack,
+            in_beat=in_beat,
             std_heading_deg=round(heading_std, 1),
             num_points=len(seg_gps),
             start_lat=seg_gps[0].lat,

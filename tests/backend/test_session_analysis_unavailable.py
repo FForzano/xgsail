@@ -141,3 +141,18 @@ def test_get_analysis_wire_payload_exposes_the_field(repos):
 
     session_analysis.apply_payload(sid, _unavailable_payload(), NOW)
     assert repos.sessions.get_analysis(sid).to_dict()["unavailable_reason"] == "no_wind_data"
+
+
+def test_leg_in_beat_defaults_false_and_round_trips(repos):
+    sid = uuid.uuid4()
+    payload = _full_payload()
+    payload["legs"] = [
+        _leg(),  # older worker image: no in_beat key
+        {**_leg(), "leg_type": "reach", "start_time": 100.0, "end_time": 160.0,
+         "in_beat": True},
+    ]
+    session_analysis.apply_payload(sid, payload, NOW)
+
+    legs = repos.sessions.list_legs(sid)
+    assert [l.in_beat for l in legs] == [False, True]
+    assert [l.to_dict()["in_beat"] for l in legs] == [False, True]
