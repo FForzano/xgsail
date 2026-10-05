@@ -42,12 +42,18 @@ MODEL_SOURCE_TYPE: "dict[str, str]" = {
 
 EARTH_RADIUS_KM = 6371.0
 
+# Below this interpolated mean speed a source's gust/mean ratio is noise (a
+# 0.3 kn reading with a 4 kn gust is a factor of 13), so it is left out of the
+# gust factor rather than allowed to blow it up.
+GUST_FACTOR_MIN_TWS_KTS = 1.0
+
 
 @dataclass(frozen=True)
 class FusedWind:
     twd_deg: float
     tws_kts: float
-    # Weighted scalar mean over the sources that report a gust; ``None`` if none do.
+    # ``tws_kts`` times the weighted mean gust factor (gust / mean wind) of the
+    # sources that report a gust, never below ``tws_kts``; ``None`` if none do.
     gust_kts: Optional[float]
     # Total weight that contributed (see ``weighted_wind_mean``), not normalised.
     confidence: float
@@ -203,7 +209,13 @@ def fuse_sources(sources: "list[WindSource]", t: float,
     of the strongest measurement covering ``t`` (``measurement_dominance``,
     times the same staleness decay), so near a working station the models
     drop out instead of being averaged in. Only a measurement that actually
-    covers ``t`` counts: across a station's data gap the models are back."""
+    covers ``t`` counts: across a station's data gap the models are back.
+
+    The gust is the fused mean times the weighted mean *gust factor*
+    (gust / mean wind) of the sources reporting one, with the same weights.
+    Averaging absolute gusts instead would let a model whose weight a
+    gust-less nearby station has all but silenced still set the gust on its
+    own, unrelated to the station-dominated mean."""
     covering = []
     dominance = 0.0
     for s in sources:
@@ -217,7 +229,7 @@ def fuse_sources(sources: "list[WindSource]", t: float,
         if s.source_type in MEASUREMENT_SOURCES:
             dominance = max(dominance, measurement_dominance(s.distance_km) * freshness)
 
-    wind, gusts, contributions = [], [], []
+    wind, gust_factors, contributions = [], [], []
     for s, weight in covering:
         if s.source_type not in MEASUREMENT_SOURCES:
             weight *= 1.0 - dominance
@@ -225,19 +237,21 @@ def fuse_sources(sources: "list[WindSource]", t: float,
             continue  # silenced: it must not show up as a contributor either
         twd = (math.degrees(math.atan2(_interp(t, s.times, s.sin), _interp(t, s.times, s.cos)))
                + 360.0) % 360.0
-        wind.append((twd, _interp(t, s.times, s.tws), weight))
-        if s.gust_times and s.gust_times[0] <= t <= s.gust_times[-1] and weight > 0.0:
-            gusts.append((_interp(t, s.gust_times, s.gusts), weight))
+        tws = _interp(t, s.times, s.tws)
+        wind.append((twd, tws, weight))
+        if (s.gust_times and s.gust_times[0] <= t <= s.gust_times[-1]
+                and tws >= GUST_FACTOR_MIN_TWS_KTS):
+            gust_factors.append((_interp(t, s.gust_times, s.gusts) / tws, weight))
         contributions.append((s.source_type, s.name, weight))
     fused = weighted_wind_mean(wind)
     if fused is None:
         return None
-    gust_weight = sum(w for _, w in gusts)
-    gust = sum(g * w for g, w in gusts) / gust_weight if gust_weight > 0.0 else None
-    if gust is not None:
-        # Only some sources report gusts, so their mean can fall below the
-        # mean wind of all of them — a "gust" weaker than the wind it gusts.
-        gust = max(gust, fused[1])
+    gust = None
+    factor_weight = sum(w for _, w in gust_factors)
+    if factor_weight > 0.0:
+        factor = sum(f * w for f, w in gust_factors) / factor_weight
+        # A source reporting a gust below its own mean wind is bad data, not calm.
+        gust = fused[1] * max(factor, 1.0)
     return FusedWind(twd_deg=fused[0], tws_kts=fused[1], gust_kts=gust,
                      confidence=fused[2], contributions=tuple(contributions))
 

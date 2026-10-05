@@ -92,10 +92,10 @@ def test_a_source_never_extrapolates_past_its_span():
     assert wf.fuse_waypoint(_waypoint(), E0 - 3601) is None
 
 
-def test_gust_is_the_weighted_mean_of_the_sources_that_have_one():
+def test_gust_is_the_fused_mean_times_the_weighted_gust_factor():
     fused = wf.fuse_waypoint(_waypoint(), E0 + 1800)
-    # Only the station reports gusts: halfway between 14 and 16.
-    assert fused.gust_kts == pytest.approx(15.0)
+    # Only the station reports gusts: 15 kn on an 11 kn mean, applied to the fused mean.
+    assert fused.gust_kts == pytest.approx(fused.tws_kts * 15.0 / 11.0)
 
     wp = _waypoint()
     wp["grid_estimates"] = [dict(g, gust_kts=20.0) for g in wp["grid_estimates"]]
@@ -103,7 +103,8 @@ def test_gust_is_the_weighted_mean_of_the_sources_that_have_one():
     w_station = wf.source_weight("real_station", distance_km=4.0)
     w_grid = (wf.source_weight("grid_estimate", internal_confidence=0.5)
               * (1.0 - wf.measurement_dominance(4.0)))
-    assert fused.gust_kts == pytest.approx((15.0 * w_station + 20.0 * w_grid) / (w_station + w_grid))
+    factor = (15.0 / 11.0 * w_station + 20.0 / 11.0 * w_grid) / (w_station + w_grid)
+    assert fused.gust_kts == pytest.approx(fused.tws_kts * factor)
 
 
 def test_interpolates_direction_on_the_circle():
@@ -300,11 +301,67 @@ def test_a_stale_live_reading_only_partly_silences_the_models():
     assert weights["icon_d2"] == pytest.approx(wf.source_weight("model_regional") * (1.0 - freshness))
 
 
+def _flat(tws, gust, **extra):
+    return [dict({"observed_at": E0 + dt, "twd_deg": 0.0, "tws_kts": tws, "gust_kts": gust},
+                 **extra) for dt in (0, 3600)]
+
+
 def test_a_gust_never_reads_below_the_mean_wind():
-    # Only the weak model reports a gust; the strong station sets the mean.
-    flat = lambda tws, gust: [{"observed_at": E0 + dt, "twd_deg": 0.0, "tws_kts": tws,
-                               "gust_kts": gust} for dt in (0, 3600)]
-    wp = {"real_stations": [dict(r, station_id=1, distance_km=20.0) for r in flat(15.0, None)],
-          "model_candidates": {"icon_d2": flat(8.0, 9.0)}}
+    # A model reporting a gust below its own mean is bad data, not a lull.
+    wp = {"real_stations": _flat(15.0, None, station_id=1, distance_km=20.0),
+          "model_candidates": {"icon_d2": _flat(8.0, 7.0)}}
     fused = wf.fuse_waypoint(wp, E0 + 1800)
     assert fused.gust_kts == pytest.approx(fused.tws_kts)
+
+
+def test_a_lone_station_gust_is_reported_exactly():
+    wp = {"real_stations": _flat(10.0, 17.0, station_id=1, distance_km=6.0)}
+    fused = wf.fuse_waypoint(wp, E0 + 1800)
+    assert fused.tws_kts == pytest.approx(10.0)
+    assert fused.gust_kts == pytest.approx(17.0)
+
+
+def test_a_gustless_nearby_station_does_not_inherit_a_models_absolute_gust():
+    # Regression: the station dominated the mean, but the model's residual weight
+    # was renormalised to 100% of the gust, so 8 kn of wind read as gusting 22.
+    wp = {"real_stations": _flat(8.0, None, station_id=1, distance_km=5.0),
+          "model_candidates": {"icon_d2": _flat(15.0, 22.0)}}
+    fused = wf.fuse_waypoint(wp, E0 + 1800)
+    assert 0.0 < wf.measurement_dominance(5.0) < 1.0
+    assert fused.tws_kts < 10.0
+    assert fused.gust_kts == pytest.approx(fused.tws_kts * 22.0 / 15.0)
+    assert abs(fused.gust_kts - fused.tws_kts * 22.0 / 15.0) < abs(fused.gust_kts - 22.0) / 10
+
+
+def test_a_fully_dominant_station_without_gust_silences_the_models_gust():
+    wp = {"real_stations": _flat(8.0, None, station_id=1,
+                                 distance_km=wf.STATION_DOMINANCE_FULL_KM),
+          "model_candidates": {"icon_d2": _flat(15.0, 22.0)}}
+    assert wf.fuse_waypoint(wp, E0 + 1800).gust_kts is None
+
+
+def test_no_gust_reporting_source_means_no_gust():
+    wp = {"real_stations": _flat(8.0, None, station_id=1, distance_km=20.0),
+          "model_candidates": {"icon_d2": _flat(15.0, None)}}
+    assert wf.fuse_waypoint(wp, E0 + 1800).gust_kts is None
+
+
+def test_a_near_calm_source_is_left_out_of_the_gust_factor():
+    # 0.3 kn with a 4 kn gust would be a factor of ~13 on the model's 12 kn.
+    wp = {"real_stations": _flat(0.3, 4.0, station_id=1, distance_km=20.0),
+          "model_candidates": {"icon_d2": _flat(12.0, 15.0)}}
+    fused = wf.fuse_waypoint(wp, E0 + 1800)
+    assert fused.gust_kts == pytest.approx(fused.tws_kts * 15.0 / 12.0)
+    # Alone, a calm station has no usable factor at all.
+    calm = {"real_stations": _flat(0.3, 4.0, station_id=1, distance_km=20.0)}
+    assert wf.fuse_waypoint(calm, E0 + 1800).gust_kts is None
+
+
+def test_models_only_gust_combines_the_models_consistently():
+    wp = {"model_candidates": {"icon_d2": _flat(10.0, 15.0), "gfs_seamless": _flat(20.0, 26.0)}}
+    fused = wf.fuse_waypoint(wp, E0 + 1800)
+    w_a, w_b = wf.source_weight("model_regional"), wf.source_weight("model_global")
+    assert fused.tws_kts == pytest.approx((10.0 * w_a + 20.0 * w_b) / (w_a + w_b))
+    factor = (1.5 * w_a + 1.3 * w_b) / (w_a + w_b)
+    assert fused.gust_kts == pytest.approx(fused.tws_kts * factor)
+    assert 15.0 < fused.gust_kts < 26.0

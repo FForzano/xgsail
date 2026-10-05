@@ -331,9 +331,13 @@ The shipped `weighted_fusion` strategy, in order:
    reliability-weighted vector mean (`xgsail_windfusion.weighted_wind_mean`/
    `source_weight`), then interpolated onto the track
    (`true_wind_from_cached`) — tagged `"source": "fusion"`. Each row also
-   carries `gust_kts` where a source behind it reported gusts (the weighted
-   mean of those sources, never below the row's own `tws_kts`, never
-   extrapolated past the last gust reading); the key is absent otherwise, and
+   carries `gust_kts` where a source behind it reported gusts: the row's
+   fused `tws_kts` times the weighted mean *gust factor* (gust / mean wind,
+   same weights as the mean, sources under 1 kn left out) of those sources,
+   never below `tws_kts`, never extrapolated past the last gust reading. A
+   factor rather than an absolute gust, so a gust-less nearby station that
+   has all but silenced the models still sets the level of the gust, not
+   just of the mean. The key is absent otherwise, and
    the session's "Vento" block falls back to the peak mean wind. When the GPS
    track is a genuine windward beat/run (`estimate_wind_axis_from_gps`), its
    tack axis additionally nudges the fused *direction* with a small weight,
