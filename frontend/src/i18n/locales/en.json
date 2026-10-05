@@ -656,6 +656,7 @@
     "downwind": "Downwind",
     "reach": "Reach",
     "reachInBeat": "Reach (on a beat)",
+    "reachInRun": "Reach (on a run)",
     "speedLoss": "Speed loss",
     "recovery": "Recovery",
     "showLegs": "Show legs",

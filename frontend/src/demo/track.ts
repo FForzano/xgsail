@@ -190,6 +190,7 @@ export const demoLegs: SessionLeg[] = legSpans.map(({ spec, from, to }) => {
     id: nextDemoId(),
     leg_type: spec.point,
     in_beat: false,
+    in_run: false,
     start_time: secondsAt(from),
     end_time: secondsAt(to),
     duration_sec: run.length * SAMPLE_S,

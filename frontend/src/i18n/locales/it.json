@@ -656,6 +656,7 @@
     "downwind": "Lasco/Poppa",
     "reach": "Traverso",
     "reachInBeat": "Traverso (in risalita)",
+    "reachInRun": "Traverso (in discesa)",
     "speedLoss": "Perdita velocità",
     "recovery": "Recupero",
     "showLegs": "Mostra bordi",

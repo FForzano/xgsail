@@ -328,6 +328,11 @@ class SessionLegORM(UUIDPKMixin, Base):
     in_beat: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    # Reach leg sailed within a downwind run (gybes on both sides), see
+    # workers/process_upload/processing/straight_lines.py.
+    in_run: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
 
 class SessionAnalysisORM(Base):

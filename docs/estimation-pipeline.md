@@ -526,17 +526,41 @@ needs wiring on the way in.
 
 ### Points of sail on legs
 
-`straight_lines.segment_legs` files each leg by its mean |TWA| into three
+`straight_lines.segment_legs` cuts the track at every maneuver, then splits
+each span between maneuvers into steady sub-legs: a greedy walk over the
+heading (circular moving average over `SPLIT_SMOOTH_WINDOW` = 15 s, enough to
+average out wave yaw) starts a new leg wherever it leaves the running circular
+mean of the current one by more than `SPLIT_HEADING_DEG` (25°). Only then is
+each piece held to `MIN_LEG_DURATION_SEC`/`MIN_LEG_POINTS` and to
+`MAX_HEADING_STD_DEG` (15°), so a genuinely curvy piece is still dropped. The
+split exists because bear-aways and round-ups slower than the maneuver
+detector's turn-rate gate — routine downwind in waves — used to leave one
+unsteady span that failed the std check as a whole, and long downwind
+stretches vanished from the legs entirely. A steady span still comes back as
+one leg.
+
+Each leg is filed by its mean |TWA| into three
 deliberately broad classes — `upwind` (< 70°, "Bolina"), `reach` (70–120°,
 "Traverso"), `downwind` (> 120°, "Lasco/Poppa") — because the wind behind
 them is an estimate, and a narrower split (close/broad reach, run) would
-mostly measure that estimate's error. On top of the angle, a `reach` leg
-under `IN_BEAT_MAX_TWA_DEG` (95°) with a **tack on both sides** gets
-`in_beat = true` (`session_legs.in_beat`): nobody tacks on a beam reach, so
-it is a loosely trimmed beat, or the wind is a few degrees off. It keeps its
-`reach` type (shown as "Traverso (in risalita)") but counts with the upwind
-legs in the port/starboard comparison. Legs analysed before revision `0066`
-read `false` until their session is reanalysed.
+mostly measure that estimate's error. On top of the angle, a `reach` leg's
+context comes from the **nearest wind-crossing maneuver on each side** —
+a tack or gybe; course changes and the heading splits above are skipped,
+since they don't say which way the boat is working:
+
+- under `IN_BEAT_MAX_TWA_DEG` (95°) with a **tack on both sides** it gets
+  `in_beat = true` (`session_legs.in_beat`): nobody tacks on a beam reach, so
+  it is a loosely trimmed beat, or the wind is a few degrees off. It keeps its
+  `reach` type (shown as "Traverso (in risalita)") but counts with the upwind
+  legs in the port/starboard comparison.
+- over `IN_RUN_MIN_TWA_DEG` (85°) with a **gybe on both sides** it gets
+  `in_run = true` (`session_legs.in_run`): a traverso sailed between gybes
+  belongs with the downwind legs.
+
+With no crossing on one side (session start/end) neither flag is set, and
+the two are mutually exclusive by construction. Legs analysed before revision
+`0066` (`in_beat`) / `0067` (`in_run`) read `false` until their session is
+reanalysed.
 
 ---
 

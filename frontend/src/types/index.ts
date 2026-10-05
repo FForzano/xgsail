@@ -695,6 +695,8 @@ export interface SessionLeg {
   leg_type: "upwind" | "downwind" | "reach";
   /** A reach leg sailed as part of an upwind beat (tacks on both sides). */
   in_beat: boolean;
+  /** A reach leg sailed as part of a downwind run (gybes on both sides). */
+  in_run: boolean;
   start_time: number;
   end_time: number;
   duration_sec: number;

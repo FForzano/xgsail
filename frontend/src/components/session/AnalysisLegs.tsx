@@ -9,8 +9,10 @@ import { fmtDuration, fmtDistanceNm, fmtKnots, splitKnots } from "@/utils/format
 import { legSequence } from "@/utils/legSequence";
 import type { SessionLeg } from "@/types";
 
-export function legLabel(t: TFunction, leg: Pick<SessionLeg, "leg_type" | "in_beat">): string {
-  return leg.leg_type === "reach" && leg.in_beat ? t("sessions.reachInBeat") : t(`sessions.${leg.leg_type}`);
+export function legLabel(t: TFunction, leg: Pick<SessionLeg, "leg_type" | "in_beat" | "in_run">): string {
+  if (leg.leg_type === "reach" && leg.in_beat) return t("sessions.reachInBeat");
+  if (leg.leg_type === "reach" && leg.in_run) return t("sessions.reachInRun");
+  return t(`sessions.${leg.leg_type}`);
 }
 
 /** The raw leg list, ranked by VMG. The `#` column is the *chronological*
@@ -170,9 +172,13 @@ function TackCompare({ rows, scaleMax }: { rows: CompareRow[]; scaleMax: number 
 
 /** Per-point-of-sail synthesis, the part a casual reader is meant to stop at:
  * the raw leg list below it is opt-in. Reaches are skipped, except those sailed
- * in a beat, which count as upwind — a port/starboard comparison is only
- * meaningful upwind and downwind. */
-const breakdownType = (l: SessionLeg) => (l.leg_type === "reach" && l.in_beat ? "upwind" : l.leg_type);
+ * in a beat (counted as upwind) or in a run (counted as downwind) — a
+ * port/starboard comparison is only meaningful upwind and downwind. */
+const breakdownType = (l: SessionLeg) => {
+  if (l.leg_type === "reach" && l.in_beat) return "upwind";
+  if (l.leg_type === "reach" && l.in_run) return "downwind";
+  return l.leg_type;
+};
 
 export function TackBreakdown({ legs, maxSpeedKts }: { legs: SessionLeg[]; maxSpeedKts?: number | null }) {
   const { t } = useTranslation();

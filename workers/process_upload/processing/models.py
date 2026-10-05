@@ -15,14 +15,10 @@ class ManeuverType(str, Enum):
     GYBE = "gybe"
     # A significant course change that does NOT cross the wind / change tacks
     # (bearing away, luffing up, a reach-to-reach heading change, a mark
-    # rounding that isn't a tack/gybe). Introduced end-to-end but DORMANT: the
-    # active geometric classifier never emits it, so no maneuver is labelled
-    # course_change today. It becomes populated once (a) Stage 1 detection is
-    # broadened beyond wind-axis crossings and/or (b) the ML classifier
-    # (maneuver_classification._ml_classifier) is registered. When that lands,
-    # decide whether a course_change opens a new leg in segment_legs (it does
-    # NOT flip tacks the way a tack/gybe does). The DB CHECK constraint
-    # (backend/db/models/session.py: MANEUVER_TYPES) already allows it.
+    # rounding that isn't a tack/gybe). It opens a new leg in segment_legs
+    # like any maneuver, but is skipped when deciding a leg's in_beat/in_run
+    # context, since it does NOT flip tacks the way a tack/gybe does. The DB
+    # CHECK constraint (backend/db/models/session.py: MANEUVER_TYPES) allows it.
     COURSE_CHANGE = "course_change"
 
 
@@ -155,6 +151,7 @@ class StraightLineLeg:
     avg_twa_deg: Optional[float] = None
     tack: Optional[str] = None  # "port" | "starboard" — which side the wind is on
     in_beat: bool = False  # reach sailed between two tacks, i.e. really a beat leg
+    in_run: bool = False  # reach sailed between two gybes, i.e. really a downwind leg
     std_heading_deg: float = 0.0  # heading stability
     num_points: int = 0
     start_lat: Optional[float] = None

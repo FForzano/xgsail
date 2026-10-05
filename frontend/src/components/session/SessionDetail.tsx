@@ -414,13 +414,13 @@ export function SessionDetail({
     const order = ["leg-upwind", "leg-reach", "leg-downwind", "tack", "gybe", "course_change"];
     const seen = new Map<string, string>();
     for (const mk of marks) {
-      if (mk.kind === "leg" && mk.legType) seen.set(`leg-${mk.legType}`, mk.mark_role);
+      if (mk.kind === "leg" && mk.legType) seen.set(`leg-${mk.legType}`, t(`sessions.${mk.legType}`));
       else if ((mk.kind === "maneuver" || mk.kind === "maneuver-pending") && mk.maneuverType) {
         seen.set(mk.maneuverType, mk.mark_role);
       }
     }
     return order.filter((key) => seen.has(key)).map((key) => [key, seen.get(key)!] as const);
-  }, [marks]);
+  }, [marks, t]);
 
   const addCrew = useMutation({
     mutationFn: (userId: UUID) =>
