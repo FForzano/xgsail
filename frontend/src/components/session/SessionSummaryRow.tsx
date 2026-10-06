@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
+import { ResultsRow } from "@/components/ui/ResultsRow";
 import { fmtDistance, fmtDuration, fmtKnots } from "@/utils/format";
 import type { SessionStats } from "@/types";
-import styles from "./SessionSummaryRow.module.css";
 
 /** The session's totals as one ruled results line under the title — the row
  * a results sheet prints for each boat, not a grid of KPI tiles. */
@@ -15,15 +15,5 @@ export function SessionSummaryRow({ stats, maneuverCount }: { stats: SessionStat
   ];
   if (stats.avg_polar_pct != null) cells.push([t("sessions.losses.avgPolar"), `${Math.round(stats.avg_polar_pct)}%`]);
   if (maneuverCount != null) cells.push([t("sessions.maneuvers"), String(maneuverCount)]);
-
-  return (
-    <dl className={styles.row}>
-      {cells.map(([label, value]) => (
-        <div key={label} className={styles.cell}>
-          <dt className={styles.label}>{label}</dt>
-          <dd className={styles.value}>{value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
+  return <ResultsRow cells={cells} />;
 }
