@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Camera, Megaphone } from "lucide-react";
+import { Camera, ChevronDown, ChevronUp, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { ResultsRow } from "@/components/ui/ResultsRow";
@@ -50,7 +50,18 @@ function dayKey(iso: string | null): string | null {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
+/** By calendar day, not by minute: an outing planned for this afternoon
+ * keeps its logistics until the day is over. */
 function isUpcoming(iso: string | null): boolean {
+  if (!iso) return false;
+  const day = new Date(iso);
+  day.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return day.getTime() >= today.getTime();
+}
+
+function isUpcomingStart(iso: string | null): boolean {
   return !!iso && new Date(iso).getTime() > Date.now();
 }
 
@@ -114,6 +125,16 @@ export function EventRow({
   const isPhoto = item.kind === "activity" && !track && !!photo;
   const photoCount = item.kind === "activity" ? item.activity.photo_count : 0;
 
+  // Codes say only what isn't obvious: a plain solo outing and a personal
+  // entry are the diary's defaults.
+  const kindCode =
+    item.kind === "regatta"
+      ? t("gruppi.eventKind.regatta")
+      : item.activity.type === "solo"
+        ? null
+        : t(`activities.types.${item.activity.type}`);
+  const showOwnership = !!item.ownership && item.ownership.kind !== "personal";
+
   return (
     <article className={styles.entry} data-opens-day={showDay || undefined} data-tour={dataTour}>
       <div className={styles.margin}>{showDay && <DayMark iso={item.date} />}</div>
@@ -122,17 +143,21 @@ export function EventRow({
           <Link to={href} className={styles.title}>
             {item.title}
           </Link>
-          <span className={styles.codes}>
-            <span className={`sf-badge ${item.kind === "regatta" ? "sf-badge--regatta" : "sf-badge--activity"}`}>
-              {t(`gruppi.eventKind.${item.kind}`)}
+          {(kindCode || showOwnership) && (
+            <span className={styles.codes}>
+              {kindCode && (
+                <span className={`sf-badge ${item.kind === "regatta" ? "sf-badge--regatta" : "sf-badge--activity"}`}>
+                  {kindCode}
+                </span>
+              )}
+              {item.ownership && showOwnership && (
+                <span className={`sf-badge sf-badge--${item.ownership.kind}`}>
+                  {t(`diario.ownership.${item.ownership.kind}`)}
+                  {item.ownership.name ? `: ${item.ownership.name}` : ""}
+                </span>
+              )}
             </span>
-            {item.ownership && (
-              <span className={`sf-badge sf-badge--${item.ownership.kind}`}>
-                {t(`diario.ownership.${item.ownership.kind}`)}
-                {item.ownership.name ? `: ${item.ownership.name}` : ""}
-              </span>
-            )}
-          </span>
+          )}
         </header>
 
         {/* No picture, no box: a logbook entry has no row height to keep
@@ -166,6 +191,12 @@ export function EventRow({
           </Link>
         )}
 
+        {/* Only an outing that has already started can be missing its track;
+            a scheduled one simply hasn't been sailed yet. */}
+        {!imageUrl && item.kind === "activity" && !isUpcomingStart(item.date) && (
+          <p className={styles.noTrack}>{t("diario.entry.noTrack")}</p>
+        )}
+
         <EntryFigures item={item} />
         {/* Only an event still ahead keeps its description: that is where an
             organiser puts the logistics (meeting time, briefing). A past
@@ -175,8 +206,8 @@ export function EventRow({
         {(item.kind === "regatta" || (canAnnounce && clubId)) && (
           <div className={styles.footer}>
             {item.kind === "regatta" && (
-              <Button variant="ghost" className="sf-btn--sm" onClick={onToggle}>
-                {open ? t("common.close") : t("regate.raceDays")}
+              <Button variant="ghost" className="sf-btn--sm" onClick={onToggle} aria-expanded={open}>
+                {t("regate.raceDays")} {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </Button>
             )}
             {canAnnounce && clubId && (

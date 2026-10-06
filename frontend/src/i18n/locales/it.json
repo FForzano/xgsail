@@ -208,8 +208,10 @@
     "entry": {
       "time": "Ora",
       "sessions": "Sessioni",
-      "dates": "Date"
-    }
+      "dates": "Date",
+      "noTrack": "Nessuna traccia registrata"
+    },
+    "feedError": "Non riesco a caricare il diario. Controlla la connessione."
   },
   "profile": {
     "myProfile": "Il mio profilo",
@@ -814,8 +816,42 @@
       "showAll": "Mostra tutti ({{count}})",
       "showLess": "Mostra meno",
       "jump": "Vai alle {{time}} nel replay",
-      "avgPolar": "Polare media"
-    }
+      "avgPolar": "% della polare",
+      "habitLead": "Hai perso di più {{kind}}: {{count}} volte, {{metres}} m, il {{share}}% del totale.",
+      "count": "N.",
+      "previous": "Perdita precedente",
+      "next": "Perdita successiva",
+      "habitIn": {
+        "tack": "nelle virate",
+        "gybe": "nelle abbattute",
+        "course_change": "nei cambi di rotta",
+        "upwind": "in bolina",
+        "downwind": "in poppa"
+      },
+      "habitNames": {
+        "tack": "Virate",
+        "gybe": "Abbattute",
+        "course_change": "Cambi di rotta",
+        "upwind": "Bolina",
+        "downwind": "Poppa"
+      },
+      "stepperRest_one": "{{count}} perdita",
+      "stepperRest_other": "{{count}} perdite"
+    },
+    "nextOuting": {
+      "title": "Da allenare alla prossima uscita",
+      "advice": {
+        "maneuver": "{{kind}}: esci dalla manovra con più velocità.",
+        "leg": "{{kind}}: tieni il passo del tuo bordo migliore."
+      },
+      "whyManeuver_one": "Nella manovra scendi da {{before}} a {{min}} e ti servono {{recovery}} per riprendere.",
+      "whyManeuver_other": "In media, nelle {{count}} manovre, scendi da {{before}} a {{min}} e ti servono {{recovery}} per riprendere.",
+      "whyLeg_one": "Sul bordo migliore hai fatto VMG {{best}}, su quello più lento {{avg}}.",
+      "whyLeg_other": "Sul bordo migliore hai fatto VMG {{best}}, sugli altri {{count}} in media {{avg}}.",
+      "clean": "Uscita pulita: nessuna perdita misurabile da allenare. Ripeti così."
+    },
+    "removeCrewConfirm": "Togliere {{name}} dall'equipaggio di questa sessione?",
+    "polarScale": "Scala: velocità della barca 0–{{max}} kn"
   },
   "map": {
     "layers": {
@@ -1145,7 +1181,7 @@
   "wind": {
     "title": "Vento",
     "mean": "Medio",
-    "peak": "Picco",
+    "peak": "Media max",
     "gust": "Raffica",
     "maxGust": "Raffica max",
     "gusts": "Raffiche",
@@ -1521,7 +1557,10 @@
       "session": {
         "label": "Registra o importa la tua prima uscita",
         "cta": "Registra"
-      }
+      },
+      "progress": "{{done}}/{{total}}",
+      "show": "Mostra",
+      "hide": "Comprimi"
     }
   },
   "users": {

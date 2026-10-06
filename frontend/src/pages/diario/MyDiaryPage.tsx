@@ -5,6 +5,7 @@ import { useDiaryFeed } from "@/hooks/useDiaryFeed";
 import { LiveRecordingBanner } from "@/components/diario/LiveRecordingBanner";
 import { UpcomingEventsBanner } from "@/components/diario/UpcomingEventsBanner";
 import { EventRow, opensDay } from "@/components/diario/EventRow";
+import { FeedError } from "@/components/diario/FeedError";
 import { DiaryToolbar } from "@/components/diario/DiaryToolbar";
 import feedStyles from "@/components/diario/EventRow.module.css";
 import { Spinner } from "@/components/ui/Spinner";
@@ -23,7 +24,7 @@ import { useProgress } from "@/hooks/useProgress";
  * be another layer of nesting. */
 export function MyDiaryPage() {
   const { t } = useTranslation();
-  const { type, setType, items, isLoading, hasNextPage, sentinelRef } = useDiaryFeed("personal", t);
+  const { type, setType, items, isLoading, isError, retry, hasNextPage, sentinelRef } = useDiaryFeed("personal", t);
   const [openRegattaId, setOpenRegattaId] = useState<UUID | null>(null);
   const { isDemoTarget } = useOnboarding();
   // One or the other above the feed, never both: the start checklist can
@@ -45,11 +46,16 @@ export function MyDiaryPage() {
         {showProgress ? (
           <ProgressStrip />
         ) : (
-          <StartChecklist hasRecordedSession={items.length > 0} sessionsLoading={isLoading} />
+          // Hidden while the feed is in error: an empty list then says nothing
+          // about whether this sailor has outings, and the checklist would
+          // tell an established one to record their first.
+          !isError && <StartChecklist hasRecordedSession={items.length > 0} sessionsLoading={isLoading} />
         )}
 
         {isLoading ? (
           <Spinner />
+        ) : items.length === 0 && isError ? (
+          <FeedError onRetry={retry} />
         ) : items.length === 0 ? (
           // While the "your sessions land here" tour step is active on an
           // otherwise-empty feed, show a demo card so the step has something

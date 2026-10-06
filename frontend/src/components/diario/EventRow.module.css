@@ -26,9 +26,6 @@
 .entry[data-opens-day] {
   border-top: 2px solid var(--sf-rule);
 }
-.feed > .entry:first-child {
-  margin-top: 0;
-}
 
 .margin {
   min-width: 0;
@@ -220,6 +217,11 @@
   .title {
     font-size: 1.05rem;
   }
+  /* Codes always under the title, whatever its length. */
+  .head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 /* TourDemoCard's stand-in for a track render. */
@@ -244,4 +246,23 @@
 }
 .groupTitle:first-child {
   margin-top: 0;
+}
+
+.noTrack {
+  margin: 0;
+  color: var(--sf-muted);
+  font-size: 0.9rem;
+}
+
+/* A feed that failed to load: ruled like an entry, so it reads as the log's
+   own state rather than an empty one. */
+.feedError {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 1rem 0 0;
+  padding: 1rem 0;
+  border-top: 2px solid var(--sf-rule);
+  border-bottom: 1px solid var(--sf-border);
 }

@@ -208,8 +208,10 @@
     "entry": {
       "time": "Time",
       "sessions": "Sessions",
-      "dates": "Dates"
-    }
+      "dates": "Dates",
+      "noTrack": "No track recorded"
+    },
+    "feedError": "Couldn't load the diary. Check your connection."
   },
   "profile": {
     "myProfile": "My profile",
@@ -814,8 +816,42 @@
       "showAll": "Show all ({{count}})",
       "showLess": "Show less",
       "jump": "Go to {{time}} in the replay",
-      "avgPolar": "Avg polar"
-    }
+      "avgPolar": "% of polar",
+      "habitLead": "You lost most {{kind}}: {{count}} times, {{metres}} m, {{share}}% of the total.",
+      "count": "No.",
+      "previous": "Previous loss",
+      "next": "Next loss",
+      "habitIn": {
+        "tack": "in tacks",
+        "gybe": "in gybes",
+        "course_change": "in course changes",
+        "upwind": "upwind",
+        "downwind": "downwind"
+      },
+      "habitNames": {
+        "tack": "Tacks",
+        "gybe": "Gybes",
+        "course_change": "Course changes",
+        "upwind": "Upwind",
+        "downwind": "Downwind"
+      },
+      "stepperRest_one": "{{count}} loss",
+      "stepperRest_other": "{{count}} losses"
+    },
+    "nextOuting": {
+      "title": "To practise next time",
+      "advice": {
+        "maneuver": "{{kind}}: come out of the turn with more speed.",
+        "leg": "{{kind}}: hold the pace of your best leg."
+      },
+      "whyManeuver_one": "Through the turn you drop from {{before}} to {{min}} and need {{recovery}} to get back up to speed.",
+      "whyManeuver_other": "On average, over {{count}} turns, you drop from {{before}} to {{min}} and need {{recovery}} to get back up to speed.",
+      "whyLeg_one": "Your best leg made {{best}} VMG, the slower one {{avg}}.",
+      "whyLeg_other": "Your best leg made {{best}} VMG, the other {{count}} averaged {{avg}}.",
+      "clean": "A clean outing: no measurable loss to practise. Do it again."
+    },
+    "removeCrewConfirm": "Remove {{name}} from this session's crew?",
+    "polarScale": "Scale: boat speed 0–{{max}} kn"
   },
   "map": {
     "layers": {
@@ -1145,7 +1181,7 @@
   "wind": {
     "title": "Wind",
     "mean": "Mean",
-    "peak": "Peak",
+    "peak": "Peak mean",
     "gust": "Gust",
     "maxGust": "Max gust",
     "gusts": "Gusts",
@@ -1521,7 +1557,10 @@
       "session": {
         "label": "Record or import your first outing",
         "cta": "Record"
-      }
+      },
+      "progress": "{{done}}/{{total}}",
+      "show": "Show",
+      "hide": "Collapse"
     }
   },
   "users": {

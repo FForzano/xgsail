@@ -108,6 +108,11 @@ export function useDiaryFeed(scope: "personal" | "clubs", t: TFunction) {
     setType,
     items,
     isLoading: activities.isLoading || regattas.isLoading,
+    isError: activities.isError || regattas.isError,
+    retry: () => {
+      void activities.refetch();
+      void regattas.refetch();
+    },
     hasNextPage: activities.hasNextPage === true,
     sentinelRef,
   };

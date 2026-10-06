@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { UUID } from "@/types";
 import { useDiaryFeed } from "@/hooks/useDiaryFeed";
 import { EventRow, opensDay } from "@/components/diario/EventRow";
+import { FeedError } from "@/components/diario/FeedError";
 import { DiaryToolbar } from "@/components/diario/DiaryToolbar";
 import feedStyles from "@/components/diario/EventRow.module.css";
 import { Spinner } from "@/components/ui/Spinner";
@@ -16,7 +17,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
  * so the two tabs read as one consistent layout. */
 export function ClubsDiaryPage() {
   const { t } = useTranslation();
-  const { type, setType, items, isLoading, hasNextPage, sentinelRef } = useDiaryFeed("clubs", t);
+  const { type, setType, items, isLoading, isError, retry, hasNextPage, sentinelRef } = useDiaryFeed("clubs", t);
   const [openRegattaId, setOpenRegattaId] = useState<UUID | null>(null);
 
   return (
@@ -25,6 +26,8 @@ export function ClubsDiaryPage() {
 
       {isLoading ? (
         <Spinner />
+      ) : items.length === 0 && isError ? (
+        <FeedError onRetry={retry} />
       ) : items.length === 0 ? (
         <EmptyState>{t("activities.empty")}</EmptyState>
       ) : (

@@ -2,7 +2,17 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Circle, Sailboat, Radio, Users, UploadCloud, X } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  Sailboat,
+  Radio,
+  Users,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { deviceKeys, devicesService } from "@/services/devices";
 import { readCache, writeCache } from "@/services/offlineCache";
@@ -43,6 +53,12 @@ export function StartChecklist({
     enabled: status === "authed",
   });
 
+  // A user who already has an outing is past onboarding: one line, not a block.
+  // null = the user hasn't toggled it: follow whether an outing exists, which
+  // can turn true after mount once the feed loads (an initial-state snapshot
+  // would keep it open forever for the account it was meant to fold for).
+  const [toggled, setExpanded] = useState<boolean | null>(null);
+  const expanded = toggled ?? !hasRecordedSession;
   const [dismissed, setDismissed] = useState(() => readCache<boolean>(DISMISSED_KEY) ?? false);
 
   const isLoading = status === "loading" || devicesQuery.isLoading || sessionsLoading;
@@ -50,7 +66,12 @@ export function StartChecklist({
 
   const m = caps.memberships;
   const steps: Step[] = [
-    { key: "boat", icon: Sailboat, href: "/profilo/barche", done: m.boatsOwner.length > 0 },
+    {
+      key: "boat",
+      icon: Sailboat,
+      href: "/profilo/barche",
+      done: m.boatsOwner.length > 0,
+    },
     {
       key: "device",
       icon: Radio,
@@ -63,7 +84,12 @@ export function StartChecklist({
       href: "/gruppi",
       done: m.clubsOwned.length > 0 || m.clubsMember.length > 0 || m.groups.length > 0,
     },
-    { key: "session", icon: UploadCloud, href: "/registra", done: hasRecordedSession },
+    {
+      key: "session",
+      icon: UploadCloud,
+      href: "/registra",
+      done: hasRecordedSession,
+    },
   ];
 
   if (steps.every((s) => s.done)) return null;
@@ -77,43 +103,64 @@ export function StartChecklist({
     <Section
       title={t("onboarding.checklist.title")}
       actions={
-        <button
-          type="button"
-          className={styles.dismiss}
-          onClick={dismiss}
-          aria-label={t("onboarding.checklist.dismiss")}
-          title={t("onboarding.checklist.dismiss")}
-        >
-          <X size={16} />
-        </button>
+        <>
+          {hasRecordedSession && (
+            <>
+              <span className="sf-muted">
+                {t("onboarding.checklist.progress", {
+                  done: steps.filter((s) => s.done).length,
+                  total: steps.length,
+                })}
+              </span>
+              <button
+                type="button"
+                className={styles.dismiss}
+                onClick={() => setExpanded(!expanded)}
+                aria-expanded={expanded}
+                aria-label={t(expanded ? "onboarding.checklist.hide" : "onboarding.checklist.show")}
+                title={t(expanded ? "onboarding.checklist.hide" : "onboarding.checklist.show")}
+              >
+                {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className={styles.dismiss}
+            onClick={dismiss}
+            aria-label={t("onboarding.checklist.dismiss")}
+            title={t("onboarding.checklist.dismiss")}
+          >
+            <X size={16} />
+          </button>
+        </>
       }
     >
-      <div className="sf-strip">
-        {steps.map((s) => {
-          const Icon = s.icon;
-          return (
-            <div
-              key={s.key}
-              className={`sf-strip__item ${s.done ? "sf-strip__item--muted" : ""}`}
-            >
-              <span className={styles.label}>
-                {s.done ? (
-                  <CheckCircle2 size={18} className={styles.checkDone} aria-hidden />
-                ) : (
-                  <Circle size={18} aria-hidden />
+      {expanded && (
+        <div className="sf-strip">
+          {steps.map((s) => {
+            const Icon = s.icon;
+            return (
+              <div key={s.key} className={`sf-strip__item ${s.done ? "sf-strip__item--muted" : ""}`}>
+                <span className={styles.label}>
+                  {s.done ? (
+                    <CheckCircle2 size={18} className={styles.checkDone} aria-hidden />
+                  ) : (
+                    <Circle size={18} aria-hidden />
+                  )}
+                  <Icon size={16} aria-hidden />
+                  {t(`onboarding.checklist.${s.key}.label`)}
+                </span>
+                {!s.done && (
+                  <Link to={s.href} className="sf-btn sf-btn--ghost sf-btn--sm">
+                    {t(`onboarding.checklist.${s.key}.cta`)}
+                  </Link>
                 )}
-                <Icon size={16} aria-hidden />
-                {t(`onboarding.checklist.${s.key}.label`)}
-              </span>
-              {!s.done && (
-                <Link to={s.href} className="sf-btn sf-btn--primary sf-btn--sm">
-                  {t(`onboarding.checklist.${s.key}.cta`)}
-                </Link>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Section>
   );
 }
