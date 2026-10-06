@@ -51,15 +51,15 @@
   display: flex;
   flex-direction: row;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--sf-radius);
   overflow: hidden;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .map :global(.leaflet-control-zoom) a {
-  width: 22px;
-  height: 22px;
-  line-height: 22px;
-  font-size: 14px;
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+  font-size: 18px;
   border-bottom: none;
   /* Leaflet's own white default reads as a foreign control next to
      .options/.locate's navy circles — same chrome color as those. */
@@ -70,7 +70,7 @@
   background: var(--sf-chrome);
 }
 .map :global(.leaflet-control-zoom-in) {
-  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid color-mix(in srgb, var(--sf-overlay-text) 18%, transparent);
 }
 
 .options {
@@ -89,10 +89,13 @@
    MapView's .options button treatment. */
 .options :global(.sf-btn),
 .locate :global(.sf-btn) {
+  width: 36px;
+  height: 36px;
   background: var(--sf-overlay);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: transparent;
   color: var(--sf-overlay-text);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  border-radius: var(--sf-radius);
 }
 .options :global(.sf-btn):hover:not(:disabled),
 .locate :global(.sf-btn):hover:not(:disabled) {

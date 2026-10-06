@@ -4,6 +4,21 @@
   align-items: flex-end;
   gap: 6px;
 }
+/* The same square overlay chip as the map's other controls — a round button
+   here was the one shape on the map outside the 4px corner system. */
+.toggle {
+  width: 36px;
+  height: 36px;
+  min-height: 0;
+  border-radius: var(--sf-radius);
+  border-color: transparent;
+  background: var(--sf-overlay);
+  color: var(--sf-overlay-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+.toggle:hover:not(:disabled) {
+  background: var(--sf-chrome);
+}
 /* Same opaque treatment as MapView's other floating map chrome: a translucent
    panel would clash with whichever tile happens to sit behind it. */
 .panel {

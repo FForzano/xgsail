@@ -38,7 +38,7 @@ export function MapLayerToggles({
     <div className={styles.wrap}>
       <Button
         type="button"
-        className="sf-btn--icon"
+        className={`sf-btn--icon ${styles.toggle}`}
         variant="ghost"
         data-tour="map-layers"
         aria-label={t("map.layers.title")}
