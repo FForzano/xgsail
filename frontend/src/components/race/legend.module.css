@@ -28,13 +28,13 @@
   background: var(--sf-leg-downwind);
 }
 .dotTack {
-  background: var(--sf-primary);
+  background: var(--sf-tack);
 }
 .dotGybe {
   background: var(--sf-gybe);
 }
 .dotCourseChange {
-  background: var(--sf-success);
+  background: var(--sf-course-change);
 }
 
 .dot {

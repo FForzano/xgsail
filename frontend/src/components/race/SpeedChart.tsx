@@ -27,13 +27,14 @@ const H = 160;
 // Converted to ms against the live chart width so it stays the same physical
 // distance on a phone and on a wide desktop chart.
 const GRAB_PX = 24;
-// Trim palette, mirroring global.css tokens: --sf-success (start),
+// Trim palette, mirroring global.css tokens: --sf-course-change (start),
 // --sf-gybe (end), --sf-bg (the mask over the discarded parts). Recharts
 // takes plain SVG paint attributes, which don't resolve CSS custom
-// properties, hence the literals.
+// properties, hence the literals — except the mask, which has to be the page
+// ground of the current theme and so is read from the token at render.
 const TRIM_START_COLOR = "#3fbf7f";
 const TRIM_END_COLOR = "#e0654f";
-const TRIM_MASK_COLOR = "#0b1f33";
+const trimMaskColor = () => getComputedStyle(document.documentElement).getPropertyValue("--sf-bg").trim();
 
 type TrimLabelProps = { viewBox?: { x?: number; y?: number } };
 
@@ -47,8 +48,8 @@ function trimGrip(x: number, y: number, color: string, side: "start" | "end") {
   return (
     <g pointerEvents="none">
       <rect x={left} y={y} width={w} height={h} rx={3} fill={color} />
-      <line x1={left + 5} y1={y + 8} x2={left + 5} y2={y + h - 8} stroke={TRIM_MASK_COLOR} strokeWidth={1.5} />
-      <line x1={left + 10} y1={y + 8} x2={left + 10} y2={y + h - 8} stroke={TRIM_MASK_COLOR} strokeWidth={1.5} />
+      <line x1={left + 5} y1={y + 8} x2={left + 5} y2={y + h - 8} stroke={trimMaskColor()} strokeWidth={1.5} />
+      <line x1={left + 10} y1={y + 8} x2={left + 10} y2={y + h - 8} stroke={trimMaskColor()} strokeWidth={1.5} />
     </g>
   );
 }
@@ -257,9 +258,9 @@ export function SpeedChart({
           {trimMode && trimStartMs != null && trimEndMs != null && (
             <>
               <ReferenceArea yAxisId="sog" x1={tMin} x2={trimStartMs}
-                            fill={TRIM_MASK_COLOR} fillOpacity={0.72} />
+                            fill={trimMaskColor()} fillOpacity={0.72} />
               <ReferenceArea yAxisId="sog" x1={trimEndMs} x2={tMax}
-                            fill={TRIM_MASK_COLOR} fillOpacity={0.72} />
+                            fill={trimMaskColor()} fillOpacity={0.72} />
             </>
           )}
           <ReferenceLine yAxisId="sog" x={cursor} stroke="#fff" strokeWidth={1} />

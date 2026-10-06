@@ -63,11 +63,11 @@
   border-bottom: none;
   /* Leaflet's own white default reads as a foreign control next to
      .options/.locate's navy circles — same chrome color as those. */
-  background: rgba(20, 50, 77, 0.85);
-  color: #fff;
+  background: var(--sf-overlay);
+  color: var(--sf-overlay-text);
 }
 .map :global(.leaflet-control-zoom) a:hover {
-  background: rgba(20, 50, 77, 1);
+  background: var(--sf-chrome);
 }
 .map :global(.leaflet-control-zoom-in) {
   border-right: 1px solid rgba(255, 255, 255, 0.15);
@@ -89,14 +89,14 @@
    MapView's .options button treatment. */
 .options :global(.sf-btn),
 .locate :global(.sf-btn) {
-  background: rgba(20, 50, 77, 0.85);
+  background: var(--sf-overlay);
   border-color: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  color: var(--sf-overlay-text);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .options :global(.sf-btn):hover:not(:disabled),
 .locate :global(.sf-btn):hover:not(:disabled) {
-  background: rgba(20, 50, 77, 1);
+  background: var(--sf-chrome);
 }
 
 /* Picker pin: a plain dot, since the picked point is a coordinate rather than

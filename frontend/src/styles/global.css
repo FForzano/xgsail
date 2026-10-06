@@ -1,36 +1,116 @@
-/* SailFrames frontend — global stylesheet.
-   Design tokens + layout/nav/ui primitives. Dark-navy identity carried over
-   from the previous app; feature-specific styles live at the bottom, grouped
-   by section. */
+/* XGSail frontend — global stylesheet.
+   Design tokens + layout/nav/ui primitives; feature-specific styles live at
+   the bottom, grouped by section. The visual world is the club results sheet
+   (DESIGN.md): paper and ink, ruled tables, short uppercase codes. Light and
+   dark are one system — every colour below is redefined once for dark, so a
+   component that reads only var(--sf-*) themes itself for free. */
+@import "@fontsource-variable/archivo/wdth.css";
 
 :root {
-  --sf-bg: #0b1f33;
-  --sf-bg-2: #10283f;
-  --sf-surface: #14324d;
-  --sf-surface-2: #1b3e5e;
-  --sf-border: #26506f;
-  --sf-text: #eaf2f8;
-  --sf-muted: #9fb6c9;
-  --sf-primary: #2f9be0;
-  --sf-primary-ink: #04263c;
-  --sf-danger: #e05a5a;
-  --sf-success: #3fbf7f;
-  --sf-warning: #e0b24a;
+  color-scheme: light;
+  --sf-bg: #f2f4f6;
+  --sf-bg-2: #ffffff;
+  --sf-surface: #ffffff;
+  --sf-surface-2: #e5e8ec;
+  --sf-border: #d1d6dc;
+  /* The heavy rule under a table head or a section title — ink, not grey,
+     the way a printed results sheet rules its header row. */
+  --sf-rule: #16181b;
+  --sf-text: #16181b;
+  --sf-muted: #5a6068;
+  --sf-primary: #1f55a6;
+  --sf-primary-hover: #17468c;
+  --sf-primary-ink: #ffffff;
+  --sf-danger: #b8262d;
+  --sf-success: #1d7346;
+  --sf-warning: #95600a;
+  /* App chrome (navbar, mobile action bar): an ink band in both themes. */
+  --sf-chrome: #16181b;
+  --sf-chrome-text: #f2f4f6;
+  --sf-chrome-muted: #a9aeb4;
+  --sf-chrome-warning: #e2b553;
+  /* Controls floating over a map tile, readable on any tile colour. */
+  --sf-overlay: rgba(22, 24, 27, 0.86);
+  --sf-overlay-text: #f2f4f6;
+  --sf-scrim: rgba(10, 11, 13, 0.62);
+  --sf-shadow-pop: 0 6px 20px rgba(16, 18, 20, 0.16);
   /* Map-pin categorical colors (tack/gybe/course_change, upwind/reach/
    * downwind) — validated for CVD safety against a light map-tile surface
    * with the dataviz skill's validator (all-pairs, normal + colorblind-
-   * simulated vision). tack/course_change reuse --sf-primary/--sf-success;
-   * the rest have no existing token. See .sf-markicon--* below. */
+   * simulated vision). tack/course_change reuse the old blue/green; the
+   * rest have no other token. See .markicon* in race/MapView.module.css.
+   * Unchanged by the theme: they sit on map tiles, which don't change with it. */
+  --sf-tack: #2f9be0;
+  --sf-course-change: #3fbf7f;
   --sf-gybe: #e0654f;
   --sf-leg-upwind: #9b6fe0;
   --sf-leg-reach: #0e93a8;
   --sf-leg-downwind: #a5760a;
+  /* Race marks on the map: amber buoys, fixed for the same reason. */
+  --sf-mark: #e0b24a;
   /* Horizontal page inset (.sf-main); .sf-bleed cancels exactly this much. */
   --sf-page-pad: 1.25rem;
-  --sf-radius: 10px;
-  --sf-navbar-h: 58px;
+  --sf-radius: 4px;
+  --sf-navbar-h: 56px;
   --sf-actionbar-h: 60px;
-  --sf-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sf-font: "Archivo Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Archivo's width axis: column heads, codes and section titles are set
+     condensed, like the header row of a printed results table. */
+  --sf-condensed: 72%;
+}
+
+/* Dark is the same sheet read at night: graphite ground, paper ink. Defined
+   twice on purpose — once for the OS preference (unless the page pins light)
+   and once for an explicit data-theme="dark". */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --sf-bg: #131416;
+    --sf-bg-2: #1a1c1f;
+    --sf-surface: #1d1f22;
+    --sf-surface-2: #282b2f;
+    --sf-border: #34383d;
+    --sf-rule: #e9eae6;
+    --sf-text: #e9eae6;
+    --sf-muted: #a0a6ad;
+    --sf-primary: #84aef0;
+    --sf-primary-hover: #a3c3f5;
+    --sf-primary-ink: #0d1726;
+    --sf-danger: #f07272;
+    --sf-success: #5cc995;
+    --sf-warning: #e2b553;
+    --sf-chrome: #0c0d0e;
+    --sf-chrome-text: #e9eae6;
+    --sf-chrome-muted: #9097a0;
+    --sf-overlay: rgba(12, 13, 14, 0.86);
+    --sf-overlay-text: #e9eae6;
+    --sf-scrim: rgba(0, 0, 0, 0.7);
+    --sf-shadow-pop: 0 6px 20px rgba(0, 0, 0, 0.5);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sf-bg: #131416;
+  --sf-bg-2: #1a1c1f;
+  --sf-surface: #1d1f22;
+  --sf-surface-2: #282b2f;
+  --sf-border: #34383d;
+  --sf-rule: #e9eae6;
+  --sf-text: #e9eae6;
+  --sf-muted: #a0a6ad;
+  --sf-primary: #84aef0;
+  --sf-primary-hover: #a3c3f5;
+  --sf-primary-ink: #0d1726;
+  --sf-danger: #f07272;
+  --sf-success: #5cc995;
+  --sf-warning: #e2b553;
+  --sf-chrome: #0c0d0e;
+  --sf-chrome-text: #e9eae6;
+  --sf-chrome-muted: #9097a0;
+  --sf-overlay: rgba(12, 13, 14, 0.86);
+  --sf-overlay-text: #e9eae6;
+  --sf-scrim: rgba(0, 0, 0, 0.7);
+  --sf-shadow-pop: 0 6px 20px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -46,19 +126,37 @@ body,
 body {
   margin: 0;
   font-family: var(--sf-font);
+  font-size: 1rem;
+  line-height: 1.5;
   color: var(--sf-text);
   background: var(--sf-bg);
   -webkit-font-smoothing: antialiased;
+  /* Every figure in this app is a measurement read down a column. */
+  font-variant-numeric: tabular-nums;
 }
+
 
 a {
   color: var(--sf-primary);
   text-decoration: none;
+  text-underline-offset: 0.18em;
 }
+
 
 h1, h2, h3 {
   margin: 0 0 0.6rem;
-  line-height: 1.25;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--sf-primary) 28%, transparent);
+  color: var(--sf-text);
+}
+:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
 }
 
 .sf-muted {
@@ -154,20 +252,23 @@ body.sf-nav-mode .sf-shell {
   gap: 1.25rem;
   height: var(--sf-navbar-h);
   padding: 0 1.25rem;
-  background: var(--sf-bg-2);
-  border-bottom: 1px solid var(--sf-border);
+  background: var(--sf-chrome);
+  color: var(--sf-chrome-text);
   position: sticky;
   top: 0;
   z-index: 50;
 }
+
 .sf-navbar__brand {
   font-weight: 800;
   font-size: 1.1rem;
-  color: var(--sf-text);
+  letter-spacing: -0.01em;
+  color: var(--sf-chrome-text);
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
+
 .sf-navbar__logo {
   height: 1.8rem;
   width: auto;
@@ -177,19 +278,22 @@ body.sf-nav-mode .sf-shell {
   gap: 0.25rem;
 }
 .sf-navlink {
-  padding: 0.45rem 0.9rem;
+  padding: 0.45rem 0.8rem;
   border-radius: var(--sf-radius);
-  color: var(--sf-muted);
+  color: var(--sf-chrome-muted);
   font-weight: 600;
 }
+
 .sf-navlink:hover {
-  color: var(--sf-text);
-  background: var(--sf-surface);
+  color: var(--sf-chrome-text);
 }
+
 .sf-navlink.active {
-  color: var(--sf-text);
-  background: var(--sf-surface-2);
+  color: var(--sf-chrome-text);
+  box-shadow: inset 0 -2px 0 var(--sf-chrome-text);
+  border-radius: 0;
 }
+
 /* Pending-upload indicator on the Registra nav item (desktop: inline next
    to the label; mobile: floating over the icon, see .sf-nav-dot--floating). */
 .sf-nav-dot {
@@ -208,7 +312,7 @@ body.sf-nav-mode .sf-shell {
   margin-left: 0;
 }
 .sf-navlink--admin {
-  color: var(--sf-warning);
+  color: var(--sf-chrome-warning);
 }
 .sf-navbar__spacer {
   flex: 1;
@@ -310,8 +414,7 @@ body.sf-nav-mode .sf-shell {
     display: flex;
     height: calc(var(--sf-actionbar-h) + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: var(--sf-bg-2);
-    border-top: 1px solid var(--sf-border);
+    background: var(--sf-chrome);
   }
   .sf-actionbar__item {
     flex: 1;
@@ -320,12 +423,12 @@ body.sf-nav-mode .sf-shell {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    color: var(--sf-muted);
-    font-size: 0.7rem;
-    font-weight: 600;
+    color: var(--sf-chrome-muted);
+    font-size: 0.72rem;
+    font-weight: 650;
   }
   .sf-actionbar__item.active {
-    color: var(--sf-primary);
+    color: var(--sf-chrome-text);
   }
   .sf-actionbar__icon {
     position: relative;
@@ -380,14 +483,12 @@ body.sf-nav-mode .sf-shell {
   display: none;
 }
 .sf-tab {
-  padding: 0.55rem 1rem;
+  padding: 0.6rem 0.9rem;
   color: var(--sf-muted);
-  font-weight: 600;
+  font-weight: 650;
   border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   white-space: nowrap;
-  /* .sf-tab is usually a NavLink, which browsers render unstyled by default.
-     Reset button chrome too, so an in-page tab switcher (no route of its
-     own, e.g. regatta division tabs) looks identical to a routed one. */
   background: none;
   border-top: none;
   border-left: none;
@@ -398,6 +499,7 @@ body.sf-nav-mode .sf-shell {
   -webkit-appearance: none;
   appearance: none;
 }
+
 .sf-tab:hover {
   color: var(--sf-text);
 }
@@ -407,8 +509,9 @@ body.sf-nav-mode .sf-shell {
 }
 .sf-tab.active {
   color: var(--sf-text);
-  border-bottom-color: var(--sf-primary);
+  border-bottom-color: var(--sf-rule);
 }
+
 .sf-tab__badge {
   display: inline-flex;
   align-items: center;
@@ -417,9 +520,9 @@ body.sf-nav-mode .sf-shell {
   height: 1.1rem;
   padding: 0 0.3rem;
   margin-left: 0.35rem;
-  border-radius: 999px;
-  background: var(--sf-warning, #e0a72c);
-  color: #1a1a1a;
+  border-radius: 2px;
+  background: var(--sf-warning);
+  color: var(--sf-bg);
   font-size: 0.7rem;
   font-weight: 700;
   vertical-align: middle;
@@ -440,14 +543,17 @@ body.sf-nav-mode .sf-shell {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.5rem 1rem;
+  min-height: 2.5rem;
+  padding: 0.45rem 1rem;
   border: 1px solid transparent;
   border-radius: var(--sf-radius);
   font: inherit;
-  font-weight: 600;
+  font-weight: 650;
+  line-height: 1.2;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  transition: background 0.15s ease-out, border-color 0.15s ease-out, color 0.15s ease-out;
 }
+
 .sf-btn:disabled {
   opacity: 0.6;
   cursor: default;
@@ -456,25 +562,33 @@ body.sf-nav-mode .sf-shell {
   background: var(--sf-primary);
   color: var(--sf-primary-ink);
 }
+
 .sf-btn--primary:hover:not(:disabled) {
-  background: #47abec;
+  background: var(--sf-primary-hover);
 }
+
 .sf-btn--ghost {
   background: transparent;
   border-color: var(--sf-border);
   color: var(--sf-text);
 }
+
 .sf-btn--ghost:hover:not(:disabled) {
-  background: var(--sf-surface);
+  background: var(--sf-surface-2);
+  border-color: color-mix(in srgb, var(--sf-text) 30%, var(--sf-border));
 }
+
 .sf-btn--danger {
   background: var(--sf-danger);
-  color: #fff;
+  color: var(--sf-bg);
 }
+
 .sf-btn--sm {
-  padding: 0.3rem 0.7rem;
-  font-size: 0.85rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.875rem;
 }
+
 /* Round icon-only control (record/pause/resume/stop) — bigger than a
    regular button since these are the primary tap targets while recording. */
 .sf-btn--icon {
@@ -487,10 +601,10 @@ body.sf-nav-mode .sf-shell {
    role, invite) — same idea as .sf-btn--icon but sized for a toolbar
    row instead of a primary tap target. */
 .sf-btn--icon-sm {
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-height: 0;
   padding: 0;
-  border-radius: 50%;
 }
 /* Destructive icon-only action (delete/remove) — the ghost icon button
    tinted danger, previously re-declared per feature CSS Module. */
@@ -501,13 +615,15 @@ body.sf-nav-mode .sf-shell {
    current selection is already bold) — same idea as the ghost hover but
    persistent rather than only on :hover. */
 .sf-btn--active {
-  background: color-mix(in srgb, var(--sf-primary) 22%, transparent);
+  background: color-mix(in srgb, var(--sf-primary) 14%, transparent);
   border-color: var(--sf-primary);
   color: var(--sf-primary);
 }
+
 .sf-btn--active:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--sf-primary) 30%, transparent);
+  background: color-mix(in srgb, var(--sf-primary) 22%, transparent);
 }
+
 
 /* ---------- Cards / forms / fields ---------- */
 .sf-card {
@@ -516,6 +632,7 @@ body.sf-nav-mode .sf-shell {
   border-radius: var(--sf-radius);
   padding: 1rem 1.25rem;
 }
+
 .sf-card__head {
   display: flex;
   align-items: center;
@@ -525,8 +642,10 @@ body.sf-nav-mode .sf-shell {
 }
 .sf-card__title {
   font-size: 1.05rem;
+  font-weight: 700;
   margin: 0;
 }
+
 .sf-card__actions {
   display: flex;
   gap: 0.5rem;
@@ -547,9 +666,12 @@ body.sf-nav-mode .sf-shell {
    the page heading, not a card's label. */
 .sf-page-title {
   margin: 0;
-  font-size: 1.3rem;
-  font-weight: 800;
+  font-size: clamp(1.45rem, 1.2rem + 1vw, 1.9rem);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
+
 /* Click-to-rename title text (ActivityDetailPage) — a dashed underline hints
    it's editable; the input that replaces it on click matches the title size. */
 .sf-card__title--editable {
@@ -564,15 +686,16 @@ body.sf-nav-mode .sf-shell {
   font-size: 1.05rem;
   background: var(--sf-surface-2);
   border: 1px solid var(--sf-border);
-  border-radius: 6px;
+  border-radius: var(--sf-radius);
   padding: 0.1rem 0.4rem;
   color: var(--sf-text);
 }
 /* Same input, sized to match `.sf-page-title` instead of `.sf-card__title`. */
 .sf-page-title-input {
-  font-size: 1.3rem;
-  font-weight: 800;
+  font-size: clamp(1.45rem, 1.2rem + 1vw, 1.9rem);
+  font-weight: 750;
 }
+
 /* A <select> styled to look like the badges around it (visibility editor). */
 .sf-badge--select {
   appearance: none;
@@ -616,29 +739,32 @@ body.sf-nav-mode .sf-shell {
    Only between adjacent blocks — the first one sits under the page header,
    which already separates it. */
 .sf-block + .sf-block {
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--sf-border);
+  padding-top: 1.75rem;
 }
+
 .sf-block__head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  /* Beyond the block's own gap, so the label reads as heading *for* the
-     content below rather than just another stacked line. */
-  margin-bottom: 0.15rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--sf-rule);
+  margin-bottom: 0.25rem;
 }
+
 /* A quiet label, not a card title — but still needs to read as a heading:
    tinted with the app's accent color rather than plain muted gray, which
    otherwise blent into every other small caption on the page. */
 .sf-block__title {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 1rem;
   font-weight: 800;
-  letter-spacing: 0.07em;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--sf-primary);
+  color: var(--sf-text);
 }
+
 .sf-block__actions {
   display: flex;
   align-items: center;
@@ -671,18 +797,21 @@ body.sf-nav-mode .sf-shell {
 .sf-field__label {
   font-size: 0.85rem;
   color: var(--sf-muted);
-  font-weight: 600;
+  font-weight: 650;
 }
+
 .sf-field__input {
   width: 100%;
   box-sizing: border-box;
+  min-height: 2.5rem;
   padding: 0.5rem 0.7rem;
   background: var(--sf-bg-2);
-  border: 1px solid var(--sf-border);
+  border: 1px solid color-mix(in srgb, var(--sf-text) 22%, var(--sf-border));
   border-radius: var(--sf-radius);
   color: var(--sf-text);
   font: inherit;
 }
+
 .sf-field__input:focus {
   outline: 2px solid var(--sf-primary);
   outline-offset: -1px;
@@ -692,8 +821,8 @@ body.sf-nav-mode .sf-shell {
   appearance: none;
   -webkit-appearance: none;
   padding: 0.65rem 2.25rem 0.65rem 0.9rem;
-  border-radius: calc(var(--sf-radius) * 1.2);
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M4 6l4 4 4-4' fill='none' stroke='%239fb6c9' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  border-radius: var(--sf-radius);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M4 6l4 4 4-4' fill='none' stroke='%23787e86' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   background-repeat: no-repeat;
   background-position: right 0.8rem center;
   background-size: 14px;
@@ -721,7 +850,7 @@ body.sf-nav-mode .sf-shell {
   background: var(--sf-surface-2);
   border: 1px solid var(--sf-border);
   border-radius: var(--sf-radius);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--sf-shadow-pop);
   z-index: 80;
 }
 .sf-combobox__option {
@@ -733,7 +862,7 @@ body.sf-nav-mode .sf-shell {
 }
 .sf-combobox__option:hover,
 .sf-combobox__option--active {
-  background: color-mix(in srgb, var(--sf-primary) 15%, transparent);
+  background: var(--sf-surface-2);
 }
 .sf-classinfo {
   display: flex;
@@ -813,24 +942,32 @@ body.sf-nav-mode .sf-shell {
 .sf-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.92rem;
+  font-size: 0.94rem;
 }
+
 .sf-table th {
   text-align: left;
-  color: var(--sf-muted);
-  font-weight: 600;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--sf-border);
+  color: var(--sf-text);
+  font-size: 0.78rem;
+  font-weight: 750;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1.5px solid var(--sf-rule);
   white-space: nowrap;
 }
+
 .sf-table td {
   padding: 0.55rem 0.75rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--sf-border) 50%, transparent);
+  border-bottom: 1px solid var(--sf-border);
   vertical-align: middle;
 }
+
 .sf-table tr:hover td {
-  background: color-mix(in srgb, var(--sf-surface-2) 50%, transparent);
+  background: color-mix(in srgb, var(--sf-text) 4%, transparent);
 }
+
 .sf-row--muted td {
   opacity: 0.55;
 }
@@ -839,7 +976,7 @@ body.sf-nav-mode .sf-shell {
    column (see the small warning badge next to the name for the exact
    state). */
 .sf-row--pending td {
-  background: color-mix(in srgb, var(--sf-warning) 10%, transparent);
+  background: color-mix(in srgb, var(--sf-warning) 12%, transparent);
 }
 .sf-row--pending:hover td {
   background: color-mix(in srgb, var(--sf-warning) 16%, transparent);
@@ -921,8 +1058,9 @@ body.sf-nav-mode .sf-shell {
   transition: border-color 0.15s ease;
 }
 .sf-activity-card:hover {
-  border-color: var(--sf-primary);
+  border-color: var(--sf-rule);
 }
+
 .sf-activity-card__thumb {
   display: block;
   width: 100%;
@@ -944,11 +1082,12 @@ body.sf-nav-mode .sf-shell {
    to stand out from the plain activity grid below. */
 .sf-progress {
   width: 100%;
-  height: 8px;
-  border-radius: 999px;
+  height: 6px;
+  border-radius: 1px;
   background: var(--sf-surface-2);
   overflow: hidden;
 }
+
 .sf-progress__bar {
   height: 100%;
   background: var(--sf-primary);
@@ -956,60 +1095,69 @@ body.sf-nav-mode .sf-shell {
 }
 .sf-badge {
   display: inline-block;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+  border-radius: 2px;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 750;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.35;
   background: var(--sf-surface-2);
   color: var(--sf-muted);
 }
+
 .sf-badge--success {
-  background: color-mix(in srgb, var(--sf-success) 25%, transparent);
+  background: color-mix(in srgb, var(--sf-success) 14%, transparent);
   color: var(--sf-success);
 }
 .sf-badge--warning {
-  background: color-mix(in srgb, var(--sf-warning) 25%, transparent);
+  background: color-mix(in srgb, var(--sf-warning) 14%, transparent);
   color: var(--sf-warning);
 }
 .sf-badge--danger {
-  background: color-mix(in srgb, var(--sf-danger) 25%, transparent);
+  background: color-mix(in srgb, var(--sf-danger) 14%, transparent);
   color: var(--sf-danger);
 }
-/* Eventi tab: regate vs uscite sociali need to be told apart at a glance. */
+/* Eventi tab: regate vs uscite sociali need to be told apart at a glance.
+   The category badges below borrow the fixed map hues, which are too light
+   to read as text on paper; mixing each with the page ink keeps the hue and
+   clears AA in both themes. */
 .sf-badge--regatta {
-  background: color-mix(in srgb, var(--sf-warning) 25%, transparent);
+  background: color-mix(in srgb, var(--sf-warning) 14%, transparent);
   color: var(--sf-warning);
 }
 .sf-badge--activity {
-  background: color-mix(in srgb, var(--sf-leg-upwind) 25%, transparent);
-  color: var(--sf-leg-upwind);
+  background: color-mix(in srgb, var(--sf-leg-upwind) 14%, transparent);
+  color: color-mix(in srgb, var(--sf-leg-upwind) 55%, var(--sf-text));
 }
 /* Diario: personal vs. club vs. group ownership needs to be told apart at a
    glance too, distinct from the regatta/activity kind badge above. */
 .sf-badge--personal {
-  background: color-mix(in srgb, var(--sf-primary) 25%, transparent);
+  background: color-mix(in srgb, var(--sf-primary) 14%, transparent);
   color: var(--sf-primary);
 }
 .sf-badge--club {
-  background: color-mix(in srgb, var(--sf-leg-reach) 25%, transparent);
-  color: var(--sf-leg-reach);
+  background: color-mix(in srgb, var(--sf-leg-reach) 14%, transparent);
+  color: color-mix(in srgb, var(--sf-leg-reach) 55%, var(--sf-text));
 }
 .sf-badge--group {
-  background: color-mix(in srgb, var(--sf-leg-downwind) 25%, transparent);
-  color: var(--sf-leg-downwind);
+  background: color-mix(in srgb, var(--sf-leg-downwind) 14%, transparent);
+  color: color-mix(in srgb, var(--sf-leg-downwind) 55%, var(--sf-text));
 }
 /* An outing somebody else started that I sailed — it belongs in my diary, but
    calling it "Personale" would suggest I can edit it. */
 .sf-badge--crew {
-  background: color-mix(in srgb, var(--sf-muted) 25%, transparent);
+  background: color-mix(in srgb, var(--sf-muted) 14%, transparent);
   color: var(--sf-muted);
 }
 /* Smaller variant for tight contexts (under a name in a roster row) —
    avoids forcing the row to wrap/overflow the way a full-size badge does. */
 .sf-badge--sm {
-  padding: 0.05rem 0.4rem;
+  padding: 0.02rem 0.3rem;
   font-size: 0.68rem;
 }
+
 .sf-badge--pending {
   display: inline-flex;
   align-items: center;
@@ -1040,26 +1188,26 @@ body.sf-nav-mode .sf-shell {
 .sf-strip {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
 }
+
 .sf-strip__item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.6rem 1rem;
-  background: color-mix(in srgb, var(--sf-primary) 12%, var(--sf-surface));
-  border: 1px solid var(--sf-border);
-  border-radius: var(--sf-radius);
-  font-size: 0.92rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--sf-border);
+  font-size: 0.94rem;
 }
+
 .sf-strip__item--muted {
-  background: var(--sf-surface);
-  color: var(--sf-muted);
+  color: var(--sf-text);
 }
+
 .sf-strip__item--active {
-  border-color: var(--sf-primary);
+  box-shadow: inset 0 -2px 0 var(--sf-primary);
 }
+
 .sf-crew-row {
   display: flex;
   align-items: center;
@@ -1080,9 +1228,10 @@ body.sf-nav-mode .sf-shell {
   height: 64px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--sf-border);
-  background: var(--sf-bg-2);
+  border: 1px solid var(--sf-border);
+  background: var(--sf-surface-2);
 }
+
 .sf-avatar--lg {
   width: 96px;
   height: 96px;
@@ -1106,11 +1255,12 @@ body.sf-nav-mode .sf-shell {
    MapView as playback transport — kept next to that base class rather than
    with the rest of the (now-modularized) map internals. */
 .sf-timeline--overlay {
-  background: rgba(20, 50, 77, 0.85);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px);
+  background: var(--sf-overlay);
+  color: var(--sf-overlay-text);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
 }
+
 
 /* ---------- Session analysis ---------- */
 /* Options popover dropdown chrome (⋮ button + panel) — shared "raw class"
@@ -1131,7 +1281,7 @@ body.sf-nav-mode .sf-shell {
   background: var(--sf-surface);
   border: 1px solid var(--sf-border);
   border-radius: var(--sf-radius);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--sf-shadow-pop);
   white-space: nowrap;
 }
 .sf-options__panel .sf-check {
@@ -1158,7 +1308,7 @@ body.sf-nav-mode .sf-shell {
   padding: 0.5rem 0.6rem;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: 2px;
   color: var(--sf-text);
   font: inherit;
   font-size: 0.9rem;
@@ -1169,7 +1319,7 @@ body.sf-nav-mode .sf-shell {
   -webkit-appearance: none;
 }
 .sf-optionsmenu__item:hover:not(:disabled) {
-  background: var(--sf-bg-2);
+  background: var(--sf-surface-2);
 }
 .sf-optionsmenu__item:disabled {
   opacity: 0.5;

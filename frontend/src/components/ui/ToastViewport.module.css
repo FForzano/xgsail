@@ -16,23 +16,24 @@
   padding: 0.7rem 1.1rem;
   font: inherit;
   font-weight: 600;
-  color: #fff;
+  /* Status fills are the full-strength status colour; the page ground reads
+     on them in both themes (dark ink on the light-theme fills' opposite). */
+  color: var(--sf-bg);
   cursor: pointer;
   text-align: left;
   max-width: 340px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--sf-shadow-pop);
 }
 .info {
-  background: var(--sf-surface-2);
+  background: var(--sf-chrome);
+  color: var(--sf-chrome-text);
 }
 .success {
   background: var(--sf-success);
-  color: #06281a;
 }
 .error {
   background: var(--sf-danger);
 }
 .warning {
   background: var(--sf-warning);
-  color: #33270a;
 }

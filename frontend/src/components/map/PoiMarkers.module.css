@@ -4,7 +4,7 @@
    families only happen to share a silhouette, and MapView's marks carry a lot
    of race-specific state these pins don't. */
 .pin {
-  --pin-color: var(--sf-primary);
+  --pin-color: var(--sf-tack);
   position: relative;
   width: 26px;
   height: 33px;
@@ -37,7 +37,7 @@
    for CVD safety against a light map surface in global.css) rather than
    introducing a second, unvalidated palette. */
 .kindMarina {
-  --pin-color: var(--sf-primary);
+  --pin-color: var(--sf-tack);
 }
 .kindHarbour {
   --pin-color: var(--sf-leg-upwind);
@@ -49,7 +49,7 @@
   --pin-color: var(--sf-leg-downwind);
 }
 .kindSailingClub {
-  --pin-color: var(--sf-success);
+  --pin-color: var(--sf-course-change);
 }
 /* Deliberately the club's colour, not a new one: the categorical set above is
    fully consumed by the seven older kinds, and the only unused token left was
@@ -59,13 +59,13 @@
    here"), so they share the hue and the glyph tells them apart. A distinct
    colour here needs a new token put through the CVD validator first. */
 .kindSailingSchool {
-  --pin-color: var(--sf-success);
+  --pin-color: var(--sf-course-change);
 }
 .kindSportsArea {
   --pin-color: var(--sf-gybe);
 }
 .kindFuel {
-  --pin-color: var(--sf-warning);
+  --pin-color: var(--sf-mark);
 }
 
 /* Popup: same flat translucent card as MapView's track popup, minus the

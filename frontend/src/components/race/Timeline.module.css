@@ -12,22 +12,33 @@
   max-width: 100%;
 }
 .clock {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.9rem;
-  color: var(--sf-muted);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
   min-width: 64px;
   text-align: right;
 }
 .speed {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
   min-width: 2.4rem;
 }
 
 /* Floated on top of MapView as the playback transport overlay (see
    MapView's `controls` prop). */
 .overlay {
-  background: rgba(20, 50, 77, 0.85);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px);
+  background: var(--sf-overlay);
+  border-color: transparent;
+  color: var(--sf-overlay-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+/* Ghost buttons take the overlay's own ink: the page's ink is dark in the
+   light theme, and this bar is dark in both. */
+.overlay :global(.sf-btn--ghost) {
+  color: inherit;
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+}
+.overlay :global(.sf-btn--ghost):hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
 }

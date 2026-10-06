@@ -23,13 +23,13 @@ const MANEUVER_TYPES = ["tack", "gybe", "course_change"] as const;
  * hex that only works against today's background. `summaryKey` is the plural
  * the analyzer's `maneuver_summary` uses for the same type. */
 const MANEUVER_SERIES = [
-  { key: "tack", summaryKey: "tacks", i18nKey: "sessions.tacks", color: "var(--sf-primary)" },
+  { key: "tack", summaryKey: "tacks", i18nKey: "sessions.tacks", color: "var(--sf-tack)" },
   { key: "gybe", summaryKey: "gybes", i18nKey: "sessions.gybes", color: "var(--sf-gybe)" },
   {
     key: "course_change",
     summaryKey: "course_changes",
     i18nKey: "sessions.course_changes",
-    color: "var(--sf-success)",
+    color: "var(--sf-course-change)",
   },
 ] as const;
 

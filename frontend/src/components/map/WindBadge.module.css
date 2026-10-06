@@ -12,12 +12,10 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.6rem;
-  background: rgba(10, 24, 38, 0.75);
-  border: 1px solid var(--sf-border);
-  border-radius: 999px;
-  color: #fff;
+  background: var(--sf-overlay);
+  border-radius: var(--sf-radius);
+  color: var(--sf-overlay-text);
   font-size: 0.85rem;
-  backdrop-filter: blur(2px);
 }
 .windArrow {
   display: inline-block;
@@ -25,7 +23,8 @@
   line-height: 1;
 }
 .windSpeed {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 .windGust {
   opacity: 0.7;

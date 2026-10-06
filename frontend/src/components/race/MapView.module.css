@@ -80,13 +80,13 @@
    ghost button (transparent bg) reads fine on the page but disappears or
    clashes depending on which map tile happens to sit behind it. */
 .options :global(.sf-btn) {
-  background: rgba(20, 50, 77, 0.85);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: var(--sf-overlay);
+  border-color: transparent;
+  color: var(--sf-overlay-text);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .options :global(.sf-btn):hover:not(:disabled) {
-  background: rgba(20, 50, 77, 1);
+  background: var(--sf-chrome);
 }
 .controls {
   position: absolute;
@@ -110,8 +110,8 @@
    Leaflet's default speech-bubble tail/shadow — dismissed by clicking
    elsewhere on the map (Leaflet's default popup behavior), no close button. */
 .popup :global(.leaflet-popup-content-wrapper) {
-  background: rgba(10, 24, 38, 0.85);
-  color: #fff;
+  background: var(--sf-overlay);
+  color: var(--sf-overlay-text);
   border-radius: var(--sf-radius);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
@@ -170,7 +170,7 @@
 
 /* Mark icons (race marks/legs/maneuvers) — see MapMark['kind'] in MapView.tsx. */
 .markicon {
-  color: var(--sf-warning);
+  color: var(--sf-mark);
   font-size: 14px;
   line-height: 16px;
   text-align: center;
@@ -187,7 +187,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--sf-primary);
+  background: var(--sf-tack);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -220,7 +220,7 @@
  * alone (which left a seam where the tail meets it). Colored by maneuver
  * type below, via --pin-color, inherited by both children. */
 .markiconManeuver {
-  --pin-color: var(--sf-warning);
+  --pin-color: var(--sf-mark);
   position: relative;
   width: 26px;
   height: 33px;
@@ -256,13 +256,13 @@
 /* Per-maneuver-type color (tack/gybe/course_change — see MapMark.
  * maneuverType). Validated the same way as the leg colors above. */
 .markiconTack {
-  --pin-color: var(--sf-primary);
+  --pin-color: var(--sf-tack);
 }
 .markiconGybe {
   --pin-color: var(--sf-gybe);
 }
 .markiconCourseChange {
-  --pin-color: var(--sf-success);
+  --pin-color: var(--sf-course-change);
 }
 /* Race marks (start pin/windward/gate/finish — the "boe" placed via the
  * activity map/form): a rounded-rectangle label spelling out the full role
