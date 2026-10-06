@@ -38,6 +38,7 @@ colors:
   reach-teal: "#0e93a8"
   downwind-ochre: "#a5760a"
   mark-amber: "#e0b24a"
+  tile-ring: "#ffffff"
 typography:
   headline:
     fontFamily: "Archivo Variable, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
@@ -66,6 +67,13 @@ typography:
     lineHeight: 1.2
     letterSpacing: "-0.01em"
     fontFeature: "'tnum' 1"
+  day-numeral:
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontSize: "4.5rem"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "-0.02em"
+    fontVariation: "'wdth' 72"
   body:
     fontFamily: "Archivo Variable, system-ui, sans-serif"
     fontSize: "1rem"
@@ -126,6 +134,12 @@ components:
     typography: "{typography.label}"
     rounded: "{rounded.tag}"
     padding: "0.1rem 0.4rem"
+  code-tag-regatta:
+    backgroundColor: "color-mix(in srgb, #95600a 14%, transparent)"
+    textColor: "{colors.protest-amber}"
+    typography: "{typography.label}"
+    rounded: "{rounded.tag}"
+    padding: "0.1rem 0.4rem"
   field-input:
     backgroundColor: "{colors.sheet}"
     textColor: "{colors.ink}"
@@ -144,6 +158,16 @@ components:
     textColor: "{colors.ink}"
     typography: "{typography.figure}"
     padding: "0.55rem 0.9rem 0.6rem"
+  results-row-compact-cell:
+    textColor: "{colors.ink}"
+    typography: "{typography.figure}"
+    padding: "0.4rem 0.9rem 0.45rem"
+  logbook-entry:
+    padding: "1rem 0 1.5rem"
+  logbook-day-mark:
+    textColor: "{colors.ink}"
+    typography: "{typography.day-numeral}"
+    width: "6rem"
   navbar:
     backgroundColor: "{colors.chrome-ink}"
     textColor: "{colors.chrome-muted}"
@@ -171,7 +195,7 @@ Light and dark are one system. Light is a cool paper-white ground with near-blac
 
 Density is that of a printed table: hairline rules, tight cell padding, one weight family doing all the work through width and weight rather than through size jumps. The user explicitly rejected anything that reads as a SaaS dashboard: no grid of rounded KPI tiles, no soft cards on a tinted canvas.
 
-The session analysis surface is the one rebuilt in depth. The other areas (Diario lists, Gruppi, Profilo, Registra, landing) currently inherit these tokens and the global primitives without having been recomposed; they are not yet expressions of the world beyond that inheritance.
+Two surfaces are rebuilt in depth: the session analysis page, and the diary feeds set as a logbook (the personal diary, the "Circoli e gruppi" diary tab and a club's Eventi tab, which share one entry). The other areas (Gruppi beyond the club Eventi tab, Profilo, Registra, landing) currently inherit these tokens and the global primitives without having been recomposed; they are not yet expressions of the world beyond that inheritance.
 
 **Key Characteristics:**
 - Paper and ink, light and dark designed as one sheet.
@@ -200,6 +224,7 @@ These sit on map tiles, which do not change with the theme, so they are defined 
 - **Tack Blue** (#2f9be0), **Course-change Green** (#3fbf7f), **Gybe Coral** (#e0654f): maneuver pins and their codes.
 - **Upwind Violet** (#9b6fe0), **Reach Teal** (#0e93a8), **Downwind Ochre** (#a5760a): leg (point-of-sail) categories.
 - **Mark Amber** (#e0b24a): race marks.
+- **Tile Ring** (#ffffff): the 2px paper edge around anything laid on a map tile, today the photo inset on a diary entry's track render, so it reads as lying on the map rather than as a hole in it. Fixed for the same reason as the categories: the tile under it does not theme.
 
 ### Neutral
 - **Paper** (#f2f4f6) / **Graphite** (#131416): the page ground. Also the browser theme colour for each scheme.
@@ -220,6 +245,8 @@ These sit on map tiles, which do not change with the theme, so they are defined 
 
 **The Ink Band Rule.** The app chrome is an ink band in both themes. Light mode does not get a white navbar.
 
+**The Plain Code Rule.** Kind and ownership codes (outing, personal, crew, club, group) are plain code tags, Paper Shade with Pencil text, told apart by their words. The regatta code alone keeps a colour, the 14% Protest Amber tint, and a map category hue never becomes a tag colour.
+
 ## Typography
 
 **Display Font:** Archivo Variable, with its width axis (with system-ui, -apple-system, Segoe UI, Roboto, sans-serif)
@@ -232,6 +259,7 @@ These sit on map tiles, which do not change with the theme, so they are defined 
 - **Title** (800, 1.15rem, condensed, uppercase, 0.02em): the title of a signature table such as "Dove hai perso".
 - **Section Title** (800, 1rem, condensed, uppercase, 0.02em): every Section head; subsection heads inside analysis drop to 0.9rem with a 1px ink rule.
 - **Figure** (700, 1.3rem, -0.01em, tabular): the values in a results row; the loss column in a ranked table is 1.15rem at 750 with its unit in Pencil at 0.8rem.
+- **Day Numeral** (800, 4.5rem, condensed, -0.02em, line-height 1): the day in a logbook margin, between a weekday and a month in the condensed label cut (750, 0.8rem, uppercase, 0.06em, Pencil); 2.4rem on a phone with its labels at 0.68rem. The year follows in Pencil at 650 only for another season.
 - **Body** (400, 1rem, 1.5): running text; table text at 0.94rem; table notes cap at 62ch.
 - **Label** (750, 0.72rem, condensed, uppercase, 0.04em): column heads, results-row labels, stat labels, badges. Codes (VIR, BOL, TCK) are 800 at 0.72rem with 0.06em tracking.
 
@@ -246,13 +274,15 @@ The page sits in a centred column capped at 1180px with a 1.25rem side inset; wi
 
 On the session page the lead is one ruled results row (duration, distance, average and max speed, polar, maneuvers), then from 1000px up a two-column grid of 5fr losses to 7fr replay (2rem gap); below 1000px they stack, losses first, with 1.5rem between. Results-row cells auto-fit at a 7.5rem minimum; below 560px they go three to a line at a smaller figure size. Stat tiles run 4-up, 2-up below 700px. The ranked table drops its time column below 520px, since selecting a row seeks the replay there anyway.
 
+The diary feeds read in a 760px column shared by the toolbar and the feed, so the two line up as one block. Each entry is a two-column grid: a 6rem date margin, a 1.5rem gap, then the entry. At 560px and below the margin narrows to 2.6rem (0.85rem gap) and holds only the stacked day numeral. The date mark sticks just below the navbar while its day scrolls past. A feed split in two (a club's upcoming and past events) heads each half with a Section Title and no rule of its own, 1.75rem above, because the first entry's ink rule sits right under it.
+
 At 700px and below, the top navbar is replaced by the bottom action bar, section tabs stick to the top carrying the safe-area inset, and `.sf-bleed` cancels the page inset so maps and charts run edge to edge.
 
 **The Ruled, Not Boxed Rule.** A page-level region is a Section: heading, actions, content, no border, surface or radius. A Card is reserved for one innermost discrete entity (one boat, one mark, one entry). A region listing card-shaped items is a Section of those items or of flat ruled rows, never a Card of Cards.
 
 ## Elevation & Depth
 
-The page is flat. Depth on the sheet comes from rules (a 2px ink rule under a block head, 1.5px under a table head, 1px hairlines between rows and cells) and from the Paper/Sheet tonal step. Shadows exist only for things that physically float: popovers and menus over the page, the floating help button on phones, and controls over a map.
+The page is flat. Depth on the sheet comes from rules (a 2px ink rule under a block head, 1.5px under a table head, 1px hairlines between rows and cells) and from the Paper/Sheet tonal step. Shadows exist only for things that physically float: popovers and menus over the page, the floating help button on phones, and controls over a map, including the photo inset laid on a diary entry's track render.
 
 ### Shadow Vocabulary
 - **Pop** (`box-shadow: 0 6px 20px rgba(16, 18, 20, 0.16)` light, `0 6px 20px rgba(0, 0, 0, 0.5)` dark): popovers, comboboxes, options menus, the floating help button.
@@ -282,6 +312,7 @@ Plain, firm and small-cornered.
 
 ### Chips / Tags
 - **Style:** short uppercase codes in the condensed label cut, 2px corner, Paper Shade fill with Pencil text by default; status variants use a 14% tint of their status colour with that colour as text.
+- **Kind and ownership codes:** plain code tags (see The Plain Code Rule); only the regatta code takes the Protest Amber tint.
 - **Loss codes:** in the ranked table a code is ink text led by a 1px-cornered square swatch in the matching map category colour, so a row and its pin read as one thing.
 
 ### Cards / Containers
@@ -304,11 +335,25 @@ The primary component of the world.
 
 ### Navigation
 - **Desktop:** a 56px Chrome Ink navbar. Links are Chrome Muted at 650, turning Chrome Text on hover; the active link carries a 2px Chrome Text underline. The tour help button sits in this bar as a quiet icon before the profile avatar.
-- **Section tabs:** muted text over a 1px hairline; the active tab turns ink with a 2px ink underline. On phones the strip sticks to the top and the help button pins to its right end.
+- **Section tabs:** muted text over a 1px hairline; the active tab turns ink with a 2px ink underline. On phones the bar sticks to the top; the tabs scroll in their own strip and the help button sits beside that strip at the bar's end, reserving its 2.25rem, so it never covers the last tab. At 560px and below the tabs close their gap and drop to 0.5rem side padding.
 - **Mobile:** a 60px Chrome Ink bottom action bar, icon over a 0.72rem label, active item in Chrome Text.
 
 ### Results Row
-The page header of a session: one ruled line of totals. A 2px ink rule above, a hairline below, cells divided by vertical hairlines with the first cell flush left; each cell is a condensed uppercase Pencil label over a Figure value. Stat tiles use the same vocabulary one step quieter (hairlines top and bottom, 1.1rem values).
+One shared ruled line of labelled figures, the row a results sheet prints for each boat. A 2px ink rule above, a hairline below, cells divided by vertical hairlines with the first cell flush left; each cell is a condensed uppercase Pencil label over a Figure value. Two sizes:
+- **Default:** the page header of a session, its totals. Cells auto-fit at 7.5rem; below 560px they go three to a line at 1.02rem.
+- **Compact:** a logbook entry's figures. A 1px ink rule above instead of 2px, tighter cells (0.4rem top), auto-fit at 5.5rem (4.75rem on a phone), and it stays on one line on a phone, because wrapping would split the entry.
+Stat tiles use the same vocabulary one step quieter (hairlines top and bottom, 1.1rem values).
+
+### Logbook Entry
+The signature of the diary feeds: each outing or regatta is a dated entry in a logbook, never a social-feed card.
+- **Date margin:** the Day Mark (weekday, Day Numeral, month; the year only for another season) in the left column, printed once per day.
+- **Day rule:** the first entry of a day opens under a 2px ink rule; a second entry the same day sits under a 1px hairline with its margin empty.
+- **Head:** the title (700, 1.2rem, sentence case, underlined on hover) with its codes beside it.
+- **Track:** the track render at full column width in a 4:3 box (Paper Shade, hairline border, 4px corner, border to ink on hover), `contain`-fitted so the whole route shows. A photo is a 2px-cornered inset at the bottom right (28% wide, at most 150px) ringed in Tile Ring with a soft lift; a photo takes the main slot, `cover`-fitted, only when there is no track. With no image at all there is no box.
+- **Figures:** a compact Results Row: start time, duration, and distance, or the session count when an outing holds several. A regatta prints its date range instead ("27–28 ott"), the month and year said once.
+- **Description:** shown only while the event is still ahead, in Pencil at 0.92rem, two lines at most, 65ch.
+
+**The One Margin Per Day Rule.** A day is printed once, in the margin of its first entry. A new day starts under the ink rule; everything else that day sits under a hairline.
 
 ### Ranked Loss Table ("Dove hai perso")
 The signature component. A condensed uppercase title over a 2px ink rule, with the total metres lost in Committee Red at the right. Below, a table with a rank column (800, condensed), the event (category code, name, a Pencil detail line, and a 2px share bar filled in Committee Red against a hairline track to show the drop-off from the worst loss), the time, and metres lost right-aligned. Every row is a button into the replay; the row under the replay cursor is tinted 10% Results Blue with its rank in Results Blue. Five rows show by default; a Results Blue underlined text link expands the rest.
@@ -325,6 +370,7 @@ Wind badge, playback bar, layer panel and track popups share the Overlay ink wit
 - **Do** redefine any new themed colour in both dark blocks (the OS preference block and the explicit `data-theme="dark"` block).
 - **Do** keep map category colours fixed across themes and match a table code's swatch to its map pin colour.
 - **Do** put controls that float over a map on the solid Overlay ink.
+- **Do** set a feed of dated outings as a logbook: one date margin per day, a 2px ink rule opening the day, the track at full column width and a compact Results Row beneath it.
 
 ### Don't:
 - **Don't** compose a screen as a grid of rounded KPI tiles or soft cards; the user rejected the SaaS-dashboard look.
@@ -333,3 +379,5 @@ Wind badge, playback bar, layer panel and track popups share the Overlay ink wit
 - **Don't** use a map category colour as text on the page ground.
 - **Don't** set figures in a monospace face or use translucent, blurred panels over a map.
 - **Don't** give the chrome a light fill in light mode.
+- **Don't** put a placeholder box where an entry has no image, or a text preview on a past entry.
+- **Don't** colour a kind or ownership code; the regatta's amber is the only coloured code.
