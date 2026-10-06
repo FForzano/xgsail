@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import type { ReactNode } from "react";
 import { PullRefreshIndicator } from "@/components/layout/PullRefreshIndicator";
+import { TourHelpButton } from "@/onboarding/TourHelpButton";
 
 export interface SectionTab {
   to: string;
@@ -51,6 +52,7 @@ export function SectionLayout({
             {!!tab.badge && <span className="sf-tab__badge">{tab.badge}</span>}
           </NavLink>
         ))}
+        {sticky && <TourHelpButton placement="tabs" />}
       </nav>
       {/* Only the outermost SectionLayout shows the indicator — a nested one
           (e.g. club sub-tabs inside Gruppi/Circoli) would otherwise stack a

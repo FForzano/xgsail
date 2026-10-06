@@ -172,6 +172,7 @@ function AppShellInner() {
           ))}
         </nav>
         <div className="sf-navbar__spacer" />
+        <TourHelpButton placement="navbar" />
         <ProfileMenu
           profileImage={me.data?.profile_image ?? null}
           firstName={user?.first_name}
