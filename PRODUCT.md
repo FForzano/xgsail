@@ -12,6 +12,8 @@ The same React SPA ships as a website and inside Capacitor iOS/Android shells (`
 
 **Primary: the club and amateur racer.** Dinghy, catamaran and keelboat sailors in local clubs (Italian *circoli velici* are the core community). They record their outings and club regattas on a phone, then review them ashore. When needs conflict, this user wins.
 
+They are not only technical, competitive sailors: many are enthusiasts who sail for the pleasure of it. They read the analysis without a coach beside them, and they come back to the app because it is enjoyable to open, not only because it is useful.
+
 Secondary audiences are already served by the app and will be improved later, but they don't drive design decisions today:
 - coaches and training groups who review several sailors' tracks;
 - club race officers who run regattas (start lists, divisions, scoring, standings);
@@ -69,7 +71,7 @@ Personal tracking apps and vendor apps tied to one device don't model this.
 ## Product Principles
 
 1. **Open is the mast.** Never design a flow that implies lock-in, a paywall or data hostage-taking. Self-hosting and data ownership are features to show, not to hide.
-2. **Free, but not cheap.** The bar is the quality of paid apps. Being free never excuses rough edges.
+2. **Free, but not cheap.** The bar is the quality of paid apps. Being free never excuses rough edges. The app should be pleasant and inviting to open, not just correct: a numbers screen an enthusiast enjoys reading is part of the job.
 3. **Works on the water first.** Anything used while sailing must work in glare, with gloves, one-handed and offline. Analysis can be richer ashore.
 4. **Analysis is the core; recording is the means.** The product's value is what a session shows afterwards. Recording has to be safe, dependable and simple, so that no data is lost and the screen can be read at a glance. It is not where the design ambition goes; the analysis surfaces are.
 5. **Model club racing as it really is.** Visitors, paper entries, shared boats and co-recorded outings are normal cases, not edge cases.

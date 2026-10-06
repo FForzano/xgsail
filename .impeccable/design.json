@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-06T00:00:00Z",
+  "generatedAt": "2026-10-06T12:00:00Z",
   "title": "Design System: XGSail",
   "extensions": {
     "colorMeta": {
@@ -573,7 +573,7 @@
       {
         "name": "map-lift",
         "value": "0 2px 8px rgba(0, 0, 0, 0.28)",
-        "purpose": "Playback bar overlaid on the replay map."
+        "purpose": "Everything floating on a map tile: the playback bar and the map control chips (zoom, recenter, options, layers)."
       }
     ],
     "motion": [
@@ -592,17 +592,17 @@
       {
         "name": "results-compact",
         "value": "560px",
-        "purpose": "Results row goes three to a line (compact stays one line); logbook margin narrows to 2.6rem; tabs tighten."
+        "purpose": "Results row goes three to a line (compact stays one line); logbook margin narrows to 2.6rem and codes go under the title; tabs tighten; replay map control chips lift 3.5rem above the playback bar; a playback bar carrying the Loss Stepper drops its secondary buttons."
       },
       {
         "name": "mobile",
         "value": "700px",
-        "purpose": "Navbar becomes bottom action bar; tabs stick; .sf-bleed active."
+        "purpose": "Navbar becomes bottom action bar; tabs stick; .sf-bleed active; sheet tables drop optional columns and tighten cells to 0.4rem."
       },
       {
         "name": "lead-split",
         "value": "1000px",
-        "purpose": "Session lead splits into losses 5fr / replay 7fr."
+        "purpose": "Session lead splits into losses 5fr / replay 7fr with the replay sticky; below it they stack replay first, then the ranking."
       },
       {
         "name": "page-max",
@@ -644,8 +644,8 @@
       "name": "Code Tag",
       "kind": "chip",
       "refersTo": "code-tag",
-      "description": "Short condensed uppercase code, 2px corner. Kind and ownership codes are plain; the regatta code alone keeps the amber tint; status codes take their status tint.",
-      "html": "<span class=\"ds-tag\">Uscita</span> <span class=\"ds-tag\">Personale</span> <span class=\"ds-tag ds-tag-regatta\">Regata</span> <span class=\"ds-tag ds-tag-danger\">DNF</span> <span class=\"ds-tag ds-tag-success\">Pubblicata</span>",
+      "description": "Short condensed uppercase code, 2px corner. Kind and ownership codes are plain and say only what is not the default (no code for a solo outing or a personal entry); the regatta code alone keeps the amber tint; status codes take their status tint.",
+      "html": "<span class=\"ds-tag\">Allenamento</span> <span class=\"ds-tag\">Circolo: CV Barcola</span> <span class=\"ds-tag ds-tag-regatta\">Regata</span> <span class=\"ds-tag ds-tag-danger\">DNF</span> <span class=\"ds-tag ds-tag-success\">Pubblicata</span>",
       "css": ".ds-tag { display:inline-block; padding:0.1rem 0.4rem; border-radius:2px; font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-size:0.75rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; line-height:1.35; background:var(--sf-surface-2, #e5e8ec); color:var(--sf-muted, #5a6068); } .ds-tag-danger { background:color-mix(in srgb, var(--sf-danger, #b8262d) 14%, transparent); color:var(--sf-danger, #b8262d); } .ds-tag-success { background:color-mix(in srgb, var(--sf-success, #1d7346) 14%, transparent); color:var(--sf-success, #1d7346); } .ds-tag-regatta { background:color-mix(in srgb, var(--sf-warning, #95600a) 14%, transparent); color:var(--sf-warning, #95600a); }"
     },
     {
@@ -667,33 +667,41 @@
       "name": "Results Row",
       "kind": "custom",
       "refersTo": "results-row-cell",
-      "description": "One shared ruled line of labelled figures: default (session totals, 2px ink rule) and compact (logbook entry, 1px ink rule, tighter cells).",
+      "description": "One shared ruled line of labelled figures: default (session totals, 2px ink rule) and compact (logbook entry, hairline above, tighter cells).",
       "html": "<dl class=\"ds-results\"><div><dt>Durata</dt><dd>48 min</dd></div><div><dt>Distanza</dt><dd>5.26 nm</dd></div><div><dt>Velocità media</dt><dd>6.8 kn</dd></div><div><dt>Velocità max</dt><dd>9.3 kn</dd></div></dl> <dl class=\"ds-results ds-results-compact\"><div><dt>Ora</dt><dd>15:10</dd></div><div><dt>Durata</dt><dd>48 min</dd></div><div><dt>Distanza</dt><dd>5.24 nm</dd></div></dl>",
-      "css": ".ds-results { display:grid; grid-template-columns:repeat(auto-fit, minmax(7.5rem, 1fr)); margin:0; border-top:2px solid var(--sf-rule, #16181b); border-bottom:1px solid var(--sf-border, #d1d6dc); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-variant-numeric:tabular-nums; color:var(--sf-text, #16181b); } .ds-results > div { padding:0.55rem 0.9rem 0.6rem; border-left:1px solid var(--sf-border, #d1d6dc); } .ds-results > div:first-child { border-left:0; padding-left:0; } .ds-results dt { font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; color:var(--sf-muted, #5a6068); } .ds-results dd { margin:0.1rem 0 0; font-size:1.3rem; font-weight:700; letter-spacing:-0.01em; white-space:nowrap; } .ds-results + .ds-results { margin-top:1.5rem; } .ds-results-compact { grid-template-columns:repeat(auto-fit, minmax(5.5rem, 1fr)); border-top-width:1px; } .ds-results-compact > div { padding-top:0.4rem; padding-bottom:0.45rem; }"
+      "css": ".ds-results { display:grid; grid-template-columns:repeat(auto-fit, minmax(7.5rem, 1fr)); margin:0; border-top:2px solid var(--sf-rule, #16181b); border-bottom:1px solid var(--sf-border, #d1d6dc); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-variant-numeric:tabular-nums; color:var(--sf-text, #16181b); } .ds-results > div { padding:0.55rem 0.9rem 0.6rem; border-left:1px solid var(--sf-border, #d1d6dc); } .ds-results > div:first-child { border-left:0; padding-left:0; } .ds-results dt { font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; color:var(--sf-muted, #5a6068); } .ds-results dd { margin:0.1rem 0 0; font-size:1.3rem; font-weight:700; letter-spacing:-0.01em; white-space:nowrap; } .ds-results + .ds-results { margin-top:1.5rem; } .ds-results-compact { grid-template-columns:repeat(auto-fit, minmax(5.5rem, 1fr)); border-top:1px solid var(--sf-border, #d1d6dc); } .ds-results-compact > div { padding-top:0.4rem; padding-bottom:0.45rem; }"
     },
     {
       "name": "Ranked Loss Table",
       "kind": "custom",
       "refersTo": "table-head",
-      "description": "Signature 'Dove hai perso': losses ranked worst first; each row seeks the replay.",
-      "html": "<section class=\"ds-loss\"><div class=\"ds-loss-head\"><h2>Dove hai perso</h2><p><b>150 m</b> persi in 11 momenti</p></div><table><thead><tr><th>#</th><th>Momento</th><th class=\"ds-r\">Persi</th></tr></thead><tbody><tr tabindex=\"0\" class=\"ds-current\"><td class=\"ds-rank\">1</td><td><span class=\"ds-code\" style=\"--c:#2f9be0\">VIR</span> Virata<small>Da 6.1 kn a 2.5 kn, 27.0 s per riprendere velocità</small><i class=\"ds-bar\"><i style=\"width:100%\"></i></i></td><td class=\"ds-lost\">21<span> m</span></td></tr><tr tabindex=\"0\"><td class=\"ds-rank\">2</td><td><span class=\"ds-code\" style=\"--c:#9b6fe0\">BOL</span> Bolina, bordo 3<small>VMG 4.1 kn contro 4.2 kn del tuo bordo migliore</small><i class=\"ds-bar\"><i style=\"width:76%\"></i></i></td><td class=\"ds-lost\">16<span> m</span></td></tr></tbody></table></section>",
-      "css": ".ds-loss { font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-variant-numeric:tabular-nums; color:var(--sf-text, #16181b); } .ds-loss-head { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; padding-bottom:0.45rem; border-bottom:2px solid var(--sf-rule, #16181b); } .ds-loss-head h2 { margin:0; font-size:1.15rem; font-weight:800; font-stretch:72%; letter-spacing:0.02em; text-transform:uppercase; } .ds-loss-head p { margin:0; font-size:0.85rem; color:var(--sf-muted, #5a6068); } .ds-loss-head b { color:var(--sf-danger, #b8262d); font-weight:750; } .ds-loss table { width:100%; border-collapse:collapse; } .ds-loss th { padding:0.5rem 0.5rem 0.35rem; border-bottom:1px solid var(--sf-rule, #16181b); font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; text-align:left; color:var(--sf-muted, #5a6068); } .ds-loss th.ds-r { text-align:right; } .ds-loss td { padding:0.6rem 0.5rem; border-bottom:1px solid var(--sf-border, #d1d6dc); vertical-align:top; } .ds-loss tbody tr { cursor:pointer; transition:background 0.15s ease-out; } .ds-loss tbody tr:hover { background:color-mix(in srgb, var(--sf-text, #16181b) 4%, transparent); } .ds-loss tbody tr:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:-2px; } .ds-loss tr.ds-current { background:color-mix(in srgb, var(--sf-primary, #1f55a6) 10%, transparent); } .ds-loss tr.ds-current .ds-rank { color:var(--sf-primary, #1f55a6); } .ds-rank { width:1.75rem; font-size:1.05rem; font-weight:800; font-stretch:72%; } .ds-code { display:inline-flex; align-items:center; gap:0.3rem; margin-right:0.4rem; font-size:0.72rem; font-weight:800; font-stretch:72%; letter-spacing:0.06em; } .ds-code::before { content:''; width:0.55rem; height:0.55rem; border-radius:1px; background:var(--c); } .ds-loss small { display:block; margin-top:0.1rem; font-size:0.84rem; color:var(--sf-muted, #5a6068); } .ds-bar { display:block; height:2px; margin-top:0.45rem; background:var(--sf-border, #d1d6dc); } .ds-bar i { display:block; height:100%; background:var(--sf-danger, #b8262d); } .ds-lost { width:1%; white-space:nowrap; text-align:right; font-size:1.15rem; font-weight:750; } .ds-lost span { font-size:0.8rem; font-weight:600; color:var(--sf-muted, #5a6068); }"
+      "description": "Signature 'Dove hai perso': a Habit Strip (lead sentence, 8px bar split by kind in map colours, coded key) over the losses ranked worst first; each row seeks the replay.",
+      "html": "<section class=\"ds-loss\"><div class=\"ds-loss-head\"><h2>Dove hai perso</h2><p><b>150 m</b> persi in 11 momenti</p></div><div class=\"ds-habits\"><p class=\"ds-habit-lead\">Hai perso di più nelle virate: 5 volte, 71 m, il 47% del totale.</p><div class=\"ds-habit-bar\" role=\"img\" aria-label=\"Virate 47%, Bolina 33%, Abbattute 20%\"><span style=\"--c:#2f9be0;flex-grow:71\"></span><span style=\"--c:#9b6fe0;flex-grow:49\"></span><span style=\"--c:#e0654f;flex-grow:30\"></span></div><ul class=\"ds-habit-key\"><li class=\"ds-code\" style=\"--c:#2f9be0\">VIR 47%</li><li class=\"ds-code\" style=\"--c:#9b6fe0\">BOL 33%</li><li class=\"ds-code\" style=\"--c:#e0654f\">ABB 20%</li></ul></div><table><thead><tr><th>#</th><th>Momento</th><th class=\"ds-r\">Persi</th></tr></thead><tbody><tr tabindex=\"0\" class=\"ds-current\"><td class=\"ds-rank\">1</td><td><span class=\"ds-code\" style=\"--c:#2f9be0\">VIR</span> Virata<small>Da 6.1 kn a 2.5 kn, 27.0 s per riprendere velocità</small><i class=\"ds-bar\"><i style=\"width:100%\"></i></i></td><td class=\"ds-lost\">21<span> m</span></td></tr><tr tabindex=\"0\"><td class=\"ds-rank\">2</td><td><span class=\"ds-code\" style=\"--c:#9b6fe0\">BOL</span> Bolina, bordo 3<small>VMG 4.1 kn contro 4.2 kn del tuo bordo migliore</small><i class=\"ds-bar\"><i style=\"width:76%\"></i></i></td><td class=\"ds-lost\">16<span> m</span></td></tr></tbody></table></section>",
+      "css": ".ds-loss { font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-variant-numeric:tabular-nums; color:var(--sf-text, #16181b); } .ds-loss-head { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; padding-bottom:0.45rem; border-bottom:2px solid var(--sf-rule, #16181b); } .ds-loss-head h2 { margin:0; font-size:1.15rem; font-weight:800; font-stretch:72%; letter-spacing:0.02em; text-transform:uppercase; } .ds-loss-head p { margin:0; font-size:0.85rem; color:var(--sf-muted, #5a6068); } .ds-loss-head b { color:var(--sf-danger, #b8262d); font-weight:750; } .ds-loss table { width:100%; border-collapse:collapse; } .ds-loss th { padding:0.5rem 0.5rem 0.35rem; border-bottom:1px solid var(--sf-rule, #16181b); font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; text-align:left; color:var(--sf-muted, #5a6068); } .ds-loss th.ds-r { text-align:right; } .ds-loss td { padding:0.6rem 0.5rem; border-bottom:1px solid var(--sf-border, #d1d6dc); vertical-align:top; } .ds-loss tbody tr { cursor:pointer; transition:background 0.15s ease-out; } .ds-loss tbody tr:hover { background:color-mix(in srgb, var(--sf-text, #16181b) 4%, transparent); } .ds-loss tbody tr:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:-2px; } .ds-loss tr.ds-current { background:color-mix(in srgb, var(--sf-primary, #1f55a6) 10%, transparent); } .ds-loss tr.ds-current .ds-rank { color:var(--sf-primary, #1f55a6); } .ds-rank { width:1.75rem; font-size:1.05rem; font-weight:800; font-stretch:72%; } .ds-code { display:inline-flex; align-items:center; gap:0.3rem; margin-right:0.4rem; font-size:0.72rem; font-weight:800; font-stretch:72%; letter-spacing:0.06em; } .ds-code::before { content:''; width:0.55rem; height:0.55rem; border-radius:1px; background:var(--c); } .ds-loss small { display:block; margin-top:0.1rem; font-size:0.84rem; color:var(--sf-muted, #5a6068); } .ds-bar { display:block; height:2px; margin-top:0.45rem; background:var(--sf-border, #d1d6dc); } .ds-bar i { display:block; height:100%; background:var(--sf-danger, #b8262d); } .ds-lost { width:1%; white-space:nowrap; text-align:right; font-size:1.15rem; font-weight:750; } .ds-lost span { font-size:0.8rem; font-weight:600; color:var(--sf-muted, #5a6068); } .ds-habits { display:flex; flex-direction:column; gap:0.45rem; padding:0.7rem 0 0.75rem; border-bottom:1px solid var(--sf-border, #d1d6dc); } .ds-habit-lead { margin:0; font-size:1.05rem; font-weight:650; line-height:1.35; } .ds-habit-bar { display:flex; gap:2px; height:8px; } .ds-habit-bar span { min-width:4px; border-radius:1px; background:var(--c); } .ds-habit-key { display:flex; flex-wrap:wrap; gap:0.25rem 0.9rem; margin:0; padding:0; list-style:none; } .ds-habit-key .ds-code { color:var(--sf-muted, #5a6068); }"
     },
     {
       "name": "Logbook Entry",
       "kind": "custom",
       "refersTo": "logbook-entry",
-      "description": "Diary feed entry: the day in a date margin once per day, ink rule opening the day, track at full column width 4:3, compact results line.",
-      "html": "<div class=\"ds-log\"><article class=\"ds-entry ds-opens\"><time class=\"ds-mark\"><span class=\"ds-wd\">Mar</span><span class=\"ds-dn\">6</span><span class=\"ds-wd\">Ott</span></time><div class=\"ds-main\"><header class=\"ds-head\"><a href=\"#\" class=\"ds-title\">Allenamento con l'Ora</a><span class=\"ds-codes\"><span class=\"ds-tag\">Uscita</span><span class=\"ds-tag\">Personale</span></span></header><a href=\"#\" class=\"ds-media\" tabindex=\"-1\" aria-hidden=\"true\"><svg viewBox=\"0 0 120 90\" width=\"100%\" height=\"100%\" aria-hidden=\"true\"><path d=\"M20 70 L45 20 L60 55 L85 25 L100 60\" fill=\"none\" stroke=\"#2f9be0\" stroke-width=\"2.5\"/></svg></a><dl class=\"ds-line\"><div><dt>Ora</dt><dd>15:10</dd></div><div><dt>Durata</dt><dd>48 min</dd></div><div><dt>Distanza</dt><dd>5.24 nm</dd></div></dl></div></article><article class=\"ds-entry\"><div></div><div class=\"ds-main\"><header class=\"ds-head\"><a href=\"#\" class=\"ds-title\">Uscita serale</a><span class=\"ds-codes\"><span class=\"ds-tag\">Uscita</span></span></header><dl class=\"ds-line\"><div><dt>Ora</dt><dd>18:40</dd></div><div><dt>Durata</dt><dd>1 h 05 min</dd></div></dl></div></article></div>",
-      "css": ".ds-log { max-width:760px; font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-variant-numeric:tabular-nums; color:var(--sf-text, #16181b); } .ds-entry { display:grid; grid-template-columns:6rem minmax(0,1fr); column-gap:1.5rem; padding:1rem 0 1.5rem; border-top:1px solid var(--sf-border, #d1d6dc); } .ds-entry.ds-opens { border-top:2px solid var(--sf-rule, #16181b); } .ds-mark { display:flex; flex-direction:column; line-height:1; } .ds-wd { font-size:0.8rem; font-weight:750; font-stretch:72%; letter-spacing:0.06em; text-transform:uppercase; color:var(--sf-muted, #5a6068); } .ds-dn { margin:0.15rem 0 0.25rem; font-size:4.5rem; font-weight:800; font-stretch:72%; letter-spacing:-0.02em; } .ds-main { display:flex; flex-direction:column; gap:0.6rem; min-width:0; } .ds-head { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:0.35rem 1rem; } .ds-title { font-size:1.2rem; font-weight:700; letter-spacing:-0.01em; color:inherit; text-decoration:none; } .ds-title:hover { text-decoration:underline; text-decoration-thickness:1px; } .ds-title:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:2px; } .ds-codes { display:flex; gap:0.35rem; } .ds-tag { padding:0.1rem 0.4rem; border-radius:2px; font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; background:var(--sf-surface-2, #e5e8ec); color:var(--sf-muted, #5a6068); } .ds-media { display:block; aspect-ratio:4/3; background:var(--sf-surface-2, #e5e8ec); border:1px solid var(--sf-border, #d1d6dc); border-radius:var(--sf-radius, 4px); overflow:hidden; transition:border-color 0.15s ease-out; } .ds-media:hover { border-color:var(--sf-rule, #16181b); } .ds-line { display:grid; grid-template-columns:repeat(auto-fit, minmax(5.5rem,1fr)); margin:0; border-top:1px solid var(--sf-rule, #16181b); border-bottom:1px solid var(--sf-border, #d1d6dc); } .ds-line > div { padding:0.4rem 0.9rem 0.45rem; border-left:1px solid var(--sf-border, #d1d6dc); } .ds-line > div:first-child { border-left:0; padding-left:0; } .ds-line dt { font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; color:var(--sf-muted, #5a6068); } .ds-line dd { margin:0.1rem 0 0; font-size:1.3rem; font-weight:700; letter-spacing:-0.01em; white-space:nowrap; } @media (max-width:560px) { .ds-entry { grid-template-columns:2.6rem minmax(0,1fr); column-gap:0.85rem; } .ds-dn { font-size:2.4rem; } .ds-wd { font-size:0.68rem; } .ds-line dd { font-size:1.02rem; } }"
+      "description": "Diary feed entry: the day in a date margin once per day, ink rule opening the day, track at full column width 4:3, compact results line under a hairline. Codes only where not the default; an outing with no image says so in one Pencil line.",
+      "html": "<div class=\"ds-log\"><article class=\"ds-entry ds-opens\"><time class=\"ds-mark\"><span class=\"ds-wd\">Mar</span><span class=\"ds-dn\">6</span><span class=\"ds-wd\">Ott</span></time><div class=\"ds-main\"><header class=\"ds-head\"><a href=\"#\" class=\"ds-title\">Allenamento con l'Ora</a><span class=\"ds-codes\"><span class=\"ds-tag\">Allenamento</span></span></header><a href=\"#\" class=\"ds-media\" tabindex=\"-1\" aria-hidden=\"true\"><svg viewBox=\"0 0 120 90\" width=\"100%\" height=\"100%\" aria-hidden=\"true\"><path d=\"M20 70 L45 20 L60 55 L85 25 L100 60\" fill=\"none\" stroke=\"#2f9be0\" stroke-width=\"2.5\"/></svg></a><dl class=\"ds-line\"><div><dt>Ora</dt><dd>15:10</dd></div><div><dt>Durata</dt><dd>48 min</dd></div><div><dt>Distanza</dt><dd>5.24 nm</dd></div></dl></div></article><article class=\"ds-entry\"><div></div><div class=\"ds-main\"><header class=\"ds-head\"><a href=\"#\" class=\"ds-title\">Uscita serale</a></header><p class=\"ds-notrack\">Nessuna traccia registrata</p><dl class=\"ds-line\"><div><dt>Ora</dt><dd>18:40</dd></div><div><dt>Durata</dt><dd>1 h 05 min</dd></div></dl></div></article></div>",
+      "css": ".ds-log { max-width:760px; font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-variant-numeric:tabular-nums; color:var(--sf-text, #16181b); } .ds-entry { display:grid; grid-template-columns:6rem minmax(0,1fr); column-gap:1.5rem; padding:1rem 0 1.5rem; border-top:1px solid var(--sf-border, #d1d6dc); } .ds-entry.ds-opens { border-top:2px solid var(--sf-rule, #16181b); } .ds-mark { display:flex; flex-direction:column; line-height:1; } .ds-wd { font-size:0.8rem; font-weight:750; font-stretch:72%; letter-spacing:0.06em; text-transform:uppercase; color:var(--sf-muted, #5a6068); } .ds-dn { margin:0.15rem 0 0.25rem; font-size:4.5rem; font-weight:800; font-stretch:72%; letter-spacing:-0.02em; } .ds-main { display:flex; flex-direction:column; gap:0.6rem; min-width:0; } .ds-head { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:0.35rem 1rem; } .ds-title { font-size:1.2rem; font-weight:700; letter-spacing:-0.01em; color:inherit; text-decoration:none; } .ds-title:hover { text-decoration:underline; text-decoration-thickness:1px; } .ds-title:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:2px; } .ds-codes { display:flex; gap:0.35rem; } .ds-tag { padding:0.1rem 0.4rem; border-radius:2px; font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; background:var(--sf-surface-2, #e5e8ec); color:var(--sf-muted, #5a6068); } .ds-media { display:block; aspect-ratio:4/3; background:var(--sf-surface-2, #e5e8ec); border:1px solid var(--sf-border, #d1d6dc); border-radius:var(--sf-radius, 4px); overflow:hidden; transition:border-color 0.15s ease-out; } .ds-media:hover { border-color:var(--sf-rule, #16181b); } .ds-line { display:grid; grid-template-columns:repeat(auto-fit, minmax(5.5rem,1fr)); margin:0; border-top:1px solid var(--sf-border, #d1d6dc); border-bottom:1px solid var(--sf-border, #d1d6dc); } .ds-line > div { padding:0.4rem 0.9rem 0.45rem; border-left:1px solid var(--sf-border, #d1d6dc); } .ds-line > div:first-child { border-left:0; padding-left:0; } .ds-line dt { font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; color:var(--sf-muted, #5a6068); } .ds-line dd { margin:0.1rem 0 0; font-size:1.3rem; font-weight:700; letter-spacing:-0.01em; white-space:nowrap; } .ds-notrack { margin:0; font-size:0.9rem; color:var(--sf-muted, #5a6068); } @media (max-width:560px) { .ds-head { flex-direction:column; align-items:flex-start; } .ds-entry { grid-template-columns:2.6rem minmax(0,1fr); column-gap:0.85rem; } .ds-dn { font-size:2.4rem; } .ds-wd { font-size:0.68rem; } .ds-line dd { font-size:1.02rem; } }"
     },
     {
       "name": "Map Overlay Control",
       "kind": "custom",
-      "refersTo": "map-overlay-control",
-      "description": "Solid overlay-ink badge over map tiles, same in both themes.",
-      "html": "<div class=\"ds-overlay\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5\"/><path d=\"m5 12 7-7 7 7\"/></svg> 12.0–16.0 kn</div>",
-      "css": ".ds-overlay { display:inline-flex; align-items:center; gap:0.35rem; padding:0.3rem 0.55rem; background:var(--sf-overlay, rgba(22,24,27,0.86)); color:var(--sf-overlay-text, #f2f4f6); border-radius:var(--sf-radius, 4px); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-size:0.85rem; font-weight:650; font-variant-numeric:tabular-nums; }"
+      "refersTo": "map-control-chip",
+      "description": "Solid overlay-ink badge and square control chips over map tiles, same in both themes.",
+      "html": "<div class=\"ds-overlay\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5\"/><path d=\"m5 12 7-7 7 7\"/></svg> 12.0–16.0 kn</div> <span class=\"ds-chips\"><button class=\"ds-chip ds-chip-zoom\" aria-label=\"Zoom in\">+</button><button class=\"ds-chip ds-chip-zoom\" aria-label=\"Zoom out\">&minus;</button></span> <button class=\"ds-chip\" aria-label=\"Livelli\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m12 2 10 5-10 5L2 7z\"/><path d=\"m2 17 10 5 10-5\"/><path d=\"m2 12 10 5 10-5\"/></svg></button>",
+      "css": ".ds-overlay { display:inline-flex; align-items:center; gap:0.35rem; padding:0.3rem 0.55rem; background:var(--sf-overlay, rgba(22,24,27,0.86)); color:var(--sf-overlay-text, #f2f4f6); border-radius:var(--sf-radius, 4px); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-size:0.85rem; font-weight:650; font-variant-numeric:tabular-nums; } .ds-chips { display:inline-flex; flex-direction:column; border-radius:var(--sf-radius, 4px); overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.28); vertical-align:middle; } .ds-chip { display:inline-grid; place-items:center; width:36px; height:36px; padding:0; border:0; border-radius:var(--sf-radius, 4px); background:var(--sf-overlay, rgba(22,24,27,0.86)); color:var(--sf-overlay-text, #f2f4f6); box-shadow:0 2px 8px rgba(0,0,0,0.28); font:600 18px/1 var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); cursor:pointer; vertical-align:middle; } .ds-chip:hover { background:var(--sf-chrome, #16181b); } .ds-chip:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:2px; } .ds-chips .ds-chip-zoom { width:32px; height:32px; border-radius:0; box-shadow:none; } .ds-chips .ds-chip-zoom + .ds-chip-zoom { border-top:1px solid color-mix(in srgb, var(--sf-overlay-text, #f2f4f6) 18%, transparent); }"
+    },
+    {
+      "name": "Next Outing",
+      "kind": "custom",
+      "refersTo": "section-title",
+      "description": "Closes the session analysis: 2px ink rule, condensed title, one large sentence led by the costliest habit's code, its numbers in Pencil.",
+      "html": "<section class=\"ds-next\"><h2>Da allenare alla prossima uscita</h2><p class=\"ds-next-focus\"><span class=\"ds-next-code\" style=\"--c:#2f9be0\">VIR</span>Virate: esci dalla manovra con più velocità.</p><p class=\"ds-next-why\">In media, nelle 5 manovre, scendi da 6.1 kn a 3.0 kn e ti servono 14 s per riprendere.</p></section>",
+      "css": ".ds-next { display:flex; flex-direction:column; gap:0.5rem; padding:1.1rem 0 1.25rem; border-top:2px solid var(--sf-rule, #16181b); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); color:var(--sf-text, #16181b); } .ds-next h2 { margin:0; font-size:1rem; font-weight:800; font-stretch:72%; letter-spacing:0.02em; text-transform:uppercase; } .ds-next-focus { display:flex; align-items:baseline; flex-wrap:wrap; gap:0.25rem 0.6rem; margin:0; max-width:40ch; font-size:clamp(1.25rem, 1.05rem + 0.9vw, 1.6rem); font-weight:700; line-height:1.25; letter-spacing:-0.01em; text-wrap:balance; } .ds-next-code { display:inline-flex; align-items:center; gap:0.3rem; font-size:0.78rem; font-weight:800; font-stretch:72%; letter-spacing:0.06em; transform:translateY(-0.15em); } .ds-next-code::before { content:''; width:0.6rem; height:0.6rem; border-radius:1px; background:var(--c); } .ds-next-why { margin:0; max-width:62ch; font-size:0.95rem; color:var(--sf-muted, #5a6068); }"
     }
   ],
   "narrative": {
@@ -730,7 +738,7 @@
       },
       {
         "name": "The Plain Code Rule",
-        "body": "Kind and ownership codes (outing, personal, crew, club, group) are plain code tags, Paper Shade with Pencil text, told apart by their words. The regatta code alone keeps a colour, the 14% Protest Amber tint, and a map category hue never becomes a tag colour.",
+        "body": "Kind and ownership codes (the activity type, crew, club, group) are plain code tags, Paper Shade with Pencil text, told apart by their words. A code says only what is not the diary's default: a solo outing carries no kind code and a personal entry no ownership code. The regatta code alone keeps a colour, the 14% Protest Amber tint, and a map category hue never becomes a tag colour.",
         "section": "colors"
       },
       {
@@ -742,6 +750,11 @@
         "name": "The Tabular Column Rule",
         "body": "Tabular figures are on for the whole document, and figures in a table are right-aligned. Numbers never get a monospace face.",
         "section": "typography"
+      },
+      {
+        "name": "The Table Stays a Table Rule",
+        "body": "On a phone (700px and below) a results table drops its optional columns and tightens its cells to 0.4rem; it never turns its rows into label/value tiles and never relies on a sideways scroll.",
+        "section": "layout"
       },
       {
         "name": "The Ruled, Not Boxed Rule",
@@ -767,6 +780,11 @@
         "name": "The One Margin Per Day Rule",
         "body": "A day is printed once, in the margin of its first entry. A new day starts under the ink rule; everything else that day sits under a hairline.",
         "section": "components"
+      },
+      {
+        "name": "The Same Number Rule",
+        "body": "A loss carries one number everywhere: its rank in the table, its tick on the speed strip, its step on the replay bar.",
+        "section": "components"
       }
     ],
     "dos": [
@@ -776,6 +794,8 @@
       "Do redefine any new themed colour in both dark blocks (the OS preference block and the explicit `data-theme=\"dark\"` block).",
       "Do keep map category colours fixed across themes and match a table code's swatch to its map pin colour.",
       "Do put controls that float over a map on the solid Overlay ink.",
+      "Do keep a results table a table on a phone by dropping its optional columns.",
+      "Do give a loss the same number in the ranking, on the speed strip and on the replay's stepper.",
       "Do set a feed of dated outings as a logbook: one date margin per day, a 2px ink rule opening the day, the track at full column width and a compact Results Row beneath it."
     ],
     "donts": [
@@ -786,7 +806,8 @@
       "Don't set figures in a monospace face or use translucent, blurred panels over a map.",
       "Don't give the chrome a light fill in light mode.",
       "Don't put a placeholder box where an entry has no image, or a text preview on a past entry.",
-      "Don't colour a kind or ownership code; the regatta's amber is the only coloured code."
+      "Don't colour a kind or ownership code; the regatta's amber is the only coloured code.",
+      "Don't turn a table's rows into label/value tiles on a phone, or make a map control round."
     ]
   }
 }

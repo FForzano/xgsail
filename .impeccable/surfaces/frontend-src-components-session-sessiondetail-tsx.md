@@ -40,10 +40,12 @@ STORY:
 FIRST VIEWPORT:
 - Standard app shell.
 - A header line: boat, date, duration, distance, average and max speed, as one ruled results row.
-- Below it, two columns on desktop and stacked on mobile:
-  - left: "Dove hai perso" (where you lost), the top 5 losses ranked;
+- Below it, on desktop, two columns:
+  - left: "Dove hai perso" (where you lost), headed by a habit line (the costliest habit, plus one bar split by kind), then the top 5 losses ranked;
   - right: the replay map.
-- The primary action is a tap on a loss row.
+- On a phone the replay comes FIRST and the ranking follows. This is the user's decision: they arrive from a diary entry whose picture is the track, and the map must be there. A ‹ n/N › loss stepper on the replay bar walks the ranking without scrolling.
+- The primary action is a tap on a loss row, or the stepper.
+- The analysis closes on "Da allenare alla prossima uscita" before the quieter outing record.
 
 FORM: Bacheca dei risultati, position 1 on my ordered list (IMPECCABLE'S PICK), seed key 202b38ba.
 
