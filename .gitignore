@@ -69,3 +69,12 @@ secrets.json
 
 # Media
 *.mp4
+
+# Impeccable: the shared config, design sidecar, surface briefs and critique
+# snapshots are versioned; per-developer settings, run logs and regenerable
+# review screenshots are not.
+.impeccable/config.local.json
+.impeccable/questions/
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/build/
