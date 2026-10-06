@@ -4,6 +4,10 @@ const KN_TO_MS = 0.514444;
 // A leg shorter than this is a transition between maneuvers, not a leg the
 // sailor could have sailed better — it would top the ranking on noise alone.
 const MIN_LEG_SEC = 60;
+// Below this a leg's VMG gap to the best one is inside what GPS speed and an
+// estimated wind direction can resolve; ranking it would present noise with
+// the same certainty as a slow tack.
+const MIN_LEG_GAP_KTS = 0.2;
 
 export type SessionLoss =
   | {
@@ -59,6 +63,7 @@ export function sessionLosses(legs: SessionLeg[], maneuvers: SessionManeuver[]):
     if (typed.length < 2) continue;
     const best = Math.max(...typed.map((l) => l.avg_vmg_kts));
     for (const leg of typed) {
+      if (best - leg.avg_vmg_kts < MIN_LEG_GAP_KTS) continue;
       const lostM = (best - leg.avg_vmg_kts) * KN_TO_MS * leg.duration_sec;
       if (lostM < 1) continue;
       losses.push({ kind: "leg", id: leg.id, atSec: leg.start_time, lostM, bestVmgKts: best, leg });
@@ -66,4 +71,35 @@ export function sessionLosses(legs: SessionLeg[], maneuvers: SessionManeuver[]):
   }
 
   return losses.sort((a, b) => b.lostM - a.lostM);
+}
+
+export type LossKind = SessionManeuver["maneuver_type"] | "upwind" | "downwind";
+
+export function lossKind(loss: SessionLoss): LossKind {
+  return loss.kind === "leg" ? (loss.leg.leg_type as "upwind" | "downwind") : loss.maneuver.maneuver_type;
+}
+
+export interface LossHabit {
+  kind: LossKind;
+  count: number;
+  lostM: number;
+  /** Share of the session's total, 0..1. */
+  share: number;
+  losses: SessionLoss[];
+}
+
+/** The same losses grouped by what was being done — tacks, gybes, upwind
+ * legs — worst first. A results sheet ranks boats, not mark roundings: the
+ * habit that cost most is what is worth practising, more than any single
+ * incident. */
+export function lossHabits(losses: SessionLoss[]): LossHabit[] {
+  const total = losses.reduce((sum, l) => sum + l.lostM, 0);
+  const byKind = new Map<LossKind, SessionLoss[]>();
+  for (const l of losses) byKind.set(lossKind(l), [...(byKind.get(lossKind(l)) ?? []), l]);
+  return [...byKind.entries()]
+    .map(([kind, group]) => {
+      const lostM = group.reduce((sum, l) => sum + l.lostM, 0);
+      return { kind, count: group.length, lostM, share: total > 0 ? lostM / total : 0, losses: group };
+    })
+    .sort((a, b) => b.lostM - a.lostM);
 }

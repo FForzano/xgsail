@@ -34,9 +34,23 @@ const GRAB_PX = 24;
 // ground of the current theme and so is read from the token at render.
 const TRIM_START_COLOR = "#3fbf7f";
 const TRIM_END_COLOR = "#e0654f";
-const trimMaskColor = () => getComputedStyle(document.documentElement).getPropertyValue("--sf-bg").trim();
+const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const trimMaskColor = () => token("--sf-bg");
 
 type TrimLabelProps = { viewBox?: { x?: number; y?: number } };
+
+/** A numbered square at the top of a loss tick, read like the rank column of
+ * the "Where you lost" table it points back to. */
+function lossTick(x: number, y: number, label: string) {
+  return (
+    <g>
+      <rect x={x - 7} y={y} width={14} height={14} rx={1} fill={token("--sf-danger")} />
+      <text x={x} y={y + 10.5} textAnchor="middle" fontSize={10} fontWeight={700} fill={token("--sf-bg")}>
+        {label}
+      </text>
+    </g>
+  );
+}
 
 /** Bracket-shaped grip on a trim handle: drawn on the kept side of the line
  * (start opens right, end opens left) so the two are told apart by shape as
@@ -62,8 +76,12 @@ export function SpeedChart({
   trimEndMs = null,
   onTrimStartChange,
   onTrimEndChange,
+  markers = [],
 }: {
   tracks: Track[];
+  /** Numbered moments drawn as ticks on the strip (the session page's worst
+   * losses, numbered like their rows in the ranking). */
+  markers?: Array<{ ms: number; label: string }>;
   vmg?: VmgPoint[] | null;
   /** When true, dragging moves the nearer of the two trim handles instead of
    * seeking playback — the session detail page's trim mode uses this so the
@@ -263,7 +281,19 @@ export function SpeedChart({
                             fill={trimMaskColor()} fillOpacity={0.72} />
             </>
           )}
-          <ReferenceLine yAxisId="sog" x={cursor} stroke="#fff" strokeWidth={1} />
+          {markers.map((m) => (
+            <ReferenceLine
+              key={m.label}
+              yAxisId="sog"
+              x={m.ms}
+              stroke={token("--sf-danger")}
+              strokeWidth={1}
+              strokeDasharray="2 3"
+              label={({ viewBox }: TrimLabelProps) => lossTick(viewBox?.x ?? 0, viewBox?.y ?? 0, m.label)}
+            />
+          ))}
+          {/* Page ink, not white: the strip sits on paper in the light theme. */}
+          <ReferenceLine yAxisId="sog" x={cursor} stroke={token("--sf-text")} strokeWidth={1} />
           {trimMode && trimStartMs != null && (
             <ReferenceLine
               yAxisId="sog"

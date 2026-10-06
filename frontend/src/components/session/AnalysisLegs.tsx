@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Trophy } from "lucide-react";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
-import { StatTile, StatTiles } from "./StatTile";
 import styles from "./SessionAnalysis.module.css";
 import { fmtDuration, fmtDistanceNm, fmtKnots, splitKnots } from "@/utils/format";
 import { legSequence } from "@/utils/legSequence";
@@ -19,9 +18,9 @@ export function legLabel(t: TFunction, leg: Pick<SessionLeg, "leg_type" | "in_be
  * sequence number (`legSequence`), shared with the map's leg markers, so it
  * deliberately doesn't follow the ranking order.
  *
- * `styles.rows` restyles the same markup as label/value rows below 700px —
- * seven columns cannot fit a phone, and `sf-tablewrap`'s horizontal scroll
- * inside a vertically scrolling page is the worst of both. */
+ * Seven columns cannot fit a phone: there the table drops to the four that
+ * say where the leg went wrong (#, kind, VMG, time) and stays a ruled table,
+ * rather than turning every row into a block of label/value tiles. */
 export function LegsTable({ legs }: { legs: SessionLeg[] }) {
   const { t } = useTranslation();
   const seq = legSequence(legs);
@@ -30,34 +29,29 @@ export function LegsTable({ legs }: { legs: SessionLeg[] }) {
 
   return (
     <>
-      <div className={`sf-tablewrap ${styles.rows}`}>
-        <table className="sf-table">
+      <div className="sf-tablewrap">
+        <table className={`sf-table ${styles.sheet}`}>
           <thead>
             <tr>
               <th>#</th>
               <th>{t("sessions.type")}</th>
-              <th>VMG</th>
-              <th>{t("sessions.avgSpeed")}</th>
-              <th>{t("sessions.maxSpeed")}</th>
-              <th>{t("sessions.distance")}</th>
-              <th>{t("sessions.duration")}</th>
+              <th className={styles.num}>VMG</th>
+              <th className={`${styles.num} ${styles.optional}`}>{t("sessions.avgSpeed")}</th>
+              <th className={`${styles.num} ${styles.optional}`}>{t("sessions.maxSpeed")}</th>
+              <th className={`${styles.num} ${styles.optional}`}>{t("sessions.distance")}</th>
+              <th className={styles.num}>{t("sessions.duration")}</th>
             </tr>
           </thead>
           <tbody>
             {pageItems.map((l) => (
               <tr key={l.id}>
-                <td data-head>#{seq.get(l.id)}</td>
-                <td data-head>{legLabel(t, l)}</td>
-                <td>
-                  <span className={styles.cellLabel}>VMG</span>{fmtKnots(l.avg_vmg_kts)}</td>
-                <td>
-                  <span className={styles.cellLabel}>{t("sessions.avgSpeed")}</span>{fmtKnots(l.avg_speed_kts)}</td>
-                <td>
-                  <span className={styles.cellLabel}>{t("sessions.maxSpeed")}</span>{fmtKnots(l.max_speed_kts)}</td>
-                <td>
-                  <span className={styles.cellLabel}>{t("sessions.distance")}</span>{fmtDistanceNm(l.distance_nm)}</td>
-                <td>
-                  <span className={styles.cellLabel}>{t("sessions.duration")}</span>{fmtDuration(l.duration_sec)}</td>
+                <td>{seq.get(l.id)}</td>
+                <td>{legLabel(t, l)}</td>
+                <td className={styles.num}>{fmtKnots(l.avg_vmg_kts)}</td>
+                <td className={`${styles.num} ${styles.optional}`}>{fmtKnots(l.avg_speed_kts)}</td>
+                <td className={`${styles.num} ${styles.optional}`}>{fmtKnots(l.max_speed_kts)}</td>
+                <td className={`${styles.num} ${styles.optional}`}>{fmtDistanceNm(l.distance_nm)}</td>
+                <td className={styles.num}>{fmtDuration(l.duration_sec)}</td>
               </tr>
             ))}
           </tbody>
@@ -183,7 +177,6 @@ const breakdownType = (l: SessionLeg) => {
 
 export function TackBreakdown({ legs, maxSpeedKts }: { legs: SessionLeg[]; maxSpeedKts?: number | null }) {
   const { t } = useTranslation();
-  const seq = legSequence(legs);
   // Session stats may not be computed yet; the fastest leg is the next best ceiling.
   const scaleMax = Math.max(maxSpeedKts ?? 0, ...legs.map((l) => l.max_speed_kts));
   // Fixed order rather than first-seen order, so the two groups don't swap
@@ -196,11 +189,6 @@ export function TackBreakdown({ legs, maxSpeedKts }: { legs: SessionLeg[]; maxSp
   return (
     <>
       {groups.map(({ legType, group }) => {
-        const bestVmgLeg = group.reduce((a, b) => (b.avg_vmg_kts > a.avg_vmg_kts ? b : a));
-        const fastest = group.reduce((a, b) => (b.max_speed_kts > a.max_speed_kts ? b : a));
-        const longest = group.reduce((a, b) => (b.distance_nm > a.distance_nm ? b : a));
-        const avgDistance = group.reduce((sum, l) => sum + l.distance_nm, 0) / group.length;
-        const avgDuration = group.reduce((sum, l) => sum + l.duration_sec, 0) / group.length;
         const compare: CompareRow[] = [
           {
             key: "vmg",
@@ -216,7 +204,6 @@ export function TackBreakdown({ legs, maxSpeedKts }: { legs: SessionLeg[]; maxSp
           },
         ];
         const hasTacks = compare.some((r) => r.port != null || r.starboard != null);
-        const legNo = (id: string) => t("sessions.legNumber", { n: seq.get(id) });
 
         return (
           <div key={legType} className={styles.tackblock}>
@@ -225,46 +212,6 @@ export function TackBreakdown({ legs, maxSpeedKts }: { legs: SessionLeg[]; maxSp
               {t(`sessions.${legType}`)}
               <span className={styles.countPill}>{group.length}</span>
             </h5>
-            {/* Four tiles, each with a second line, so the grid always closes on
-                a full row instead of leaving a ragged remainder. */}
-            <StatTiles>
-              <StatTile
-                label={t("sessions.bestVmg")}
-                value={
-                  <>
-                    {fmtKnots(bestVmgLeg.avg_vmg_kts)}
-                    <span className={styles.tileSub}>{legNo(bestVmgLeg.id)}</span>
-                  </>
-                }
-              />
-              <StatTile
-                label={t("sessions.maxSpeed")}
-                value={
-                  <>
-                    {fmtKnots(fastest.max_speed_kts)}
-                    <span className={styles.tileSub}>{legNo(fastest.id)}</span>
-                  </>
-                }
-              />
-              <StatTile
-                label={t("sessions.longestLeg")}
-                value={
-                  <>
-                    {fmtDistanceNm(longest.distance_nm)}
-                    <span className={styles.tileSub}>{legNo(longest.id)}</span>
-                  </>
-                }
-              />
-              <StatTile
-                label={t("sessions.avgPerLeg")}
-                value={
-                  <>
-                    {fmtDistanceNm(avgDistance)}
-                    <span className={styles.tileSub}>{fmtDuration(avgDuration)}</span>
-                  </>
-                }
-              />
-            </StatTiles>
             {hasTacks && <TackCompare rows={compare} scaleMax={scaleMax} />}
           </div>
         );

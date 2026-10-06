@@ -1,0 +1,58 @@
+/* Closes the analysis like the bottom line of a results sheet: an ink rule,
+   a condensed title, then one sentence set large enough to remember. */
+.next {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.1rem 0 1.25rem;
+  border-top: 2px solid var(--sf-rule);
+}
+.title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.focus {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  margin: 0;
+  max-width: 40ch;
+  font-size: clamp(1.25rem, 1.05rem + 0.9vw, 1.6rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.code {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.06em;
+  transform: translateY(-0.15em);
+}
+.code::before {
+  content: "";
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 1px;
+  background: var(--code-color, var(--sf-muted));
+}
+.focus[data-kind="tack"] { --code-color: var(--sf-tack); }
+.focus[data-kind="gybe"] { --code-color: var(--sf-gybe); }
+.focus[data-kind="course_change"] { --code-color: var(--sf-course-change); }
+.focus[data-kind="upwind"] { --code-color: var(--sf-leg-upwind); }
+.focus[data-kind="downwind"] { --code-color: var(--sf-leg-downwind); }
+.why {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--sf-muted);
+  font-size: 0.95rem;
+}

@@ -1,13 +1,4 @@
 import { useTranslation } from "react-i18next";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
@@ -35,118 +26,70 @@ const MANEUVER_SERIES = [
 
 type Violin = Record<string, Record<string, ViolinMetric>>;
 
-/** Counts per maneuver type — and, because each chip carries its series colour,
- * the legend for the charts below.
+/** One ruled row per maneuver kind: how many, and what each cost on average —
+ * speed lost, seconds to recover, seconds in the turn. Read as the results
+ * sheet reads a class: kind down the left, figures right-aligned. This
+ * replaced a chip row plus two bar charts that drew these same nine numbers;
+ * a table says them at a glance and keeps them comparable without an axis.
  *
- * This replaced a `sf-table` of count + the three averages: the averages were
- * the very numbers the charts beside it already plot, so the table was a second
- * rendering of the same data that also forced a horizontal scroll on a phone.
- * Counts are the only thing it said that the charts don't. */
-export function ManeuverCounts({
+ * Counts come from the analyzer's summary, falling back to the rows on screen
+ * when a session predates it; averages from its per-kind distributions. */
+export function ManeuverSummary({
   summary,
+  violin,
   maneuvers,
 }: {
   summary: Record<string, unknown> | null;
+  violin: Violin | null;
   maneuvers: SessionManeuver[];
 }) {
   const { t } = useTranslation();
+  const rows = MANEUVER_SERIES.map((s) => {
+    const group = (summary?.[s.summaryKey] ?? null) as Record<string, number> | null;
+    const count =
+      typeof group?.count === "number" ? group.count : maneuvers.filter((m) => m.maneuver_type === s.key).length;
+    const mean = (metric: string) => violin?.[s.key]?.[metric]?.mean ?? null;
+    return { s, count, loss: mean("speed_loss_kts"), recovery: mean("recovery_time_sec"), duration: mean("duration_sec") };
+  }).filter((r) => r.count > 0);
+  if (!rows.length) return null;
 
   return (
-    <ul className={styles.countChips}>
-      {MANEUVER_SERIES.map((s) => {
-        const group = (summary?.[s.summaryKey] ?? null) as Record<string, number> | null;
-        // The summary is computed once by the analyzer; fall back to the rows
-        // actually on screen when a session predates it or it failed to store.
-        const count =
-          typeof group?.count === "number"
-            ? group.count
-            : maneuvers.filter((m) => m.maneuver_type === s.key).length;
-        return (
-          <li key={s.key} className={styles.countChip}>
-            <span className={styles.swatch} style={{ background: s.color }} />
-            {t(s.i18nKey)}
-            <span className={styles.countPill}>{count}</span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-// --- tacks vs gybes ---------------------------------------------------------------------
-
-type MetricRow = { metric: string; [series: string]: string | number };
-type Series = (typeof MANEUVER_SERIES)[number];
-
-function metricRow(violin: Violin, series: readonly Series[], metric: string,
-                   label: string, decimals: number): MetricRow {
-  const row: MetricRow = { metric: label };
-  for (const s of series) {
-    const mean = violin[s.key]?.[metric]?.mean ?? 0;
-    row[s.key] = mean;
-    row[`${s.key}Label`] = mean.toFixed(decimals);
-  }
-  return row;
-}
-
-/** One chart per unit. The three metrics are knots and seconds, and a single
- * shared Y axis silently claimed they were comparable — a ~1 kn speed loss
- * rendered as a sliver next to a ~12 s recovery. Splitting by unit is the
- * only honest way to keep bar length meaning magnitude. */
-function MetricChart({ unit, data, series }: { unit: string; data: MetricRow[]; series: readonly Series[] }) {
-  return (
-    <div className={styles.chart}>
-      <span className={styles.chartUnit}>{unit}</span>
-      <ResponsiveContainer width="100%" height={170}>
-        <BarChart data={data} margin={{ top: 16, right: 4, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="var(--sf-border)" strokeDasharray="2 3" vertical={false} />
-          <XAxis
-            dataKey="metric"
-            interval={0}
-            tickLine={false}
-            axisLine={{ stroke: "var(--sf-border)" }}
-            tick={{ fontSize: 11, fill: "var(--sf-muted)" }}
-          />
-          <YAxis
-            width={30}
-            tickLine={false}
-            axisLine={false}
-            tick={{ fontSize: 10, fill: "var(--sf-muted)" }}
-          />
-          {series.map((s) => (
-            <Bar key={s.key} dataKey={s.key} fill={s.color} radius={[3, 3, 0, 0]} maxBarSize={44}>
-              {/* Values printed on the bars: a phone has no hover, so a tooltip
-                  would be the only way to read an exact number and often isn't. */}
-              <LabelList
-                dataKey={`${s.key}Label`}
-                position="top"
-                fontSize={10}
-                fill="var(--sf-muted)"
-              />
-            </Bar>
+    <div className="sf-tablewrap">
+      <table className={`sf-table ${styles.sheet}`}>
+        <thead>
+          <tr>
+            <th>{t("sessions.type")}</th>
+            <th className={styles.num}>{t("sessions.losses.count")}</th>
+            <th className={styles.num}>{t("sessions.speedLoss")}</th>
+            <th className={styles.num}>{t("sessions.recovery")}</th>
+            <th className={`${styles.num} ${styles.optional}`}>{t("sessions.duration")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ s, count, loss, recovery, duration }) => (
+            <tr key={s.key}>
+              <td>
+                <span className={styles.kindCell}>
+                  <span className={styles.swatch} style={{ background: s.color }} />
+                  {t(s.i18nKey)}
+                </span>
+              </td>
+              <td className={styles.num}>
+                {count}
+              </td>
+              <td className={styles.num}>
+                {fmtKnots(loss)}
+              </td>
+              <td className={styles.num}>
+                {fmtSeconds(recovery)}
+              </td>
+              <td className={`${styles.num} ${styles.optional}`}>
+                {fmtSeconds(duration)}
+              </td>
+            </tr>
           ))}
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-export function ManeuverStatsChart({ violin }: { violin: Violin }) {
-  const { t } = useTranslation();
-  // Tack and gybe always draw (an absent one is itself worth seeing as a gap);
-  // course_change only exists when someone has corrected a maneuver into one,
-  // and an always-empty third bar would just narrow the other two.
-  const series = MANEUVER_SERIES.filter((s) => s.key !== "course_change" || !!violin.course_change);
-  const speed = [metricRow(violin, series, "speed_loss_kts", t("sessions.speedLoss"), 2)];
-  const times = [
-    metricRow(violin, series, "recovery_time_sec", t("sessions.recovery"), 1),
-    metricRow(violin, series, "duration_sec", t("sessions.duration"), 1),
-  ];
-
-  return (
-    <div className={styles.chartGrid}>
-      <MetricChart unit="kn" data={speed} series={series} />
-      <MetricChart unit="s" data={times} series={series} />
+        </tbody>
+      </table>
     </div>
   );
 }

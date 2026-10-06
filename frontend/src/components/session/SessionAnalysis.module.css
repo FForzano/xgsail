@@ -37,8 +37,7 @@
 .tackblock {
   margin-top: 1rem;
 }
-/* Heading for a sub-group inside a block: a point-of-sail breakdown, the
-   maneuver comparison chart. */
+/* Heading for a sub-group inside a block: a point-of-sail breakdown. */
 .subheading {
   display: flex;
   align-items: center;
@@ -54,7 +53,7 @@
 .legDot {
   width: 0.6rem;
   height: 0.6rem;
-  border-radius: 50%;
+  border-radius: 1px;
   flex: none;
 }
 /* A count that has to read as a number the reader can use, not as decoration:
@@ -76,7 +75,7 @@
 .swatch {
   width: 0.7rem;
   height: 0.7rem;
-  border-radius: 3px;
+  border-radius: 1px;
   flex: none;
 }
 .optimalAngles {
@@ -170,28 +169,6 @@
   color: var(--sf-warning);
 }
 
-/* --- maneuver counts (AnalysisManeuvers) --- */
-.countChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.countChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.45rem;
-  background: var(--sf-surface-2);
-  border-radius: 2px;
-  font-size: 0.78rem;
-  font-weight: 750;
-  font-stretch: var(--sf-condensed);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
 
 /* --- collapsed raw lists --- */
 .collapsible {
@@ -239,29 +216,6 @@
 }
 
 /* --- tacks vs gybes charts --- */
-/* One chart per unit, side by side where there is room. The knots chart holds
-   a single metric, the seconds chart two, hence the uneven split. */
-.chartGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-  gap: 0.5rem;
-}
-@media (max-width: 700px) {
-  .chartGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.chart {
-  position: relative;
-  min-width: 0;
-}
-.chartUnit {
-  position: absolute;
-  top: 0;
-  left: 0;
-  font-size: 0.7rem;
-  color: var(--sf-muted);
-}
 
 /* --- paginated lists as rows on a phone --- */
 /* The leg list is seven columns wide and the maneuver list five or six. Neither
@@ -329,5 +283,35 @@
      need the full width. */
   .rows td[data-span] {
     grid-column: 1 / -1;
+  }
+}
+
+/* Figures right-aligned down their column, the way a results sheet sets them. */
+.num {
+  text-align: right;
+  white-space: nowrap;
+}
+.kindCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 650;
+}
+
+/* A results table that stays a table on a phone: the optional columns step
+   out instead of every row turning into a block of label/value pairs. */
+/* Beats the global `.sf-table th { text-align: left }` on specificity, so a
+   figure's head shares its right edge. */
+.sheet th.num {
+  text-align: right;
+}
+@media (max-width: 700px) {
+  .sheet th,
+  .sheet td {
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+  .sheet .optional {
+    display: none;
   }
 }

@@ -36,7 +36,9 @@ import { SessionAnalysis } from "@/components/session/SessionAnalysis";
 import { ShareImageModal } from "@/components/session/ShareImageModal";
 import { HealthCard } from "@/components/session/HealthCard";
 import { NavSourceModal } from "@/components/session/NavSourceModal";
-import { LossBoard } from "@/components/session/LossBoard";
+import { LossBoard, LossStepper } from "@/components/session/LossBoard";
+import { NextOuting } from "@/components/session/NextOuting";
+import { sessionLosses } from "@/utils/sessionLosses";
 import { SessionSummaryRow } from "@/components/session/SessionSummaryRow";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { fmtDateTime, userLabel } from "@/utils/format";
@@ -134,6 +136,7 @@ export function SessionDetail({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [addingCrew, setAddingCrew] = useState(false);
+  const [removingCrewId, setRemovingCrewId] = useState<UUID | null>(null);
   const [crewRole, setCrewRole] = useState<SailingRole>("crew");
   const [notesForm, setNotesForm] = useState({ notes: "", notes_shared: false });
   const originalNotesFormRef = useRef(notesForm);
@@ -436,7 +439,10 @@ export function SessionDetail({
   });
   const removeCrew = useMutation({
     mutationFn: (userId: UUID) => sessionsService.removeCrew(sessionId, userId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.crew(sessionId) }),
+    onSuccess: () => {
+      setRemovingCrewId(null);
+      return queryClient.invalidateQueries({ queryKey: sessionKeys.crew(sessionId) });
+    },
   });
   const updateCrewRole = useMutation({
     mutationFn: ({ userId, role }: { userId: UUID; role: SailingRole }) =>
@@ -829,6 +835,18 @@ export function SessionDetail({
     // above.
   }, [menuSignature]);
 
+  // The five worst moments, numbered on the speed strip in ranking order so a
+  // dip in the line and its row in "Where you lost" carry the same number.
+  const lossMarkers = useMemo(
+    () =>
+      analysis.data
+        ? sessionLosses(analysis.data.legs, analysis.data.maneuvers)
+            .slice(0, 5)
+            .map((l, i) => ({ ms: l.atSec * 1000, label: String(i + 1) }))
+        : [],
+    [analysis.data],
+  );
+
   if (session.isLoading) return <Spinner />;
   if (!session.data) return null;
   const s = session.data;
@@ -946,7 +964,15 @@ export function SessionDetail({
                       : undefined
                   }
                   controls={
-                    <Timeline overlay stepMs={medianIntervalMs(tracks[0]) * 5} />
+                    <Timeline
+                      overlay
+                      stepMs={medianIntervalMs(tracks[0]) * 5}
+                      extra={
+                        analysis.data && (
+                          <LossStepper legs={analysis.data.legs} maneuvers={analysis.data.maneuvers} />
+                        )
+                      }
+                    />
                   }
                   placementMode={maneuverEditMode}
                   onManeuverPlacement={handleManeuverPlacement}
@@ -991,6 +1017,7 @@ export function SessionDetail({
               <SpeedChart
                 tracks={tracks}
                 vmg={analysis.data?.vmg_series}
+                markers={lossMarkers}
                 trimMode={trimMode}
                 trimStartMs={trimDraftStartMs}
                 trimEndMs={trimDraftEndMs}
@@ -1014,6 +1041,12 @@ export function SessionDetail({
           refreshingWind={refreshWind.isPending || reanalysisPolling}
         />
       </div>
+      {analysis.data && <NextOuting legs={analysis.data.legs} maneuvers={analysis.data.maneuvers} />}
+
+      {/* Everything below is the outing's record (health, wind, crew, notes,
+          media): read after the diagnosis, so it sits under a quieter divider
+          rather than as one more equal-weight section. */}
+      <hr className={styles.recordDivider} />
 
       {/* Renders nothing unless this viewer may see someone's health data —
           see HealthCard, which also handles the multi-crew case. */}
@@ -1050,7 +1083,6 @@ export function SessionDetail({
                     />
                     <span>
                       <strong>{userLabel(c.user)}</strong>{" "}
-                      <span className="sf-muted">{c.user?.email}</span>{" "}
                       {canEditRole ? (
                         <select
                           className="sf-badge sf-badge--select"
@@ -1075,7 +1107,7 @@ export function SessionDetail({
                     <Button
                       variant="ghost"
                       className="sf-btn--sm"
-                      onClick={() => removeCrew.mutate(c.user_id)}
+                      onClick={() => setRemovingCrewId(c.user_id)}
                     >
                       {t("common.remove")}
                     </Button>
@@ -1259,6 +1291,17 @@ export function SessionDetail({
             {t("common.confirm")}
           </Button>
         </Modal>
+      )}
+      {removingCrewId && (
+        <ConfirmDialog
+          title={t("common.remove")}
+          message={t("sessions.removeCrewConfirm", {
+            name: userLabel(crew.data?.find((c) => c.user_id === removingCrewId)?.user),
+          })}
+          busy={removeCrew.isPending}
+          onConfirm={() => removeCrew.mutate(removingCrewId)}
+          onClose={() => setRemovingCrewId(null)}
+        />
       )}
       {deleting && (
         <ConfirmDialog

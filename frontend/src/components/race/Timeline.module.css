@@ -42,3 +42,12 @@
   background: color-mix(in srgb, currentColor 14%, transparent);
   border-color: color-mix(in srgb, currentColor 45%, transparent);
 }
+
+/* A phone's map is too narrow for every control on one line: when the bar
+   carries page extras (the loss stepper) the fine steps and the speed cycle
+   give way — the speed chart below is the scrubber anyway. */
+@media (max-width: 560px) {
+  .overlay.withExtra .secondary {
+    display: none;
+  }
+}

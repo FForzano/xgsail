@@ -70,10 +70,45 @@
 .table tbody tr:hover {
   background: color-mix(in srgb, var(--sf-text) 4%, transparent);
 }
-.table tbody tr:focus-visible {
-  outline: 2px solid var(--sf-primary);
-  outline-offset: -2px;
+/* --- habits: where the metres went, by kind --- */
+.habits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem 0 0.75rem;
+  border-bottom: 1px solid var(--sf-border);
 }
+.habitLead {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+/* One bar, each kind's share of the metres in its own map colour: the drop
+   from the first habit to the rest is read before any number. */
+.habitBar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+.habitSeg {
+  min-width: 4px;
+  background: var(--code-color);
+  border-radius: 1px;
+}
+.habitKey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.habitKey .code {
+  color: var(--sf-muted);
+}
+
 /* The row the replay cursor is inside right now. */
 .current,
 .table tbody tr.current:hover {
@@ -119,18 +154,29 @@
   border-radius: 1px;
   background: var(--code-color, var(--sf-muted));
 }
-.code[data-kind="tack"] { --code-color: var(--sf-tack); }
-.code[data-kind="gybe"] { --code-color: var(--sf-gybe); }
-.code[data-kind="course_change"] { --code-color: var(--sf-course-change); }
-.code[data-kind="upwind"] { --code-color: var(--sf-leg-upwind); }
-.code[data-kind="downwind"] { --code-color: var(--sf-leg-downwind); }
+:is(.code, .habitSeg)[data-kind="tack"] { --code-color: var(--sf-tack); }
+:is(.code, .habitSeg)[data-kind="gybe"] { --code-color: var(--sf-gybe); }
+:is(.code, .habitSeg)[data-kind="course_change"] { --code-color: var(--sf-course-change); }
+:is(.code, .habitSeg)[data-kind="upwind"] { --code-color: var(--sf-leg-upwind); }
+:is(.code, .habitSeg)[data-kind="downwind"] { --code-color: var(--sf-leg-downwind); }
 
 .what {
-  font-weight: 650;
   min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+}
+.what:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
 }
 .detail {
   display: block;
@@ -218,4 +264,22 @@ th.time {
   .table tbody .time {
     display: none;
   }
+}
+
+/* The stepper rides on the replay's overlay bar; a hairline sets it apart
+   from the playback buttons it sits beside. */
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+}
+.stepperCount {
+  min-width: 2.6rem;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }

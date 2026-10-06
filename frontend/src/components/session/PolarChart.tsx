@@ -105,6 +105,12 @@ function nearestPoint(pts: PolarPoint[], twaDeg: number): PolarPoint | null {
   return best;
 }
 
+/** How much sailing a wind band holds: the samples behind its points when the
+ * analyzer reports them, else just how many angles it covers. */
+function weight(pts: PolarPoint[]): number {
+  return pts.reduce((sum, p) => sum + (p.sample_count ?? 1), 0);
+}
+
 export function PolarChart({
   points,
   targetPoints,
@@ -120,7 +126,9 @@ export function PolarChart({
     avg: PolarPoint | null;
     max: PolarPoint | null;
   } | null>(null);
-  const [twsIndex, setTwsIndex] = useState(0);
+  // null until the user picks a band: the chart opens on the session's typical
+  // wind, not the lightest band (often two specks).
+  const [twsIndex, setTwsIndex] = useState<number | null>(null);
 
   const { groups, maxSpeed } = useMemo(() => {
     // Average-curve buckets come only from `points` — mixing in `targetPoints`
@@ -158,7 +166,15 @@ export function PolarChart({
 
   // Clamp in case a re-fetch shrinks the bucket count while a later index
   // was still selected (e.g. switching to a shorter session).
-  const activeIndex = Math.min(twsIndex, groups.length - 1);
+  // The session's typical wind, weighted by how much sailing each point holds;
+  // the chart opens on the band nearest it.
+  const totalWeight = groups.reduce((sum, g) => sum + weight(g.pts), 0);
+  const typicalTws = groups.reduce((sum, g) => sum + g.tws * weight(g.pts), 0) / Math.max(1, totalWeight);
+  const typical = groups.reduce(
+    (best, g, i) => (Math.abs(g.tws - typicalTws) < Math.abs(groups[best].tws - typicalTws) ? i : best),
+    0,
+  );
+  const activeIndex = Math.min(twsIndex ?? typical, groups.length - 1);
   const active = groups[activeIndex];
   const activeTarget = targetByTws.get(active.tws)?.slice().sort((a, b) => a.twa_deg - b.twa_deg) ?? [];
   // Curve color is fixed (not tied to the selected wind bin) — only the TWS
@@ -303,7 +319,7 @@ export function PolarChart({
       )}
       <div className={styles.legend}>
         {groups.length <= 1 && <span>{active.tws.toFixed(0)} kn TWS</span>}
-        <span className="sf-muted">0–{maxSpeed.toFixed(1)} kn</span>
+        <span className="sf-muted">{t("sessions.polarScale", { max: maxSpeed.toFixed(1) })}</span>
       </div>
       {!!targetPoints?.length && (
         <p className={`sf-muted ${styles.hint}`}>

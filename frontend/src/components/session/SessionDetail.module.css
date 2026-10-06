@@ -43,7 +43,10 @@
   font-size: 0.95rem;
 }
 
-/* Losses beside the replay on a wide screen; stacked (losses first) below. */
+/* Losses beside the replay on a wide screen. Stacked on a phone the replay
+   comes first: the sailor arrives from a diary entry whose track is its
+   picture, and the map is what confirms "this is that outing" — the ranking
+   follows, and the stepper on the replay bar walks it without scrolling. */
 .lead {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -51,14 +54,36 @@
   align-items: start;
 }
 @media (min-width: 1000px) {
+  .lead .replay {
+    order: 0;
+  }
   .lead {
     grid-template-columns: minmax(20rem, 5fr) minmax(0, 7fr);
     gap: 2rem;
   }
 }
 .replay {
+  order: -1;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   min-width: 0;
+}
+
+/* The divider between diagnosis and record: extra air and a hairline, so the
+   record reads as a second register without a label shouting it. */
+.recordDivider {
+  width: 100%;
+  margin: 2.25rem 0 0.5rem;
+  border: 0;
+  border-top: 1px solid var(--sf-border);
+}
+
+/* Desktop: the replay stays beside the ranking while the rows (and
+   "Show all") run on below it, instead of leaving a dead column. */
+@media (min-width: 1000px) {
+  .lead .replay {
+    position: sticky;
+    top: calc(var(--sf-navbar-h) + 1rem);
+  }
 }

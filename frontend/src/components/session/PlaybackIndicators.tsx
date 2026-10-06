@@ -21,13 +21,15 @@ export function PlaybackIndicators({ track, vmg }: { track: Track; vmg?: VmgPoin
 
   return (
     <StatTiles>
-      <StatTile label={t("race.speed")} value={fmtKnots(speed)} />
+      {/* SOG, not "speed (kn)": the value already carries its unit. */}
+      <StatTile label="SOG" value={fmtKnots(speed)} />
       <StatTile label={t("sessions.vmg")} value={fmtKnots(at?.vmg_kts)} />
       <StatTile
         label="TWA"
         value={at?.twa_deg != null ? `${Math.abs(at.twa_deg).toFixed(0)}°` : "—"}
       />
-      <StatTile label={t("sessions.distance")} value={fmtDistance(distanceM)} />
+      {/* "—" before the cursor has moved: a zero distance reads as a fault. */}
+      <StatTile label={t("sessions.distance")} value={distanceM > 0 ? fmtDistance(distanceM) : "—"} />
     </StatTiles>
   );
 }

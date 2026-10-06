@@ -15,7 +15,7 @@ import { windSummary } from "@/utils/windStats";
 import { WindChart } from "./WindChart";
 import { PolarChart } from "./PolarChart";
 import { LegsTable, TackBreakdown } from "./AnalysisLegs";
-import { ManeuverCounts, ManeuverStatsChart, ManeuversTable } from "./AnalysisManeuvers";
+import { ManeuverSummary, ManeuversTable } from "./AnalysisManeuvers";
 import type { PolarPoint, SessionManeuver, UUID } from "@/types";
 
 /** Rich per-session analysis (maneuvers, polar, VMG, …), assembled from its
@@ -81,7 +81,7 @@ export function SessionAnalysis({
     },
   });
 
-  if (analysis.isLoading) return <Section title={t("sessions.analysis")}><Spinner /></Section>;
+  if (analysis.isLoading) return <Section><Spinner /></Section>;
   if (!analysis.data) return null; // no analysis yet — hide the section entirely
   const a = analysis.data;
   const noWindData = a.unavailable_reason === "no_wind_data";
@@ -93,7 +93,9 @@ export function SessionAnalysis({
   const wind = windSummary(a.true_wind);
 
   return (
-    <Section title={t("sessions.analysis")}>
+    // No "Analysis" heading of its own: its first block's title would sit
+    // right under it with nothing between, two ruled heads in a row.
+    <Section>
       <div className="sf-section__body">
         {noWindData && (
           <p className={styles.noWindData}>
@@ -119,22 +121,12 @@ export function SessionAnalysis({
         {!!a.legs.length && (
           <AnalysisBlock title={t("sessions.legsSection")}>
             <TackBreakdown legs={a.legs} maxSpeedKts={maxSpeedKts} />
-            <CollapsibleList label={t("sessions.legs")} count={a.legs.length}>
-              <LegsTable legs={a.legs} />
-            </CollapsibleList>
+            <LegsTable legs={a.legs} />
           </AnalysisBlock>
         )}
         {hasManeuverBlock && (
           <AnalysisBlock title={t("sessions.maneuvers")}>
-            {/* Counts first — they double as the colour legend for the charts
-                right below, so neither needs its own. */}
-            <ManeuverCounts summary={a.maneuver_summary} maneuvers={visibleManeuvers} />
-            {a.violin && (
-              <div className={styles.tackblock}>
-                <h5 className={styles.subheading}>{t("sessions.maneuverStats")}</h5>
-                <ManeuverStatsChart violin={a.violin} />
-              </div>
-            )}
+            <ManeuverSummary summary={a.maneuver_summary} violin={a.violin} maneuvers={visibleManeuvers} />
             {!!visibleManeuvers.length && (
               <CollapsibleList label={t("sessions.maneuversList")} count={visibleManeuvers.length}>
                 <ManeuversTable
