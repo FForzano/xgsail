@@ -1,0 +1,752 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-06T00:00:00Z",
+  "title": "Design System: XGSail",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#f2f4f6",
+        "tonalRamp": [
+          "oklch(15.0% 0.003 247.9)",
+          "oklch(26.4% 0.003 247.9)",
+          "oklch(37.9% 0.003 247.9)",
+          "oklch(49.3% 0.003 247.9)",
+          "oklch(60.7% 0.003 247.9)",
+          "oklch(72.1% 0.003 247.9)",
+          "oklch(83.6% 0.003 247.9)",
+          "oklch(95.0% 0.003 247.9)"
+        ]
+      },
+      "sheet": {
+        "role": "neutral",
+        "displayName": "Sheet",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15.0% 0.000 89.9)",
+          "oklch(26.4% 0.000 89.9)",
+          "oklch(37.9% 0.000 89.9)",
+          "oklch(49.3% 0.000 89.9)",
+          "oklch(60.7% 0.000 89.9)",
+          "oklch(72.1% 0.000 89.9)",
+          "oklch(83.6% 0.000 89.9)",
+          "oklch(95.0% 0.000 89.9)"
+        ]
+      },
+      "paper-shade": {
+        "role": "neutral",
+        "displayName": "Paper Shade",
+        "canonical": "#e5e8ec",
+        "tonalRamp": [
+          "oklch(15.0% 0.006 255.5)",
+          "oklch(26.4% 0.006 255.5)",
+          "oklch(37.9% 0.006 255.5)",
+          "oklch(49.3% 0.006 255.5)",
+          "oklch(60.7% 0.006 255.5)",
+          "oklch(72.1% 0.006 255.5)",
+          "oklch(83.6% 0.006 255.5)",
+          "oklch(95.0% 0.006 255.5)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#d1d6dc",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 252.8)",
+          "oklch(26.4% 0.010 252.8)",
+          "oklch(37.9% 0.010 252.8)",
+          "oklch(49.3% 0.010 252.8)",
+          "oklch(60.7% 0.010 252.8)",
+          "oklch(72.1% 0.010 252.8)",
+          "oklch(83.6% 0.010 252.8)",
+          "oklch(95.0% 0.010 252.8)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#16181b",
+        "tonalRamp": [
+          "oklch(15.0% 0.007 258.4)",
+          "oklch(26.4% 0.007 258.4)",
+          "oklch(37.9% 0.007 258.4)",
+          "oklch(49.3% 0.007 258.4)",
+          "oklch(60.7% 0.007 258.4)",
+          "oklch(72.1% 0.007 258.4)",
+          "oklch(83.6% 0.007 258.4)",
+          "oklch(95.0% 0.007 258.4)"
+        ]
+      },
+      "pencil": {
+        "role": "neutral",
+        "displayName": "Pencil",
+        "canonical": "#5a6068",
+        "tonalRamp": [
+          "oklch(15.0% 0.015 255.6)",
+          "oklch(26.4% 0.015 255.6)",
+          "oklch(37.9% 0.015 255.6)",
+          "oklch(49.3% 0.015 255.6)",
+          "oklch(60.7% 0.015 255.6)",
+          "oklch(72.1% 0.015 255.6)",
+          "oklch(83.6% 0.015 255.6)",
+          "oklch(95.0% 0.015 255.6)"
+        ]
+      },
+      "results-blue": {
+        "role": "primary",
+        "displayName": "Results Blue",
+        "canonical": "#1f55a6",
+        "tonalRamp": [
+          "oklch(15.0% 0.078 258.8)",
+          "oklch(26.4% 0.095 258.8)",
+          "oklch(37.9% 0.111 258.8)",
+          "oklch(49.3% 0.127 258.8)",
+          "oklch(60.7% 0.141 258.8)",
+          "oklch(72.1% 0.125 258.8)",
+          "oklch(83.6% 0.109 258.8)",
+          "oklch(95.0% 0.093 258.8)"
+        ]
+      },
+      "results-blue-deep": {
+        "role": "primary",
+        "displayName": "Results Blue Deep",
+        "canonical": "#17468c",
+        "tonalRamp": [
+          "oklch(15.0% 0.070 258.7)",
+          "oklch(26.4% 0.084 258.7)",
+          "oklch(37.9% 0.099 258.7)",
+          "oklch(49.3% 0.113 258.7)",
+          "oklch(60.7% 0.126 258.7)",
+          "oklch(72.1% 0.112 258.7)",
+          "oklch(83.6% 0.097 258.7)",
+          "oklch(95.0% 0.083 258.7)"
+        ]
+      },
+      "committee-red": {
+        "role": "secondary",
+        "displayName": "Committee Red",
+        "canonical": "#b8262d",
+        "tonalRamp": [
+          "oklch(15.0% 0.100 24.4)",
+          "oklch(26.4% 0.120 24.4)",
+          "oklch(37.9% 0.141 24.4)",
+          "oklch(49.3% 0.162 24.4)",
+          "oklch(60.7% 0.180 24.4)",
+          "oklch(72.1% 0.159 24.4)",
+          "oklch(83.6% 0.139 24.4)",
+          "oklch(95.0% 0.118 24.4)"
+        ]
+      },
+      "starboard-green": {
+        "role": "tertiary",
+        "displayName": "Starboard Green",
+        "canonical": "#1d7346",
+        "tonalRamp": [
+          "oklch(15.0% 0.059 155.5)",
+          "oklch(26.4% 0.072 155.5)",
+          "oklch(37.9% 0.084 155.5)",
+          "oklch(49.3% 0.096 155.5)",
+          "oklch(60.7% 0.107 155.5)",
+          "oklch(72.1% 0.095 155.5)",
+          "oklch(83.6% 0.082 155.5)",
+          "oklch(95.0% 0.070 155.5)"
+        ]
+      },
+      "protest-amber": {
+        "role": "tertiary",
+        "displayName": "Protest Amber",
+        "canonical": "#95600a",
+        "tonalRamp": [
+          "oklch(15.0% 0.062 70.9)",
+          "oklch(26.4% 0.074 70.9)",
+          "oklch(37.9% 0.087 70.9)",
+          "oklch(49.3% 0.100 70.9)",
+          "oklch(60.7% 0.111 70.9)",
+          "oklch(72.1% 0.098 70.9)",
+          "oklch(83.6% 0.085 70.9)",
+          "oklch(95.0% 0.073 70.9)"
+        ]
+      },
+      "graphite": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "canonical": "#131416",
+        "tonalRamp": [
+          "oklch(15.0% 0.004 264.5)",
+          "oklch(26.4% 0.004 264.5)",
+          "oklch(37.9% 0.004 264.5)",
+          "oklch(49.3% 0.004 264.5)",
+          "oklch(60.7% 0.004 264.5)",
+          "oklch(72.1% 0.004 264.5)",
+          "oklch(83.6% 0.004 264.5)",
+          "oklch(95.0% 0.004 264.5)"
+        ]
+      },
+      "graphite-sheet": {
+        "role": "neutral",
+        "displayName": "Graphite Sheet",
+        "canonical": "#1d1f22",
+        "tonalRamp": [
+          "oklch(15.0% 0.006 258.4)",
+          "oklch(26.4% 0.006 258.4)",
+          "oklch(37.9% 0.006 258.4)",
+          "oklch(49.3% 0.006 258.4)",
+          "oklch(60.7% 0.006 258.4)",
+          "oklch(72.1% 0.006 258.4)",
+          "oklch(83.6% 0.006 258.4)",
+          "oklch(95.0% 0.006 258.4)"
+        ]
+      },
+      "graphite-shade": {
+        "role": "neutral",
+        "displayName": "Graphite Shade",
+        "canonical": "#282b2f",
+        "tonalRamp": [
+          "oklch(15.0% 0.008 255.6)",
+          "oklch(26.4% 0.008 255.6)",
+          "oklch(37.9% 0.008 255.6)",
+          "oklch(49.3% 0.008 255.6)",
+          "oklch(60.7% 0.008 255.6)",
+          "oklch(72.1% 0.008 255.6)",
+          "oklch(83.6% 0.008 255.6)",
+          "oklch(95.0% 0.008 255.6)"
+        ]
+      },
+      "graphite-hairline": {
+        "role": "neutral",
+        "displayName": "Graphite Hairline",
+        "canonical": "#34383d",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 254.0)",
+          "oklch(26.4% 0.010 254.0)",
+          "oklch(37.9% 0.010 254.0)",
+          "oklch(49.3% 0.010 254.0)",
+          "oklch(60.7% 0.010 254.0)",
+          "oklch(72.1% 0.010 254.0)",
+          "oklch(83.6% 0.010 254.0)",
+          "oklch(95.0% 0.010 254.0)"
+        ]
+      },
+      "night-ink": {
+        "role": "neutral",
+        "displayName": "Night Ink",
+        "canonical": "#e9eae6",
+        "tonalRamp": [
+          "oklch(15.0% 0.005 117.9)",
+          "oklch(26.4% 0.005 117.9)",
+          "oklch(37.9% 0.005 117.9)",
+          "oklch(49.3% 0.005 117.9)",
+          "oklch(60.7% 0.005 117.9)",
+          "oklch(72.1% 0.005 117.9)",
+          "oklch(83.6% 0.005 117.9)",
+          "oklch(95.0% 0.005 117.9)"
+        ]
+      },
+      "night-pencil": {
+        "role": "neutral",
+        "displayName": "Night Pencil",
+        "canonical": "#a0a6ad",
+        "tonalRamp": [
+          "oklch(15.0% 0.012 252.1)",
+          "oklch(26.4% 0.012 252.1)",
+          "oklch(37.9% 0.012 252.1)",
+          "oklch(49.3% 0.012 252.1)",
+          "oklch(60.7% 0.012 252.1)",
+          "oklch(72.1% 0.012 252.1)",
+          "oklch(83.6% 0.012 252.1)",
+          "oklch(95.0% 0.012 252.1)"
+        ]
+      },
+      "night-blue": {
+        "role": "primary",
+        "displayName": "Night Blue",
+        "canonical": "#84aef0",
+        "tonalRamp": [
+          "oklch(15.0% 0.058 259.2)",
+          "oklch(26.4% 0.071 259.2)",
+          "oklch(37.9% 0.083 259.2)",
+          "oklch(49.3% 0.095 259.2)",
+          "oklch(60.7% 0.106 259.2)",
+          "oklch(72.1% 0.093 259.2)",
+          "oklch(83.6% 0.081 259.2)",
+          "oklch(95.0% 0.069 259.2)"
+        ]
+      },
+      "night-blue-ink": {
+        "role": "primary",
+        "displayName": "Night Blue Ink",
+        "canonical": "#0d1726",
+        "tonalRamp": [
+          "oklch(15.0% 0.018 258.3)",
+          "oklch(26.4% 0.022 258.3)",
+          "oklch(37.9% 0.026 258.3)",
+          "oklch(49.3% 0.030 258.3)",
+          "oklch(60.7% 0.033 258.3)",
+          "oklch(72.1% 0.030 258.3)",
+          "oklch(83.6% 0.026 258.3)",
+          "oklch(95.0% 0.022 258.3)"
+        ]
+      },
+      "night-red": {
+        "role": "secondary",
+        "displayName": "Night Red",
+        "canonical": "#f07272",
+        "tonalRamp": [
+          "oklch(15.0% 0.086 21.9)",
+          "oklch(26.4% 0.104 21.9)",
+          "oklch(37.9% 0.121 21.9)",
+          "oklch(49.3% 0.139 21.9)",
+          "oklch(60.7% 0.155 21.9)",
+          "oklch(72.1% 0.137 21.9)",
+          "oklch(83.6% 0.119 21.9)",
+          "oklch(95.0% 0.101 21.9)"
+        ]
+      },
+      "night-green": {
+        "role": "tertiary",
+        "displayName": "Night Green",
+        "canonical": "#5cc995",
+        "tonalRamp": [
+          "oklch(15.0% 0.070 160.4)",
+          "oklch(26.4% 0.084 160.4)",
+          "oklch(37.9% 0.099 160.4)",
+          "oklch(49.3% 0.113 160.4)",
+          "oklch(60.7% 0.126 160.4)",
+          "oklch(72.1% 0.111 160.4)",
+          "oklch(83.6% 0.097 160.4)",
+          "oklch(95.0% 0.082 160.4)"
+        ]
+      },
+      "night-amber": {
+        "role": "tertiary",
+        "displayName": "Night Amber",
+        "canonical": "#e2b553",
+        "tonalRamp": [
+          "oklch(15.0% 0.070 84.4)",
+          "oklch(26.4% 0.084 84.4)",
+          "oklch(37.9% 0.098 84.4)",
+          "oklch(49.3% 0.113 84.4)",
+          "oklch(60.7% 0.125 84.4)",
+          "oklch(72.1% 0.111 84.4)",
+          "oklch(83.6% 0.097 84.4)",
+          "oklch(95.0% 0.082 84.4)"
+        ]
+      },
+      "chrome-ink": {
+        "role": "neutral",
+        "displayName": "Chrome Ink",
+        "canonical": "#16181b",
+        "tonalRamp": [
+          "oklch(15.0% 0.007 258.4)",
+          "oklch(26.4% 0.007 258.4)",
+          "oklch(37.9% 0.007 258.4)",
+          "oklch(49.3% 0.007 258.4)",
+          "oklch(60.7% 0.007 258.4)",
+          "oklch(72.1% 0.007 258.4)",
+          "oklch(83.6% 0.007 258.4)",
+          "oklch(95.0% 0.007 258.4)"
+        ]
+      },
+      "chrome-ink-night": {
+        "role": "neutral",
+        "displayName": "Chrome Ink (night)",
+        "canonical": "#0c0d0e",
+        "tonalRamp": [
+          "oklch(15.0% 0.003 248.0)",
+          "oklch(26.4% 0.003 248.0)",
+          "oklch(37.9% 0.003 248.0)",
+          "oklch(49.3% 0.003 248.0)",
+          "oklch(60.7% 0.003 248.0)",
+          "oklch(72.1% 0.003 248.0)",
+          "oklch(83.6% 0.003 248.0)",
+          "oklch(95.0% 0.003 248.0)"
+        ]
+      },
+      "chrome-text": {
+        "role": "neutral",
+        "displayName": "Chrome Text",
+        "canonical": "#f2f4f6",
+        "tonalRamp": [
+          "oklch(15.0% 0.003 247.9)",
+          "oklch(26.4% 0.003 247.9)",
+          "oklch(37.9% 0.003 247.9)",
+          "oklch(49.3% 0.003 247.9)",
+          "oklch(60.7% 0.003 247.9)",
+          "oklch(72.1% 0.003 247.9)",
+          "oklch(83.6% 0.003 247.9)",
+          "oklch(95.0% 0.003 247.9)"
+        ]
+      },
+      "chrome-muted": {
+        "role": "neutral",
+        "displayName": "Chrome Muted",
+        "canonical": "#a9aeb4",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 252.8)",
+          "oklch(26.4% 0.010 252.8)",
+          "oklch(37.9% 0.010 252.8)",
+          "oklch(49.3% 0.010 252.8)",
+          "oklch(60.7% 0.010 252.8)",
+          "oklch(72.1% 0.010 252.8)",
+          "oklch(83.6% 0.010 252.8)",
+          "oklch(95.0% 0.010 252.8)"
+        ]
+      },
+      "overlay": {
+        "role": "neutral",
+        "displayName": "Overlay",
+        "canonical": "rgba(22, 24, 27, 0.86)"
+      },
+      "overlay-night": {
+        "role": "neutral",
+        "displayName": "Overlay (night)",
+        "canonical": "rgba(12, 13, 14, 0.86)"
+      },
+      "scrim": {
+        "role": "neutral",
+        "displayName": "Scrim",
+        "canonical": "rgba(10, 11, 13, 0.62)"
+      },
+      "tack-blue": {
+        "role": "secondary",
+        "displayName": "Tack Blue (map category)",
+        "canonical": "#2f9be0",
+        "tonalRamp": [
+          "oklch(15.0% 0.077 242.1)",
+          "oklch(26.4% 0.093 242.1)",
+          "oklch(37.9% 0.109 242.1)",
+          "oklch(49.3% 0.124 242.1)",
+          "oklch(60.7% 0.138 242.1)",
+          "oklch(72.1% 0.123 242.1)",
+          "oklch(83.6% 0.107 242.1)",
+          "oklch(95.0% 0.091 242.1)"
+        ]
+      },
+      "course-change-green": {
+        "role": "secondary",
+        "displayName": "Course-change Green (map category)",
+        "canonical": "#3fbf7f",
+        "tonalRamp": [
+          "oklch(15.0% 0.080 157.3)",
+          "oklch(26.4% 0.097 157.3)",
+          "oklch(37.9% 0.114 157.3)",
+          "oklch(49.3% 0.131 157.3)",
+          "oklch(60.7% 0.145 157.3)",
+          "oklch(72.1% 0.128 157.3)",
+          "oklch(83.6% 0.112 157.3)",
+          "oklch(95.0% 0.095 157.3)"
+        ]
+      },
+      "gybe-coral": {
+        "role": "secondary",
+        "displayName": "Gybe Coral (map category)",
+        "canonical": "#e0654f",
+        "tonalRamp": [
+          "oklch(15.0% 0.087 31.9)",
+          "oklch(26.4% 0.105 31.9)",
+          "oklch(37.9% 0.123 31.9)",
+          "oklch(49.3% 0.141 31.9)",
+          "oklch(60.7% 0.157 31.9)",
+          "oklch(72.1% 0.139 31.9)",
+          "oklch(83.6% 0.121 31.9)",
+          "oklch(95.0% 0.103 31.9)"
+        ]
+      },
+      "upwind-violet": {
+        "role": "secondary",
+        "displayName": "Upwind Violet (map category)",
+        "canonical": "#9b6fe0",
+        "tonalRamp": [
+          "oklch(15.0% 0.092 299.6)",
+          "oklch(26.4% 0.111 299.6)",
+          "oklch(37.9% 0.130 299.6)",
+          "oklch(49.3% 0.149 299.6)",
+          "oklch(60.7% 0.166 299.6)",
+          "oklch(72.1% 0.147 299.6)",
+          "oklch(83.6% 0.128 299.6)",
+          "oklch(95.0% 0.109 299.6)"
+        ]
+      },
+      "reach-teal": {
+        "role": "secondary",
+        "displayName": "Reach Teal (map category)",
+        "canonical": "#0e93a8",
+        "tonalRamp": [
+          "oklch(15.0% 0.057 212.7)",
+          "oklch(26.4% 0.069 212.7)",
+          "oklch(37.9% 0.081 212.7)",
+          "oklch(49.3% 0.093 212.7)",
+          "oklch(60.7% 0.104 212.7)",
+          "oklch(72.1% 0.092 212.7)",
+          "oklch(83.6% 0.080 212.7)",
+          "oklch(95.0% 0.068 212.7)"
+        ]
+      },
+      "downwind-ochre": {
+        "role": "secondary",
+        "displayName": "Downwind Ochre (map category)",
+        "canonical": "#a5760a",
+        "tonalRamp": [
+          "oklch(15.0% 0.067 80.1)",
+          "oklch(26.4% 0.081 80.1)",
+          "oklch(37.9% 0.094 80.1)",
+          "oklch(49.3% 0.108 80.1)",
+          "oklch(60.7% 0.120 80.1)",
+          "oklch(72.1% 0.107 80.1)",
+          "oklch(83.6% 0.093 80.1)",
+          "oklch(95.0% 0.079 80.1)"
+        ]
+      },
+      "mark-amber": {
+        "role": "secondary",
+        "displayName": "Mark Amber (map category)",
+        "canonical": "#e0b24a",
+        "tonalRamp": [
+          "oklch(15.0% 0.072 84.8)",
+          "oklch(26.4% 0.087 84.8)",
+          "oklch(37.9% 0.102 84.8)",
+          "oklch(49.3% 0.117 84.8)",
+          "oklch(60.7% 0.130 84.8)",
+          "oklch(72.1% 0.115 84.8)",
+          "oklch(83.6% 0.100 84.8)",
+          "oklch(95.0% 0.085 84.8)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page title, normal width, sentence case; on a session, the boat's name."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Title of a signature table such as 'Dove hai perso'; condensed uppercase."
+      },
+      "section-title": {
+        "displayName": "Section Title",
+        "purpose": "Every Section head, over a 2px ink rule; condensed uppercase."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "Values in a results row and stat tiles; tabular."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text; tabular figures on globally."
+      },
+      "table": {
+        "displayName": "Table",
+        "purpose": "Table cell text."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Column heads, results-row labels, badges and codes; condensed uppercase."
+      }
+    },
+    "shadows": [
+      {
+        "name": "pop",
+        "value": "0 6px 20px rgba(16, 18, 20, 0.16)",
+        "purpose": "Popovers, comboboxes, options menus, floating help button (light). Dark: 0 6px 20px rgba(0, 0, 0, 0.5)."
+      },
+      {
+        "name": "map-lift",
+        "value": "0 2px 8px rgba(0, 0, 0, 0.28)",
+        "purpose": "Playback bar overlaid on the replay map."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "0.15s ease-out",
+        "purpose": "Background, border and colour changes on buttons, rows and progress bars."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "loss-compact",
+        "value": "520px",
+        "purpose": "Ranked table drops its time column."
+      },
+      {
+        "name": "results-compact",
+        "value": "560px",
+        "purpose": "Results row goes three to a line."
+      },
+      {
+        "name": "mobile",
+        "value": "700px",
+        "purpose": "Navbar becomes bottom action bar; tabs stick; .sf-bleed active."
+      },
+      {
+        "name": "lead-split",
+        "value": "1000px",
+        "purpose": "Session lead splits into losses 5fr / replay 7fr."
+      },
+      {
+        "name": "page-max",
+        "value": "1180px",
+        "purpose": "Centred page column cap."
+      }
+    ],
+    "themes": {
+      "light": "default :root",
+      "dark": "@media (prefers-color-scheme: dark) :root:not([data-theme=\"light\"]) and :root[data-theme=\"dark\"], identical token blocks"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled action on a screen: Results Blue, 4px corner.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Salva</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; justify-content:center; gap:0.4rem; min-height:2.5rem; padding:0.45rem 1rem; border:1px solid transparent; border-radius:var(--sf-radius, 4px); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-size:1rem; font-weight:650; line-height:1.2; cursor:pointer; transition:background 0.15s ease-out, border-color 0.15s ease-out, color 0.15s ease-out; } .ds-btn:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:2px; } .ds-btn-primary { background:var(--sf-primary, #1f55a6); color:var(--sf-primary-ink, #ffffff); } .ds-btn-primary:hover { background:var(--sf-primary-hover, #17468c); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary and toolbar actions: hairline border, ink text.",
+      "html": "<button class=\"ds-btn-ghost\">Annulla</button>",
+      "css": ".ds-btn-ghost { display:inline-flex; align-items:center; min-height:2.5rem; padding:0.45rem 1rem; background:transparent; border:1px solid var(--sf-border, #d1d6dc); border-radius:var(--sf-radius, 4px); color:var(--sf-text, #16181b); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-size:1rem; font-weight:650; cursor:pointer; transition:background 0.15s ease-out, border-color 0.15s ease-out; } .ds-btn-ghost:hover { background:var(--sf-surface-2, #e5e8ec); border-color:color-mix(in srgb, var(--sf-text, #16181b) 30%, var(--sf-border, #d1d6dc)); } .ds-btn-ghost:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:2px; }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field-input",
+      "description": "Labelled text field: Sheet fill, ink-mixed border, blue focus outline.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Numero velico</span><input class=\"ds-field-input\" value=\"ITA 1234\"></label>",
+      "css": ".ds-field { display:flex; flex-direction:column; gap:0.3rem; font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); } .ds-field-label { font-size:0.85rem; font-weight:650; color:var(--sf-muted, #5a6068); } .ds-field-input { min-height:2.5rem; padding:0.5rem 0.7rem; background:var(--sf-bg-2, #ffffff); border:1px solid color-mix(in srgb, var(--sf-text, #16181b) 22%, var(--sf-border, #d1d6dc)); border-radius:var(--sf-radius, 4px); color:var(--sf-text, #16181b); font:inherit; font-variant-numeric:tabular-nums; } .ds-field-input:focus { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:-1px; }"
+    },
+    {
+      "name": "Code Tag",
+      "kind": "chip",
+      "refersTo": "code-tag",
+      "description": "Short condensed uppercase status code, 2px corner, tinted by status.",
+      "html": "<span class=\"ds-tag\">Bozza</span> <span class=\"ds-tag ds-tag-danger\">DNF</span> <span class=\"ds-tag ds-tag-success\">Pubblicata</span>",
+      "css": ".ds-tag { display:inline-block; padding:0.1rem 0.4rem; border-radius:2px; font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-size:0.75rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; line-height:1.35; background:var(--sf-surface-2, #e5e8ec); color:var(--sf-muted, #5a6068); } .ds-tag-danger { background:color-mix(in srgb, var(--sf-danger, #b8262d) 14%, transparent); color:var(--sf-danger, #b8262d); } .ds-tag-success { background:color-mix(in srgb, var(--sf-success, #1d7346) 14%, transparent); color:var(--sf-success, #1d7346); }"
+    },
+    {
+      "name": "Navigation Bar",
+      "kind": "nav",
+      "refersTo": "navbar",
+      "description": "Ink chrome band in both themes; active link underlined in chrome text.",
+      "html": "<nav class=\"ds-nav\"><strong class=\"ds-nav-brand\">XGSail</strong><a class=\"ds-nav-link ds-active\" href=\"#\">Diario</a><a class=\"ds-nav-link\" href=\"#\">Registra</a><a class=\"ds-nav-link\" href=\"#\">Gruppi</a></nav>",
+      "css": ".ds-nav { display:flex; align-items:center; gap:1.25rem; height:56px; padding:0 1.25rem; background:var(--sf-chrome, #16181b); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); } .ds-nav-brand { color:var(--sf-chrome-text, #f2f4f6); font-size:1.1rem; font-weight:800; letter-spacing:-0.01em; } .ds-nav-link { padding:0.45rem 0.8rem; color:var(--sf-chrome-muted, #a9aeb4); font-weight:600; text-decoration:none; } .ds-nav-link:hover { color:var(--sf-chrome-text, #f2f4f6); } .ds-nav-link:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:2px; } .ds-nav-link.ds-active { color:var(--sf-chrome-text, #f2f4f6); box-shadow:inset 0 -2px 0 var(--sf-chrome-text, #f2f4f6); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "description": "Innermost discrete entity only (one boat, one entry); never wraps a region.",
+      "html": "<a class=\"ds-card\" href=\"#\"><strong>Brezza</strong><span>Laser · ITA 1234</span></a>",
+      "css": ".ds-card { display:flex; flex-direction:column; gap:0.35rem; padding:1rem 1.25rem; background:var(--sf-surface, #ffffff); border:1px solid var(--sf-border, #d1d6dc); border-radius:var(--sf-radius, 4px); color:var(--sf-text, #16181b); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); text-decoration:none; transition:border-color 0.15s ease; } .ds-card span { color:var(--sf-muted, #5a6068); font-size:0.9rem; } .ds-card:hover { border-color:var(--sf-rule, #16181b); } .ds-card:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:2px; }"
+    },
+    {
+      "name": "Results Row",
+      "kind": "custom",
+      "refersTo": "results-row-cell",
+      "description": "Session header totals as one ruled line: ink rule above, hairline cell dividers.",
+      "html": "<dl class=\"ds-results\"><div><dt>Durata</dt><dd>48 min</dd></div><div><dt>Distanza</dt><dd>5.26 nm</dd></div><div><dt>Velocità media</dt><dd>6.8 kn</dd></div><div><dt>Velocità max</dt><dd>9.3 kn</dd></div></dl>",
+      "css": ".ds-results { display:grid; grid-template-columns:repeat(auto-fit, minmax(7.5rem, 1fr)); margin:0; border-top:2px solid var(--sf-rule, #16181b); border-bottom:1px solid var(--sf-border, #d1d6dc); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-variant-numeric:tabular-nums; color:var(--sf-text, #16181b); } .ds-results > div { padding:0.55rem 0.9rem 0.6rem; border-left:1px solid var(--sf-border, #d1d6dc); } .ds-results > div:first-child { border-left:0; padding-left:0; } .ds-results dt { font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; color:var(--sf-muted, #5a6068); } .ds-results dd { margin:0.1rem 0 0; font-size:1.3rem; font-weight:700; letter-spacing:-0.01em; white-space:nowrap; }"
+    },
+    {
+      "name": "Ranked Loss Table",
+      "kind": "custom",
+      "refersTo": "table-head",
+      "description": "Signature 'Dove hai perso': losses ranked worst first; each row seeks the replay.",
+      "html": "<section class=\"ds-loss\"><div class=\"ds-loss-head\"><h2>Dove hai perso</h2><p><b>150 m</b> persi in 11 momenti</p></div><table><thead><tr><th>#</th><th>Momento</th><th class=\"ds-r\">Persi</th></tr></thead><tbody><tr tabindex=\"0\" class=\"ds-current\"><td class=\"ds-rank\">1</td><td><span class=\"ds-code\" style=\"--c:#2f9be0\">VIR</span> Virata<small>Da 6.1 kn a 2.5 kn, 27.0 s per riprendere velocità</small><i class=\"ds-bar\"><i style=\"width:100%\"></i></i></td><td class=\"ds-lost\">21<span> m</span></td></tr><tr tabindex=\"0\"><td class=\"ds-rank\">2</td><td><span class=\"ds-code\" style=\"--c:#9b6fe0\">BOL</span> Bolina, bordo 3<small>VMG 4.1 kn contro 4.2 kn del tuo bordo migliore</small><i class=\"ds-bar\"><i style=\"width:76%\"></i></i></td><td class=\"ds-lost\">16<span> m</span></td></tr></tbody></table></section>",
+      "css": ".ds-loss { font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-variant-numeric:tabular-nums; color:var(--sf-text, #16181b); } .ds-loss-head { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; padding-bottom:0.45rem; border-bottom:2px solid var(--sf-rule, #16181b); } .ds-loss-head h2 { margin:0; font-size:1.15rem; font-weight:800; font-stretch:72%; letter-spacing:0.02em; text-transform:uppercase; } .ds-loss-head p { margin:0; font-size:0.85rem; color:var(--sf-muted, #5a6068); } .ds-loss-head b { color:var(--sf-danger, #b8262d); font-weight:750; } .ds-loss table { width:100%; border-collapse:collapse; } .ds-loss th { padding:0.5rem 0.5rem 0.35rem; border-bottom:1px solid var(--sf-rule, #16181b); font-size:0.72rem; font-weight:750; font-stretch:72%; letter-spacing:0.04em; text-transform:uppercase; text-align:left; color:var(--sf-muted, #5a6068); } .ds-loss th.ds-r { text-align:right; } .ds-loss td { padding:0.6rem 0.5rem; border-bottom:1px solid var(--sf-border, #d1d6dc); vertical-align:top; } .ds-loss tbody tr { cursor:pointer; transition:background 0.15s ease-out; } .ds-loss tbody tr:hover { background:color-mix(in srgb, var(--sf-text, #16181b) 4%, transparent); } .ds-loss tbody tr:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:-2px; } .ds-loss tr.ds-current { background:color-mix(in srgb, var(--sf-primary, #1f55a6) 10%, transparent); } .ds-loss tr.ds-current .ds-rank { color:var(--sf-primary, #1f55a6); } .ds-rank { width:1.75rem; font-size:1.05rem; font-weight:800; font-stretch:72%; } .ds-code { display:inline-flex; align-items:center; gap:0.3rem; margin-right:0.4rem; font-size:0.72rem; font-weight:800; font-stretch:72%; letter-spacing:0.06em; } .ds-code::before { content:''; width:0.55rem; height:0.55rem; border-radius:1px; background:var(--c); } .ds-loss small { display:block; margin-top:0.1rem; font-size:0.84rem; color:var(--sf-muted, #5a6068); } .ds-bar { display:block; height:2px; margin-top:0.45rem; background:var(--sf-border, #d1d6dc); } .ds-bar i { display:block; height:100%; background:var(--sf-danger, #b8262d); } .ds-lost { width:1%; white-space:nowrap; text-align:right; font-size:1.15rem; font-weight:750; } .ds-lost span { font-size:0.8rem; font-weight:600; color:var(--sf-muted, #5a6068); }"
+    },
+    {
+      "name": "Map Overlay Control",
+      "kind": "custom",
+      "refersTo": "map-overlay-control",
+      "description": "Solid overlay-ink badge over map tiles, same in both themes.",
+      "html": "<div class=\"ds-overlay\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 19V5\"/><path d=\"m5 12 7-7 7 7\"/></svg> 12.0–16.0 kn</div>",
+      "css": ".ds-overlay { display:inline-flex; align-items:center; gap:0.35rem; padding:0.3rem 0.55rem; background:var(--sf-overlay, rgba(22,24,27,0.86)); color:var(--sf-overlay-text, #f2f4f6); border-radius:var(--sf-radius, 4px); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); font-size:0.85rem; font-weight:650; font-variant-numeric:tabular-nums; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Bacheca dei risultati",
+    "overview": "XGSail is set like the results sheet the race committee pins on the club noticeboard after racing: paper and ink, ruled tables, condensed uppercase column heads, right-aligned tabular figures, and short uppercase codes in the manner of DNF and OCS. The ranking itself is the emphasis. A region of the page reads as a ruled block of the sheet, not as a box floating on a background, and a figure is something read down a column.\n\nLight and dark are one system. Light is a cool paper-white ground with near-black ink; dark is the same sheet read at night, a graphite ground with paper-white ink. Every themed colour is redefined once for dark, so a component that reads only the shared tokens themes itself. The app chrome (top navbar on desktop, bottom action bar on phones) is an ink band in both themes, which frames the sheet the way the noticeboard frames the paper. Map tiles are the one surface the theme cannot touch, so everything drawn on them stays fixed.\n\nDensity is that of a printed table: hairline rules, tight cell padding, one weight family doing all the work through width and weight rather than through size jumps. The user explicitly rejected anything that reads as a SaaS dashboard: no grid of rounded KPI tiles, no soft cards on a tinted canvas.\n\nThe session analysis surface is the one rebuilt in depth. The other areas (Diario lists, Gruppi, Profilo, Registra, landing) currently inherit these tokens and the global primitives without having been recomposed; they are not yet expressions of the world beyond that inheritance.",
+    "keyCharacteristics": [
+      "Paper and ink, light and dark designed as one sheet.",
+      "Ruled tables are the primary component: an ink rule under the head, hairlines between rows.",
+      "Archivo set condensed and uppercase for headers, column heads, codes and labels; tabular figures everywhere.",
+      "Corners at most 4px; circles only for avatars, map pins and on-water recording controls.",
+      "Flat on the page; shadow only for what floats over a map or the page.",
+      "An ink chrome band in both themes."
+    ],
+    "rules": [
+      {
+        "name": "The Committee Red Rule",
+        "body": "Red means something was lost, penalised or destroyed. It is never decoration and never a brand accent.",
+        "section": "colors"
+      },
+      {
+        "name": "The Navigation Lights Rule",
+        "body": "Port is red and starboard is green, taken from the danger and success tokens, because it is the one colour pairing a sailor reads without a legend. Do not recolour a tack comparison.",
+        "section": "colors"
+      },
+      {
+        "name": "The Fixed Tile Rule",
+        "body": "The map category colours never change with the theme, and they are used as fills, swatches, pins and lines, never as text on the page ground.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Band Rule",
+        "body": "The app chrome is an ink band in both themes. Light mode does not get a white navbar.",
+        "section": "colors"
+      },
+      {
+        "name": "The Header Row Rule",
+        "body": "The condensed uppercase cut belongs to things that head or classify: section titles, column heads, labels, codes and tags. Values, names and prose stay at normal width in sentence case.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Column Rule",
+        "body": "Tabular figures are on for the whole document, and figures in a table are right-aligned. Numbers never get a monospace face.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ruled, Not Boxed Rule",
+        "body": "A page-level region is a Section: heading, actions, content, no border, surface or radius. A Card is reserved for one innermost discrete entity (one boat, one mark, one entry). A region listing card-shaped items is a Section of those items or of flat ruled rows, never a Card of Cards.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Sheet Rule",
+        "body": "Nothing that sits in the page flow casts a shadow. If an element needs a shadow, it is floating; otherwise it needs a rule.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Opaque Overlay Rule",
+        "body": "Controls over a map use the solid Overlay ink, not translucency or blur, because whatever tile sits behind them would otherwise decide their contrast.",
+        "section": "elevation"
+      },
+      {
+        "name": "The 4px Ceiling Rule",
+        "body": "No surface on the page rounds past 4px, and nothing on the page is a pill.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do separate page regions with a 2px ink rule under a condensed uppercase title, and rows with 1px hairlines.",
+      "Do set every figure tabular and right-align figures in a table.",
+      "Do use Committee Red only for loss, penalty, port and destructive actions, and Results Blue for links, focus and selection.",
+      "Do redefine any new themed colour in both dark blocks (the OS preference block and the explicit `data-theme=\"dark\"` block).",
+      "Do keep map category colours fixed across themes and match a table code's swatch to its map pin colour.",
+      "Do put controls that float over a map on the solid Overlay ink."
+    ],
+    "donts": [
+      "Don't compose a screen as a grid of rounded KPI tiles or soft cards; the user rejected the SaaS-dashboard look.",
+      "Don't round anything past 4px or make a pill; circles are only for avatars, map pins and Registra's on-water controls.",
+      "Don't nest a Card inside a Card or box a page region; use a Section.",
+      "Don't use a map category colour as text on the page ground.",
+      "Don't set figures in a monospace face or use translucent, blurred panels over a map.",
+      "Don't give the chrome a light fill in light mode."
+    ]
+  }
+}

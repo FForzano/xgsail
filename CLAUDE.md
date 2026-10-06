@@ -322,6 +322,17 @@ is what made the detail pages nest a box inside a box:
   that lists card-shaped items is a `Section` containing those items (or
   flat `sf-strip` rows), never a `Card` of `Card`s.
 
+**Light and dark are one token set.** Every colour in `global.css`'s `:root`
+is redefined for dark (OS preference, or `data-theme="dark"`). A component
+that reads only `var(--sf-*)` themes itself, while a hex in a CSS Module breaks
+one of the two themes. The exceptions are deliberate: the categorical
+map/series tokens (`--sf-tack`, `--sf-course-change`, `--sf-gybe`,
+`--sf-leg-*`, `--sf-mark`) are the same in both themes, because they sit on map
+tiles, which don't change with the theme. Use them, not
+`--sf-primary`/`--sf-success`, for anything drawn on a map, or a marker changes
+colour when the theme flips. Controls floating over a map use `--sf-overlay` /
+`--sf-overlay-text`.
+
 `.sf-bleed` (global, mobile-only) cancels `.sf-main`'s `--sf-page-pad`
 inset so a map/chart child of a `Section` runs edge-to-edge on a phone —
 the replacement for the old `sf-card--flush` / `sf-card--flush-top` map
