@@ -48,6 +48,8 @@
   --sf-leg-downwind: #a5760a;
   /* Race marks on the map: amber buoys, fixed for the same reason. */
   --sf-mark: #e0b24a;
+  /* Paper edge for anything laid on a map tile (a photo inset). */
+  --sf-tile-ring: #ffffff;
   /* Horizontal page inset (.sf-main); .sf-bleed cancels exactly this much. */
   --sf-page-pad: 1.25rem;
   --sf-radius: 4px;
@@ -481,6 +483,32 @@ body.sf-nav-mode .sf-shell {
 }
 .sf-tabs::-webkit-scrollbar {
   display: none;
+}
+/* SectionLayout's bar carries the tour help button at its end: the tabs
+   scroll in their own strip, so the button reserves its width and never
+   sits on top of the last tab. */
+.sf-tabs--with-help {
+  overflow-x: visible;
+}
+.sf-tabs__scroll {
+  display: flex;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sf-tabs__scroll::-webkit-scrollbar {
+  display: none;
+}
+@media (max-width: 560px) {
+  .sf-tabs__scroll {
+    gap: 0;
+  }
+  .sf-tabs__scroll .sf-tab {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
 }
 .sf-tab {
   padding: 0.6rem 0.9rem;
@@ -1119,36 +1147,23 @@ body.sf-nav-mode .sf-shell {
   background: color-mix(in srgb, var(--sf-danger) 14%, transparent);
   color: var(--sf-danger);
 }
-/* Eventi tab: regate vs uscite sociali need to be told apart at a glance.
-   The category badges below borrow the fixed map hues, which are too light
-   to read as text on paper; mixing each with the page ink keeps the hue and
-   clears AA in both themes. */
+/* Eventi tab: regate vs uscite sociali need to be told apart at a glance —
+   the regatta keeps the amber the world reserves for it; every other kind
+   and ownership code is a plain code tag, told apart by its text. The fixed
+   map hues never become text on the page ground (DESIGN.md, Fixed Tile). */
 .sf-badge--regatta {
   background: color-mix(in srgb, var(--sf-warning) 14%, transparent);
   color: var(--sf-warning);
 }
-.sf-badge--activity {
-  background: color-mix(in srgb, var(--sf-leg-upwind) 14%, transparent);
-  color: color-mix(in srgb, var(--sf-leg-upwind) 55%, var(--sf-text));
-}
-/* Diario: personal vs. club vs. group ownership needs to be told apart at a
-   glance too, distinct from the regatta/activity kind badge above. */
-.sf-badge--personal {
-  background: color-mix(in srgb, var(--sf-primary) 14%, transparent);
-  color: var(--sf-primary);
-}
-.sf-badge--club {
-  background: color-mix(in srgb, var(--sf-leg-reach) 14%, transparent);
-  color: color-mix(in srgb, var(--sf-leg-reach) 55%, var(--sf-text));
-}
-.sf-badge--group {
-  background: color-mix(in srgb, var(--sf-leg-downwind) 14%, transparent);
-  color: color-mix(in srgb, var(--sf-leg-downwind) 55%, var(--sf-text));
-}
-/* An outing somebody else started that I sailed — it belongs in my diary, but
-   calling it "Personale" would suggest I can edit it. */
+/* Kind and ownership codes (Diario: personal vs. club vs. group vs. "crew" —
+   an outing somebody else started that I sailed, which calling "Personale"
+   would wrongly suggest I can edit). Told apart by their text. */
+.sf-badge--activity,
+.sf-badge--personal,
+.sf-badge--club,
+.sf-badge--group,
 .sf-badge--crew {
-  background: color-mix(in srgb, var(--sf-muted) 14%, transparent);
+  background: var(--sf-surface-2);
   color: var(--sf-muted);
 }
 /* Smaller variant for tight contexts (under a name in a roster row) —

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { UUID } from "@/types";
 import { useDiaryFeed } from "@/hooks/useDiaryFeed";
-import { EventRow } from "@/components/diario/EventRow";
+import { EventRow, opensDay } from "@/components/diario/EventRow";
 import { DiaryToolbar } from "@/components/diario/DiaryToolbar";
 import feedStyles from "@/components/diario/EventRow.module.css";
 import { Spinner } from "@/components/ui/Spinner";
@@ -30,10 +30,11 @@ export function ClubsDiaryPage() {
       ) : (
         <>
           <div className={feedStyles.feed}>
-            {items.map((i) => (
+            {items.map((i, index) => (
               <EventRow
                 key={`${i.kind}-${i.id}`}
                 item={i}
+                showDay={opensDay(items, index)}
                 manage={false}
                 open={openRegattaId === i.id}
                 onToggle={() => setOpenRegattaId(openRegattaId === i.id ? null : i.id)}

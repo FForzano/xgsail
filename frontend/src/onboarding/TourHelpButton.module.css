@@ -21,16 +21,12 @@
   color: var(--sf-chrome-text);
 }
 
-/* Phone: pinned to the right end of the section tab bar, which scrolls
-   horizontally underneath it, so it stays reachable however long the tabs
-   run. Hidden on desktop, where the navbar copy takes over. */
+/* Phone: at the end of the section tab bar, beside (not over) the tabs'
+   own scrolling strip. Hidden on desktop, where the navbar copy takes over. */
 .tabs {
-  position: sticky;
-  right: 0;
-  margin-left: auto;
-  width: 2.5rem;
+  width: 2.25rem;
   align-self: stretch;
-  background: var(--sf-bg);
+  background: transparent;
   color: var(--sf-muted);
 }
 .tabs:hover {

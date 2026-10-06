@@ -45,13 +45,18 @@ export function SectionLayout({
 }) {
   return (
     <div className="sf-section">
-      <nav className={`sf-tabs${sticky ? "" : " sf-tabs--static"}`} aria-label="Section">
-        {tabs.map((tab) => (
-          <NavLink key={tab.to} to={tab.to} end={tab.end} data-tour={tab.dataTour} className="sf-tab">
-            {tab.label}
-            {!!tab.badge && <span className="sf-tab__badge">{tab.badge}</span>}
-          </NavLink>
-        ))}
+      <nav
+        className={`sf-tabs${sticky ? " sf-tabs--with-help" : " sf-tabs--static"}`}
+        aria-label="Section"
+      >
+        <div className="sf-tabs__scroll">
+          {tabs.map((tab) => (
+            <NavLink key={tab.to} to={tab.to} end={tab.end} data-tour={tab.dataTour} className="sf-tab">
+              {tab.label}
+              {!!tab.badge && <span className="sf-tab__badge">{tab.badge}</span>}
+            </NavLink>
+          ))}
+        </div>
         {sticky && <TourHelpButton placement="tabs" />}
       </nav>
       {/* Only the outermost SectionLayout shows the indicator — a nested one

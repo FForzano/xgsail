@@ -430,6 +430,12 @@ export interface Activity {
   // diary card's cover. `thumbnail` stays the worker-rendered track overlay.
   cover_photo: ImageRef | null;
   photo_count: number;
+  // Batched per page by the list endpoints (repos.activities.session_totals):
+  // distance/duration are set only for a one-session activity, since several
+  // boats' tracks added together are not a distance anyone sailed.
+  session_count: number;
+  distance_m: number | null;
+  duration_s: number | null;
 }
 
 // Fixed set enforced by a DB check constraint (backend/db/models/activity.py

@@ -42,6 +42,7 @@ import {
 } from "./ids";
 import {
   demoAvgHr,
+  demoStats,
   demoEndIso,
   demoEnergy,
   demoGps,
@@ -99,6 +100,14 @@ const sessionPhoto = (
 
 const daysFromNow = (days: number): string =>
   new Date(Date.now() + days * 86_400_000).toISOString();
+
+/** A day relative to today at a fixed clock time — an event's start, which
+ * would otherwise read as whatever minute the tour happens to run. */
+const dayAt = (days: number, hours: number, minutes = 0): string => {
+  const d = new Date(Date.now() + days * 86_400_000);
+  d.setHours(hours, minutes, 0, 0);
+  return d.toISOString();
+};
 
 // --- people -------------------------------------------------------------------
 
@@ -236,11 +245,14 @@ export const demoClubActivities: Activity[] = [
     group_id: null,
     race_id: null,
     created_by: DEMO_SKIPPER_ID,
-    started_at: daysFromNow(4),
+    started_at: dayAt(4, 14, 30),
     ended_at: null,
     thumbnail: null,
     cover_photo: null,
     photo_count: 0,
+    session_count: 0,
+    distance_m: null,
+    duration_s: null,
   },
   {
     id: DEMO_PAST_ACTIVITY_ID,
@@ -253,11 +265,14 @@ export const demoClubActivities: Activity[] = [
     group_id: null,
     race_id: null,
     created_by: DEMO_SKIPPER_ID,
-    started_at: daysFromNow(-11),
-    ended_at: daysFromNow(-11),
+    started_at: dayAt(-11, 14, 0),
+    ended_at: dayAt(-11, 16, 30),
     thumbnail: null,
     cover_photo: null,
     photo_count: 0,
+    session_count: 0,
+    distance_m: null,
+    duration_s: null,
   },
 ];
 
@@ -367,6 +382,9 @@ export const demoActivity: Activity = {
   thumbnail: imageUrl("#0b2239", "#2f9be0", "🗺"),
   cover_photo: demoSessionPhotos[0],
   photo_count: demoSessionPhotos.length,
+  session_count: 1,
+  distance_m: demoStats.distance_m,
+  duration_s: demoStats.duration_s,
 };
 
 export const demoSession: Session = {

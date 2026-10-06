@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { InputField } from "@/components/ui/InputField";
 import { RichTextField } from "@/components/ui/RichTextField";
-import { EventRow, type EventItem } from "@/components/diario/EventRow";
+import { EventRow, opensDay, type EventItem } from "@/components/diario/EventRow";
 import feedStyles from "@/components/diario/EventRow.module.css";
 import type { UUID } from "@/types";
 
@@ -127,13 +127,14 @@ export function ClubEvents({
           </div>
         )}
         <div data-tour="club-events">
-          <h3>{t("gruppi.upcomingEvents")}</h3>
+          <h3 className={feedStyles.groupTitle}>{t("gruppi.upcomingEvents")}</h3>
           {upcoming.length ? (
             <div className={feedStyles.feed}>
-              {upcoming.map((i) => (
+              {upcoming.map((i, index) => (
                 <EventRow
                   key={`${i.kind}-${i.id}`}
                   item={i}
+                  showDay={opensDay(upcoming, index)}
                   manage={manageRegattas}
                   open={openRegattaId === i.id}
                   onToggle={() => setOpenRegattaId(openRegattaId === i.id ? null : i.id)}
@@ -147,13 +148,14 @@ export function ClubEvents({
           )}
         </div>
 
-        <h3 style={{ marginTop: "1.5rem" }}>{t("gruppi.pastEvents")}</h3>
+        <h3 className={feedStyles.groupTitle}>{t("gruppi.pastEvents")}</h3>
         {past.length ? (
           <div className={feedStyles.feed}>
-            {past.map((i) => (
+            {past.map((i, index) => (
               <EventRow
                 key={`${i.kind}-${i.id}`}
                 item={i}
+                showDay={opensDay(past, index)}
                 manage={manageRegattas}
                 open={openRegattaId === i.id}
                 onToggle={() => setOpenRegattaId(openRegattaId === i.id ? null : i.id)}

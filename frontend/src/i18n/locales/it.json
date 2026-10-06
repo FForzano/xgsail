@@ -204,6 +204,11 @@
       "club": "Circolo",
       "group": "Gruppo",
       "crew": "A bordo"
+    },
+    "entry": {
+      "time": "Ora",
+      "sessions": "Sessioni",
+      "dates": "Date"
     }
   },
   "profile": {

@@ -1,44 +1,121 @@
-/* Shared reading column for a diario tab: the toolbar above the feed and
-   the feed itself share this width so they line up as one block instead of
-   a full-width toolbar sitting over a narrower, separately-centered feed. */
+/* Shared reading column for a diario tab: the toolbar above the feed and the
+   feed itself share this width so they line up as one block. Wide enough for
+   the date margin plus a track render that still reads at a glance. */
 .page {
   width: 100%;
-  max-width: 600px;
+  max-width: 760px;
   margin: 0 auto;
 }
 
 .feed {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin-top: 0.75rem;
+  margin-top: 1rem;
 }
 
-.card {
-  background: var(--sf-surface);
-  border: 1px solid var(--sf-border);
-  border-radius: var(--sf-radius);
-  overflow: hidden;
-  transition: border-color 0.15s ease;
+/* --- a logbook entry: the day in the margin, the outing beside it --- */
+.entry {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  column-gap: 1.5rem;
+  padding: 1rem 0 1.5rem;
+  border-top: 1px solid var(--sf-border);
 }
-.card:hover {
-  border-color: var(--sf-primary);
+/* A new day starts under the sheet's ink rule; a second outing the same day
+   sits under a hairline and leaves the margin empty. */
+.entry[data-opens-day] {
+  border-top: 2px solid var(--sf-rule);
+}
+.feed > .entry:first-child {
+  margin-top: 0;
+}
+
+.margin {
+  min-width: 0;
+}
+.dayMark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1;
+  position: sticky;
+  top: calc(var(--sf-navbar-h) + 0.75rem);
+}
+.weekday,
+.month {
+  font-size: 0.8rem;
+  font-weight: 750;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sf-muted);
+}
+.day {
+  margin: 0.15rem 0 0.25rem;
+  font-size: 4.5rem;
+  font-weight: 800;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: -0.02em;
+  color: var(--sf-text);
+}
+
+.year {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--sf-muted);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  flex-wrap: wrap;
+}
+.title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--sf-text);
+  text-decoration: none;
+  min-width: 0;
+}
+.title:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+}
+.codes {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
 .mediaLink {
   display: block;
 }
-/* Fixed-ratio box on a plain div, NOT on the <img> itself — sizing it via
-   the image's own aspect-ratio/intrinsic dimensions made cards vary in
-   height per track shape (a long thin route vs. a squarish one) or
-   depending on whether there even was a thumbnail. Every card's media area
-   is exactly this size, image or placeholder alike. */
+/* Fixed-ratio box on a plain div, NOT on the <img> itself — sizing it via the
+   image's own dimensions made entries vary in height per track shape. Every
+   entry's track or photo is exactly this size; an entry with neither has
+   no box at all (see EventRow). */
 .mediaBox {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
-  background: var(--sf-bg-2);
+  background: var(--sf-surface-2);
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
   overflow: hidden;
+}
+.mediaLink:hover .mediaBox {
+  border-color: var(--sf-rule);
 }
 .media {
   position: absolute;
@@ -46,53 +123,34 @@
   width: 100%;
   height: 100%;
 }
-/* Two different sources share this box, and each needs the opposite fit:
-   a track render (`data-fit="track"`, also every regatta hero image) is a
-   640x480 track-over-map overlay whose 4/3 ratio already matches .mediaBox,
-   so `cover` would only ever crop the map and the track's outer edges once
-   the two ratios drift apart — `contain` keeps the whole render visible.
-   A real photograph (`data-fit="photo"`, an activity's `cover_photo`) is the
-   opposite case: it has no relation to .mediaBox's ratio, so `contain` would
-   letterbox every card — `cover` fills the tile the way a photo grid should. */
+/* Two different sources share this box, and each needs the opposite fit: a
+   track render (also every regatta hero image) is a 4/3 track-over-map
+   overlay, so `contain` keeps the whole route visible; a photograph has no
+   relation to the box's ratio, so `cover` fills it the way a photo should. */
 .media[data-fit="track"] {
   object-fit: contain;
 }
 .media[data-fit="photo"] {
   object-fit: cover;
 }
-/* The no-image case lives in components/common/MediaPlaceholder.module.css —
-   the regatta hero shows the same tinted stand-in, so the recipe is shared
-   rather than copied per surface. */
 
-/* The photo inset on a track card. The track answers "where did this go?",
-   a photo answers "what was it like?" — the inset is how one card says both
-   without the track losing the slot that makes an outing recognisable at a
-   glance.
-
-   Sized in % of the media box, not in px, so it keeps the same proportion of
-   the card from a phone to a wide screen. The surface-coloured ring plus the
-   shadow are what make it read as lying *on* the map rather than as a hole
-   punched in it, and they are also what keeps a dark photo from dissolving
-   into a dark track render. */
+/* The photo inset on a track: the track answers "where did this go?", the
+   photo "what was it like?". Sized in % of the media box so it keeps its
+   proportion from a phone to a wide screen; the paper ring makes it read as
+   lying on the map rather than as a hole punched in it. */
 .inset {
   position: absolute;
   right: 0.55rem;
   bottom: 0.55rem;
-  width: 31%;
-  max-width: 132px;
+  width: 28%;
+  max-width: 150px;
   aspect-ratio: 4 / 3;
-  border-radius: calc(var(--sf-radius) - 2px);
+  border-radius: 2px;
   overflow: hidden;
-  /* The ring is drawn inside via box-shadow rather than as a border so it
-     does not add to the width the % above resolves to. */
   box-shadow:
-    0 0 0 2px var(--sf-surface),
-    0 2px 8px rgba(0, 0, 0, 0.45);
-  background: var(--sf-bg-2);
-  transition: transform 0.15s ease;
-}
-.card:hover .inset {
-  transform: scale(1.04);
+    0 0 0 2px var(--sf-tile-ring),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+  background: var(--sf-surface-2);
 }
 .insetImg {
   display: block;
@@ -100,86 +158,90 @@
   height: 100%;
   object-fit: cover;
 }
-/* The tally rides on the inset instead of the card corner: with a photo
-   present, "4 photos" is a fact about that photo's set, and two separate
-   chips in the same corner would collide. */
-.insetCount {
+.insetCount,
+.photoCount {
   position: absolute;
-  right: 0.25rem;
-  bottom: 0.25rem;
+  right: 0.3rem;
+  bottom: 0.3rem;
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
   padding: 0.1rem 0.35rem;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 0.67rem;
-  font-weight: 600;
+  border-radius: 2px;
+  background: var(--sf-overlay);
+  color: var(--sf-overlay-text);
+  font-size: 0.7rem;
+  font-weight: 650;
   line-height: 1.4;
 }
-
-/* Unobtrusive "there are more photos" cue on a photo cover, echoing the
-   camera-icon count used elsewhere for a photo tally. Kept clear of the
-   badges/title in .body, which live outside this box entirely. */
 .photoCount {
-  position: absolute;
-  right: 0.5rem;
-  bottom: 0.5rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.4;
+  right: 0.55rem;
+  bottom: 0.55rem;
 }
 
-.body {
-  padding: 0.85rem 1rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-.badges {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-.title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--sf-text);
-  text-decoration: none;
-}
-.title:hover {
-  text-decoration: underline;
-}
-.meta {
-  font-size: 0.82rem;
-  color: var(--sf-muted);
-  margin: -0.2rem 0 0;
-}
 .description {
   margin: 0;
   color: var(--sf-muted);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  max-width: 65ch;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 .footer {
   display: flex;
   gap: 0.4rem;
-  margin-top: 0.15rem;
 }
 .expanded {
-  padding: 0 1rem 1rem;
-  border-top: 1px solid var(--sf-border);
-  margin-top: 0.25rem;
   padding-top: 0.6rem;
+  border-top: 1px solid var(--sf-border);
+}
+
+/* A phone keeps the margin, narrowed to the stacked day numeral. */
+@media (max-width: 560px) {
+  .entry {
+    grid-template-columns: 2.6rem minmax(0, 1fr);
+    column-gap: 0.85rem;
+    padding: 0.85rem 0 1.25rem;
+  }
+  .dayMark {
+    top: calc(env(safe-area-inset-top, 0px) + 4rem);
+  }
+  .weekday {
+    font-size: 0.68rem;
+  }
+  .day {
+    font-size: 2.4rem;
+  }
+  .month {
+    font-size: 0.68rem;
+  }
+  .title {
+    font-size: 1.05rem;
+  }
+}
+
+/* TourDemoCard's stand-in for a track render. */
+.demoMedia {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sf-muted);
+}
+
+/* Heading over a feed split in two (a club's upcoming vs. past events): the
+   first entry's own ink rule sits right under it, so it needs none. */
+.groupTitle {
+  margin: 1.75rem 0 0;
+  font-size: 1rem;
+  font-weight: 800;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.groupTitle:first-child {
+  margin-top: 0;
 }

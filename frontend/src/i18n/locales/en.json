@@ -204,6 +204,11 @@
       "club": "Club",
       "group": "Group",
       "crew": "Aboard"
+    },
+    "entry": {
+      "time": "Time",
+      "sessions": "Sessions",
+      "dates": "Dates"
     }
   },
   "profile": {

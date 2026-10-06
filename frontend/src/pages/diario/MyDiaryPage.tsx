@@ -4,7 +4,7 @@ import type { UUID } from "@/types";
 import { useDiaryFeed } from "@/hooks/useDiaryFeed";
 import { LiveRecordingBanner } from "@/components/diario/LiveRecordingBanner";
 import { UpcomingEventsBanner } from "@/components/diario/UpcomingEventsBanner";
-import { EventRow } from "@/components/diario/EventRow";
+import { EventRow, opensDay } from "@/components/diario/EventRow";
 import { DiaryToolbar } from "@/components/diario/DiaryToolbar";
 import feedStyles from "@/components/diario/EventRow.module.css";
 import { Spinner } from "@/components/ui/Spinner";
@@ -68,11 +68,12 @@ export function MyDiaryPage() {
                 <EventRow
                   key={`${i.kind}-${i.id}`}
                   item={i}
+                  showDay={opensDay(items, index)}
                   manage={false}
                   open={openRegattaId === i.id}
                   onToggle={() => setOpenRegattaId(openRegattaId === i.id ? null : i.id)}
                   // Anchors the guided-tour "your activities" step to a
-                  // single card instead of the whole (potentially very
+                  // single entry instead of the whole (potentially very
                   // tall) feed — see onboarding/tours.ts.
                   dataTour={index === 0 ? "diario-feed" : undefined}
                 />
