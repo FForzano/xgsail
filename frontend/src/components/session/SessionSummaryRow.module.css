@@ -1,0 +1,59 @@
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  margin: 0;
+  border-top: 2px solid var(--sf-rule);
+  border-bottom: 1px solid var(--sf-border);
+}
+.cell {
+  padding: 0.55rem 0.9rem 0.6rem;
+  border-left: 1px solid var(--sf-border);
+  min-width: 0;
+}
+.cell:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+.label {
+  font-size: 0.72rem;
+  font-weight: 750;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sf-muted);
+}
+.value {
+  margin: 0.1rem 0 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* Three to a line on a phone, set small: the totals are context, and the
+   losses below them are what the first screen is for. */
+@media (max-width: 560px) {
+  .row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cell {
+    padding: 0.4rem 0.5rem 0.45rem;
+    border-left: 1px solid var(--sf-border);
+  }
+  .cell:nth-child(3n + 1) {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .cell:nth-child(n + 4) {
+    border-top: 1px solid var(--sf-border);
+  }
+  .label {
+    font-size: 0.64rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .value {
+    font-size: 1.02rem;
+  }
+}

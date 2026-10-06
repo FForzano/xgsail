@@ -19,19 +19,20 @@
    Only between adjacent blocks — the first sits under the section heading,
    which already separates it. */
 .analysisBlock + .analysisBlock {
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--sf-border);
+  padding-top: 1.5rem;
 }
 /* Quieter than the section's own .sf-block__title (which is accent-tinted) but
    still unmistakably a heading rather than another small caption. */
 .analysisTitle {
-  margin: 0 0 0.6rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--sf-rule);
+  font-size: 0.9rem;
+  font-weight: 800;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--sf-text);
-  opacity: 0.8;
 }
 .tackblock {
   margin-top: 1rem;
@@ -42,7 +43,11 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   margin: 0 0 0.5rem;
 }
 /* Point-of-sail dot, same token as the map's leg markers. */
@@ -58,10 +63,9 @@
    toggles. */
 .countPill {
   flex: none;
-  padding: 0.05rem 0.45rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--sf-primary) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--sf-primary) 45%, transparent);
+  padding: 0.02rem 0.4rem;
+  border-radius: 2px;
+  background: var(--sf-surface-2);
   color: var(--sf-text);
   font-size: 0.75rem;
   font-weight: 600;
@@ -142,7 +146,7 @@
 .compareTrack {
   display: flex;
   height: 0.5rem;
-  border-radius: 999px;
+  border-radius: 1px;
   background: color-mix(in srgb, var(--sf-border) 55%, transparent);
   overflow: hidden;
 }
@@ -151,7 +155,7 @@
 }
 .compareFill {
   height: 100%;
-  border-radius: 999px;
+  border-radius: 1px;
 }
 .compareVerdict {
   display: flex;
@@ -179,11 +183,14 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.3rem 0.4rem 0.3rem 0.55rem;
-  background: var(--sf-surface);
-  border: 1px solid var(--sf-border);
-  border-radius: 999px;
-  font-size: 0.82rem;
+  padding: 0.2rem 0.45rem;
+  background: var(--sf-surface-2);
+  border-radius: 2px;
+  font-size: 0.78rem;
+  font-weight: 750;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 /* --- collapsed raw lists --- */
@@ -197,10 +204,13 @@
   width: 100%;
   /* A comfortable thumb target: this is the only control in the block. */
   min-height: 44px;
-  padding: 0.5rem 0.75rem;
-  background: var(--sf-surface);
-  border: 1px solid var(--sf-border);
-  border-radius: var(--sf-radius);
+  padding: 0.5rem 0;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--sf-border);
+  border-bottom: 1px solid var(--sf-border);
+  border-radius: 0;
+  font-weight: 650;
   color: var(--sf-text);
   font: inherit;
   font-size: 0.9rem;
@@ -209,11 +219,7 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .collapsibleToggle:hover {
-  background: var(--sf-surface-2);
-  border-color: var(--sf-primary);
-}
-.collapsibleToggle[aria-expanded="true"] {
-  background: var(--sf-surface-2);
+  color: var(--sf-primary);
 }
 .collapsibleToggle:focus-visible {
   outline: 2px solid var(--sf-primary);

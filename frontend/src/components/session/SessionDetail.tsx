@@ -36,8 +36,10 @@ import { SessionAnalysis } from "@/components/session/SessionAnalysis";
 import { ShareImageModal } from "@/components/session/ShareImageModal";
 import { HealthCard } from "@/components/session/HealthCard";
 import { NavSourceModal } from "@/components/session/NavSourceModal";
+import { LossBoard } from "@/components/session/LossBoard";
+import { SessionSummaryRow } from "@/components/session/SessionSummaryRow";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
-import { fmtDateTime, fmtDistance, fmtDuration, fmtKnots, userLabel } from "@/utils/format";
+import { fmtDateTime, userLabel } from "@/utils/format";
 import { legSequence } from "@/utils/legSequence";
 import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import { sessionStatusBadge } from "@/utils/badges";
@@ -880,28 +882,42 @@ export function SessionDetail({
       {variant === "page" && (
         // Plain header row, not a `Card` — it's the page's own name, and
         // boxing it just repeats the chrome of every `Section` below it.
-        <div className="sf-block">
+        <header className={styles.header}>
           <div className="sf-toolbar">
-            <h1 className="sf-page-title">
-              {boat.data?.name ?? t("sessions.boat")} — {fmtDateTime(s.started_at)}{" "}
-              {reanalysisPolling ? (
-                <span className="sf-badge sf-badge--pending">
-                  <Spinner inline /> {t("sessions.reanalyzing")}
-                </span>
-              ) : (
-                <span className={sessionStatusBadge(s.status)}>{s.status}</span>
-              )}
-            </h1>
+            <div className={styles.titleBlock}>
+              <h1 className="sf-page-title">{boat.data?.name ?? t("sessions.boat")}</h1>
+              <p className={styles.meta}>
+                <time dateTime={s.started_at ?? undefined}>{fmtDateTime(s.started_at)}</time>
+                {/* A processed session is the normal case — only a state that
+                    needs attention earns a tag next to the date. */}
+                {reanalysisPolling ? (
+                  <span className="sf-badge sf-badge--pending">
+                    <Spinner inline /> {t("sessions.reanalyzing")}
+                  </span>
+                ) : (
+                  s.status !== "processed" && <span className={sessionStatusBadge(s.status)}>{s.status}</span>
+                )}
+              </p>
+            </div>
             <div className={styles.headerActions}>
+              {quickActions.length > 0 && (
+                <span className={styles.headerActions} data-tour="activity-quick-actions">
+                  <QuickActionButtons actions={quickActions} />
+                </span>
+              )}
               <QuickActionButtons actions={headerActions} />
               {menuSections.length > 0 && <Menu sections={menuSections} triggerDataTour="activity-menu" />}
             </div>
           </div>
-          {quickActions.length > 0 && (
-            <div className={styles.quickActions} data-tour="activity-quick-actions">
-              <QuickActionButtons actions={quickActions} />
-            </div>
-          )}
+        </header>
+      )}
+
+      {stats.data && (
+        <div data-tour="activity-stats">
+          <SessionSummaryRow
+            stats={stats.data}
+            maneuverCount={analysis.data?.maneuvers.filter((m) => !m.rejected).length}
+          />
         </div>
       )}
 
@@ -911,58 +927,65 @@ export function SessionDetail({
         <p className="sf-muted">{t("sessions.noGps")}</p>
       ) : (
         <div className="sf-section__body">
-          <div className="sf-bleed" data-tour="activity-map">
-            <MapView
-              nautical
-              tracks={tracks}
-              marks={marks}
-              variant="session"
-              vmg={analysis.data?.vmg_series}
-              sessionWind={analysis.data?.true_wind}
-              wind={
-                tracks[0]?.pts[0]
-                  ? { lat: tracks[0].pts[0].lat, lng: tracks[0].pts[0].lon, at: s.started_at }
-                  : undefined
-              }
-              controls={
-                <Timeline overlay stepMs={medianIntervalMs(tracks[0]) * 5} />
-              }
-              placementMode={maneuverEditMode}
-              onManeuverPlacement={handleManeuverPlacement}
-              pickMode={pickMode}
-              onMapClick={onMapClick}
-              showBoatInfo={false}
-              onOpenSession={() =>
-                document.getElementById("session-analysis")?.scrollIntoView({ behavior: "smooth" })
-              }
-            />
-          </div>
-          {maneuverEditMode && (
-            <p className="sf-muted">
-              {maneuverDraftStart ? t("sessions.maneuverPickEnd") : t("sessions.maneuverPickStart")}
-            </p>
-          )}
-          {trimMode && trimDraftStartMs != null && trimDraftEndMs != null && (
-            <TrimBar
-              startMs={trimDraftStartMs}
-              endMs={trimDraftEndMs}
-              onStartChange={setTrimDraftStartMs}
-              onEndChange={setTrimDraftEndMs}
-              onApply={applyTrim}
-              onCancel={exitTrimMode}
-              busy={setTrim.isPending}
-            />
-          )}
-          {mapLegend.length > 0 && (
-            <div className={legendStyles.mapLegend}>
-              {mapLegend.map(([key, label]) => (
-                <span key={key} className={legendStyles.mapLegendItem}>
-                  <span className={`${legendStyles.dot} ${MAP_LEGEND_DOT_CLASS[key]}`} />
-                  {label}
-                </span>
-              ))}
+          {/* "Where you lost" leads, the replay sits beside it: the ranking is
+              the answer, the map is where each row goes to be seen. */}
+          <div className={analysis.data ? styles.lead : undefined}>
+            {analysis.data && <LossBoard legs={analysis.data.legs} maneuvers={analysis.data.maneuvers} />}
+            <div className={styles.replay}>
+              <div className="sf-bleed" data-tour="activity-map">
+                <MapView
+                  nautical
+                  tracks={tracks}
+                  marks={marks}
+                  variant="session"
+                  vmg={analysis.data?.vmg_series}
+                  sessionWind={analysis.data?.true_wind}
+                  wind={
+                    tracks[0]?.pts[0]
+                      ? { lat: tracks[0].pts[0].lat, lng: tracks[0].pts[0].lon, at: s.started_at }
+                      : undefined
+                  }
+                  controls={
+                    <Timeline overlay stepMs={medianIntervalMs(tracks[0]) * 5} />
+                  }
+                  placementMode={maneuverEditMode}
+                  onManeuverPlacement={handleManeuverPlacement}
+                  pickMode={pickMode}
+                  onMapClick={onMapClick}
+                  showBoatInfo={false}
+                  onOpenSession={() =>
+                    document.getElementById("session-analysis")?.scrollIntoView({ behavior: "smooth" })
+                  }
+                />
+              </div>
+              {maneuverEditMode && (
+                <p className="sf-muted">
+                  {maneuverDraftStart ? t("sessions.maneuverPickEnd") : t("sessions.maneuverPickStart")}
+                </p>
+              )}
+              {trimMode && trimDraftStartMs != null && trimDraftEndMs != null && (
+                <TrimBar
+                  startMs={trimDraftStartMs}
+                  endMs={trimDraftEndMs}
+                  onStartChange={setTrimDraftStartMs}
+                  onEndChange={setTrimDraftEndMs}
+                  onApply={applyTrim}
+                  onCancel={exitTrimMode}
+                  busy={setTrim.isPending}
+                />
+              )}
+              {mapLegend.length > 0 && (
+                <div className={legendStyles.mapLegend}>
+                  {mapLegend.map(([key, label]) => (
+                    <span key={key} className={legendStyles.mapLegendItem}>
+                      <span className={`${legendStyles.dot} ${MAP_LEGEND_DOT_CLASS[key]}`} />
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
           <div className="sf-section__body">
             <div data-tour="activity-speed-chart">
               <SpeedChart
@@ -980,30 +1003,17 @@ export function SessionDetail({
         </div>
       )}
 
-      {stats.data && (
-        <div data-tour="activity-stats">
-          <Section title={t("sessions.stats")}>
-            <div className="sf-tablewrap">
-              <table className="sf-table">
-                <tbody>
-                  <tr>
-                    <th>{t("sessions.duration")}</th>
-                    <td>{fmtDuration(stats.data.duration_s)}</td>
-                    <th>{t("sessions.distance")}</th>
-                    <td>{fmtDistance(stats.data.distance_m)}</td>
-                  </tr>
-                  <tr>
-                    <th>{t("sessions.avgSpeed")}</th>
-                    <td>{fmtKnots(stats.data.avg_speed_kts)}</td>
-                    <th>{t("sessions.maxSpeed")}</th>
-                    <td>{fmtKnots(stats.data.max_speed_kts)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </Section>
-        </div>
-      )}
+      {/* The diagnosis continues straight from the losses and replay above;
+          crew, notes and photos are the session's record, read after. */}
+      <div id="session-analysis" data-tour="activity-analysis">
+        <SessionAnalysis
+          sessionId={sessionId}
+          editMode={maneuverEditMode}
+          maxSpeedKts={stats.data?.max_speed_kts}
+          onRefreshWind={manager ? () => refreshWind.mutate() : undefined}
+          refreshingWind={refreshWind.isPending || reanalysisPolling}
+        />
+      </div>
 
       {/* Renders nothing unless this viewer may see someone's health data —
           see HealthCard, which also handles the multi-crew case. */}
@@ -1152,16 +1162,6 @@ export function SessionDetail({
           </div>
         </Section>
       ) : null}
-
-      <div id="session-analysis" data-tour="activity-analysis">
-        <SessionAnalysis
-          sessionId={sessionId}
-          editMode={maneuverEditMode}
-          maxSpeedKts={stats.data?.max_speed_kts}
-          onRefreshWind={manager ? () => refreshWind.mutate() : undefined}
-          refreshingWind={refreshWind.isPending || reanalysisPolling}
-        />
-      </div>
 
       {addingCrew && (
         <Modal

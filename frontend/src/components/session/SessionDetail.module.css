@@ -24,3 +24,41 @@
   display: inline-flex;
   transform: translateX(-1px);
 }
+
+/* Page head: the boat is the title, date and status sit under it. */
+.header {
+  display: flex;
+  flex-direction: column;
+}
+.titleBlock {
+  min-width: 0;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  margin: 0.3rem 0 0;
+  color: var(--sf-muted);
+  font-size: 0.95rem;
+}
+
+/* Losses beside the replay on a wide screen; stacked (losses first) below. */
+.lead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (min-width: 1000px) {
+  .lead {
+    grid-template-columns: minmax(20rem, 5fr) minmax(0, 7fr);
+    gap: 2rem;
+  }
+}
+.replay {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}

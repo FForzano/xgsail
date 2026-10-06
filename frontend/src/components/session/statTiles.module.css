@@ -4,30 +4,49 @@
    rather than a copy per component. */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--sf-border);
+  border-bottom: 1px solid var(--sf-border);
 }
 @media (max-width: 700px) {
   .tiles {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* Ruled cells, not boxes: the same results-row vocabulary as
+   SessionSummaryRow, one step quieter. */
 .tile {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.5rem 0.6rem;
-  background: var(--sf-surface);
-  border: 1px solid var(--sf-border);
-  border-radius: var(--sf-radius);
+  gap: 0.1rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 1px solid var(--sf-border);
+  min-width: 0;
+}
+.tile:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+@media (max-width: 700px) {
+  .tile:nth-child(odd) {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .tile:nth-child(n + 3) {
+    border-top: 1px solid var(--sf-border);
+  }
 }
 .label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--sf-muted);
 }
 .value {
-  font-size: 1.05rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 700;
   /* Tabular figures so a value ticking with the playback cursor doesn't make
      the tile jitter as digit widths change. */
   font-variant-numeric: tabular-nums;
@@ -39,4 +58,11 @@
    specificity. */
 .wide {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.wide .tile:nth-child(odd) {
+  border-left: 0;
+  padding-left: 0;
+}
+.wide .tile:nth-child(n + 3) {
+  border-top: 1px solid var(--sf-border);
 }

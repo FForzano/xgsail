@@ -785,7 +785,32 @@
     "photoCount_one": "{{count}} foto",
     "photoCount_other": "{{count}} foto",
     "openGallery": "Apri la galleria",
-    "photoLimitReached": "Questa sessione ha raggiunto il numero massimo di foto."
+    "photoLimitReached": "Questa sessione ha raggiunto il numero massimo di foto.",
+    "losses": {
+      "title": "Dove hai perso",
+      "total_one": "persi in {{count}} momento",
+      "total_other": "persi in {{count}} momenti",
+      "colEvent": "Momento",
+      "colTime": "Ora",
+      "colLost": "Persi",
+      "codes": {
+        "tack": "VIR",
+        "gybe": "ABB",
+        "course_change": "CR",
+        "upwind": "BOL",
+        "downwind": "POP"
+      },
+      "legEvent": "{{type}}, bordo {{n}}",
+      "legDetail": "VMG {{vmg}} contro {{best}} del tuo bordo migliore",
+      "maneuverDetail": "Da {{before}} a {{min}}, {{recovery}} per riprendere velocità",
+      "estimated": "Stima dalla perdita di velocità durante la manovra",
+      "note": "Metri persi rispetto al tuo bordo migliore dello stesso tipo e a una manovra senza rallentamento. Seleziona una riga per vederla nel replay.",
+      "empty": "Niente da mettere in classifica: servono manovre rilevate o almeno due bordi dello stesso tipo con dati di vento.",
+      "showAll": "Mostra tutti ({{count}})",
+      "showLess": "Mostra meno",
+      "jump": "Vai alle {{time}} nel replay",
+      "avgPolar": "Polare media"
+    }
   },
   "map": {
     "layers": {

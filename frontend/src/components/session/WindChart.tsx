@@ -6,6 +6,7 @@ import { useTimeState } from "@/stores/timeController";
 import { fmtKnots, fmtTime, splitKnots } from "@/utils/format";
 import { BASE_RGB, RAMP_LIGHT, rgbCss } from "@/utils/colorRamp";
 import { windSeries, windSummary } from "@/utils/windStats";
+import { StatTile, StatTiles } from "./StatTile";
 import styles from "./WindChart.module.css";
 
 // The session's wind as live-station sites draw it (iKitesurf, Windfinder
@@ -25,30 +26,19 @@ export function WindChart({ points }: { points: TrueWindPoint[] | null | undefin
   const data = useMemo(() => windSeries(points), [points]);
   if (!summary || data.length < 2) return null;
 
-  const mean = splitKnots(summary.meanKts);
   const top = Math.max(summary.maxGustKts ?? 0, summary.peakKts);
   const hasGusts = summary.maxGustKts != null;
 
   return (
     <div>
+      {/* The same ruled results line as the session's own totals, not a
+          headline number with satellites. */}
       <div className={styles.head}>
-        <div className={styles.hero}>
-          <span className={styles.heroValue}>{mean.value}</span>
-          <span className={styles.heroUnit}>{mean.unit}</span>
-          <span className={styles.heroLabel}>{t("wind.mean").toLowerCase()}</span>
-        </div>
-        <dl className={styles.facts}>
-          {hasGusts && (
-            <div>
-              <dt>{t("wind.maxGust")}</dt>
-              <dd>{fmtKnots(summary.maxGustKts)}</dd>
-            </div>
-          )}
-          <div>
-            <dt>{t("wind.peak")}</dt>
-            <dd>{fmtKnots(summary.peakKts)}</dd>
-          </div>
-        </dl>
+        <StatTiles>
+          <StatTile label={t("wind.mean")} value={fmtKnots(summary.meanKts)} />
+          {hasGusts && <StatTile label={t("wind.maxGust")} value={fmtKnots(summary.maxGustKts)} />}
+          <StatTile label={t("wind.peak")} value={fmtKnots(summary.peakKts)} />
+        </StatTiles>
       </div>
 
       <ResponsiveContainer width="100%" height={H}>

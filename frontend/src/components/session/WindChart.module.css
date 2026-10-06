@@ -1,45 +1,5 @@
 .head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.5rem 1.5rem;
-  margin-bottom: 0.5rem;
-}
-.hero {
-  display: flex;
-  align-items: baseline;
-  gap: 0.3rem;
-}
-.heroValue {
-  font-size: 2.2rem;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.heroUnit {
-  font-size: 1rem;
-  font-weight: 600;
-}
-.heroLabel {
-  margin-left: 0.2rem;
-  font-size: 0.85rem;
-  color: var(--sf-muted);
-}
-.facts {
-  display: flex;
-  gap: 1.25rem;
-  margin: 0;
-}
-.facts dt {
-  font-size: 0.72rem;
-  color: var(--sf-muted);
-}
-.facts dd {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.75rem;
 }
 .legend {
   display: flex;

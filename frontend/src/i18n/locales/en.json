@@ -785,7 +785,32 @@
     "photoCount_one": "{{count}} photo",
     "photoCount_other": "{{count}} photos",
     "openGallery": "Open gallery",
-    "photoLimitReached": "This session has reached its maximum number of photos."
+    "photoLimitReached": "This session has reached its maximum number of photos.",
+    "losses": {
+      "title": "Where you lost",
+      "total_one": "lost in {{count}} moment",
+      "total_other": "lost in {{count}} moments",
+      "colEvent": "Moment",
+      "colTime": "Time",
+      "colLost": "Lost",
+      "codes": {
+        "tack": "TCK",
+        "gybe": "GYB",
+        "course_change": "CC",
+        "upwind": "UPW",
+        "downwind": "DWN"
+      },
+      "legEvent": "{{type}}, leg {{n}}",
+      "legDetail": "VMG {{vmg}} against {{best}} on your best leg",
+      "maneuverDetail": "From {{before}} down to {{min}}, {{recovery}} to get back up to speed",
+      "estimated": "Estimated from the speed lost through the maneuver",
+      "note": "Metres lost against your best leg of the same kind and against a maneuver with no slowdown. Select a row to see it in the replay.",
+      "empty": "Nothing to rank yet: this needs detected maneuvers, or at least two legs of the same kind with wind data.",
+      "showAll": "Show all ({{count}})",
+      "showLess": "Show less",
+      "jump": "Go to {{time}} in the replay",
+      "avgPolar": "Avg polar"
+    }
   },
   "map": {
     "layers": {

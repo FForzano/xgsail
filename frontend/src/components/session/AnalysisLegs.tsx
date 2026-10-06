@@ -80,6 +80,9 @@ const LEG_TYPE_COLOR: Record<string, string> = {
 /* Port red / starboard green: the boat's own navigation lights, which is the
    one colour pairing a sailor reads without a legend. Both are existing
    tokens, so the comparison follows the theme like everything else. */
+// Below this the two tacks are the same within the data's resolution — a
+// trophy on a 0.0 kn difference names a winner that doesn't exist.
+const MIN_TACK_DELTA_KTS = 0.1;
 const PORT_COLOR = "var(--sf-danger)";
 const STARBOARD_COLOR = "var(--sf-success)";
 
@@ -155,15 +158,13 @@ function TackCompare({ rows, scaleMax }: { rows: CompareRow[]; scaleMax: number 
           </div>
         );
       })}
-      {best && (
+      {best && delta != null && delta >= MIN_TACK_DELTA_KTS && (
         <p className={styles.compareVerdict}>
           <Trophy size={14} />
           <span>
             {t("sessions.bestTack")}: <strong>{t(`sessions.tackSide.${best}`)}</strong>
           </span>
-          {delta != null && delta > 0 && (
-            <span className="sf-muted">+{fmtKnots(delta)} VMG</span>
-          )}
+          <span className="sf-muted">+{fmtKnots(delta)} VMG</span>
         </p>
       )}
     </div>

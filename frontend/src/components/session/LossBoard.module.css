@@ -1,0 +1,221 @@
+/* Set like the results sheet pinned on the club board: an ink-ruled header,
+   condensed uppercase column heads, right-aligned tabular figures, and the
+   ranking itself as the only emphasis. */
+.board {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.45rem;
+  border-bottom: 2px solid var(--sf-rule);
+}
+.title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.total {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--sf-muted);
+}
+.totalValue {
+  font-weight: 750;
+  color: var(--sf-danger);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th {
+  padding: 0.5rem 0.5rem 0.35rem;
+  border-bottom: 1px solid var(--sf-rule);
+  font-size: 0.72rem;
+  font-weight: 750;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--sf-muted);
+  white-space: nowrap;
+}
+.table td {
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--sf-border);
+  vertical-align: top;
+}
+.table th:first-child,
+.table td:first-child {
+  padding-left: 0;
+}
+.table th:last-child,
+.table td:last-child {
+  padding-right: 0;
+}
+.table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s ease-out;
+}
+.table tbody tr:hover {
+  background: color-mix(in srgb, var(--sf-text) 4%, transparent);
+}
+.table tbody tr:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: -2px;
+}
+/* The row the replay cursor is inside right now. */
+.current,
+.table tbody tr.current:hover {
+  background: color-mix(in srgb, var(--sf-primary) 10%, transparent);
+}
+.current .rank {
+  color: var(--sf-primary);
+}
+
+.rank {
+  width: 1.75rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-stretch: var(--sf-condensed);
+  color: var(--sf-text);
+}
+.event {
+  min-width: 0;
+}
+.eventLine {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+/* Short code, keyed to the same category colour the map uses for that
+   maneuver or point of sail, so a row and its marker read as one thing. */
+.code {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.06em;
+  color: var(--sf-text);
+}
+.code::before {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 1px;
+  background: var(--code-color, var(--sf-muted));
+}
+.code[data-kind="tack"] { --code-color: var(--sf-tack); }
+.code[data-kind="gybe"] { --code-color: var(--sf-gybe); }
+.code[data-kind="course_change"] { --code-color: var(--sf-course-change); }
+.code[data-kind="upwind"] { --code-color: var(--sf-leg-upwind); }
+.code[data-kind="downwind"] { --code-color: var(--sf-leg-downwind); }
+
+.what {
+  font-weight: 650;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.84rem;
+  color: var(--sf-muted);
+}
+/* Share of the worst loss — a 2px rule, not a chart: it only has to make the
+   drop-off from the first rows to the rest visible down the column. */
+.bar {
+  display: block;
+  height: 2px;
+  margin-top: 0.45rem;
+  background: var(--sf-border);
+}
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--sf-danger);
+}
+
+.time {
+  width: 1%;
+  white-space: nowrap;
+  font-size: 0.84rem;
+  color: var(--sf-muted);
+}
+.lost {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 1.15rem;
+  font-weight: 750;
+  color: var(--sf-text);
+}
+th.lost,
+th.time {
+  font-size: 0.72rem;
+  color: var(--sf-muted);
+}
+.unit {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--sf-muted);
+}
+.approx {
+  margin-right: 0.1em;
+  text-decoration: none;
+  color: var(--sf-muted);
+  cursor: help;
+}
+
+.note,
+.empty {
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
+  color: var(--sf-muted);
+  max-width: 62ch;
+}
+.empty {
+  padding: 1rem 0;
+}
+
+.more {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+  padding: 0.35rem 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  color: var(--sf-primary);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.more:hover {
+  color: var(--sf-primary-hover);
+}
+
+/* A phone has no room for a time column next to a two-line event. Dropping
+   it loses nothing: selecting the row puts the replay at that time. */
+@media (max-width: 520px) {
+  .table thead .time,
+  .table tbody .time {
+    display: none;
+  }
+}
