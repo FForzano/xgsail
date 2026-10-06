@@ -276,11 +276,12 @@ def boat_payload(boat, user) -> dict:
     return d
 
 
-def activity_payload(activity, *, covers: dict | None = None) -> dict:
-    """``covers`` is the batch result of ``repos.activities.photo_covers()``
-    for a whole page of activities — a list endpoint must pass it in so the
-    cover/count lookup is one query for the page, not one per activity.
-    Omitted, it resolves for this one activity."""
+def activity_payload(activity, *, covers: dict | None = None, totals: dict | None = None) -> dict:
+    """``covers`` and ``totals`` are the batch results of
+    ``repos.activities.photo_covers()`` / ``session_totals()`` for a whole
+    page of activities — a list endpoint must pass both in so each lookup is
+    one query for the page, not one per activity. Omitted, each resolves for
+    this one activity."""
     d = activity.to_dict()
     d["thumbnail"] = media.image_payload(activity.thumbnail_image_id)
     if covers is None:
@@ -288,6 +289,9 @@ def activity_payload(activity, *, covers: dict | None = None) -> dict:
     cover_image, count = covers.get(activity.id, (None, 0))
     d["cover_photo"] = media.image_ref(cover_image)
     d["photo_count"] = count
+    if totals is None:
+        totals = repos.activities.session_totals([activity.id])
+    d.update(totals.get(activity.id, {"session_count": 0, "distance_m": None, "duration_s": None}))
     return d
 
 

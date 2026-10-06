@@ -85,7 +85,8 @@ def list_activities(request: Request, type: Optional[str] = None,
             until=now + ENTERED_WINDOW_AHEAD,
         )
         covers = repos.activities.photo_covers([a.id for a in activities])
-        return [activity_payload(a, covers=covers) for a in activities]
+        totals = repos.activities.session_totals([a.id for a in activities])
+        return [activity_payload(a, covers=covers, totals=totals) for a in activities]
     activities = repos.activities.list(
         club_id=club_id, group_id=group_id, type=type, status=status,
         crewed_or_created_by=user.id if mine else None,
@@ -96,7 +97,8 @@ def list_activities(request: Request, type: Optional[str] = None,
     )
     # One batched cover-photo query for the whole page instead of one per row.
     covers = repos.activities.photo_covers([a.id for a in activities])
-    return [activity_payload(a, covers=covers) for a in activities]
+    totals = repos.activities.session_totals([a.id for a in activities])
+    return [activity_payload(a, covers=covers, totals=totals) for a in activities]
 
 
 @router.get("/upcoming")
@@ -108,7 +110,8 @@ def list_upcoming_activities(request: Request, limit: int = 5):
     activities = [a for a in repos.activities.list_upcoming_for_user(user.id, limit=limit)
                  if activity_visible_to(a, user)]
     covers = repos.activities.photo_covers([a.id for a in activities])
-    return [activity_payload(a, covers=covers) for a in activities]
+    totals = repos.activities.session_totals([a.id for a in activities])
+    return [activity_payload(a, covers=covers, totals=totals) for a in activities]
 
 
 @router.get("/{activity_id}")

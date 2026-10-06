@@ -23,6 +23,7 @@ from ...db.models import (
     SessionCrewORM,
     SessionORM,
     SessionPhotoORM,
+    SessionStatsORM,
     UserBoatORM,
     UserClubORM,
     UserGroupORM,
@@ -269,6 +270,29 @@ class SqlActivityRepo:
                 else:
                     out[activity_id] = (image, 1)
             return out
+
+    def session_totals(self, activity_ids: "list[uuid.UUID]") -> "dict[uuid.UUID, dict]":
+        """Per activity, batched for N activities in one query: how many
+        sessions it holds, and — only when it holds exactly one — that
+        session's distance and duration. Several boats' tracks added together
+        are not a distance anyone sailed, so a multi-session activity reports
+        the count alone. An activity with no sessions is absent."""
+        if not activity_ids:
+            return {}
+        with self.Session() as s:
+            rows = s.execute(
+                select(SessionORM.activity_id, SessionStatsORM.distance_m, SessionStatsORM.duration_s)
+                .outerjoin(SessionStatsORM, SessionStatsORM.session_id == SessionORM.id)
+                .where(SessionORM.activity_id.in_(activity_ids))
+            ).all()
+        out: "dict[uuid.UUID, dict]" = {}
+        for activity_id, distance_m, duration_s in rows:
+            if activity_id in out:
+                out[activity_id] = {"session_count": out[activity_id]["session_count"] + 1,
+                                    "distance_m": None, "duration_s": None}
+            else:
+                out[activity_id] = {"session_count": 1, "distance_m": distance_m, "duration_s": duration_s}
+        return out
 
     def get_by_race(self, race_id: uuid.UUID) -> Optional[ActivityORM]:
         """THE activity tracking a race (first match)."""

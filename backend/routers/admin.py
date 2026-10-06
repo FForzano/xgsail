@@ -129,7 +129,8 @@ def list_user_activities(user_id: uuid.UUID, request: Request,
         limit=limit, offset=offset,
     )
     covers = repos.activities.photo_covers([a.id for a in activities])
-    return [activity_payload(a, covers=covers) for a in activities]
+    totals = repos.activities.session_totals([a.id for a in activities])
+    return [activity_payload(a, covers=covers, totals=totals) for a in activities]
 
 
 @router.get("/users/{user_id}/sessions")
