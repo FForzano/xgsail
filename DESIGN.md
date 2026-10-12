@@ -253,6 +253,7 @@ Sporty and confident: weight 600, a clear fill for the one primary action, quiet
 - **Small:** `0.3rem 0.7rem`, 0.85rem.
 - **Icon:** 3.25rem circle for primary tap targets (recording controls); 2.1rem for toolbar rows.
 - **Motion:** background, border and opacity transition in 0.15s. Disabled drops to 60% opacity.
+- **Touch:** under a coarse pointer every `sf-btn` is at least 44px tall, and the small variants at least 44px wide (`@media (pointer: coarse)` in global.css). Desktop keeps the denser sizes. Size a new control for a finger the same way, by pointer type, not by viewport width.
 
 ### Chips / Badges
 - **Style:** full pill, caption type (0.75rem / 700). The neutral badge is Hull Surface Raised on Sea Mist.
@@ -279,7 +280,7 @@ Sporty and confident: weight 600, a clear fill for the one primary action, quiet
 The instrument readout: a small Hull Surface tile with a 0.75rem Sea Mist label over a 1.05rem / 600 tabular value. Used both for live playback values at the cursor and for session aggregates.
 
 ### Map overlays (signature)
-Controls floating over a map use a translucent Hull Surface (`rgba(20,50,77,0.85)`), a light 15% white border, the overlay hairline shadow and a 2px backdrop blur. Map marks use only the categorical palette.
+Controls floating over a map use a translucent Hull Surface (`rgba(20,50,77,0.85)`), a light 15% white border, the overlay hairline shadow and a 2px backdrop blur. Map marks use only the categorical palette. On touch screens the Leaflet +/− zoom buttons are hidden, because pinch is how a finger zooms. When a playback bar floats over the map, the bottom-right controls (recenter, credits) sit above it.
 
 ## Do's and Don'ts
 

@@ -104,6 +104,14 @@ body.sf-nav-mode .sf-shell {
 .sf-banners:empty {
   display: none;
 }
+/* One prompt at a time: banners are stacked in priority order (AppShell) and
+   only the first that wants to show does; the next one surfaces once it is
+   dismissed. None of their cadences counts impressions, so a banner held back
+   here loses nothing. Keyed on SlimBanner's role, so a sibling that isn't a
+   banner (a sheet a banner opens) is never hidden by it. */
+.sf-banners > [role="note"] ~ [role="note"] {
+  display: none;
+}
 
 .sf-main {
   flex: 1;
@@ -530,6 +538,23 @@ body.sf-nav-mode .sf-shell {
 }
 .sf-btn--active:hover:not(:disabled) {
   background: color-mix(in srgb, var(--sf-primary) 30%, transparent);
+}
+/* On a touch screen every button reaches a 44px target (Apple's 44pt
+   minimum; Material asks 48dp). Only for a finger: a mouse keeps the denser
+   desktop sizes, which is why this is keyed on the pointer rather than the
+   viewport width. */
+@media (pointer: coarse) {
+  .sf-btn {
+    min-height: 2.75rem;
+  }
+  /* min-width too: the playback transport uses small icon-only buttons. */
+  .sf-btn--sm {
+    min-width: 2.75rem;
+  }
+  .sf-btn--icon-sm {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
 }
 
 /* ---------- Cards / forms / fields ---------- */

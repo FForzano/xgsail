@@ -49,6 +49,22 @@
 .map :global(.leaflet-control-zoom-in) {
   border-right: 1px solid var(--sf-border);
 }
+/* A finger zooms by pinching, as on every native phone map, so the +/−
+   buttons are a mouse affordance: at a usable 44px they collided with the
+   playback bar, at 22px they were too small to hit. */
+@media (pointer: coarse) {
+  .map :global(.leaflet-control-zoom) {
+    display: none;
+  }
+}
+/* With 44px touch buttons the floating transport bar is wide enough to reach
+   the bottom-right corner, so on touch that corner's controls (recenter,
+   credits) sit above it instead of underneath. */
+@media (pointer: coarse) {
+  .withTransport :global(.leaflet-bottom.leaflet-right) {
+    bottom: 64px;
+  }
+}
 
 /* Recenter control: pans/fits the map back to the current playback position.
    Box-model centering (not line-height) + an inline SVG rather than a glyph
@@ -67,6 +83,12 @@
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   margin-top: 6px;
+}
+@media (pointer: coarse) {
+  .recenter {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 /* Map overlays: options popover (top-right) and playback transport (bottom-center). */
