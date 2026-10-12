@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Circle, Sailboat, Radio, Users, UploadCloud, X } from "lucide-react";
+import { Sailboat, Radio, Users, UploadCloud, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { deviceKeys, devicesService } from "@/services/devices";
 import { readCache, writeCache } from "@/services/offlineCache";
@@ -49,21 +49,23 @@ export function StartChecklist({
   if (isLoading || dismissed || !caps) return null;
 
   const m = caps.memberships;
+  // Most useful first: an outing is what the whole app is for, and a phone
+  // is enough to record one; a dedicated device is the optional step, last.
   const steps: Step[] = [
+    { key: "session", icon: UploadCloud, href: "/registra", done: hasRecordedSession },
     { key: "boat", icon: Sailboat, href: "/profilo/barche", done: m.boatsOwner.length > 0 },
-    {
-      key: "device",
-      icon: Radio,
-      href: "/profilo/devices",
-      done: (devicesQuery.data?.length ?? 0) > 0,
-    },
     {
       key: "group",
       icon: Users,
       href: "/gruppi",
       done: m.clubsOwned.length > 0 || m.clubsMember.length > 0 || m.groups.length > 0,
     },
-    { key: "session", icon: UploadCloud, href: "/registra", done: hasRecordedSession },
+    {
+      key: "device",
+      icon: Radio,
+      href: "/profilo/devices",
+      done: (devicesQuery.data?.length ?? 0) > 0,
+    },
   ];
 
   if (steps.every((s) => s.done)) return null;
@@ -73,9 +75,22 @@ export function StartChecklist({
     setDismissed(true);
   };
 
+  // Only what is left to do is listed — finished steps collapse into the
+  // count in the heading — and only the next step is a filled button, so the
+  // block asks for one thing rather than four.
+  const remaining = steps.filter((s) => !s.done);
+  const doneCount = steps.length - remaining.length;
+
   return (
     <Section
-      title={t("onboarding.checklist.title")}
+      title={
+        <>
+          {t("onboarding.checklist.title")}{" "}
+          <span className={styles.count}>
+            {t("onboarding.checklist.progress", { done: doneCount, total: steps.length })}
+          </span>
+        </>
+      }
       actions={
         <button
           type="button"
@@ -89,27 +104,20 @@ export function StartChecklist({
       }
     >
       <div className="sf-strip">
-        {steps.map((s) => {
+        {remaining.map((s, index) => {
           const Icon = s.icon;
           return (
-            <div
-              key={s.key}
-              className={`sf-strip__item ${s.done ? "sf-strip__item--muted" : ""}`}
-            >
+            <div key={s.key} className="sf-strip__item">
               <span className={styles.label}>
-                {s.done ? (
-                  <CheckCircle2 size={18} className={styles.checkDone} aria-hidden />
-                ) : (
-                  <Circle size={18} aria-hidden />
-                )}
                 <Icon size={16} aria-hidden />
                 {t(`onboarding.checklist.${s.key}.label`)}
               </span>
-              {!s.done && (
-                <Link to={s.href} className="sf-btn sf-btn--primary sf-btn--sm">
-                  {t(`onboarding.checklist.${s.key}.cta`)}
-                </Link>
-              )}
+              <Link
+                to={s.href}
+                className={`sf-btn sf-btn--sm ${index === 0 ? "sf-btn--primary" : "sf-btn--ghost"}`}
+              >
+                {t(`onboarding.checklist.${s.key}.cta`)}
+              </Link>
             </div>
           );
         })}

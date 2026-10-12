@@ -430,6 +430,19 @@ export interface Activity {
   // diary card's cover. `thumbnail` stays the worker-rendered track overlay.
   cover_photo: ImageRef | null;
   photo_count: number;
+  // The viewer's own outing in this activity (the sessions they were aboard),
+  // served only on the personal diary feed (`GET /activities?mine=true`):
+  // absent elsewhere, null when the viewer wasn't aboard any session.
+  summary?: ActivityOutingSummary | null;
+}
+
+export interface ActivityOutingSummary {
+  distance_m: number | null;
+  duration_s: number | null;
+  max_speed_kts: number | null;
+  session_count: number;
+  /** Who else was aboard (never the viewer), capped server-side. */
+  crew: Array<{ id: UUID; first_name: string | null; last_name: string | null; profile_image: ImageRef | null }>;
 }
 
 // Fixed set enforced by a DB check constraint (backend/db/models/activity.py

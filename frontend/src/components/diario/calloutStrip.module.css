@@ -61,3 +61,34 @@
   color: var(--callout-accent);
   white-space: nowrap;
 }
+
+/* The whole callout is the link, so a chevron says "opens" without a text
+   label taking the width the event's title needs. */
+.chevron {
+  flex-shrink: 0;
+  color: var(--callout-accent);
+}
+
+/* "N more coming up" under the single callout the upcoming strip shows by
+   default: a quiet text control, so the strip stays one row tall. */
+.more {
+  align-self: flex-start;
+  min-height: 2.75rem;
+  margin-top: -0.35rem;
+  padding: 0 0.25rem;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--sf-primary);
+  cursor: pointer;
+}
+.more:hover {
+  text-decoration: underline;
+}
+.more:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

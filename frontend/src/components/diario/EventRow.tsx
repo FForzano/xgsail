@@ -9,6 +9,7 @@ import { RegattaRaceDays } from "@/components/gruppi/RegattaRaceDays";
 import { PostComposer } from "@/components/gruppi/PostComposer";
 import { RichText } from "@/components/ui/RichText";
 import { fmtDateRange, fmtDateTime } from "@/utils/format";
+import { OutingSummary } from "./OutingSummary";
 import type { Activity, Regatta, UUID } from "@/types";
 import styles from "./EventRow.module.css";
 
@@ -56,6 +57,7 @@ export function EventRow({
   clubId,
   canAnnounce,
   dataTour,
+  featured = false,
 }: {
   item: EventItem;
   manage: boolean;
@@ -70,6 +72,9 @@ export function EventRow({
    * use this in a guided-tour step, so the step highlights a single card
    * rather than the whole feed. */
   dataTour?: string;
+  /** The latest outing at the head of a personal feed: its readouts and
+   * title read at headline size. */
+  featured?: boolean;
 }) {
   const { t } = useTranslation();
   const [announcing, setAnnouncing] = useState(false);
@@ -92,8 +97,11 @@ export function EventRow({
   const photoCount = item.kind === "activity" ? item.activity.photo_count : 0;
 
   return (
-    <article className={styles.card} data-tour={dataTour}>
-      <Link to={href} className={styles.mediaLink}>
+    <article className={styles.card} data-tour={dataTour} data-featured={featured || undefined}>
+      {/* Same destination as the title link below, so it stays out of the tab
+          order and the accessibility tree: one named link per card, not a
+          second, nameless one (its images are decorative, alt=""). */}
+      <Link to={href} className={styles.mediaLink} tabIndex={-1} aria-hidden>
         <div className={styles.mediaBox}>
           {imageUrl ? (
             // Absolutely positioned inside a plain-div fixed-aspect-ratio
@@ -157,6 +165,9 @@ export function EventRow({
         <span className={styles.meta}>
           {item.kind === "regatta" ? fmtDateRange(item.date, item.endDate) : fmtDateTime(item.date)}
         </span>
+        {item.kind === "activity" && item.activity.summary && (
+          <OutingSummary summary={item.activity.summary} featured={featured} />
+        )}
         <RichText html={description} tier="basic" className={styles.description} />
         {(item.kind === "regatta" || (canAnnounce && clubId)) && (
           <div className={styles.footer}>

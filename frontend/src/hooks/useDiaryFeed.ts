@@ -108,6 +108,13 @@ export function useDiaryFeed(scope: "personal" | "clubs", t: TFunction) {
     setType,
     items,
     isLoading: activities.isLoading || regattas.isLoading,
+    // Either half failing means the feed shown is incomplete — and with
+    // nothing cached it would otherwise read as "you have no outings".
+    isError: activities.isError || regattas.isError,
+    refetch: () => {
+      void activities.refetch();
+      void regattas.refetch();
+    },
     hasNextPage: activities.hasNextPage === true,
     sentinelRef,
   };

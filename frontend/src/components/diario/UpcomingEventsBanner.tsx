@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { regattasService, raceKeys } from "@/services/races";
 import { clubsService, clubKeys } from "@/services/clubs";
@@ -43,6 +45,10 @@ function eventClubId(item: EventItem): string | null {
 export function UpcomingEventsBanner() {
   const { t } = useTranslation();
   const { isDemoTarget } = useOnboarding();
+  // Only the soonest event is shown by default: up to five full callouts
+  // pushed the sailor's own latest outing off the first screen. The rest are
+  // one tap away, inline, rather than on another page.
+  const [expanded, setExpanded] = useState(false);
 
   const upcomingActivities = useQuery({
     queryKey: activityKeys.upcoming(),
@@ -88,12 +94,12 @@ export function UpcomingEventsBanner() {
       return (
         <div className={styles.strip} data-tour="diario-upcoming-banner">
           <div className={styles.card}>
-            <span className="sf-badge sf-badge--success">{t("activities.tomorrow")}</span>
+            <span className="sf-badge">{t("activities.tomorrow")}</span>
             <div className={styles.text}>
               <span className={styles.title}>{t("onboarding.demo.event.title")}</span>
               <p className={`sf-muted ${styles.subtitle}`}>{t("onboarding.demo.event.organizer")}</p>
             </div>
-            <span className={styles.cta}>{t("activities.viewDetails")}</span>
+            <ChevronRight size={18} className={styles.chevron} aria-hidden />
           </div>
         </div>
       );
@@ -108,13 +114,17 @@ export function UpcomingEventsBanner() {
     return null;
   };
 
+  const shown = expanded ? events : events.slice(0, 1);
+  const hidden = events.length - shown.length;
+
   return (
     <div className={styles.strip} data-tour="diario-upcoming-banner">
-      {events.map((item) => {
+      {shown.map((item) => {
         const org = organizerName(item);
         return (
           <Link key={`${item.kind}-${item.id}`} to={eventHref(item)} className={styles.card}>
-            {item.date && <span className="sf-badge sf-badge--success">{relativeDayLabel(item.date, t)}</span>}
+            {/* Neutral, not a status colour: a date is not a success. */}
+            {item.date && <span className="sf-badge">{relativeDayLabel(item.date, t)}</span>}
             <div className={styles.text}>
               <span className={styles.title}>{item.title}</span>
               {org && (
@@ -123,10 +133,15 @@ export function UpcomingEventsBanner() {
                 </p>
               )}
             </div>
-            <span className={styles.cta}>{t("activities.viewDetails")}</span>
+            <ChevronRight size={18} className={styles.chevron} aria-hidden />
           </Link>
         );
       })}
+      {events.length > 1 && (
+        <button type="button" className={styles.more} onClick={() => setExpanded((v) => !v)} aria-expanded={expanded}>
+          {expanded ? t("activities.upcomingLess") : t("activities.upcomingMore", { count: hidden })}
+        </button>
+      )}
     </div>
   );
 }

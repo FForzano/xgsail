@@ -5,15 +5,22 @@
   color: var(--sf-text);
 }
 
-.checkDone {
-  color: var(--sf-success);
+/* "2/4" beside the heading: the finished steps, counted instead of listed. */
+.count {
+  margin-left: 0.35rem;
+  color: var(--sf-muted);
+  letter-spacing: normal;
 }
 
 .dismiss {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem;
+  /* 44px touch target around a 16px icon. */
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.75rem -0.75rem -0.75rem 0;
+  padding: 0;
   background: none;
   border: none;
   color: var(--sf-muted);
