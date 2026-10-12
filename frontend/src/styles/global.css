@@ -99,6 +99,12 @@ body.sf-nav-mode .sf-shell {
   visibility: hidden;
 }
 
+/* Top banner strip (AppShell). Empty when every banner rendered null, which
+   is what the :not(:empty) rules in the mobile breakpoint key on. */
+.sf-banners:empty {
+  display: none;
+}
+
 .sf-main {
   flex: 1;
   width: 100%;
@@ -354,6 +360,23 @@ body.sf-nav-mode .sf-shell {
      .mapFill's controls carry the notch inset themselves). */
   .sf-main--bleed {
     padding: 0;
+  }
+  /* The top banners render above .sf-main, so .sf-main's notch padding never
+     reached them: they drew under the status bar, where the system swallows
+     taps and their dismiss X couldn't be pressed. The strip takes the inset
+     instead (backed with --sf-bg, the colour nativeStatusBar.ts paints), and
+     .sf-main drops its copy so the inset isn't added twice. The sticky tabs'
+     negative margin exists only to cancel that copy, so it goes with it —
+     their inset padding is still needed once they pin to the viewport top. */
+  .sf-banners {
+    padding-top: env(safe-area-inset-top, 0px);
+    background: var(--sf-bg);
+  }
+  .sf-banners:not(:empty) ~ .sf-main:not(.sf-main--bleed) {
+    padding-top: var(--sf-page-pad);
+  }
+  .sf-banners:not(:empty) ~ .sf-main .sf-tabs:not(.sf-tabs--static) {
+    margin-top: 0;
   }
   .sf-toasts {
     bottom: calc(var(--sf-actionbar-h) + env(safe-area-inset-bottom, 0px) + 1rem);

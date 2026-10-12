@@ -150,9 +150,11 @@ function AppShellInner() {
 
   return (
     <div className="sf-shell" aria-hidden={navMode || undefined} {...inertProps}>
-      {canShowSupportLinks && <SupportPromptBanner />}
-      <InstallAppBanner />
-      <FeatureSuggestionBanner />
+      <div className="sf-banners">
+        {canShowSupportLinks && <SupportPromptBanner />}
+        <InstallAppBanner />
+        <FeatureSuggestionBanner />
+      </div>
       <header className="sf-navbar">
         <NavLink to="/" className="sf-navbar__brand">
           <img src="/logo.svg" alt="" className="sf-navbar__logo" />

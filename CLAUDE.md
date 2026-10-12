@@ -703,6 +703,14 @@ Capacitor plugin changes, which still require a store release.
   exist (`/profilo/barche/{id}/quaderno` matches the boat tour). Without
   the `anyStepShown` guard in `OnboardingContext`, that run would spend
   the one automatic showing the account ever gets, in silence.
+- **On a phone, the top safe-area inset belongs to whatever is first on
+  screen, and only to it.** Android 15+ forces edge-to-edge, so anything
+  drawn above `.sf-main` without the inset lands under the status bar,
+  where the system eats taps: the top banners did exactly that, and their
+  dismiss X was unpressable. They now live in `.sf-banners` (AppShell),
+  which takes the inset, and `global.css` drops `.sf-main`'s copy (and the
+  sticky tabs' cancelling negative margin) while that strip is non-empty.
+  A new element above `.sf-main` goes inside `.sf-banners`, not beside it.
 - **Native auth is Bearer, not cookie.** Adding an endpoint that reads
   auth state directly from the request cookie (instead of going
   through `current_user()`) silently breaks it for the native apps —
