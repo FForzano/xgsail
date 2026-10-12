@@ -180,11 +180,13 @@ def activity_sensor_data(activity_id: uuid.UUID, sensors: str,
 
     wanted = [s.strip() for s in sensors.split(",") if s.strip()]
     out = {}
+    hull_types: dict = {}
     for session in repos.sessions.list(activity_id=activity_id):
         boat = repos.boats.get(session.boat_id)
         entry = {
             "session_id": session.id,
-            "boat": {"id": boat.id, "name": boat.name, "sail_number": boat.sail_number}
+            "boat": {"id": boat.id, "name": boat.name, "sail_number": boat.sail_number,
+                     "hull_type": _class_hull_type(boat.boat_class_id, hull_types)}
             if boat else None,
             "sensors": {},
         }
@@ -225,6 +227,17 @@ def activity_sensor_data(activity_id: uuid.UUID, sensors: str,
             entry["physio"] = physio_out
         out[str(session.id)] = entry
     return out
+
+
+def _class_hull_type(class_id, cache: dict) -> Optional[str]:
+    """A boat class's hull type, or None without a class or a hull type.
+    ``cache`` memoises per class id so sessions sharing a class cost one lookup."""
+    if class_id is None:
+        return None
+    if class_id not in cache:
+        boat_class = repos.boats.get_class(class_id)
+        cache[class_id] = boat_class.hull_type if boat_class else None
+    return cache[class_id]
 
 
 def _stream_points(stream) -> Optional[list]:

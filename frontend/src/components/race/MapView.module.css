@@ -153,15 +153,37 @@
   transform: translateX(-50%);
   z-index: 1000;
 }
-/* Draggable position marker — a colored dot matching the track's color,
-   dragged along the track to scrub playback (see MapView.tsx). */
-.posmarker span {
+/* Draggable position marker — the boat's silhouette in its track colour,
+   dragged along the track to scrub playback (see MapView.tsx). The Leaflet box
+   (.posmarker) is a fixed square so the hull can rotate inside it without
+   Leaflet's own positioning transform being touched; the rotation is set on
+   .hull from the boat's heading, and eases so a tack reads as a turn. */
+.posmarker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hull {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s ease-out;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+.hull svg {
   display: block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid #1a1a1a;
-  box-sizing: border-box;
+  overflow: visible;
+}
+/* Outline in screen pixels, whatever the icon's own scale (the catamaran's
+   hulls are drawn squeezed, which would thin a scaled stroke). */
+.hull svg path,
+.hull svg rect {
+  vector-effect: non-scaling-stroke;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hull {
+    transition: none;
+  }
 }
 
 /* Click-track popup: a plain semi-transparent rounded rectangle instead of
