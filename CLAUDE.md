@@ -325,7 +325,31 @@ is what made the detail pages nest a box inside a box:
 `.sf-bleed` (global, mobile-only) cancels `.sf-main`'s `--sf-page-pad`
 inset so a map/chart child of a `Section` runs edge-to-edge on a phone —
 the replacement for the old `sf-card--flush` / `sf-card--flush-top` map
-wrappers.
+wrappers. Those two classes survive only on `RegattaHero`; don't use them
+for new map wrappers.
+
+### Design context (`PRODUCT.md`, `DESIGN.md`)
+
+Two root files carry the context that the code can't, and both are read
+by the Impeccable design skill (`/impeccable …`) before any UI work:
+
+- **`PRODUCT.md`**: product truth (who the users are, positioning,
+  platform, voice, accessibility target). It is not visual and does not
+  change with a restyle.
+- **`DESIGN.md`**: the visual system as shipped, with machine-readable
+  tokens in its YAML frontmatter, named rules and component specs. The
+  frontmatter names `global.css`'s `--sf-*` tokens descriptively
+  (`chart-blue` = `--sf-primary`, `night-harbour` = `--sf-bg`, …), but
+  `global.css` stays the implementation. `.impeccable/design.json` is
+  its sidecar (tonal ramps, shadows, component preview snippets) and is
+  regenerated together with it.
+
+`DESIGN.md` describes the current flat, dark-only look on purpose; a
+more modern treatment is an open redesign, not a licence for a one-off
+restyle of a single page. When a change alters a token, a primitive or a
+rule it lists, update `DESIGN.md` (via `/impeccable document`) in the
+same task. `.impeccable/config.json` enables the design-detector hook
+for the repo; per-developer files under `.impeccable/` are gitignored.
 
 ---
 
@@ -335,6 +359,9 @@ wrappers.
 .
 ├── CLAUDE.md                   # This file
 ├── README.md                   # Project scope: what XGSail is / isn't
+├── PRODUCT.md                  # Product context: users, positioning, voice (Impeccable)
+├── DESIGN.md                   # Visual system: tokens, rules, components (Impeccable)
+├── .impeccable/                # Impeccable config + design.json sidecar (local files ignored)
 ├── pyproject.toml              # Repo-root pytest config only — not a build target
 ├── docs/
 │   ├── device-protocol.md      # Hardware-agnostic device integration protocol
@@ -1337,7 +1364,9 @@ for when it should run for certain rather than by default.
 - **Keep this file, the README, and other docs in sync with the
   codebase proactively — don't wait to be asked.** A task that changes
   what a doc describes (a command, a layer, an env var, a convention)
-  updates that doc in the same task.
+  updates that doc in the same task. That includes `DESIGN.md` for a
+  visual change and `PRODUCT.md` for a change in audience, platform or
+  positioning (see "Design context").
 - Includes removing stale content, not just adding new — a doc
   describing something gone is misleading and gets fixed on sight,
   even if unrelated to the task at hand.

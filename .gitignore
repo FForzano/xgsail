@@ -69,3 +69,14 @@ secrets.json
 
 # Media
 *.mp4
+
+# Impeccable: PRODUCT.md, DESIGN.md, the shared config, design sidecar, surface
+# briefs and critique snapshots are versioned; per-developer settings, hook
+# caches, run logs, live-mode sessions and regenerable mocks/screenshots are not.
+.impeccable/config.local.json
+.impeccable/hook.cache.json
+.impeccable/questions/
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/build/
+.impeccable/live/sessions/
