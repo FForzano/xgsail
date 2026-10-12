@@ -569,7 +569,9 @@ export function MapView({
   }, [cursor, tracks]);
 
   return (
-    <div className={`${styles.map} ${variant === "session" ? styles.mapSession : ""}`}>
+    <div
+      className={`${styles.map} ${variant === "session" ? styles.mapSession : ""} ${controls ? styles.withTransport : ""}`}
+    >
       <div ref={elRef} className={styles.surface} />
       {(mapOptions || nautical) && (
         <div className={styles.options}>

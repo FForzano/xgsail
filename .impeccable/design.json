@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-12T00:00:00Z",
+  "title": "Design System: XGSail",
+  "extensions": {
+    "colorMeta": {
+      "night-harbour": { "role": "neutral", "displayName": "Night Harbour", "canonical": "#0b1f33", "tonalRamp": ["#06121e", "#0b1f33", "#10283f", "#14324d", "#1b3e5e", "#26506f", "#5f86a5", "#9fb6c9"] },
+      "harbour-deck": { "role": "neutral", "displayName": "Harbour Deck", "canonical": "#10283f" },
+      "hull-surface": { "role": "neutral", "displayName": "Hull Surface", "canonical": "#14324d" },
+      "hull-surface-raised": { "role": "neutral", "displayName": "Hull Surface Raised", "canonical": "#1b3e5e" },
+      "rigging-line": { "role": "neutral", "displayName": "Rigging Line", "canonical": "#26506f" },
+      "sail-white": { "role": "neutral", "displayName": "Sail White", "canonical": "#eaf2f8" },
+      "sea-mist": { "role": "neutral", "displayName": "Sea Mist", "canonical": "#9fb6c9" },
+      "chart-blue": { "role": "primary", "displayName": "Chart Blue", "canonical": "#2f9be0", "tonalRamp": ["#04263c", "#0a3d61", "#125a8c", "#1f7bb8", "#2f9be0", "#47abec", "#86c8f2", "#cfe8f9"] },
+      "chart-blue-bright": { "role": "primary", "displayName": "Chart Blue Bright", "canonical": "#47abec" },
+      "chart-blue-ink": { "role": "primary", "displayName": "Chart Blue Ink", "canonical": "#04263c" },
+      "distress-red": { "role": "secondary", "displayName": "Distress Red", "canonical": "#e05a5a", "tonalRamp": ["#3d1010", "#6b1d1d", "#9c2c2c", "#c94444", "#e05a5a", "#ea8484", "#f3b4b4", "#fbe2e2"] },
+      "starboard-green": { "role": "secondary", "displayName": "Starboard Green", "canonical": "#3fbf7f", "tonalRamp": ["#0c3020", "#155238", "#1f7550", "#2c9a67", "#3fbf7f", "#6dd09f", "#a3e2c2", "#d9f4e6"] },
+      "signal-amber": { "role": "secondary", "displayName": "Signal Amber", "canonical": "#e0b24a", "tonalRamp": ["#3a2c0b", "#634a12", "#8f6b1a", "#ba8d29", "#e0b24a", "#e9c677", "#f2dca9", "#fbf2dd"] },
+      "gybe-coral": { "role": "tertiary", "displayName": "Gybe Coral", "canonical": "#e0654f" },
+      "leg-upwind-violet": { "role": "tertiary", "displayName": "Leg Upwind Violet", "canonical": "#9b6fe0" },
+      "leg-reach-teal": { "role": "tertiary", "displayName": "Leg Reach Teal", "canonical": "#0e93a8" },
+      "leg-downwind-ochre": { "role": "tertiary", "displayName": "Leg Downwind Ochre", "canonical": "#a5760a" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Landing hero title only." },
+      "headline": { "displayName": "Headline", "purpose": "Page titles." },
+      "title": { "displayName": "Title", "purpose": "Card and panel titles." },
+      "body": { "displayName": "Body", "purpose": "Prose and rich-text notes." },
+      "body-dense": { "displayName": "Body Dense", "purpose": "Tables and strip rows." },
+      "label": { "displayName": "Label", "purpose": "Form labels, small buttons, metadata." },
+      "eyebrow": { "displayName": "Eyebrow", "purpose": "Uppercase Chart Blue Section titles." },
+      "readout": { "displayName": "Readout", "purpose": "Stat tile values; tabular figures." },
+      "caption": { "displayName": "Caption", "purpose": "Badges, action-bar labels, tab counts." }
+    },
+    "shadows": [
+      { "name": "overlay-hairline", "value": "0 1px 4px rgba(0,0,0,0.4)", "purpose": "Controls and timeline floating over a map." },
+      { "name": "popover", "value": "0 4px 16px rgba(0,0,0,0.35)", "purpose": "Option panels and combobox lists." },
+      { "name": "dialog", "value": "0 8px 24px rgba(4,15,26,0.5)", "purpose": "Modals and bottom sheets." },
+      { "name": "accent-glow", "value": "0 2px 12px color-mix(in srgb, #2f9be0 45%, transparent)", "purpose": "A single emphasised primary element." }
+    ],
+    "motion": [
+      { "name": "state-fast", "value": "0.15s ease", "purpose": "Button, border and hover state transitions." },
+      { "name": "settle", "value": "0.15s ease-out", "purpose": "Progress fills and pull-to-refresh snap-back." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "700px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one decisive action on a screen.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Salva sessione</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; gap:0.4rem; padding:0.5rem 1rem; border:1px solid transparent; border-radius:10px; font:inherit; font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; font-weight:600; cursor:pointer; transition:background 0.15s, border-color 0.15s; } .ds-btn-primary { background:#2f9be0; color:#04263c; } .ds-btn-primary:hover { background:#47abec; } .ds-btn-primary:focus-visible { outline:2px solid #eaf2f8; outline-offset:2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Default secondary action.",
+      "html": "<button class=\"ds-btn-ghost\">Annulla</button>",
+      "css": ".ds-btn-ghost { display:inline-flex; align-items:center; padding:0.5rem 1rem; background:transparent; border:1px solid #26506f; border-radius:10px; color:#eaf2f8; font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; font-weight:600; cursor:pointer; transition:background 0.15s; } .ds-btn-ghost:hover { background:#14324d; } .ds-btn-ghost:focus-visible { outline:2px solid #2f9be0; outline-offset:2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labelled input in a Harbour Deck well.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Numero velico</span><input class=\"ds-field-input\" value=\"ITA 1234\"></label>",
+      "css": ".ds-field { display:flex; flex-direction:column; gap:0.3rem; font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; } .ds-field-label { font-size:0.85rem; font-weight:600; color:#9fb6c9; } .ds-field-input { padding:0.5rem 0.7rem; background:#10283f; border:1px solid #26506f; border-radius:10px; color:#eaf2f8; font:inherit; } .ds-field-input:focus { outline:2px solid #2f9be0; outline-offset:-1px; }"
+    },
+    {
+      "name": "Section Tabs",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Underlined tabs; Chart Blue marks the active one.",
+      "html": "<nav class=\"ds-tabs\"><a class=\"ds-tab ds-tab-active\">Analisi</a><a class=\"ds-tab\">Vento</a><a class=\"ds-tab\">Equipaggio</a><a class=\"ds-tab\">Foto</a></nav>",
+      "css": ".ds-tabs { display:flex; gap:0.25rem; border-bottom:1px solid #26506f; font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; } .ds-tab { padding:0.55rem 1rem; color:#9fb6c9; font-weight:600; border-bottom:2px solid transparent; cursor:pointer; } .ds-tab:hover { color:#eaf2f8; } .ds-tab-active { color:#eaf2f8; border-bottom-color:#2f9be0; }"
+    },
+    {
+      "name": "Badges",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Pill badges: a tint of the hue behind same-hue text.",
+      "html": "<span class=\"ds-badge ds-badge-regatta\">Regata</span> <span class=\"ds-badge ds-badge-club\">Circolo</span> <span class=\"ds-badge ds-badge-success\">Elaborata</span>",
+      "css": ".ds-badge { display:inline-block; padding:0.15rem 0.55rem; border-radius:999px; font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; font-size:0.75rem; font-weight:700; } .ds-badge-regatta { background:color-mix(in srgb,#e0b24a 25%,transparent); color:#e0b24a; } .ds-badge-club { background:color-mix(in srgb,#0e93a8 25%,transparent); color:#0e93a8; } .ds-badge-success { background:color-mix(in srgb,#3fbf7f 25%,transparent); color:#3fbf7f; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "One discrete entity: a boat, a mark, an entry.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><h3 class=\"ds-card-title\">Laser 210 · ITA 1234</h3><button class=\"ds-card-act\">Modifica</button></div><p class=\"ds-card-body\">Ultima uscita: 14 nodi, 2h 10m</p></div>",
+      "css": ".ds-card { background:#14324d; border:1px solid #26506f; border-radius:10px; padding:1rem 1.25rem; color:#eaf2f8; font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; } .ds-card-head { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:0.75rem; } .ds-card-title { margin:0; font-size:1.05rem; font-weight:700; } .ds-card-act { padding:0.3rem 0.7rem; font-size:0.85rem; font-weight:600; background:transparent; border:1px solid #26506f; border-radius:10px; color:#eaf2f8; cursor:pointer; } .ds-card-act:hover { background:#1b3e5e; } .ds-card-body { margin:0; color:#9fb6c9; font-size:0.92rem; }"
+    },
+    {
+      "name": "Stat Tiles",
+      "kind": "custom",
+      "refersTo": "stat-tile",
+      "description": "Instrument readouts with tabular figures.",
+      "html": "<div class=\"ds-tiles\"><div class=\"ds-tile\"><span class=\"ds-tile-l\">SOG</span><span class=\"ds-tile-v\">6.4 kn</span></div><div class=\"ds-tile\"><span class=\"ds-tile-l\">TWA</span><span class=\"ds-tile-v\">42°</span></div><div class=\"ds-tile\"><span class=\"ds-tile-l\">VMG</span><span class=\"ds-tile-v\">4.7 kn</span></div><div class=\"ds-tile\"><span class=\"ds-tile-l\">TWS</span><span class=\"ds-tile-v\">13.1 kn</span></div></div>",
+      "css": ".ds-tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:0.5rem; font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; } .ds-tile { display:flex; flex-direction:column; gap:0.15rem; padding:0.5rem 0.6rem; background:#14324d; border:1px solid #26506f; border-radius:10px; } .ds-tile-l { font-size:0.75rem; color:#9fb6c9; } .ds-tile-v { font-size:1.05rem; font-weight:600; color:#eaf2f8; font-variant-numeric:tabular-nums; }"
+    },
+    {
+      "name": "Section Eyebrow",
+      "kind": "custom",
+      "refersTo": "eyebrow",
+      "description": "Section block heading: uppercase Chart Blue, no box.",
+      "html": "<div class=\"ds-block\"><div class=\"ds-block-head\"><h2 class=\"ds-block-title\">Manovre</h2></div><p class=\"ds-block-body\">12 virate · 4 strambate</p></div>",
+      "css": ".ds-block { display:flex; flex-direction:column; gap:0.75rem; font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; } .ds-block-title { margin:0; font-size:0.8rem; font-weight:800; letter-spacing:0.07em; text-transform:uppercase; color:#2f9be0; } .ds-block-body { margin:0; color:#eaf2f8; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Crew Instruments",
+    "overview": "XGSail is a set of pro-grade sailing instruments made friendly and shared. The numbers have to read like marine electronics: tabular figures, honest units, colour that means something. But they live inside a social app a club follows, closer to Strava than to a chart plotter. A session opens like a logbook entry your crew can see, and underneath sit readouts precise enough to trust.\n\nThe incumbent world is dark-first and single-theme: a deep navy harbour at night, with one chart-blue signal carrying interaction and a small categorical palette reserved for what is drawn on maps and charts. Density is high, as in an instrument panel, with a compact type scale (mostly 0.7–1.05rem) and tight gaps (0.5–1rem). Structure comes from tonal layering and hairline borders, not boxes floating over a page. Components should feel sporty and confident: bold weights (600–800), clear hit areas and a decisive primary action.\n\nThe flat, tonal surface treatment is what exists today, not a stated preference. The owner wants a more contemporary feel, in line with current app trends. That is an open direction for a later redesign pass (see Do's and Don'ts). This file describes the shipped system until that pass replaces it.",
+    "keyCharacteristics": [
+      "Dark-first, single theme (navy at night); no light theme exists yet.",
+      "One interactive accent (Chart Blue); status and categorical colours never stand in for it.",
+      "Instrument density: compact type, tabular numbers on anything that ticks.",
+      "Flat tonal layers + 1px rigging-line borders; shadows only on floating panels.",
+      "One corner radius (10px) for nearly everything, pills for badges, circles for icon buttons.",
+      "Phone-first shell: top navbar on desktop, bottom action bar ≤700px."
+    ],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "Chart Blue is the only colour that means \"you can act here.\" Status hues report state; categorical hues name things on a map. Neither is used as a second accent for buttons or links.", "section": "colors" },
+      { "name": "The Tint, Not Fill Rule", "body": "Badges and highlighted rows use a 10–25% color-mix tint of their hue behind full-strength text of the same hue. Solid status fills are reserved for the destructive button.", "section": "colors" },
+      { "name": "The Token-Only Rule", "body": "Feature CSS Modules read var(--sf-*). The few raw values that remain (#47abec hover, #fff on danger, #1a1a1a on amber badges) are known debt, not precedent.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "Any figure that ticks with playback, sits in a column, or is compared against a neighbour uses font-variant-numeric: tabular-nums. A readout that jitters as its digits change is broken.", "section": "typography" },
+      { "name": "The Weight Carries It Rule", "body": "One family, so hierarchy is weight. Body is 400; anything that labels, navigates or acts is 600 or heavier. Avoid 500, which falls between them.", "section": "typography" },
+      { "name": "The Section-Not-Card Rule", "body": "A page-level region is a Section (heading, actions, content; no surface, no border). A Card is only an innermost discrete entity: one boat, one mark, one entry. Never a Card of Cards.", "section": "layout" },
+      { "name": "The Float-Only Rule", "body": "A shadow means \"this is above the page and will go away.\" Resting content does not cast one.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do read colour only through var(--sf-*) tokens in CSS Modules.",
+      "Do keep Chart Blue as the single interactive accent (The One Signal Rule).",
+      "Do use tabular figures for every live or columnar number.",
+      "Do use the categorical leg/maneuver colours for anything drawn on a map or chart.",
+      "Do use a Section for page regions and a Card only for one discrete entity.",
+      "Do honour safe-area insets on anything fixed or sticky; native shells are the primary target.",
+      "Do check that Italian and English copy both fit; Italian labels run longer."
+    ],
+    "donts": [
+      "Don't nest a Card inside a Card, or box a page region that a Section should hold.",
+      "Don't put a shadow on resting content (The Float-Only Rule).",
+      "Don't introduce a second interactive accent, or use a status colour as decoration.",
+      "Don't use solid status fills for badges; tint them.",
+      "Don't add a second font family to create hierarchy; use weight.",
+      "Don't treat this file's flat tonal look as the design goal. The owner wants a more modern, on-trend treatment of surfaces and depth. That is open and belongs in a dedicated redesign pass (/impeccable new-work), which will replace this file. Until then, extend the existing system consistently instead of inventing a one-off \"modern\" look per page."
+    ]
+  }
+}

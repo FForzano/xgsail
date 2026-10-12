@@ -15,3 +15,9 @@
 .backlink:hover {
   color: var(--sf-text);
 }
+/* A 0.9rem text line is ~17px tall; under a finger it needs the 44px row. */
+@media (pointer: coarse) {
+  .backlink {
+    min-height: 2.75rem;
+  }
+}

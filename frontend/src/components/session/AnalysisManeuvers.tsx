@@ -94,8 +94,14 @@ function metricRow(violin: Violin, series: readonly Series[], metric: string,
  * rendered as a sliver next to a ~12 s recovery. Splitting by unit is the
  * only honest way to keep bar length meaning magnitude. */
 function MetricChart({ unit, data, series }: { unit: string; data: MetricRow[]; series: readonly Series[] }) {
+  const { t } = useTranslation();
+  // The bars as a sentence ("Speed loss: Tack 0.42 kn, Gybe 0.31 kn"), so a
+  // screen reader gets the comparison rather than stray SVG tick labels.
+  const label = data
+    .map((row) => `${row.metric}: ${series.map((s) => `${t(s.i18nKey)} ${row[`${s.key}Label`]} ${unit}`).join(", ")}`)
+    .join("; ");
   return (
-    <div className={styles.chart}>
+    <div className={styles.chart} role="img" aria-label={label}>
       <span className={styles.chartUnit}>{unit}</span>
       <ResponsiveContainer width="100%" height={170}>
         <BarChart data={data} margin={{ top: 16, right: 4, bottom: 0, left: 0 }}>

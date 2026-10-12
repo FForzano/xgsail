@@ -4,7 +4,8 @@
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.5rem 0.75rem;
-  padding: 0.6rem 2.25rem;
+  min-height: 2.75rem;
+  padding: 0.6rem 3rem;
   border-bottom: 1px solid var(--sf-border);
   font-size: 0.85rem;
   text-align: center;
@@ -40,13 +41,16 @@
 }
 .dismiss {
   position: absolute;
-  right: 0.5rem;
+  right: 0.25rem;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem;
+  /* 44px touch target around a 16px icon. */
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
   background: none;
   border: none;
   color: var(--sf-muted);

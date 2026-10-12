@@ -1,0 +1,84 @@
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* One instrument row, not three tiles: the readouts share a single band and
+   are told apart by hairlines, so the card gains numbers without gaining
+   boxes inside a box. */
+.readouts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--sf-border);
+  border-bottom: 1px solid var(--sf-border);
+}
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0 0.75rem;
+}
+.readout:first-child {
+  padding-left: 0;
+}
+.readout + .readout {
+  border-left: 1px solid var(--sf-border);
+}
+.label {
+  font-size: 0.75rem;
+  color: var(--sf-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.value {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--sf-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The latest outing reads at headline size: it is the one card the feed is
+   opened for. */
+.summary[data-featured] .value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.summary[data-featured] .readouts {
+  padding: 0.75rem 0;
+}
+
+.crew {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.faces {
+  display: flex;
+  flex-shrink: 0;
+}
+/* Overlapping faces, each ringed in the card surface so they read as a
+   stack rather than a blur. */
+.crew .face {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--sf-surface);
+  font-size: 0.7rem;
+}
+.crew .face + .face {
+  margin-left: -0.3rem;
+}
+.crewText {
+  font-size: 0.85rem;
+  color: var(--sf-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

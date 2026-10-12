@@ -33,13 +33,15 @@ import { UserPicker } from "@/components/common/UserPicker";
 import { WindCard } from "@/components/common/WindCard";
 import { PhotoGallery, type GalleryPhoto } from "@/components/common/PhotoGallery";
 import { SessionAnalysis } from "@/components/session/SessionAnalysis";
+import { SessionSummary } from "@/components/session/SessionSummary";
 import { ShareImageModal } from "@/components/session/ShareImageModal";
 import { HealthCard } from "@/components/session/HealthCard";
 import { NavSourceModal } from "@/components/session/NavSourceModal";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
-import { fmtDateTime, fmtDistance, fmtDuration, fmtKnots, userLabel } from "@/utils/format";
+import { fmtDateTime, fmtDateTimeLong, userLabel } from "@/utils/format";
 import { legSequence } from "@/utils/legSequence";
 import { richTextExcerpt } from "@/utils/richTextExcerpt";
+import { windSummary } from "@/utils/windStats";
 import { sessionStatusBadge } from "@/utils/badges";
 import { SAILING_ROLES } from "@/utils/sailingRoles";
 import type { GpsPoint, SailingRole, UUID } from "@/types";
@@ -191,7 +193,26 @@ export function SessionDetail({
     queryKey: sessionKeys.detail(sessionId),
     queryFn: () => sessionsService.get(sessionId),
     enabled: !!sessionId,
+    // A just-uploaded session is still with the worker: keep checking, so the
+    // "analysis being prepared" notice resolves without a manual reload.
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "pending" || status === "processing" ? 5000 : false;
+    },
   });
+  // When processing finishes, everything derived from it (analysis, stats,
+  // the streams behind the map) exists now and was cached as missing.
+  const lastStatusRef = useRef(session.data?.status);
+  useEffect(() => {
+    const status = session.data?.status;
+    const was = lastStatusRef.current;
+    lastStatusRef.current = status;
+    if ((was === "pending" || was === "processing") && status !== was) {
+      queryClient.invalidateQueries({ queryKey: sessionKeys.analysis(sessionId) });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.stats(sessionId) });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.streams(sessionId) });
+    }
+  }, [session.data?.status, sessionId, queryClient]);
   // `notes` is only present on the payload when the caller may see it (crew/
   // boat manager, or shared — see backend `_session_payload`), so this stays
   // empty for a viewer with read-only access to someone else's shared note.
@@ -882,16 +903,23 @@ export function SessionDetail({
         // boxing it just repeats the chrome of every `Section` below it.
         <div className="sf-block">
           <div className="sf-toolbar">
-            <h1 className="sf-page-title">
-              {boat.data?.name ?? t("sessions.boat")} — {fmtDateTime(s.started_at)}{" "}
-              {reanalysisPolling ? (
-                <span className="sf-badge sf-badge--pending">
-                  <Spinner inline /> {t("sessions.reanalyzing")}
-                </span>
-              ) : (
-                <span className={sessionStatusBadge(s.status)}>{s.status}</span>
-              )}
-            </h1>
+            <div className={styles.titleBlock}>
+              <h1 className="sf-page-title">{boat.data?.name ?? t("sessions.boat")}</h1>
+              <p className={`sf-muted ${styles.titleMeta}`}>
+                <span className={styles.titleDate}>{fmtDateTimeLong(s.started_at)}</span>
+                {/* A processed session is the normal case and says nothing;
+                    only a state the reader has to wait on or act on shows. */}
+                {reanalysisPolling ? (
+                  <span className="sf-badge sf-badge--pending">
+                    <Spinner inline /> {t("sessions.reanalyzing")}
+                  </span>
+                ) : (
+                  s.status !== "processed" && (
+                    <span className={sessionStatusBadge(s.status)}>{t(`boats.outings.status.${s.status}`)}</span>
+                  )
+                )}
+              </p>
+            </div>
             <div className={styles.headerActions}>
               <QuickActionButtons actions={headerActions} />
               {menuSections.length > 0 && <Menu sections={menuSections} triggerDataTour="activity-menu" />}
@@ -963,6 +991,11 @@ export function SessionDetail({
               ))}
             </div>
           )}
+          {stats.data && (
+            <div data-tour="activity-stats">
+              <SessionSummary stats={stats.data} trueWind={analysis.data?.true_wind} />
+            </div>
+          )}
           <div className="sf-section__body">
             <div data-tour="activity-speed-chart">
               <SpeedChart
@@ -980,36 +1013,28 @@ export function SessionDetail({
         </div>
       )}
 
-      {stats.data && (
-        <div data-tour="activity-stats">
-          <Section title={t("sessions.stats")}>
-            <div className="sf-tablewrap">
-              <table className="sf-table">
-                <tbody>
-                  <tr>
-                    <th>{t("sessions.duration")}</th>
-                    <td>{fmtDuration(stats.data.duration_s)}</td>
-                    <th>{t("sessions.distance")}</th>
-                    <td>{fmtDistance(stats.data.distance_m)}</td>
-                  </tr>
-                  <tr>
-                    <th>{t("sessions.avgSpeed")}</th>
-                    <td>{fmtKnots(stats.data.avg_speed_kts)}</td>
-                    <th>{t("sessions.maxSpeed")}</th>
-                    <td>{fmtKnots(stats.data.max_speed_kts)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </Section>
-        </div>
-      )}
+      {/* Analysis is why the page is opened, so it follows the replay
+          directly; crew, notes and media come after it. */}
+      <div id="session-analysis" data-tour="activity-analysis">
+        <SessionAnalysis
+          sessionId={sessionId}
+          status={s.status}
+          editMode={maneuverEditMode}
+          maxSpeedKts={stats.data?.max_speed_kts}
+          onRefreshWind={manager ? () => refreshWind.mutate() : undefined}
+          refreshingWind={refreshWind.isPending || reanalyze.isPending || reanalysisPolling}
+          onReanalyze={manager ? () => reanalyze.mutate() : undefined}
+        />
+      </div>
 
       {/* Renders nothing unless this viewer may see someone's health data —
           see HealthCard, which also handles the multi-crew case. */}
       <HealthCard sessionId={sessionId} />
 
-      {tracks[0]?.pts[0] && (
+      {/* The live station snapshot only earns its place when the session has
+          no wind series of its own; otherwise the analysis wind chart and the
+          map's wind badge already say it, and a third copy is noise. */}
+      {tracks[0]?.pts[0] && analysis.isFetched && !windSummary(analysis.data?.true_wind) && (
         <WindCard lat={tracks[0].pts[0].lat} lng={tracks[0].pts[0].lon} at={s.started_at} />
       )}
 
@@ -1040,10 +1065,10 @@ export function SessionDetail({
                     />
                     <span>
                       <strong>{userLabel(c.user)}</strong>{" "}
-                      <span className="sf-muted">{c.user?.email}</span>{" "}
                       {canEditRole ? (
                         <select
                           className="sf-badge sf-badge--select"
+                          aria-label={t("sessions.sailingRole")}
                           value={c.sailing_role}
                           disabled={updateCrewRole.isPending}
                           onChange={(e) =>
@@ -1075,7 +1100,7 @@ export function SessionDetail({
             })}
           </div>
         ) : (
-          <p className="sf-muted">{t("common.none")}</p>
+          <p className="sf-muted">{t("sessions.noCrew")}</p>
         )}
       </Section>
 
@@ -1152,16 +1177,6 @@ export function SessionDetail({
           </div>
         </Section>
       ) : null}
-
-      <div id="session-analysis" data-tour="activity-analysis">
-        <SessionAnalysis
-          sessionId={sessionId}
-          editMode={maneuverEditMode}
-          maxSpeedKts={stats.data?.max_speed_kts}
-          onRefreshWind={manager ? () => refreshWind.mutate() : undefined}
-          refreshingWind={refreshWind.isPending || reanalysisPolling}
-        />
-      </div>
 
       {addingCrew && (
         <Modal

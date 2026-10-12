@@ -276,11 +276,16 @@ def boat_payload(boat, user) -> dict:
     return d
 
 
-def activity_payload(activity, *, covers: dict | None = None) -> dict:
+def activity_payload(activity, *, covers: dict | None = None,
+                     summaries: dict | None = None) -> dict:
     """``covers`` is the batch result of ``repos.activities.photo_covers()``
     for a whole page of activities — a list endpoint must pass it in so the
     cover/count lookup is one query for the page, not one per activity.
-    Omitted, it resolves for this one activity."""
+    Omitted, it resolves for this one activity.
+
+    ``summaries`` is ``repos.activities.outing_summaries()`` for the page; when
+    given, ``summary`` is the viewer's own outing (None if not aboard), and
+    when omitted the key is absent. Crew carry no email."""
     d = activity.to_dict()
     d["thumbnail"] = media.image_payload(activity.thumbnail_image_id)
     if covers is None:
@@ -288,7 +293,18 @@ def activity_payload(activity, *, covers: dict | None = None) -> dict:
     cover_image, count = covers.get(activity.id, (None, 0))
     d["cover_photo"] = media.image_ref(cover_image)
     d["photo_count"] = count
+    if summaries is not None:
+        d["summary"] = _outing_summary_payload(summaries.get(activity.id))
     return d
+
+
+def _outing_summary_payload(summary: dict | None) -> dict | None:
+    if summary is None:
+        return None
+    return summary | {"crew": [
+        c | {"profile_image": media.image_ref(c["profile_image"])}
+        for c in summary["crew"]
+    ]}
 
 
 def detect_file_type(filename: str) -> str:

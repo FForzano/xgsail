@@ -1,0 +1,24 @@
+{
+  "hook": {
+    "enabled": true,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  },
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/components/ui/RichText.module.css"
+        ],
+        "createdAt": "2026-10-12T14:19:36.847Z",
+        "reason": "Agent: .prose blockquote left rule is the standard quotation marker in rendered rich text, not a card accent"
+      }
+    ]
+  }
+}

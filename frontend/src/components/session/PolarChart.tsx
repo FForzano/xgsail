@@ -186,6 +186,8 @@ export function PolarChart({
     <div className={styles.polar}>
       <svg
         ref={svgRef}
+        role="img"
+        aria-label={t("sessions.polarChartLabel")}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         style={{ width: "100%", maxWidth: 380, overflow: "visible" }}
         onClick={(e) => handlePick(e.clientX, e.clientY)}

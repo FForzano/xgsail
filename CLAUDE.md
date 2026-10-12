@@ -325,7 +325,31 @@ is what made the detail pages nest a box inside a box:
 `.sf-bleed` (global, mobile-only) cancels `.sf-main`'s `--sf-page-pad`
 inset so a map/chart child of a `Section` runs edge-to-edge on a phone —
 the replacement for the old `sf-card--flush` / `sf-card--flush-top` map
-wrappers.
+wrappers. Those two classes survive only on `RegattaHero`; don't use them
+for new map wrappers.
+
+### Design context (`PRODUCT.md`, `DESIGN.md`)
+
+Two root files carry the context that the code can't, and both are read
+by the Impeccable design skill (`/impeccable …`) before any UI work:
+
+- **`PRODUCT.md`**: product truth (who the users are, positioning,
+  platform, voice, accessibility target). It is not visual and does not
+  change with a restyle.
+- **`DESIGN.md`**: the visual system as shipped, with machine-readable
+  tokens in its YAML frontmatter, named rules and component specs. The
+  frontmatter names `global.css`'s `--sf-*` tokens descriptively
+  (`chart-blue` = `--sf-primary`, `night-harbour` = `--sf-bg`, …), but
+  `global.css` stays the implementation. `.impeccable/design.json` is
+  its sidecar (tonal ramps, shadows, component preview snippets) and is
+  regenerated together with it.
+
+`DESIGN.md` describes the current flat, dark-only look on purpose; a
+more modern treatment is an open redesign, not a licence for a one-off
+restyle of a single page. When a change alters a token, a primitive or a
+rule it lists, update `DESIGN.md` (via `/impeccable document`) in the
+same task. `.impeccable/config.json` enables the design-detector hook
+for the repo; per-developer files under `.impeccable/` are gitignored.
 
 ---
 
@@ -335,6 +359,9 @@ wrappers.
 .
 ├── CLAUDE.md                   # This file
 ├── README.md                   # Project scope: what XGSail is / isn't
+├── PRODUCT.md                  # Product context: users, positioning, voice (Impeccable)
+├── DESIGN.md                   # Visual system: tokens, rules, components (Impeccable)
+├── .impeccable/                # Impeccable config + design.json sidecar (local files ignored)
 ├── pyproject.toml              # Repo-root pytest config only — not a build target
 ├── docs/
 │   ├── device-protocol.md      # Hardware-agnostic device integration protocol
@@ -676,6 +703,14 @@ Capacitor plugin changes, which still require a store release.
   exist (`/profilo/barche/{id}/quaderno` matches the boat tour). Without
   the `anyStepShown` guard in `OnboardingContext`, that run would spend
   the one automatic showing the account ever gets, in silence.
+- **On a phone, the top safe-area inset belongs to whatever is first on
+  screen, and only to it.** Android 15+ forces edge-to-edge, so anything
+  drawn above `.sf-main` without the inset lands under the status bar,
+  where the system eats taps: the top banners did exactly that, and their
+  dismiss X was unpressable. They now live in `.sf-banners` (AppShell),
+  which takes the inset, and `global.css` drops `.sf-main`'s copy (and the
+  sticky tabs' cancelling negative margin) while that strip is non-empty.
+  A new element above `.sf-main` goes inside `.sf-banners`, not beside it.
 - **Native auth is Bearer, not cookie.** Adding an endpoint that reads
   auth state directly from the request cookie (instead of going
   through `current_user()`) silently breaks it for the native apps —
@@ -1162,6 +1197,14 @@ Capacitor plugin changes, which still require a store release.
   nothing fails — it just quietly issues one extra query per row. Same class
   of silent trap as the `include_guest=True` capabilities bullet above.
 
+- **An activity's `summary` is the *viewer's* outing, and it exists only on
+  `GET /activities?mine=true`.** `repos.activities.outing_summaries()` totals
+  the sessions of that activity the caller was aboard (`session_crew`) and
+  lists who else was — summing every session of a regatta would add up other
+  boats' miles. It is per-viewer, so `activity_payload` adds the key only when
+  a `summaries=` map is passed (absent elsewhere, `null` when not aboard), and,
+  like `covers=`, a list endpoint must prefetch it for the page or it costs a
+  query per row. Crew entries never carry an email.
 - **`was_aboard` is presentation, not authorization.** Boat membership at any
   role still grants full read access to every session on that boat
   (`session_visible_to`) — the flag only says whether the viewer is in *that*
@@ -1337,7 +1380,9 @@ for when it should run for certain rather than by default.
 - **Keep this file, the README, and other docs in sync with the
   codebase proactively — don't wait to be asked.** A task that changes
   what a doc describes (a command, a layer, an env var, a convention)
-  updates that doc in the same task.
+  updates that doc in the same task. That includes `DESIGN.md` for a
+  visual change and `PRODUCT.md` for a change in audience, platform or
+  positioning (see "Design context").
 - Includes removing stale content, not just adding new — a doc
   describing something gone is misleading and gets fixed on sight,
   even if unrelated to the task at hand.

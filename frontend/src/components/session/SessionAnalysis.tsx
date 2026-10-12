@@ -7,6 +7,7 @@ import { polarsService, polarKeys } from "@/services/polars";
 import { Section } from "@/components/ui/Section";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { StatTile, StatTiles } from "./StatTile";
 import styles from "./SessionAnalysis.module.css";
@@ -16,7 +17,7 @@ import { WindChart } from "./WindChart";
 import { PolarChart } from "./PolarChart";
 import { LegsTable, TackBreakdown } from "./AnalysisLegs";
 import { ManeuverCounts, ManeuverStatsChart, ManeuversTable } from "./AnalysisManeuvers";
-import type { PolarPoint, SessionManeuver, UUID } from "@/types";
+import type { PolarPoint, SessionManeuver, SessionStatus, UUID } from "@/types";
 
 /** Rich per-session analysis (maneuvers, polar, VMG, …), assembled from its
  * normalized DB homes. 404 until the processing pipeline has run.
@@ -35,19 +36,28 @@ import type { PolarPoint, SessionManeuver, UUID } from "@/types";
  * maneuvers, by the user's own say-so). */
 export function SessionAnalysis({
   sessionId,
+  status,
   editMode = false,
   maxSpeedKts,
   onRefreshWind,
   refreshingWind = false,
+  onReanalyze,
 }: {
   sessionId: UUID;
+  /** The session's processing state — what an absent analysis means depends
+   * on it: still being computed, or something went wrong. */
+  status: SessionStatus;
   editMode?: boolean;
   maxSpeedKts?: number | null;
   /** Reuses the boat manager's existing "refresh wind" action (see
    * SessionDetail) — offered from the "no wind data" message below.
    * Omitted for a caller who can't trigger it (not a manager). */
   onRefreshWind?: () => void;
+  /** True while a reanalysis or wind refresh is running in the background. */
   refreshingWind?: boolean;
+  /** The manager's "re-run analysis" action, offered when there is no
+   * analysis to show; omitted for anyone who can't trigger it. */
+  onReanalyze?: () => void;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -82,7 +92,40 @@ export function SessionAnalysis({
   });
 
   if (analysis.isLoading) return <Section title={t("sessions.analysis")}><Spinner /></Section>;
-  if (!analysis.data) return null; // no analysis yet — hide the section entirely
+  if (!analysis.data) {
+    // 404 = no analysis row. While the worker is still on it, say so, so the
+    // reader knows it is coming and the page refreshes itself (SessionDetail
+    // polls the session while it is pending/processing); once processing has
+    // ended without one, say that instead of leaving the section out.
+    const preparing = status === "pending" || status === "processing" || refreshingWind;
+    return (
+      <Section title={t("sessions.analysis")}>
+        {preparing ? (
+          <Notice
+            title={
+              <>
+                <Spinner inline /> {t("sessions.analysisPending.title")}
+              </>
+            }
+            body={t("sessions.analysisPending.body")}
+            live
+          />
+        ) : (
+          <Notice
+            title={t("sessions.analysisUnavailable.title")}
+            body={t("sessions.analysisUnavailable.body")}
+            action={
+              onReanalyze && (
+                <Button variant="ghost" onClick={onReanalyze}>
+                  {t("sessions.reanalyze")}
+                </Button>
+              )
+            }
+          />
+        )}
+      </Section>
+    );
+  }
   const a = analysis.data;
   const noWindData = a.unavailable_reason === "no_wind_data";
   const visibleManeuvers = editMode ? a.maneuvers : a.maneuvers.filter((m) => !m.rejected);
@@ -96,14 +139,17 @@ export function SessionAnalysis({
     <Section title={t("sessions.analysis")}>
       <div className="sf-section__body">
         {noWindData && (
-          <p className={styles.noWindData}>
-            {t("sessions.analysisNoWindData")}
-            {onRefreshWind && (
-              <Button variant="ghost" onClick={onRefreshWind} disabled={refreshingWind}>
-                {t("sessions.refreshWind")}
-              </Button>
-            )}
-          </p>
+          <Notice
+            title={t("sessions.analysisNoWind.title")}
+            body={t("sessions.analysisNoWind.body")}
+            action={
+              onRefreshWind && (
+                <Button variant="ghost" onClick={onRefreshWind} disabled={refreshingWind}>
+                  {refreshingWind ? t("sessions.reanalyzing") : t("sessions.refreshWind")}
+                </Button>
+              )
+            }
+          />
         )}
         {wind && (
           <AnalysisBlock title={t("wind.title")}>

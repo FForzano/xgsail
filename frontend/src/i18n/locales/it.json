@@ -80,7 +80,8 @@
     "to": "Al",
     "reset": "Reimposta",
     "previousImage": "Immagine precedente",
-    "nextImage": "Immagine successiva"
+    "nextImage": "Immagine successiva",
+    "options": "Altre opzioni"
   },
   "support": {
     "title": "Sostieni XGSail",
@@ -204,6 +205,24 @@
       "club": "Circolo",
       "group": "Gruppo",
       "crew": "A bordo"
+    },
+    "sailedWith": "Con {{names}}",
+    "othersCount_one": "un altro",
+    "othersCount_other": "altri {{count}}",
+    "and": "e",
+    "feedError": {
+      "offline": {
+        "title": "Sei offline",
+        "body": "Le tue uscite compariranno appena torna la connessione; la pagina si aggiorna da sola."
+      },
+      "failed": {
+        "title": "Impossibile caricare il diario",
+        "body": "Il server non ha risposto. Le tue uscite non sono perse: riprova tra poco."
+      },
+      "stale": {
+        "title": "Il diario potrebbe non essere aggiornato",
+        "body": "L'ultimo aggiornamento non è riuscito; qui sotto vedi le uscite caricate in precedenza."
+      }
     }
   },
   "profile": {
@@ -597,7 +616,7 @@
     "distance": "Distanza",
     "avgSpeed": "Velocità media",
     "maxSpeed": "Velocità max",
-    "stats": "Statistiche",
+    "avgWind": "Vento medio",
     "playback": "Playback",
     "noGps": "Nessun dato GPS per questa sessione",
     "crew": "Equipaggio",
@@ -678,7 +697,18 @@
     "reanalyzing": "Aggiornamento in corso…",
     "reanalyzeDone": "Aggiornamento completato",
     "refreshWind": "Aggiorna dati vento",
-    "analysisNoWindData": "Analisi non disponibile: per questa uscita non c'è alcun dato di vento (né sensore a bordo, né stazioni o modelli meteo). Serve almeno una fonte di vento per calcolare andature, bordi e polare.",
+    "analysisPending": {
+      "title": "Analisi in preparazione…",
+      "body": "Andature, bordi, virate e polare compariranno qui appena finisce l'elaborazione. La pagina si aggiorna da sola."
+    },
+    "analysisUnavailable": {
+      "title": "Analisi non disponibile",
+      "body": "Non è stato possibile calcolarla per questa uscita."
+    },
+    "analysisNoWind": {
+      "title": "Niente vento registrato per questa uscita",
+      "body": "Senza dati di vento non si possono ricavare andature, bordi e polare. Velocità, distanza e replay restano qui sopra."
+    },
     "menuSectionSession": "Modifica sessione",
     "openBoatNotebook": "Quaderno regolazioni barca",
     "share": "Condividi",
@@ -785,7 +815,10 @@
     "photoCount_one": "{{count}} foto",
     "photoCount_other": "{{count}} foto",
     "openGallery": "Apri la galleria",
-    "photoLimitReached": "Questa sessione ha raggiunto il numero massimo di foto."
+    "photoLimitReached": "Questa sessione ha raggiunto il numero massimo di foto.",
+    "chartOptions": "Opzioni grafico",
+    "polarChartLabel": "Polare della sessione: velocità media per angolo al vento vero.",
+    "noCrew": "Nessuno a bordo indicato per questa uscita."
   },
   "map": {
     "layers": {
@@ -959,10 +992,12 @@
     "today": "Oggi",
     "tomorrow": "Domani",
     "organizedBy": "Organizzato da {{name}}",
-    "viewDetails": "Vedi dettagli",
     "photos": "Foto",
     "photosFrom": "Foto di {{name}}",
-    "addPhotoToMySession": "Aggiungi foto"
+    "addPhotoToMySession": "Aggiungi foto",
+    "upcomingMore_one": "Un altro evento in arrivo",
+    "upcomingMore_other": "Altri {{count}} eventi in arrivo",
+    "upcomingLess": "Mostra meno"
   },
   "regate": {
     "title": "Regate",
@@ -1322,8 +1357,8 @@
         "body": "Rianalizza la traccia, modifica i dettagli o elimina la sessione."
       },
       "stats": {
-        "title": "Statistiche",
-        "body": "Distanza, durata e velocità media e massima della sessione."
+        "title": "Riepilogo",
+        "body": "Durata, distanza, velocità massima e vento medio: l'uscita a colpo d'occhio."
       },
       "health": {
         "title": "Dati biometrici",
@@ -1491,7 +1526,8 @@
       "session": {
         "label": "Registra o importa la tua prima uscita",
         "cta": "Registra"
-      }
+      },
+      "progress": "{{done}}/{{total}}"
     }
   },
   "users": {
@@ -1579,5 +1615,12 @@
       "gfs_seamless": "GFS + HRRR (NOAA, ~3-13 km)",
       "ecmwf_ifs025": "ECMWF IFS (~28 km, globale)"
     }
+  },
+  "playback": {
+    "stepBack": "Indietro",
+    "play": "Riproduci",
+    "pause": "Pausa",
+    "stepForward": "Avanti",
+    "speed": "Velocità di riproduzione {{speed}}×, cambia"
   }
 }

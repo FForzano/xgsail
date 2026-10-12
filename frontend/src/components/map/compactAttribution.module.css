@@ -23,6 +23,18 @@
 button.toggle {
   cursor: pointer;
 }
+/* The 20px dot stays small so it doesn't cover the map, but a finger gets
+   a 44px target around it: an invisible hit area, not a bigger button. */
+@media (pointer: coarse) {
+  .toggle {
+    position: relative;
+  }
+  .toggle::after {
+    content: "";
+    position: absolute;
+    inset: -12px;
+  }
+}
 
 @media (max-width: 700px) {
   .toggle {

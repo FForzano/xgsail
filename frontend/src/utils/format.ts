@@ -38,6 +38,19 @@ export function fmtDateTime(ts?: string | null): string {
   });
 }
 
+/** "domenica 12 ottobre, 10:04" — a page subtitle, where the weekday is what
+ * people remember an outing by and the short form reads like a log entry. */
+export function fmtDateTimeLong(ts?: string | null): string {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function fmtTime(ms: number): string {
   return new Date(ms).toLocaleTimeString(undefined, {
     hour: "2-digit",

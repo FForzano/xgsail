@@ -7,6 +7,12 @@
   margin: 0 auto;
 }
 
+/* A feed-level notice (load failed / offline) sits in the reading column, with
+   the feed's own spacing below it. */
+.notice {
+  margin: 0.25rem 0 1rem;
+}
+
 .feed {
   display: flex;
   flex-direction: column;
@@ -23,6 +29,24 @@
 }
 .card:hover {
   border-color: var(--sf-primary);
+}
+/* Hover never fires under a finger, so a touch screen gets the same cue on
+   press instead — the card acknowledges the tap before the page changes. */
+@media (hover: none) {
+  .card {
+    transition:
+      border-color 0.15s ease,
+      transform 0.15s ease;
+  }
+  .card:active {
+    border-color: var(--sf-primary);
+    transform: scale(0.99);
+  }
+}
+@media (hover: none) and (prefers-reduced-motion: reduce) {
+  .card:active {
+    transform: none;
+  }
 }
 
 .mediaLink {
@@ -157,6 +181,10 @@
 }
 .title:hover {
   text-decoration: underline;
+}
+.card[data-featured] .title {
+  font-size: 1.3rem;
+  font-weight: 800;
 }
 .meta {
   font-size: 0.82rem;

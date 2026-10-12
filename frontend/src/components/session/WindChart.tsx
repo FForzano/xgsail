@@ -51,68 +51,71 @@ export function WindChart({ points }: { points: TrueWindPoint[] | null | undefin
         </dl>
       </div>
 
-      <ResponsiveContainer width="100%" height={H}>
-        <ComposedChart data={data} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
-          <XAxis
-            dataKey="ms"
-            type="number"
-            domain={["dataMin", "dataMax"]}
-            tickFormatter={(ms: number) => fmtTime(ms).slice(0, 5)}
-            tick={{ fill: "var(--sf-muted)", fontSize: 11 }}
-            stroke="var(--sf-border)"
-            minTickGap={40}
-          />
-          <YAxis
-            domain={[0, Math.ceil(top + 1)]}
-            width={28}
-            tickFormatter={(v: number) => splitKnots(v).value.replace(/\.0$/, "")}
-            tick={{ fill: "var(--sf-muted)", fontSize: 11 }}
-            stroke="var(--sf-border)"
-            tickCount={4}
-          />
-          <Tooltip
-            labelFormatter={(ms) => (typeof ms === "number" ? fmtTime(ms) : "")}
-            formatter={(v, name) =>
-              name === "gustBand"
-                ? [fmtKnots(Array.isArray(v) ? Number(v[1]) : Number(v)), t("wind.gust")]
-                : [fmtKnots(Number(v)), t("wind.mean")]
-            }
-            separator=": "
-            contentStyle={{
-              background: "var(--sf-surface)",
-              border: "1px solid var(--sf-border)",
-              borderRadius: 8,
-              fontSize: 12,
-              padding: "0.35rem 0.6rem",
-            }}
-            itemStyle={{ color: "var(--sf-text)", padding: 0 }}
-            labelStyle={{ color: "var(--sf-muted)" }}
-          />
-          {hasGusts && (
+      {/* The mean/peak/gust figures above are the text version of this chart. */}
+      <div aria-hidden>
+        <ResponsiveContainer width="100%" height={H}>
+          <ComposedChart data={data} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
+            <XAxis
+              dataKey="ms"
+              type="number"
+              domain={["dataMin", "dataMax"]}
+              tickFormatter={(ms: number) => fmtTime(ms).slice(0, 5)}
+              tick={{ fill: "var(--sf-muted)", fontSize: 11 }}
+              stroke="var(--sf-border)"
+              minTickGap={40}
+            />
+            <YAxis
+              domain={[0, Math.ceil(top + 1)]}
+              width={28}
+              tickFormatter={(v: number) => splitKnots(v).value.replace(/\.0$/, "")}
+              tick={{ fill: "var(--sf-muted)", fontSize: 11 }}
+              stroke="var(--sf-border)"
+              tickCount={4}
+            />
+            <Tooltip
+              labelFormatter={(ms) => (typeof ms === "number" ? fmtTime(ms) : "")}
+              formatter={(v, name) =>
+                name === "gustBand"
+                  ? [fmtKnots(Array.isArray(v) ? Number(v[1]) : Number(v)), t("wind.gust")]
+                  : [fmtKnots(Number(v)), t("wind.mean")]
+              }
+              separator=": "
+              contentStyle={{
+                background: "var(--sf-surface)",
+                border: "1px solid var(--sf-border)",
+                borderRadius: 8,
+                fontSize: 12,
+                padding: "0.35rem 0.6rem",
+              }}
+              itemStyle={{ color: "var(--sf-text)", padding: 0 }}
+              labelStyle={{ color: "var(--sf-muted)" }}
+            />
+            {hasGusts && (
+              <Area
+                dataKey="gustBand"
+                type="monotone"
+                stroke={GUST_COLOR}
+                strokeWidth={1}
+                fill={GUST_COLOR}
+                fillOpacity={0.35}
+                isAnimationActive={false}
+              />
+            )}
             <Area
-              dataKey="gustBand"
+              dataKey="mean"
               type="monotone"
-              stroke={GUST_COLOR}
-              strokeWidth={1}
-              fill={GUST_COLOR}
-              fillOpacity={0.35}
+              stroke={MEAN_COLOR}
+              strokeWidth={2}
+              fill={MEAN_COLOR}
+              fillOpacity={0.3}
               isAnimationActive={false}
             />
-          )}
-          <Area
-            dataKey="mean"
-            type="monotone"
-            stroke={MEAN_COLOR}
-            strokeWidth={2}
-            fill={MEAN_COLOR}
-            fillOpacity={0.3}
-            isAnimationActive={false}
-          />
-          {cursor >= data[0].ms && cursor <= data[data.length - 1].ms && (
-            <ReferenceLine x={cursor} stroke="var(--sf-text)" strokeWidth={1} />
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
+            {cursor >= data[0].ms && cursor <= data[data.length - 1].ms && (
+              <ReferenceLine x={cursor} stroke="var(--sf-text)" strokeWidth={1} />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
 
       <ul className={styles.legend}>
         <li>

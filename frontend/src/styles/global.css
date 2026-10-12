@@ -99,6 +99,20 @@ body.sf-nav-mode .sf-shell {
   visibility: hidden;
 }
 
+/* Top banner strip (AppShell). Empty when every banner rendered null, which
+   is what the :not(:empty) rules in the mobile breakpoint key on. */
+.sf-banners:empty {
+  display: none;
+}
+/* One prompt at a time: banners are stacked in priority order (AppShell) and
+   only the first that wants to show does; the next one surfaces once it is
+   dismissed. None of their cadences counts impressions, so a banner held back
+   here loses nothing. Keyed on SlimBanner's role, so a sibling that isn't a
+   banner (a sheet a banner opens) is never hidden by it. */
+.sf-banners > [role="note"] ~ [role="note"] {
+  display: none;
+}
+
 .sf-main {
   flex: 1;
   width: 100%;
@@ -355,6 +369,23 @@ body.sf-nav-mode .sf-shell {
   .sf-main--bleed {
     padding: 0;
   }
+  /* The top banners render above .sf-main, so .sf-main's notch padding never
+     reached them: they drew under the status bar, where the system swallows
+     taps and their dismiss X couldn't be pressed. The strip takes the inset
+     instead (backed with --sf-bg, the colour nativeStatusBar.ts paints), and
+     .sf-main drops its copy so the inset isn't added twice. The sticky tabs'
+     negative margin exists only to cancel that copy, so it goes with it —
+     their inset padding is still needed once they pin to the viewport top. */
+  .sf-banners {
+    padding-top: env(safe-area-inset-top, 0px);
+    background: var(--sf-bg);
+  }
+  .sf-banners:not(:empty) ~ .sf-main:not(.sf-main--bleed) {
+    padding-top: var(--sf-page-pad);
+  }
+  .sf-banners:not(:empty) ~ .sf-main .sf-tabs:not(.sf-tabs--static) {
+    margin-top: 0;
+  }
   .sf-toasts {
     bottom: calc(var(--sf-actionbar-h) + env(safe-area-inset-bottom, 0px) + 1rem);
   }
@@ -507,6 +538,23 @@ body.sf-nav-mode .sf-shell {
 }
 .sf-btn--active:hover:not(:disabled) {
   background: color-mix(in srgb, var(--sf-primary) 30%, transparent);
+}
+/* On a touch screen every button reaches a 44px target (Apple's 44pt
+   minimum; Material asks 48dp). Only for a finger: a mouse keeps the denser
+   desktop sizes, which is why this is keyed on the pointer rather than the
+   viewport width. */
+@media (pointer: coarse) {
+  .sf-btn {
+    min-height: 2.75rem;
+  }
+  /* min-width too: the playback transport uses small icon-only buttons. */
+  .sf-btn--sm {
+    min-width: 2.75rem;
+  }
+  .sf-btn--icon-sm {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
 }
 
 /* ---------- Cards / forms / fields ---------- */
