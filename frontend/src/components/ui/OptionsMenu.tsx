@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { MoreVertical } from "lucide-react";
 import { Popover } from "@/components/ui/Popover";
 
@@ -19,6 +20,7 @@ export function OptionsMenu({
    * guided-tour step target (e.g. the diario "importa" action). */
   triggerDataTour?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Popover
       panelClassName="sf-optionsmenu__panel"
@@ -26,7 +28,7 @@ export function OptionsMenu({
         <button
           data-tour={triggerDataTour}
           className="sf-btn sf-btn--ghost sf-btn--icon-sm"
-          aria-label="Options"
+          aria-label={t("common.options")}
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={toggle}

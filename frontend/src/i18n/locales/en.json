@@ -80,7 +80,8 @@
     "to": "To",
     "reset": "Reset",
     "previousImage": "Previous image",
-    "nextImage": "Next image"
+    "nextImage": "Next image",
+    "options": "More options"
   },
   "support": {
     "title": "Support XGSail",
@@ -204,6 +205,24 @@
       "club": "Club",
       "group": "Group",
       "crew": "Aboard"
+    },
+    "sailedWith": "With {{names}}",
+    "othersCount_one": "one other",
+    "othersCount_other": "{{count}} others",
+    "and": "and",
+    "feedError": {
+      "offline": {
+        "title": "You're offline",
+        "body": "Your outings will appear as soon as the connection is back; this page updates by itself."
+      },
+      "failed": {
+        "title": "Couldn't load your logbook",
+        "body": "The server didn't respond. Your outings aren't lost — try again in a moment."
+      },
+      "stale": {
+        "title": "Your logbook may be out of date",
+        "body": "The last refresh failed; below are the outings loaded earlier."
+      }
     }
   },
   "profile": {
@@ -597,7 +616,7 @@
     "distance": "Distance",
     "avgSpeed": "Avg speed",
     "maxSpeed": "Max speed",
-    "stats": "Stats",
+    "avgWind": "Avg wind",
     "playback": "Playback",
     "noGps": "No GPS data for this session",
     "crew": "Crew",
@@ -678,7 +697,18 @@
     "reanalyzing": "Updating…",
     "reanalyzeDone": "Update complete",
     "refreshWind": "Refresh wind data",
-    "analysisNoWindData": "Analysis unavailable: this outing has no wind data at all (no onboard sensor, no weather station or model in range). At least one wind source is needed to compute points of sail, legs and the polar.",
+    "analysisPending": {
+      "title": "Preparing the analysis…",
+      "body": "Points of sail, legs, tacks and the polar will appear here as soon as processing finishes. This page updates by itself."
+    },
+    "analysisUnavailable": {
+      "title": "Analysis not available",
+      "body": "It couldn't be computed for this outing."
+    },
+    "analysisNoWind": {
+      "title": "No wind recorded for this outing",
+      "body": "Without wind data there are no points of sail, legs or polar. Speed, distance and the replay are still above."
+    },
     "menuSectionSession": "Edit session",
     "openBoatNotebook": "Boat setup notebook",
     "share": "Share",
@@ -785,7 +815,10 @@
     "photoCount_one": "{{count}} photo",
     "photoCount_other": "{{count}} photos",
     "openGallery": "Open gallery",
-    "photoLimitReached": "This session has reached its maximum number of photos."
+    "photoLimitReached": "This session has reached its maximum number of photos.",
+    "chartOptions": "Chart options",
+    "polarChartLabel": "Session polar: average speed by true wind angle.",
+    "noCrew": "No crew recorded for this outing."
   },
   "map": {
     "layers": {
@@ -959,10 +992,12 @@
     "today": "Today",
     "tomorrow": "Tomorrow",
     "organizedBy": "Organized by {{name}}",
-    "viewDetails": "View details",
     "photos": "Photos",
     "photosFrom": "Photo by {{name}}",
-    "addPhotoToMySession": "Add photo"
+    "addPhotoToMySession": "Add photo",
+    "upcomingMore_one": "One more event coming up",
+    "upcomingMore_other": "{{count}} more events coming up",
+    "upcomingLess": "Show less"
   },
   "regate": {
     "title": "Regattas",
@@ -1322,8 +1357,8 @@
         "body": "Re-run the analysis, edit the session's details, or delete it."
       },
       "stats": {
-        "title": "Statistics",
-        "body": "Distance, duration, and average and top speed for the session."
+        "title": "Summary",
+        "body": "Duration, distance, top speed and average wind: the outing at a glance."
       },
       "health": {
         "title": "Biometric data",
@@ -1491,7 +1526,8 @@
       "session": {
         "label": "Record or import your first outing",
         "cta": "Record"
-      }
+      },
+      "progress": "{{done}}/{{total}}"
     }
   },
   "users": {
@@ -1579,5 +1615,12 @@
       "gfs_seamless": "GFS + HRRR (NOAA, ~3-13 km)",
       "ecmwf_ifs025": "ECMWF IFS (~28 km, global)"
     }
+  },
+  "playback": {
+    "stepBack": "Step back",
+    "play": "Play",
+    "pause": "Pause",
+    "stepForward": "Step forward",
+    "speed": "Playback speed {{speed}}×, change"
   }
 }

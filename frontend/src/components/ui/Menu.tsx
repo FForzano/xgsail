@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MoreVertical } from "lucide-react";
 import { Popover } from "@/components/ui/Popover";
 import styles from "./Menu.module.css";
@@ -95,6 +96,7 @@ export function Menu({
    * guided-tour step target (see `OptionsMenu`'s `triggerDataTour`). */
   triggerDataTour?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Popover
       panelClassName={styles.panel}
@@ -102,7 +104,7 @@ export function Menu({
         <button
           data-tour={triggerDataTour}
           className="sf-btn sf-btn--ghost sf-btn--icon-sm"
-          aria-label="Options"
+          aria-label={t("common.options")}
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={toggle}

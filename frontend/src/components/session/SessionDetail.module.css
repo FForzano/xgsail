@@ -24,3 +24,27 @@
   display: inline-flex;
   transform: translateX(-1px);
 }
+/* Boat name over the outing's date (and any state worth waiting on), so the
+   title reads as a logbook entry rather than "name — timestamp — status". */
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.titleMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.titleDate {
+  display: inline-block;
+}
+/* Italian weekdays are lowercase ("domenica"); at the head of a line it must
+   be "Domenica". ::first-letter needs a block box, hence the inline-block. */
+.titleDate::first-letter {
+  text-transform: uppercase;
+}

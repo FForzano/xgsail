@@ -174,7 +174,7 @@ export function SpeedChart({
         {!!vmg?.length && (
           <Popover
             trigger={({ toggle }) => (
-              <button className="sf-btn sf-btn--ghost sf-btn--sm" aria-label="Chart options" onClick={toggle}>
+              <button className="sf-btn sf-btn--ghost sf-btn--sm" aria-label={t("sessions.chartOptions")} onClick={toggle}>
                 <Settings size={16} />
               </button>
             )}
@@ -188,105 +188,110 @@ export function SpeedChart({
           </Popover>
         )}
       </div>
-      <ResponsiveContainer width="100%" height={H}>
-        <AreaChart
-          data={data}
-          margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
-          onMouseDown={(s) => {
-            setDragging(true);
-            startInteraction(s?.activeLabel);
-          }}
-          onMouseMove={(s) => dragging && continueInteraction(s?.activeLabel)}
-          onMouseUp={() => {
-            setDragging(false);
-            setDraggingHandle(null);
-          }}
-          onMouseLeave={() => {
-            setDragging(false);
-            setDraggingHandle(null);
-          }}
-          // Touch needs its own handlers — Recharts' touch support only
-          // drives the tooltip, not these mouse callbacks, which otherwise
-          // made mobile scrubbing need a first "activating" tap before drag.
-          onTouchStart={(s) => startInteraction(s?.activeLabel)}
-          onTouchMove={(s) => continueInteraction(s?.activeLabel)}
-        >
-          <XAxis dataKey="ms" type="number" domain={[tMin, tMax]} hide />
-          <YAxis yAxisId="sog" domain={[0, maxSog]} hide />
-          {showVmg && <YAxis yAxisId="vmg" orientation="right" domain={[0, maxVmg]} hide />}
-          <Tooltip
-            labelFormatter={(ms) => (typeof ms === "number" ? fmtTime(ms) : "")}
-            formatter={(v, name) => [
-              fmtKnots(Number(v)),
-              name === "vmg" ? t("sessions.vmg") : t("race.speed"),
-            ]}
-          />
-          {tracks.map((tr) => (
-            <Area
-              key={tr.id}
-              yAxisId="sog"
-              type="monotone"
-              dataKey={tr.id}
-              stroke={tr.color}
-              strokeWidth={1.5}
-              fill={tr.color}
-              fillOpacity={0.15}
-              dot={false}
-              isAnimationActive={false}
-              connectNulls
+      {/* The graphic is a pointer scrubber; the speed range above states the
+          numbers, and the transport bar's step buttons are the keyboard way
+          to move through the replay. */}
+      <div aria-hidden>
+        <ResponsiveContainer width="100%" height={H}>
+          <AreaChart
+            data={data}
+            margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+            onMouseDown={(s) => {
+              setDragging(true);
+              startInteraction(s?.activeLabel);
+            }}
+            onMouseMove={(s) => dragging && continueInteraction(s?.activeLabel)}
+            onMouseUp={() => {
+              setDragging(false);
+              setDraggingHandle(null);
+            }}
+            onMouseLeave={() => {
+              setDragging(false);
+              setDraggingHandle(null);
+            }}
+            // Touch needs its own handlers — Recharts' touch support only
+            // drives the tooltip, not these mouse callbacks, which otherwise
+            // made mobile scrubbing need a first "activating" tap before drag.
+            onTouchStart={(s) => startInteraction(s?.activeLabel)}
+            onTouchMove={(s) => continueInteraction(s?.activeLabel)}
+          >
+            <XAxis dataKey="ms" type="number" domain={[tMin, tMax]} hide />
+            <YAxis yAxisId="sog" domain={[0, maxSog]} hide />
+            {showVmg && <YAxis yAxisId="vmg" orientation="right" domain={[0, maxVmg]} hide />}
+            <Tooltip
+              labelFormatter={(ms) => (typeof ms === "number" ? fmtTime(ms) : "")}
+              formatter={(v, name) => [
+                fmtKnots(Number(v)),
+                name === "vmg" ? t("sessions.vmg") : t("race.speed"),
+              ]}
             />
-          ))}
-          {showVmg && (
-            <Area
-              yAxisId="vmg"
-              type="monotone"
-              dataKey="vmg"
-              stroke="#e0b24a"
-              strokeWidth={1.5}
-              fill="#e0b24a"
-              fillOpacity={0.15}
-              dot={false}
-              isAnimationActive={false}
-              connectNulls
-            />
-          )}
-          {/* Mask what the trim throws away rather than tinting what it keeps:
-              the kept part stays at full contrast, so "this is what's left"
-              reads without a legend. Drawn before the cursor so the white
-              playback line stays visible over it. */}
-          {trimMode && trimStartMs != null && trimEndMs != null && (
-            <>
-              <ReferenceArea yAxisId="sog" x1={tMin} x2={trimStartMs}
-                            fill={TRIM_MASK_COLOR} fillOpacity={0.72} />
-              <ReferenceArea yAxisId="sog" x1={trimEndMs} x2={tMax}
-                            fill={TRIM_MASK_COLOR} fillOpacity={0.72} />
-            </>
-          )}
-          <ReferenceLine yAxisId="sog" x={cursor} stroke="#fff" strokeWidth={1} />
-          {trimMode && trimStartMs != null && (
-            <ReferenceLine
-              yAxisId="sog"
-              x={trimStartMs}
-              stroke={TRIM_START_COLOR}
-              strokeWidth={draggingHandle === "start" ? 3 : 2}
-              label={({ viewBox }: TrimLabelProps) =>
-                trimGrip(viewBox?.x ?? 0, viewBox?.y ?? 0, TRIM_START_COLOR, "start")
-              }
-            />
-          )}
-          {trimMode && trimEndMs != null && (
-            <ReferenceLine
-              yAxisId="sog"
-              x={trimEndMs}
-              stroke={TRIM_END_COLOR}
-              strokeWidth={draggingHandle === "end" ? 3 : 2}
-              label={({ viewBox }: TrimLabelProps) =>
-                trimGrip(viewBox?.x ?? 0, viewBox?.y ?? 0, TRIM_END_COLOR, "end")
-              }
-            />
-          )}
-        </AreaChart>
-      </ResponsiveContainer>
+            {tracks.map((tr) => (
+              <Area
+                key={tr.id}
+                yAxisId="sog"
+                type="monotone"
+                dataKey={tr.id}
+                stroke={tr.color}
+                strokeWidth={1.5}
+                fill={tr.color}
+                fillOpacity={0.15}
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+            ))}
+            {showVmg && (
+              <Area
+                yAxisId="vmg"
+                type="monotone"
+                dataKey="vmg"
+                stroke="#e0b24a"
+                strokeWidth={1.5}
+                fill="#e0b24a"
+                fillOpacity={0.15}
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+            )}
+            {/* Mask what the trim throws away rather than tinting what it keeps:
+                the kept part stays at full contrast, so "this is what's left"
+                reads without a legend. Drawn before the cursor so the white
+                playback line stays visible over it. */}
+            {trimMode && trimStartMs != null && trimEndMs != null && (
+              <>
+                <ReferenceArea yAxisId="sog" x1={tMin} x2={trimStartMs}
+                              fill={TRIM_MASK_COLOR} fillOpacity={0.72} />
+                <ReferenceArea yAxisId="sog" x1={trimEndMs} x2={tMax}
+                              fill={TRIM_MASK_COLOR} fillOpacity={0.72} />
+              </>
+            )}
+            <ReferenceLine yAxisId="sog" x={cursor} stroke="#fff" strokeWidth={1} />
+            {trimMode && trimStartMs != null && (
+              <ReferenceLine
+                yAxisId="sog"
+                x={trimStartMs}
+                stroke={TRIM_START_COLOR}
+                strokeWidth={draggingHandle === "start" ? 3 : 2}
+                label={({ viewBox }: TrimLabelProps) =>
+                  trimGrip(viewBox?.x ?? 0, viewBox?.y ?? 0, TRIM_START_COLOR, "start")
+                }
+              />
+            )}
+            {trimMode && trimEndMs != null && (
+              <ReferenceLine
+                yAxisId="sog"
+                x={trimEndMs}
+                stroke={TRIM_END_COLOR}
+                strokeWidth={draggingHandle === "end" ? 3 : 2}
+                label={({ viewBox }: TrimLabelProps) =>
+                  trimGrip(viewBox?.x ?? 0, viewBox?.y ?? 0, TRIM_END_COLOR, "end")
+                }
+              />
+            )}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

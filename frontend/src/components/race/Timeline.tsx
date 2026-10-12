@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { fmtTime } from "@/utils/format";
@@ -15,6 +16,7 @@ export function Timeline({
    * of its plain inline look. */
   overlay?: boolean;
 }) {
+  const { t } = useTranslation();
   const { tMin, tMax, cursor, playing, speed } = useTimeState();
 
   return (
@@ -22,28 +24,28 @@ export function Timeline({
       <button
         className="sf-btn sf-btn--ghost sf-btn--sm"
         onClick={() => timeController.step(-stepMs)}
-        aria-label="Step back"
+        aria-label={t("playback.stepBack")}
       >
         <SkipBack size={16} fill="currentColor" />
       </button>
       <button
         className="sf-btn sf-btn--primary sf-btn--sm"
         onClick={() => timeController.toggle()}
-        aria-label={playing ? "Pause" : "Play"}
+        aria-label={playing ? t("playback.pause") : t("playback.play")}
       >
         {playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
       </button>
       <button
         className="sf-btn sf-btn--ghost sf-btn--sm"
         onClick={() => timeController.step(stepMs)}
-        aria-label="Step forward"
+        aria-label={t("playback.stepForward")}
       >
         <SkipForward size={16} fill="currentColor" />
       </button>
       <button
         className={`sf-btn sf-btn--ghost sf-btn--sm ${styles.speed}`}
         onClick={() => timeController.cycleSpeed()}
-        aria-label="Cycle playback speed"
+        aria-label={t("playback.speed", { speed })}
       >
         {speed}×
       </button>
