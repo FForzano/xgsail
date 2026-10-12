@@ -10,6 +10,7 @@ import { boatsService, boatKeys } from "@/services/boats";
 import { useAuth } from "@/hooks/useAuth";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useStreamJson } from "@/hooks/useStreamJson";
+import { useBoatHullType } from "@/hooks/useBoatHullType";
 import { useToast } from "@/hooks/useToast";
 import { useAutoSaveOnClose } from "@/hooks/useAutoSaveOnClose";
 import { timeController } from "@/stores/timeController";
@@ -339,9 +340,10 @@ export function SessionDetail({
   // single-track map.
   const trackBoatName = boat.data?.name ?? t("sessions.playback");
   const trackBoatImageUrl = boat.data?.photos[0]?.url;
+  const trackHullType = useBoatHullType(boat.data?.boat_class_id);
   const tracks = useMemo(() => {
     if (!gps?.length) return [];
-    const extra = { boatImageUrl: trackBoatImageUrl, vmg: analysis.data?.vmg_series };
+    const extra = { boatImageUrl: trackBoatImageUrl, vmg: analysis.data?.vmg_series, hullType: trackHullType };
     // Outside trim mode, the map/chart show only the persisted trim window —
     // gps.json itself is never touched (see enterTrimMode), so this is the
     // only place that actually hides the trimmed-away points from view.
@@ -365,6 +367,7 @@ export function SessionDetail({
     sessionId,
     trackBoatName,
     trackBoatImageUrl,
+    trackHullType,
     trimMode,
     session.data?.trim_start_time,
     session.data?.trim_end_time,

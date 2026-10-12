@@ -988,7 +988,7 @@ export type ActivitySessionData = Record<
   UUID,
   {
     session_id: UUID;
-    boat: { id: UUID; name: string; sail_number: string | null } | null;
+    boat: { id: UUID; name: string; sail_number: string | null; hull_type?: HullType | null } | null;
     sensors: Record<string, GpsPoint[]>;
   }
 >;

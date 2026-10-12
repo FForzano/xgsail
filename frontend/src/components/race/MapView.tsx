@@ -13,11 +13,13 @@ import { WindBadge } from "@/components/map/WindBadge";
 import { useMapLayers } from "@/components/map/useMapLayers";
 import { useNauticalLayers } from "@/components/map/useNauticalLayers";
 import { fmtKnots } from "@/utils/format";
+import { angleDelta, normalizeDeg } from "@/utils/geo";
 import { escapeHtml } from "@/utils/html";
 import { MARK_ROLE_LETTERS } from "@/utils/markRoles";
 import type { MarkRole, TrueWindPoint, VmgPoint } from "@/types";
 import {
   catmullRomInterval,
+  headingAt,
   pointAt,
   smoothTrackLine,
   speedColor,
@@ -26,6 +28,7 @@ import {
   type Track,
   type TrackPoint,
 } from "./raceModel";
+import { BOAT_MARKER_BOX, boatIconFor, boatMarkerHtml } from "./boatIcons";
 import styles from "./MapView.module.css";
 
 /** Follow mode flies in to at least this zoom: close enough to see the boat
@@ -190,6 +193,20 @@ export function MapView({
   // Tracks currently being drag-scrubbed — the cursor-sync effect below
   // skips these so it doesn't fight Leaflet's own drag handler.
   const draggingRef = useRef<Set<string>>(new Set());
+  // Last heading each boat was drawn at, unwrapped (it keeps counting past 360
+  // so a turn through north rotates the short way instead of spinning round).
+  const headingRef = useRef<Record<string, number>>({});
+  const orientMarker = (marker: L.Marker, tr: Track, ms: number) => {
+    const hull = marker.getElement()?.querySelector<HTMLElement>(`.${styles.hull}`);
+    if (!hull) return;
+    const heading = headingAt(tr, ms);
+    const last = headingRef.current[tr.id];
+    // A stationary boat (no heading yet) keeps the way it was pointing; before
+    // it has ever moved, it points north.
+    const next = heading == null ? (last ?? 0) : (last ?? heading) + angleDelta(normalizeDeg(last ?? heading), heading);
+    headingRef.current[tr.id] = next;
+    hull.style.transform = `rotate(${next}deg)`;
+  };
   const { cursor, playing, tMax } = useTimeState();
   // Read from handlers set up once with the map, without forcing a full map
   // rebuild on every playback tick.
@@ -293,9 +310,13 @@ export function MapView({
       // Colored by speed (per-segment) rather than a single flat track color,
       // so a glance at the line shows where the boat was fast vs. slow.
       const [minSog, maxSog] = speedRange(tr);
+      // With several boats the line says whose it is (the boat's own colour,
+      // matching its marker); a speed gradient per boat would put the same
+      // five colours on every line and lose that. One boat keeps the gradient.
+      const perBoatColor = tracks.length > 1;
       for (let i = 1; i < tr.pts.length; i++) {
         const avgSog = (tr.pts[i - 1].sog + tr.pts[i].sog) / 2;
-        const color = speedColor(avgSog, minSog, maxSog);
+        const color = perBoatColor ? tr.color : speedColor(avgSog, minSog, maxSog);
         const p0 = smoothed[Math.max(0, i - 2)];
         const p1 = smoothed[i - 1];
         const p2 = smoothed[i];
@@ -390,11 +411,14 @@ export function MapView({
         });
 
       bounds.push(...latlngs);
+      // The boat itself, bow towards where it is heading (see orientMarker).
+      // The Leaflet box is a fixed square larger than the drawing so the thin
+      // hull is easy to grab for scrubbing; only the inner hull rotates.
       const icon = L.divIcon({
         className: styles.posmarker,
-        html: `<span style="background:${tr.color}"></span>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
+        html: boatMarkerHtml(boatIconFor(tr.hullType), tr.color, styles.hull),
+        iconSize: [BOAT_MARKER_BOX, BOAT_MARKER_BOX],
+        iconAnchor: [BOAT_MARKER_BOX / 2, BOAT_MARKER_BOX / 2],
       });
       const m = L.marker(latlngs[0], { icon, draggable: true });
       // Boat-name tooltip follows the same show/hide rule as the popup's
@@ -415,11 +439,13 @@ export function MapView({
       m.on("drag", () => {
         const p = nearestPoint(tr, m.getLatLng());
         m.setLatLng([p.lat, p.lon]);
+        orientMarker(m, tr, p.ms);
         timeController.seek(p.ms);
         dragPopup?.setLatLng([p.lat, p.lon]).setContent(popupContent(p));
       });
       m.on("dragend", () => draggingRef.current.delete(tr.id));
       m.addTo(map);
+      orientMarker(m, tr, tr.pts[0]?.ms ?? 0);
       markersRef.current[tr.id] = m;
     }
 
@@ -438,6 +464,7 @@ export function MapView({
       mapRef.current = null;
       setMapInstance(null);
       markersRef.current = {};
+      headingRef.current = {};
       marksLayerRef.current = null;
       draggingRef.current.clear();
       overviewRef.current = null;
@@ -566,7 +593,9 @@ export function MapView({
       const marker = markersRef.current[tr.id];
       if (!marker) continue;
       const p = pointAt(tr, cursor);
-      if (p) marker.setLatLng([p.lat, p.lon]);
+      if (!p) continue;
+      marker.setLatLng([p.lat, p.lon]);
+      orientMarker(marker, tr, cursor);
     }
   }, [cursor, tracks]);
 

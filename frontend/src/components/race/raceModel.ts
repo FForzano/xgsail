@@ -1,4 +1,5 @@
-import type { ActivitySessionData, GpsPoint, VmgPoint } from "@/types";
+import type { ActivitySessionData, GpsPoint, HullType, VmgPoint } from "@/types";
+import { bearingDegrees, haversineMeters } from "@/utils/geo";
 import { lastIndexAtOrBefore } from "@/utils/timeSeries";
 
 // A replay track: parsed points (ms epoch) + a stable display color.
@@ -21,6 +22,9 @@ export interface Track {
    * has a different series and the map-wide `vmg` prop doesn't apply. Falls
    * back to the `vmg` prop when absent (the single-track session map case). */
   vmg?: VmgPoint[] | null;
+  /** Picks the replay marker's silhouette (see boatIcons.ts); unset draws the
+   * monohull. */
+  hullType?: HullType | null;
 }
 
 // Distinct, colorblind-ish palette assigned by track order.
@@ -166,7 +170,7 @@ export function buildTrack(
   name: string,
   points: GpsPoint[],
   color: string,
-  extra?: { boatImageUrl?: string | null; vmg?: VmgPoint[] | null },
+  extra?: { boatImageUrl?: string | null; vmg?: VmgPoint[] | null; hullType?: HullType | null },
 ): Track {
   const pts: TrackPoint[] = points
     .filter((p) => p.lat != null && p.lon != null)
@@ -191,7 +195,11 @@ export function buildTracks(data: { sessions: ActivitySessionData }): Track[] {
       i++;
       continue;
     }
-    tracks.push(buildTrack(sessionId, entry.boat?.name ?? sessionId.slice(0, 8), gps, trackColor(i)));
+    tracks.push(
+      buildTrack(sessionId, entry.boat?.name ?? sessionId.slice(0, 8), gps, trackColor(i), {
+        hullType: entry.boat?.hull_type,
+      }),
+    );
     i++;
   }
   return tracks.filter((tr) => tr.pts.length > 0);
@@ -202,6 +210,27 @@ export function pointAt(track: Track, ms: number): TrackPoint | null {
   const i = indexAt(track, ms);
   if (i < 0) return track.pts[0] ?? null;
   return track.pts[i];
+}
+
+/** Fixes either side of the cursor the heading is averaged over, and the least
+ * the boat must have moved across them for the heading to mean anything. A
+ * single fix-to-fix bearing jitters by tens of degrees at GPS noise level; a
+ * boat sitting still has no heading at all. */
+const HEADING_WINDOW = 3;
+const HEADING_MIN_TRAVEL_M = 2;
+
+/** Compass heading (0–360°, clockwise from north) the boat is moving in at
+ * `ms`, or null when it is effectively stationary there — the caller keeps the
+ * last heading it had. The track carries only positions, so this is course
+ * over ground, which is what the track line shows too. */
+export function headingAt(track: Track, ms: number): number | null {
+  const pts = track.pts;
+  if (pts.length < 2) return null;
+  const i = Math.max(0, indexAt(track, ms));
+  const a = pts[Math.max(0, i - HEADING_WINDOW)];
+  const b = pts[Math.min(pts.length - 1, i + HEADING_WINDOW)];
+  if (haversineMeters(a.lat, a.lon, b.lat, b.lon) < HEADING_MIN_TRAVEL_M) return null;
+  return bearingDegrees(a.lat, a.lon, b.lat, b.lon);
 }
 
 // Index of the last point at or before `ms` (−1 if before the track starts).
