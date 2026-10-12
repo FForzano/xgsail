@@ -1197,6 +1197,14 @@ Capacitor plugin changes, which still require a store release.
   nothing fails — it just quietly issues one extra query per row. Same class
   of silent trap as the `include_guest=True` capabilities bullet above.
 
+- **An activity's `summary` is the *viewer's* outing, and it exists only on
+  `GET /activities?mine=true`.** `repos.activities.outing_summaries()` totals
+  the sessions of that activity the caller was aboard (`session_crew`) and
+  lists who else was — summing every session of a regatta would add up other
+  boats' miles. It is per-viewer, so `activity_payload` adds the key only when
+  a `summaries=` map is passed (absent elsewhere, `null` when not aboard), and,
+  like `covers=`, a list endpoint must prefetch it for the page or it costs a
+  query per row. Crew entries never carry an email.
 - **`was_aboard` is presentation, not authorization.** Boat membership at any
   role still grants full read access to every session on that boat
   (`session_visible_to`) — the flag only says whether the viewer is in *that*

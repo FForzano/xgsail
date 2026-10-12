@@ -96,7 +96,9 @@ def list_activities(request: Request, type: Optional[str] = None,
     )
     # One batched cover-photo query for the whole page instead of one per row.
     covers = repos.activities.photo_covers([a.id for a in activities])
-    return [activity_payload(a, covers=covers) for a in activities]
+    summaries = (repos.activities.outing_summaries([a.id for a in activities], user.id)
+                 if mine and user else None)
+    return [activity_payload(a, covers=covers, summaries=summaries) for a in activities]
 
 
 @router.get("/upcoming")

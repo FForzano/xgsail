@@ -7,6 +7,8 @@ train-data/
 __pycache__/
 *.py[cod]
 *.egg-info/
+# setuptools build dir, written by `pip install ./libs/xgsail_windfusion` (CI and Docker test runs)
+libs/xgsail_windfusion/build/
 .eggs/
 *.egg
 venv/

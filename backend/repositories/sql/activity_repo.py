@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 
 from ...db.models import (
     ActivityORM,
@@ -23,11 +23,15 @@ from ...db.models import (
     SessionCrewORM,
     SessionORM,
     SessionPhotoORM,
+    SessionStatsORM,
     UserBoatORM,
     UserClubORM,
     UserGroupORM,
+    UserORM,
     UserRoleORM,
 )
+
+OUTING_CREW_CAP = 6
 
 _FIELDS = ("name", "type", "club_id", "race_id", "created_by", "group_id",
            "visibility", "status", "description", "started_at", "ended_at",
@@ -268,6 +272,72 @@ class SqlActivityRepo:
                     out[activity_id] = (cover, count + 1)
                 else:
                     out[activity_id] = (image, 1)
+            return out
+
+    def outing_summaries(
+        self, activity_ids: "list[uuid.UUID]", viewer_id: uuid.UUID
+    ) -> "dict[uuid.UUID, dict]":
+        """The viewer's own outing per activity: totals over the activity's
+        sessions they were aboard, plus who else was aboard. Two queries for
+        N activities; an activity the viewer was not aboard for is absent.
+        ``crew[].profile_image`` is the raw ``ImageORM`` (or None), as
+        ``photo_covers`` returns it — the payload builder shapes it."""
+        if not activity_ids:
+            return {}
+        aboard = (
+            select(SessionORM.id)
+            .join(SessionCrewORM, SessionCrewORM.session_id == SessionORM.id)
+            .where(SessionORM.activity_id.in_(activity_ids))
+            .where(SessionCrewORM.user_id == viewer_id)
+        )
+        with self.Session() as s:
+            out: "dict[uuid.UUID, dict]" = {}
+            stats_rows = s.execute(
+                select(
+                    SessionORM.activity_id,
+                    func.count(SessionORM.id),
+                    func.sum(SessionStatsORM.distance_m),
+                    func.sum(SessionStatsORM.duration_s),
+                    func.max(SessionStatsORM.max_speed_kts),
+                )
+                .select_from(SessionORM)
+                .outerjoin(SessionStatsORM, SessionStatsORM.session_id == SessionORM.id)
+                .where(SessionORM.id.in_(aboard))
+                .group_by(SessionORM.activity_id)
+            ).all()
+            for activity_id, count, distance, duration, max_speed in stats_rows:
+                out[activity_id] = {
+                    "session_count": count,
+                    "distance_m": distance,
+                    "duration_s": duration,
+                    "max_speed_kts": max_speed,
+                    "crew": [],
+                }
+            crew_rows = s.execute(
+                select(SessionORM.activity_id, UserORM.id, UserORM.first_name,
+                       UserORM.last_name, ImageORM)
+                .select_from(SessionCrewORM)
+                .join(SessionORM, SessionORM.id == SessionCrewORM.session_id)
+                .join(UserORM, UserORM.id == SessionCrewORM.user_id)
+                .outerjoin(
+                    ImageORM,
+                    and_(ImageORM.id == UserORM.profile_image_id,
+                         ImageORM.status != "deleted"),
+                )
+                .where(SessionORM.id.in_(aboard))
+                .where(SessionCrewORM.user_id != viewer_id)
+                .order_by(SessionCrewORM.created_at, SessionCrewORM.id)
+            ).all()
+            seen: "set[tuple[uuid.UUID, uuid.UUID]]" = set()
+            for activity_id, user_id, first_name, last_name, image in crew_rows:
+                crew = out[activity_id]["crew"]
+                if (activity_id, user_id) in seen or len(crew) >= OUTING_CREW_CAP:
+                    continue
+                seen.add((activity_id, user_id))
+                if image is not None:
+                    s.expunge(image)
+                crew.append({"id": user_id, "first_name": first_name,
+                             "last_name": last_name, "profile_image": image})
             return out
 
     def get_by_race(self, race_id: uuid.UUID) -> Optional[ActivityORM]:
