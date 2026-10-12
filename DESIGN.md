@@ -280,7 +280,12 @@ Sporty and confident: weight 600, a clear fill for the one primary action, quiet
 The instrument readout: a small Hull Surface tile with a 0.75rem Sea Mist label over a 1.05rem / 600 tabular value. Used both for live playback values at the cursor and for session aggregates.
 
 ### Map overlays (signature)
-Controls floating over a map use a translucent Hull Surface (`rgba(20,50,77,0.85)`), a light 15% white border, the overlay hairline shadow and a 2px backdrop blur. Map marks use only the categorical palette. On touch screens the Leaflet +/− zoom buttons are hidden, because pinch is how a finger zooms. When a playback bar floats over the map, the bottom-right controls (recenter, credits) sit above it.
+Every control drawn over the map tiles shares one chrome: the overlay surface (`--sf-overlay`, Hull Surface at 85%), a light border (`--sf-overlay-border`) and the overlay hairline shadow (`--sf-overlay-shadow`). Each is round, a circle or a pill, never Leaflet's white squares. Map marks use only the categorical palette.
+- **Tools column (top-right):** the layers toggle and, on replay maps, **Segui la barca**, both 40px circles (44px on touch). Follow is a toggle. Pressed, it fills with Chart Blue and the camera stays on the boat. Pressed again, the map pulls back to the whole track.
+- **Follow behaviour:** pressing play turns follow on and flies in (zoom ≥ 15, or the whole fleet on a multi-boat map). The camera recentres only when the boat leaves the middle 40% of the view, never every frame. Dragging the map hands the camera back to the user; pinch-zooming does not. Reaching the end of playback pulls back to the whole outing.
+- **Transport (bottom-centre):** a compact pill of chrome-less 36px icon buttons around one filled Chart Blue play button, plus a tabular clock. On touch the hit areas grow to 44px tall while the boxes stay small.
+- **Zoom (desktop, bottom-right):** a horizontal pill. It is hidden on touch, because pinch is how a finger zooms.
+- **Credits:** a small overlay pill ("© OpenStreetMap contributors"). On phones it is collapsed behind a 24px "i" toggle, which turns light when open.
 
 ## Do's and Don'ts
 

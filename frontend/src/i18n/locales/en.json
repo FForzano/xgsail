@@ -849,7 +849,9 @@
       "noReading": "No recent reading",
       "ago": "{{minutes}} min ago"
     },
-    "attribution": "Map credits and licences"
+    "attribution": "Map credits and licences",
+    "follow": "Follow the boat",
+    "overview": "Show the whole track"
   },
   "registra": {
     "title": "Record a GPS track",

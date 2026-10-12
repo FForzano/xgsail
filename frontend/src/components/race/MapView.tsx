@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import L from "leaflet";
+import { LocateFixed } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { useMapCenterWind } from "@/hooks/useMapCenterWind";
@@ -26,6 +27,13 @@ import {
   type TrackPoint,
 } from "./raceModel";
 import styles from "./MapView.module.css";
+
+/** Follow mode flies in to at least this zoom: close enough to see the boat
+ * work the wind, far enough to keep the next mark in view. */
+const FOLLOW_ZOOM = 15;
+/** Fraction of the view, from each edge, the boat may drift into before the
+ * camera recentres it. */
+const FOLLOW_DEADZONE = 0.3;
 
 function isMarkRole(role: string): role is MarkRole {
   return role in MARK_ROLE_LETTERS;
@@ -180,10 +188,19 @@ export function MapView({
   // Tracks currently being drag-scrubbed — the cursor-sync effect below
   // skips these so it doesn't fight Leaflet's own drag handler.
   const draggingRef = useRef<Set<string>>(new Set());
-  const { cursor } = useTimeState();
-  // Read from the recenter button's click handler (defined once at setup
-  // time) without forcing a full map rebuild on every playback tick.
+  const { cursor, playing, tMax } = useTimeState();
+  // Read from handlers set up once with the map, without forcing a full map
+  // rebuild on every playback tick.
   const cursorRef = useRef(cursor);
+  // Follow mode: the camera keeps the boat in view while it moves. Turned on
+  // by pressing play (or the follow button), handed back to the user the
+  // moment they drag the map themselves.
+  const [following, setFollowing] = useState(false);
+  const followingRef = useRef(following);
+  followingRef.current = following;
+  // The whole recorded outing, for "show me everything again" (the follow
+  // button's off state, and the end of playback).
+  const overviewRef = useRef<L.LatLngBounds | null>(null);
   // Same reasoning: read from the track's click handler (also set up once)
   // without rebuilding the whole map every time edit mode toggles.
   const placementModeRef = useRef(placementMode);
@@ -235,29 +252,6 @@ export function MapView({
     L.control.zoom({ position: "bottomright" }).addTo(map);
     installCompactAttribution(map, t("map.attribution"));
 
-    const RecenterControl = L.Control.extend({
-      onAdd() {
-        const btn = L.DomUtil.create("button", `${styles.recenter} leaflet-bar`);
-        btn.type = "button";
-        btn.title = "Recenter";
-        btn.innerHTML =
-          '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">' +
-          '<circle cx="8" cy="8" r="2.5" fill="currentColor"/>' +
-          '<path d="M8 0v3.5M8 12.5V16M0 8h3.5M12.5 8H16" stroke="currentColor" stroke-width="1.5"/>' +
-          "</svg>";
-        L.DomEvent.disableClickPropagation(btn);
-        btn.onclick = () => {
-          const pts = tracks
-            .map((tr) => pointAt(tr, cursorRef.current))
-            .filter((p): p is TrackPoint => p != null);
-          if (!pts.length) return;
-          if (pts.length === 1) map.panTo([pts[0].lat, pts[0].lon]);
-          else map.fitBounds(L.latLngBounds(pts.map((p) => [p.lat, p.lon] as [number, number])).pad(0.2));
-        };
-        return btn;
-      },
-    });
-    new RecenterControl({ position: "bottomright" }).addTo(map);
     createBaseLayers().base.addTo(map);
     mapRef.current = map;
     setMapInstance(map);
@@ -280,6 +274,9 @@ export function MapView({
     map.on("click", (e: L.LeafletMouseEvent) => {
       if (pickModeRef.current) onMapClickRef.current?.(e.latlng.lat, e.latlng.lng);
     });
+    // A drag is the user taking the camera; a pinch zoom is not, so the
+    // camera keeps following at the zoom they chose.
+    map.on("dragstart", () => setFollowing(false));
 
     const bounds: L.LatLngExpression[] = [];
     for (const tr of tracks) {
@@ -429,7 +426,8 @@ export function MapView({
     // (tiles, pan/zoom, tracks). Just fold their positions into the initial fit.
     for (const mk of marks) bounds.push([mk.lat, mk.lng]);
 
-    if (bounds.length) map.fitBounds(L.latLngBounds(bounds).pad(0.1));
+    overviewRef.current = bounds.length ? L.latLngBounds(bounds).pad(0.1) : null;
+    if (overviewRef.current) map.fitBounds(overviewRef.current);
     else map.setView([20, 0], 2); // neutral world view when there is no data
 
     return () => {
@@ -440,6 +438,8 @@ export function MapView({
       markersRef.current = {};
       marksLayerRef.current = null;
       draggingRef.current.clear();
+      overviewRef.current = null;
+      setFollowing(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `marks` intentionally
     // excluded: only used above for the one-time initial bounds fit.
@@ -568,12 +568,79 @@ export function MapView({
     }
   }, [cursor, tracks]);
 
+  // Where the camera should look at the cursor time: the boat itself, or the
+  // middle of the fleet when several tracks replay together.
+  const focusPoint = useCallback((): L.LatLng | null => {
+    const pts = tracks.map((tr) => pointAt(tr, cursorRef.current)).filter((p): p is TrackPoint => p != null);
+    if (!pts.length) return null;
+    const lat = pts.reduce((sum, p) => sum + p.lat, 0) / pts.length;
+    const lon = pts.reduce((sum, p) => sum + p.lon, 0) / pts.length;
+    return L.latLng(lat, lon);
+  }, [tracks]);
+
+  const flyToBoat = useCallback(() => {
+    const map = mapRef.current;
+    const target = focusPoint();
+    if (!map || !target) return;
+    if (tracks.length > 1) {
+      // A fleet: frame every boat, never closer than one boat would get.
+      const pts = tracks.map((tr) => pointAt(tr, cursorRef.current)).filter((p): p is TrackPoint => p != null);
+      const fleet = L.latLngBounds(pts.map((p) => [p.lat, p.lon] as [number, number])).pad(0.3);
+      map.flyToBounds(fleet, { maxZoom: FOLLOW_ZOOM, duration: 0.8 });
+      return;
+    }
+    map.flyTo(target, Math.max(map.getZoom(), FOLLOW_ZOOM), { duration: 0.8 });
+  }, [focusPoint, tracks]);
+
+  const showOverview = useCallback(() => {
+    const map = mapRef.current;
+    if (map && overviewRef.current) map.flyToBounds(overviewRef.current, { duration: 0.8 });
+  }, []);
+
+  // Play starts the follow (flying in to the boat); reaching the end of the
+  // track pulls back out to the whole outing — the replay ends on its shape.
+  const wasPlayingRef = useRef(playing);
+  useEffect(() => {
+    const was = wasPlayingRef.current;
+    wasPlayingRef.current = playing;
+    if (playing && !was) {
+      setFollowing(true);
+      flyToBoat();
+    } else if (!playing && was && cursorRef.current >= tMax) {
+      setFollowing(false);
+      showOverview();
+    }
+  }, [playing, tMax, flyToBoat, showOverview]);
+
+  // While following, the camera only moves once the boat leaves the middle
+  // of the view, then glides to recentre it: a pan per animation frame would
+  // redraw every track segment 60 times a second and make the map swim.
+  useEffect(() => {
+    if (!following) return;
+    const map = mapRef.current;
+    const target = focusPoint();
+    if (!map || !target || draggingRef.current.size) return;
+    if (!map.getBounds().pad(-FOLLOW_DEADZONE).contains(target)) {
+      map.panTo(target, { animate: true, duration: 0.6, easeLinearity: 0.5 });
+    }
+  }, [cursor, following, focusPoint]);
+
+  const toggleFollow = () => {
+    if (following) {
+      setFollowing(false);
+      showOverview();
+    } else {
+      setFollowing(true);
+      flyToBoat();
+    }
+  };
+
   return (
     <div
       className={`${styles.map} ${variant === "session" ? styles.mapSession : ""} ${controls ? styles.withTransport : ""}`}
     >
       <div ref={elRef} className={styles.surface} />
-      {(mapOptions || nautical) && (
+      {(mapOptions || nautical || controls) && (
         <div className={styles.options}>
           {mapOptions}
           {nautical && (
@@ -584,6 +651,20 @@ export function MapView({
               nearDetailHidden={nearDetailHidden}
               poiFailed={poiFailed}
             />
+          )}
+          {/* Only on replay maps (the ones with a transport): follow the boat,
+              or — pressed again — pull back to the whole track. */}
+          {controls && (
+            <button
+              type="button"
+              className={styles.tool}
+              onClick={toggleFollow}
+              aria-pressed={following}
+              aria-label={following ? t("map.overview") : t("map.follow")}
+              title={following ? t("map.overview") : t("map.follow")}
+            >
+              <LocateFixed size={18} aria-hidden />
+            </button>
           )}
         </div>
       )}

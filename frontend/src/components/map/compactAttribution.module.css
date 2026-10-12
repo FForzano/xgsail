@@ -1,38 +1,64 @@
-/* Collapsed attribution + its "(i)" toggle. The whole mechanism is
-   phone-only: on a wide screen the credit fits on one line next to the zoom
-   control and there is nothing to solve, so every rule that hides anything
-   lives inside the media query and desktop keeps Leaflet's default look.
+/* The map credit and its phone-only "(i)" toggle. The credit is restyled at
+   every width; the collapsing is phone-only: on a wide screen the credit fits
+   on one line next to the zoom control, so every rule that hides anything
+   lives inside the media query.
 
    Breakpoint matches ExplorerMap.module.css's and global.css's — that's where
    the fixed action bar appears and the bottom corner gets crowded. */
+
+/* The credit itself: a quiet overlay pill in the same chrome as the map's
+   other controls instead of Leaflet's white box. Qualified with
+   `.leaflet-container` to outrank Leaflet's own background and link colour. */
+:global(.leaflet-container) .attribution {
+  margin: 0 10px 10px 0;
+  padding: 2px 9px;
+  border: 1px solid var(--sf-overlay-border);
+  border-radius: 999px;
+  background: var(--sf-overlay);
+  color: var(--sf-muted);
+  font-size: 0.68rem;
+  line-height: 1.6;
+}
+:global(.leaflet-container) .attribution a {
+  color: var(--sf-text);
+  text-decoration: none;
+}
+:global(.leaflet-container) .attribution a:hover {
+  text-decoration: underline;
+}
+
 /* No margin of its own: as a `.leaflet-control` it inherits the corner's 10px
    insets, and those are what the zoom control above it is spaced by too. */
 .toggle {
   display: none;
-  width: 20px;
-  height: 20px;
+  position: relative;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  border: none;
+  border: 1px solid var(--sf-overlay-border);
   border-radius: 50%;
-  background: rgba(20, 50, 77, 0.85);
-  color: #fff;
-  font: 600 12px/1 system-ui, sans-serif;
+  background: var(--sf-overlay);
+  box-shadow: var(--sf-overlay-shadow);
+  color: var(--sf-text);
+  font: italic 600 13px/1 Georgia, "Times New Roman", serif;
 }
 /* Element-qualified: `.leaflet-control` sets `cursor: auto` at the same
    specificity, and whichever stylesheet lands last would otherwise win. */
 button.toggle {
   cursor: pointer;
 }
-/* The 20px dot stays small so it doesn't cover the map, but a finger gets
-   a 44px target around it: an invisible hit area, not a bigger button. */
+/* Open: the dot reads as pressed, the credit sits right above it. */
+.toggle[aria-expanded="true"] {
+  background: var(--sf-text);
+  color: var(--sf-bg);
+}
+/* The dot stays small so it doesn't cover the map, but a finger gets a 44px
+   target around it: an invisible hit area, not a bigger button. */
 @media (pointer: coarse) {
-  .toggle {
-    position: relative;
-  }
   .toggle::after {
     content: "";
     position: absolute;
-    inset: -12px;
+    inset: -10px;
   }
 }
 
@@ -47,5 +73,9 @@ button.toggle {
      or removed — anything injected *inside* it would not. */
   .collapsed {
     display: none;
+  }
+  /* Expanded on a phone the credit sits above the dot, right-aligned to it. */
+  :global(.leaflet-container) .attribution {
+    margin-bottom: 6px;
   }
 }
