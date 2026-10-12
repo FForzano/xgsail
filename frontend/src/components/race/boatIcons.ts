@@ -39,11 +39,14 @@ const CAT_HULL_PATH =
 /** A Tornado-style catamaran: two long slim hulls 112 apart (centres at 44 and
  * 156), joined by two slim crossbeams with the trampoline stretched between
  * them. Beams and trampoline are drawn first so the hulls' fill and outline sit
- * over their ends; the trampoline is the same colour, translucent and
- * unoutlined, so it reads as fabric between the hulls and not a third solid
- * shape. */
+ * over their ends. The trampoline runs hull centreline to hull centreline, so
+ * no gap shows at the tapering bow and stern; it is a lighter tint of the boat
+ * colour, unoutlined, and opaque (white underneath, so the map never shows
+ * through) — `color-mix` would do it in one rect but the iOS 14 WebView lacks
+ * it. */
 const CATAMARAN_MARKUP = [
-  `<rect x="63" y="99" width="74" height="113" stroke="none" fill-opacity="0.35"/>`,
+  `<rect x="44" y="99" width="112" height="113" stroke="none" fill="#fff"/>`,
+  `<rect x="44" y="99" width="112" height="113" stroke="none" fill-opacity="0.35"/>`,
   `<rect x="44" y="92" width="112" height="7"/>`,
   `<rect x="44" y="212" width="112" height="7"/>`,
   `<path d="${CAT_HULL_PATH}" transform="translate(44 0)"/>`,
