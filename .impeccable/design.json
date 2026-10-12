@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-06T12:00:00Z",
+  "generatedAt": "2026-10-09T15:00:00Z",
   "title": "Design System: XGSail",
   "extensions": {
     "colorMeta": {
@@ -169,124 +169,124 @@
           "oklch(95.0% 0.073 70.9)"
         ]
       },
-      "graphite": {
+      "night-water": {
         "role": "neutral",
-        "displayName": "Graphite",
-        "canonical": "#131416",
+        "displayName": "Night Water",
+        "canonical": "#101b27",
         "tonalRamp": [
-          "oklch(15.0% 0.004 264.5)",
-          "oklch(26.4% 0.004 264.5)",
-          "oklch(37.9% 0.004 264.5)",
-          "oklch(49.3% 0.004 264.5)",
-          "oklch(60.7% 0.004 264.5)",
-          "oklch(72.1% 0.004 264.5)",
-          "oklch(83.6% 0.004 264.5)",
-          "oklch(95.0% 0.004 264.5)"
+          "oklch(15.0% 0.029 251.3)",
+          "oklch(26.4% 0.029 251.3)",
+          "oklch(37.9% 0.029 251.3)",
+          "oklch(49.3% 0.029 251.3)",
+          "oklch(60.7% 0.029 251.3)",
+          "oklch(72.1% 0.029 251.3)",
+          "oklch(83.6% 0.029 251.3)",
+          "oklch(95.0% 0.029 251.3)"
         ]
       },
-      "graphite-sheet": {
+      "night-sheet": {
         "role": "neutral",
-        "displayName": "Graphite Sheet",
-        "canonical": "#1d1f22",
+        "displayName": "Night Sheet",
+        "canonical": "#172534",
         "tonalRamp": [
-          "oklch(15.0% 0.006 258.4)",
-          "oklch(26.4% 0.006 258.4)",
-          "oklch(37.9% 0.006 258.4)",
-          "oklch(49.3% 0.006 258.4)",
-          "oklch(60.7% 0.006 258.4)",
-          "oklch(72.1% 0.006 258.4)",
-          "oklch(83.6% 0.006 258.4)",
-          "oklch(95.0% 0.006 258.4)"
+          "oklch(15.0% 0.034 250.9)",
+          "oklch(26.4% 0.034 250.9)",
+          "oklch(37.9% 0.034 250.9)",
+          "oklch(49.3% 0.034 250.9)",
+          "oklch(60.7% 0.034 250.9)",
+          "oklch(72.1% 0.034 250.9)",
+          "oklch(83.6% 0.034 250.9)",
+          "oklch(95.0% 0.034 250.9)"
         ]
       },
-      "graphite-shade": {
+      "night-shade": {
         "role": "neutral",
-        "displayName": "Graphite Shade",
-        "canonical": "#282b2f",
+        "displayName": "Night Shade",
+        "canonical": "#1f2f40",
         "tonalRamp": [
-          "oklch(15.0% 0.008 255.6)",
-          "oklch(26.4% 0.008 255.6)",
-          "oklch(37.9% 0.008 255.6)",
-          "oklch(49.3% 0.008 255.6)",
-          "oklch(60.7% 0.008 255.6)",
-          "oklch(72.1% 0.008 255.6)",
-          "oklch(83.6% 0.008 255.6)",
-          "oklch(95.0% 0.008 255.6)"
+          "oklch(15.0% 0.038 250.6)",
+          "oklch(26.4% 0.038 250.6)",
+          "oklch(37.9% 0.038 250.6)",
+          "oklch(49.3% 0.038 250.6)",
+          "oklch(60.7% 0.038 250.6)",
+          "oklch(72.1% 0.038 250.6)",
+          "oklch(83.6% 0.038 250.6)",
+          "oklch(95.0% 0.038 250.6)"
         ]
       },
-      "graphite-hairline": {
+      "night-hairline": {
         "role": "neutral",
-        "displayName": "Graphite Hairline",
-        "canonical": "#34383d",
+        "displayName": "Night Hairline",
+        "canonical": "#2b3d52",
         "tonalRamp": [
-          "oklch(15.0% 0.010 254.0)",
-          "oklch(26.4% 0.010 254.0)",
-          "oklch(37.9% 0.010 254.0)",
-          "oklch(49.3% 0.010 254.0)",
-          "oklch(60.7% 0.010 254.0)",
-          "oklch(72.1% 0.010 254.0)",
-          "oklch(83.6% 0.010 254.0)",
-          "oklch(95.0% 0.010 254.0)"
+          "oklch(15.0% 0.044 252.8)",
+          "oklch(26.4% 0.044 252.8)",
+          "oklch(37.9% 0.044 252.8)",
+          "oklch(49.3% 0.044 252.8)",
+          "oklch(60.7% 0.044 252.8)",
+          "oklch(72.1% 0.044 252.8)",
+          "oklch(83.6% 0.044 252.8)",
+          "oklch(95.0% 0.044 252.8)"
         ]
       },
       "night-ink": {
         "role": "neutral",
         "displayName": "Night Ink",
-        "canonical": "#e9eae6",
+        "canonical": "#e6ebf0",
         "tonalRamp": [
-          "oklch(15.0% 0.005 117.9)",
-          "oklch(26.4% 0.005 117.9)",
-          "oklch(37.9% 0.005 117.9)",
-          "oklch(49.3% 0.005 117.9)",
-          "oklch(60.7% 0.005 117.9)",
-          "oklch(72.1% 0.005 117.9)",
-          "oklch(83.6% 0.005 117.9)",
-          "oklch(95.0% 0.005 117.9)"
+          "oklch(15.0% 0.009 247.9)",
+          "oklch(26.4% 0.009 247.9)",
+          "oklch(37.9% 0.009 247.9)",
+          "oklch(49.3% 0.009 247.9)",
+          "oklch(60.7% 0.009 247.9)",
+          "oklch(72.1% 0.009 247.9)",
+          "oklch(83.6% 0.009 247.9)",
+          "oklch(95.0% 0.009 247.9)"
         ]
       },
       "night-pencil": {
         "role": "neutral",
         "displayName": "Night Pencil",
-        "canonical": "#a0a6ad",
+        "canonical": "#9eabba",
         "tonalRamp": [
-          "oklch(15.0% 0.012 252.1)",
-          "oklch(26.4% 0.012 252.1)",
-          "oklch(37.9% 0.012 252.1)",
-          "oklch(49.3% 0.012 252.1)",
-          "oklch(60.7% 0.012 252.1)",
-          "oklch(72.1% 0.012 252.1)",
-          "oklch(83.6% 0.012 252.1)",
-          "oklch(95.0% 0.012 252.1)"
+          "oklch(15.0% 0.026 252.0)",
+          "oklch(26.4% 0.026 252.0)",
+          "oklch(37.9% 0.026 252.0)",
+          "oklch(49.3% 0.026 252.0)",
+          "oklch(60.7% 0.026 252.0)",
+          "oklch(72.1% 0.026 252.0)",
+          "oklch(83.6% 0.026 252.0)",
+          "oklch(95.0% 0.026 252.0)"
         ]
       },
       "night-blue": {
         "role": "primary",
         "displayName": "Night Blue",
-        "canonical": "#84aef0",
+        "canonical": "#7cb0f7",
         "tonalRamp": [
-          "oklch(15.0% 0.058 259.2)",
-          "oklch(26.4% 0.071 259.2)",
-          "oklch(37.9% 0.083 259.2)",
-          "oklch(49.3% 0.095 259.2)",
-          "oklch(60.7% 0.106 259.2)",
-          "oklch(72.1% 0.093 259.2)",
-          "oklch(83.6% 0.081 259.2)",
-          "oklch(95.0% 0.069 259.2)"
+          "oklch(15.0% 0.117 256.4)",
+          "oklch(26.4% 0.117 256.4)",
+          "oklch(37.9% 0.117 256.4)",
+          "oklch(49.3% 0.117 256.4)",
+          "oklch(60.7% 0.117 256.4)",
+          "oklch(72.1% 0.117 256.4)",
+          "oklch(83.6% 0.117 256.4)",
+          "oklch(95.0% 0.117 256.4)"
         ]
       },
       "night-blue-ink": {
         "role": "primary",
         "displayName": "Night Blue Ink",
-        "canonical": "#0d1726",
+        "canonical": "#0a1726",
         "tonalRamp": [
-          "oklch(15.0% 0.018 258.3)",
-          "oklch(26.4% 0.022 258.3)",
-          "oklch(37.9% 0.026 258.3)",
-          "oklch(49.3% 0.030 258.3)",
-          "oklch(60.7% 0.033 258.3)",
-          "oklch(72.1% 0.030 258.3)",
-          "oklch(83.6% 0.026 258.3)",
-          "oklch(95.0% 0.022 258.3)"
+          "oklch(15.0% 0.035 253.1)",
+          "oklch(26.4% 0.035 253.1)",
+          "oklch(37.9% 0.035 253.1)",
+          "oklch(49.3% 0.035 253.1)",
+          "oklch(60.7% 0.035 253.1)",
+          "oklch(72.1% 0.035 253.1)",
+          "oklch(83.6% 0.035 253.1)",
+          "oklch(95.0% 0.035 253.1)"
         ]
       },
       "night-red": {
@@ -352,16 +352,31 @@
       "chrome-ink-night": {
         "role": "neutral",
         "displayName": "Chrome Ink (night)",
-        "canonical": "#0c0d0e",
+        "canonical": "#050a10",
         "tonalRamp": [
-          "oklch(15.0% 0.003 248.0)",
-          "oklch(26.4% 0.003 248.0)",
-          "oklch(37.9% 0.003 248.0)",
-          "oklch(49.3% 0.003 248.0)",
-          "oklch(60.7% 0.003 248.0)",
-          "oklch(72.1% 0.003 248.0)",
-          "oklch(83.6% 0.003 248.0)",
-          "oklch(95.0% 0.003 248.0)"
+          "oklch(15.0% 0.016 248.9)",
+          "oklch(26.4% 0.016 248.9)",
+          "oklch(37.9% 0.016 248.9)",
+          "oklch(49.3% 0.016 248.9)",
+          "oklch(60.7% 0.016 248.9)",
+          "oklch(72.1% 0.016 248.9)",
+          "oklch(83.6% 0.016 248.9)",
+          "oklch(95.0% 0.016 248.9)"
+        ]
+      },
+      "chrome-edge-night": {
+        "role": "neutral",
+        "displayName": "Chrome Edge (night)",
+        "canonical": "#1f2f40",
+        "tonalRamp": [
+          "oklch(15.0% 0.038 250.6)",
+          "oklch(26.4% 0.038 250.6)",
+          "oklch(37.9% 0.038 250.6)",
+          "oklch(49.3% 0.038 250.6)",
+          "oklch(60.7% 0.038 250.6)",
+          "oklch(72.1% 0.038 250.6)",
+          "oklch(83.6% 0.038 250.6)",
+          "oklch(95.0% 0.038 250.6)"
         ]
       },
       "chrome-text": {
@@ -394,6 +409,51 @@
           "oklch(95.0% 0.010 252.8)"
         ]
       },
+      "chrome-muted-night": {
+        "role": "neutral",
+        "displayName": "Chrome Muted (night)",
+        "canonical": "#909eaf",
+        "tonalRamp": [
+          "oklch(15.0% 0.030 253.3)",
+          "oklch(26.4% 0.030 253.3)",
+          "oklch(37.9% 0.030 253.3)",
+          "oklch(49.3% 0.030 253.3)",
+          "oklch(60.7% 0.030 253.3)",
+          "oklch(72.1% 0.030 253.3)",
+          "oklch(83.6% 0.030 253.3)",
+          "oklch(95.0% 0.030 253.3)"
+        ]
+      },
+      "sea-cyan": {
+        "role": "accent",
+        "displayName": "Sea Cyan",
+        "canonical": "#3dd3f5",
+        "tonalRamp": [
+          "oklch(15.0% 0.130 216.9)",
+          "oklch(26.4% 0.130 216.9)",
+          "oklch(37.9% 0.130 216.9)",
+          "oklch(49.3% 0.130 216.9)",
+          "oklch(60.7% 0.130 216.9)",
+          "oklch(72.1% 0.130 216.9)",
+          "oklch(83.6% 0.130 216.9)",
+          "oklch(95.0% 0.130 216.9)"
+        ]
+      },
+      "sea-cyan-deep": {
+        "role": "accent",
+        "displayName": "Sea Cyan Deep",
+        "canonical": "#0b7590",
+        "tonalRamp": [
+          "oklch(15.0% 0.094 221.9)",
+          "oklch(26.4% 0.094 221.9)",
+          "oklch(37.9% 0.094 221.9)",
+          "oklch(49.3% 0.094 221.9)",
+          "oklch(60.7% 0.094 221.9)",
+          "oklch(72.1% 0.094 221.9)",
+          "oklch(83.6% 0.094 221.9)",
+          "oklch(95.0% 0.094 221.9)"
+        ]
+      },
       "overlay": {
         "role": "neutral",
         "displayName": "Overlay",
@@ -402,7 +462,7 @@
       "overlay-night": {
         "role": "neutral",
         "displayName": "Overlay (night)",
-        "canonical": "rgba(12, 13, 14, 0.86)"
+        "canonical": "rgba(5, 10, 16, 0.86)"
       },
       "scrim": {
         "role": "neutral",
@@ -652,9 +712,9 @@
       "name": "Navigation Bar",
       "kind": "nav",
       "refersTo": "navbar",
-      "description": "Ink chrome band in both themes; active link underlined in chrome text.",
+      "description": "Ink chrome band in both themes; active link underlined in Sea Cyan.",
       "html": "<nav class=\"ds-nav\"><strong class=\"ds-nav-brand\">XGSail</strong><a class=\"ds-nav-link ds-active\" href=\"#\">Diario</a><a class=\"ds-nav-link\" href=\"#\">Registra</a><a class=\"ds-nav-link\" href=\"#\">Gruppi</a></nav>",
-      "css": ".ds-nav { display:flex; align-items:center; gap:1.25rem; height:56px; padding:0 1.25rem; background:var(--sf-chrome, #16181b); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); } .ds-nav-brand { color:var(--sf-chrome-text, #f2f4f6); font-size:1.1rem; font-weight:800; letter-spacing:-0.01em; } .ds-nav-link { padding:0.45rem 0.8rem; color:var(--sf-chrome-muted, #a9aeb4); font-weight:600; text-decoration:none; } .ds-nav-link:hover { color:var(--sf-chrome-text, #f2f4f6); } .ds-nav-link:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:2px; } .ds-nav-link.ds-active { color:var(--sf-chrome-text, #f2f4f6); box-shadow:inset 0 -2px 0 var(--sf-chrome-text, #f2f4f6); }"
+      "css": ".ds-nav { display:flex; align-items:center; gap:1.25rem; height:56px; padding:0 1.25rem; background:var(--sf-chrome, #16181b); font-family:var(--sf-font, \"Archivo Variable\", system-ui, sans-serif); } .ds-nav-brand { color:var(--sf-chrome-text, #f2f4f6); font-size:1.1rem; font-weight:800; letter-spacing:-0.01em; } .ds-nav-link { padding:0.45rem 0.8rem; color:var(--sf-chrome-muted, #a9aeb4); font-weight:600; text-decoration:none; } .ds-nav-link:hover { color:var(--sf-chrome-text, #f2f4f6); } .ds-nav-link:focus-visible { outline:2px solid var(--sf-primary, #1f55a6); outline-offset:2px; } .ds-nav-link.ds-active { color:var(--sf-chrome-text, #f2f4f6); box-shadow:inset 0 -2px 0 var(--sf-chrome-accent, #3dd3f5); }"
     },
     {
       "name": "Card",
@@ -706,7 +766,7 @@
   ],
   "narrative": {
     "northStar": "Bacheca dei risultati",
-    "overview": "XGSail is set like the results sheet the race committee pins on the club noticeboard after racing: paper and ink, ruled tables, condensed uppercase column heads, right-aligned tabular figures, and short uppercase codes in the manner of DNF and OCS. The ranking itself is the emphasis. A region of the page reads as a ruled block of the sheet, not as a box floating on a background, and a figure is something read down a column.\n\nLight and dark are one system. Light is a cool paper-white ground with near-black ink; dark is the same sheet read at night, a graphite ground with paper-white ink. Every themed colour is redefined once for dark, so a component that reads only the shared tokens themes itself. The app chrome (top navbar on desktop, bottom action bar on phones) is an ink band in both themes, which frames the sheet the way the noticeboard frames the paper. Map tiles are the one surface the theme cannot touch, so everything drawn on them stays fixed.\n\nDensity is that of a printed table: hairline rules, tight cell padding, one weight family doing all the work through width and weight rather than through size jumps. The user explicitly rejected anything that reads as a SaaS dashboard: no grid of rounded KPI tiles, no soft cards on a tinted canvas.\n\nTwo surfaces are rebuilt in depth: the session analysis page, and the diary feeds set as a logbook (the personal diary, the \"Circoli e gruppi\" diary tab and a club's Eventi tab, which share one entry). The other areas (Gruppi beyond the club Eventi tab, Profilo, Registra, landing) currently inherit these tokens and the global primitives without having been recomposed; they are not yet expressions of the world beyond that inheritance.",
+    "overview": "XGSail is set like the results sheet the race committee pins on the club noticeboard after racing: paper and ink, ruled tables, condensed uppercase column heads, right-aligned tabular figures, and short uppercase codes in the manner of DNF and OCS. The ranking itself is the emphasis. A region of the page reads as a ruled block of the sheet, not as a box floating on a background, and a figure is something read down a column.\n\nLight and dark are one system. Light is a cool paper-white ground with near-black ink; dark is the same sheet read on night water, a deep navy ground with paper-white ink and a darker navy chrome band edged by a hairline. Every themed colour is redefined once for dark, so a component that reads only the shared tokens themes itself. The app chrome (top navbar on desktop, bottom action bar on phones) is an ink band in both themes, which frames the sheet the way the noticeboard frames the paper. Map tiles are the one surface the theme cannot touch, so everything drawn on them stays fixed.\n\nDensity is that of a printed table: hairline rules, tight cell padding, one weight family doing all the work through width and weight rather than through size jumps. The user explicitly rejected anything that reads as a SaaS dashboard: no grid of rounded KPI tiles, no soft cards on a tinted canvas.\n\nTwo surfaces are rebuilt in depth: the session analysis page, and the diary feeds set as a logbook (the personal diary, the \"Circoli e gruppi\" diary tab and a club's Eventi tab, which share one entry). The other areas (Gruppi beyond the club Eventi tab, Profilo, Registra, landing) currently inherit these tokens and the global primitives without having been recomposed; they are not yet expressions of the world beyond that inheritance.",
     "keyCharacteristics": [
       "Paper and ink, light and dark designed as one sheet.",
       "Ruled tables are the primary component: an ink rule under the head, hairlines between rows.",

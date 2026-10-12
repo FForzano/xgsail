@@ -1,0 +1,43 @@
+/* A 6px bar inside a 24px hit area: slim to look at, easy to hit and drag. */
+.hit {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  cursor: pointer;
+  touch-action: none;
+}
+.hit:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
+}
+.track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--sf-border);
+}
+.played {
+  height: 100%;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--sf-text) 55%, var(--sf-border));
+}
+/* The same committee red as the strip's numbered ticks. */
+.tick {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  margin-left: -1px;
+  background: var(--sf-danger);
+}
+.thumb {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 18px;
+  margin-left: -2px;
+  border-radius: 1px;
+  transform: translateY(-50%);
+  background: var(--sf-text);
+}

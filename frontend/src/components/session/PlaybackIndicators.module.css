@@ -1,0 +1,38 @@
+/* The results-row vocabulary at its smallest: four cells on one line between
+   hairlines, each label over its figure. */
+.row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--sf-border);
+  border-bottom: 1px solid var(--sf-border);
+}
+.cell {
+  min-width: 0;
+  padding: 0.25rem 0.5rem 0.3rem;
+  border-left: 1px solid var(--sf-border);
+}
+.cell:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.label {
+  overflow: hidden;
+  font-size: 0.62rem;
+  font-weight: 750;
+  font-stretch: var(--sf-condensed);
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--sf-muted);
+}
+.value {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}

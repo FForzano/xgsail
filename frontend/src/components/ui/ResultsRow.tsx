@@ -11,13 +11,15 @@ export function ResultsRow({
   compact?: boolean;
 }) {
   return (
-    <dl className={compact ? `${styles.row} ${styles.compact}` : styles.row}>
-      {cells.map(([label, value]) => (
-        <div key={label} className={styles.cell}>
-          <dt className={styles.label}>{label}</dt>
-          <dd className={styles.value}>{value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className={styles.frame}>
+      <dl className={compact ? `${styles.row} ${styles.compact}` : styles.row}>
+        {cells.map(([label, value]) => (
+          <div key={label} className={styles.cell}>
+            <dt className={styles.label}>{label}</dt>
+            <dd className={styles.value}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

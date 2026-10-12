@@ -10,15 +10,17 @@ import type {
 } from "@/types";
 import { nextDemoId } from "./ids";
 
-// The demo outing: an afternoon training session off Campione del Garda in
+// The demo outing: an afternoon training session off Gargnano, Lake Garda, in
 // the Ora, the lake's reliable summer southerly. The track is generated and
 // everything else (legs, maneuvers, VMG, wind, stats, heart rate) is derived
 // from it, so the map, the speed chart and every analysis table describe the
 // same sail instead of three unrelated sets of numbers.
 
-// Mid-lake off Campione, so the whole generated track stays on the water.
-const ORIGIN_LAT = 45.827;
-const ORIGIN_LNG = 10.748;
+// Mid-lake between Gargnano and Castelletto di Brenzone, where the lake is
+// ~6 km wide: the generated track spans about 3.7 x 2.1 km south-west of this
+// point and stays on the water with room to spare (checked against OSM tiles).
+const ORIGIN_LAT = 45.711;
+const ORIGIN_LNG = 10.729;
 const TWD_DEG = 190;
 const TWS_KTS = 12;
 const UPWIND_TWA_DEG = 45;

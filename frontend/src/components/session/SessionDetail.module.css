@@ -1,20 +1,132 @@
-/* "Add photo/video/notes" icon row for whatever a session doesn't have yet
-   — shown right under the title instead of buried in the ⋮ menu. Shared
-   with ActivityDetailPage's own title Card for the embedded (solo-activity)
-   case, see SessionDetail's `onQuickActions`. */
-.quickActions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+/* The session page has two zones, so how it scrolls is obvious.
+   - Below 1000px, pinned chrome on top: the title bar, then the replay
+     (map, transport, speed strip), then the tabs, with one scrolling panel
+     under them.
+   - From 1000px up, the title row first, then the panel on the left and the
+     replay pinned on the right.
+   `--titlebar-h`, `--replay-h` and `--tabbar-h` are measured in SessionDetail.
+   `--pin-top` and `--pin-bottom` are the app chrome the pinned stack has to
+   clear: the navbar above 700px, the action bar below it. */
+.root {
+  --pin-top: 0px;
+  --pin-bottom: calc(var(--sf-actionbar-h) + 2rem);
+  --fold: 240ms;
 }
-/* Right-hand group of `sf-toolbar` (which is space-between, so its two
-   children are the title and this): toolbar icon buttons + the ⋮ trigger.
-   Shared with ActivityDetailPage for the embedded (solo-activity) header. */
-.headerActions {
+@media (min-width: 701px) {
+  .root {
+    --pin-top: var(--sf-navbar-h);
+    --pin-bottom: 3rem;
+  }
+}
+
+/* ---------- Title bar ---------- */
+
+/* One compact row pinned on top on a phone: back, the cover, the name and
+   date, share and ⋮. It carries the notch inset, since it is what meets the
+   top edge of the screen. */
+.titleBar {
+  position: sticky;
+  top: var(--pin-top);
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin: 0 calc(-1 * var(--sf-page-pad));
+  padding: calc(0.25rem + env(safe-area-inset-top, 0px)) calc(var(--sf-page-pad) - 0.5rem) 0.25rem;
+  background: var(--sf-bg);
+  border-bottom: 1px solid var(--sf-border);
+}
+.back {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  justify-content: center;
+}
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+.titleText {
+  flex: 1;
+  min-width: 0;
+}
+.title {
+  overflow: hidden;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  color: var(--sf-muted);
+}
+.titleActions {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  flex-shrink: 0;
+  flex: none;
+}
+/* Icon buttons in the bar: a 44px target, no box drawn around them. */
+.titleBar :global(.sf-btn--icon-sm) {
+  width: 44px;
+  height: 44px;
+  border-color: transparent;
+}
+
+/* The outing's first photo beside its name: tapping it opens the Galleria
+   tab. 38px square in a phone's bar, a 4:3 picture on a wide screen. */
+.cover {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--sf-border);
+  border-radius: 2px;
+  background: var(--sf-surface-2);
+  cursor: pointer;
+}
+.cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s ease-out;
+}
+.cover:hover img {
+  transform: scale(1.03);
+}
+.cover:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
+}
+/* The count is the wide screen's: in a phone's 38px square it would cover
+   the picture, and the Galleria tab already carries it. */
+.coverCount {
+  display: none;
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 2px;
+  background: var(--sf-overlay);
+  color: var(--sf-overlay-text);
+  font-size: 0.72rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
 }
 /* lucide's Share2 glyph has two nodes on the right and one on the left, so
    its visual "ink" sits right of the 24x24 box's true center — centering the
@@ -25,65 +137,255 @@
   transform: translateX(-1px);
 }
 
-/* Page head: the boat is the title, date and status sit under it. */
-.header {
+/* ---------- Replay: map, transport, speed strip ---------- */
+
+.stage {
   display: flex;
   flex-direction: column;
-}
-.titleBlock {
-  min-width: 0;
-}
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.6rem;
-  margin: 0.3rem 0 0;
-  color: var(--sf-muted);
-  font-size: 0.95rem;
-}
-
-/* Losses beside the replay on a wide screen. Stacked on a phone the replay
-   comes first: the sailor arrives from a diary entry whose track is its
-   picture, and the map is what confirms "this is that outing" — the ranking
-   follows, and the stepper on the replay bar walks it without scrolling. */
-.lead {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
-  align-items: start;
-}
-@media (min-width: 1000px) {
-  .lead .replay {
-    order: 0;
-  }
-  .lead {
-    grid-template-columns: minmax(20rem, 5fr) minmax(0, 7fr);
-    gap: 2rem;
-  }
 }
 .replay {
-  order: -1;
+  position: sticky;
+  top: calc(var(--pin-top) + var(--titlebar-h, 0px));
+  z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.35rem;
+  min-width: 0;
+  /* Full width, so nothing scrolling beneath shows in the side gutters. */
+  margin: 0 calc(-1 * var(--sf-page-pad));
+  padding: 0 var(--sf-page-pad) 0.35rem;
+  background: var(--sf-bg);
+}
+/* Positions the caller's control (course marks) when there is no map. */
+.overlaySlot {
+  position: relative;
+}
+/* MapView's own root; its height is the one thing this page sets. Expanded at
+   the top of the page, shorter once the panel has scrolled (`.collapsed`). */
+.mapSlot > div:first-child {
+  height: min(40vh, 340px);
+  transition: height var(--fold) ease-out;
+}
+.collapsed .mapSlot > div:first-child {
+  height: min(26vh, 200px);
+}
+
+/* The transport row: plain on the page, not the floating bar it is on the
+   other maps, with 40px targets and the clock at the end. */
+.transport {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  gap: 0.35rem;
+}
+.transport :global(.sf-btn) {
+  min-width: 40px;
+  min-height: 40px;
+}
+.transport > :last-child {
+  margin-left: auto;
+}
+
+/* The speed strip is the progress bar: expanded it is the 76px chart, folded
+   it is the 6px bar of ReplayProgress, crossfading as the box shrinks. */
+.scrub {
+  position: relative;
+  height: 76px;
+  overflow: hidden;
+  transition: height var(--fold) ease-out;
+}
+.collapsed .scrub {
+  height: 24px;
+}
+.scrubChart,
+.scrubBar {
+  position: absolute;
+  inset: 0 0 auto;
+  transition: opacity var(--fold) ease-out, visibility 0s;
+}
+.scrubChart :global(.sf-chartpanel) {
+  margin-top: 0;
+}
+.scrubBar,
+.collapsed .scrubChart {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--fold) ease-out, visibility 0s var(--fold);
+}
+.collapsed .scrubBar {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--fold) ease-out, visibility 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mapSlot > div:first-child,
+  .scrub,
+  .scrubChart,
+  .scrubBar,
+  .collapsed .scrubChart,
+  .collapsed .scrubBar {
+    transition: none;
+  }
+}
+
+/* ---------- Tabs and panel ---------- */
+
+.tabsColumn {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tabBar {
+  position: sticky;
+  top: calc(var(--pin-top) + var(--titlebar-h, 0px) + var(--replay-h, 0px));
+  z-index: 40;
+  margin: 0 calc(-1 * var(--sf-page-pad));
+  padding: 0 var(--sf-page-pad);
+  background: var(--sf-bg);
+}
+/* Undo the phone rule that pins every .sf-tabs to the viewport top: this bar
+   is pinned by its wrapper, under the replay. */
+.tabBar .tabList {
+  position: static;
+  z-index: auto;
+  margin: 0;
+  padding: 0;
+  background: none;
+  overflow: visible;
+}
+.tabList :global(.sf-tab) {
+  flex: 1 1 auto;
+  padding: 0.7rem 0.4rem 0.6rem;
+  text-align: center;
+}
+.tabCount {
+  margin-left: 0.35rem;
+  font-weight: 650;
+  color: var(--sf-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Tall enough that switching to a short tab never unpins the stack. A size
+   container, so its tables drop optional columns by the width they get. */
+.panel {
+  container-type: inline-size;
+  padding-top: 1.25rem;
+  min-height: calc(
+    100vh - var(--pin-top) - var(--titlebar-h, 0px) - var(--replay-h, 0px) - var(--tabbar-h, 0px) -
+      var(--pin-bottom)
+  );
+}
+.panel:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
+}
+
+/* "Dove hai perso" and "Il meglio della giornata", whichever leads. */
+.ranking {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
   min-width: 0;
 }
 
-/* The divider between diagnosis and record: extra air and a hairline, so the
-   record reads as a second register without a label shouting it. */
-.recordDivider {
-  width: 100%;
-  margin: 2.25rem 0 0.5rem;
-  border: 0;
-  border-top: 1px solid var(--sf-border);
+.emptyAdd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.emptyAdd p {
+  margin: 0;
 }
 
-/* Desktop: the replay stays beside the ranking while the rows (and
-   "Show all") run on below it, instead of leaving a dead column. */
+/* ---------- Wide screen ---------- */
+
+/* The title row first, in the flow, with the way back above it; then the
+   panel on the left under its pinned tab bar, and the replay pinned on the
+   right for the whole page, never folded. */
 @media (min-width: 1000px) {
-  .lead .replay {
-    position: sticky;
-    top: calc(var(--sf-navbar-h) + 1rem);
+  .titleBar {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    border: 0;
+  }
+  .back {
+    width: auto;
+    height: auto;
+    align-self: flex-start;
+  }
+  .titleRow {
+    gap: 0.9rem;
+  }
+  .title {
+    font-size: clamp(1.45rem, 1.2rem + 1vw, 1.9rem);
+    white-space: normal;
+  }
+  .meta {
+    margin-top: 0.3rem;
+    font-size: 0.95rem;
+  }
+  .coverCount {
+    display: block;
+  }
+  .cover {
+    width: 5.5rem;
+    height: auto;
+    aspect-ratio: 4 / 3;
+  }
+  .titleBar :global(.sf-btn--icon-sm) {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .stage {
+    display: grid;
+    /* Wide enough a map that its controls stay clear of each other. */
+    grid-template-columns: minmax(0, 9fr) minmax(0, 11fr);
+    gap: 2rem;
+    align-items: start;
+  }
+  .replay {
+    grid-column: 2;
+    grid-row: 1;
+    top: calc(var(--pin-top) + 1rem);
+    margin: 0;
+    padding: 0;
+    background: none;
+  }
+  /* The map, the transport row and the full strip (about 15rem with its
+     head) fit one screen under the navbar. */
+  .mapSlot > div:first-child {
+    height: clamp(320px, calc(100vh - var(--sf-navbar-h) - 18rem), 720px);
+  }
+  .scrub {
+    height: auto;
+    overflow: visible;
+  }
+  .scrubChart {
+    position: static;
+  }
+  .tabsColumn {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .tabBar {
+    top: var(--pin-top);
+    margin: 0;
+    padding: 0;
+  }
+  .tabList :global(.sf-tab) {
+    flex: 0 1 auto;
+    padding: 0.7rem 0.9rem 0.6rem;
+  }
+  .tabList :global(.sf-tab):first-child {
+    padding-left: 0;
+  }
+  .panel {
+    min-height: 0;
   }
 }

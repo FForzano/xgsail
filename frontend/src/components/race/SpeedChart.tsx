@@ -23,6 +23,9 @@ import styles from "./SpeedChart.module.css";
 // playback scrubber. Optionally overlays the VMG series (toggle via the
 // options popover) and shows a tap/hover tooltip with the values at that time.
 const H = 160;
+// The strip pinned under a phone's replay: as short as the loss ticks and the
+// cursor still read at, so the panel below keeps its room.
+const H_COMPACT = 76;
 // How close (in CSS pixels) a press must land to a trim handle to grab it.
 // Converted to ms against the live chart width so it stays the same physical
 // distance on a phone and on a wide desktop chart.
@@ -77,8 +80,12 @@ export function SpeedChart({
   onTrimStartChange,
   onTrimEndChange,
   markers = [],
+  compact = false,
 }: {
   tracks: Track[];
+  /** The short strip without its head row (range label, VMG toggle), for a
+   * screen with no room to spare. VMG stays drawn. */
+  compact?: boolean;
   /** Numbered moments drawn as ticks on the strip (the session page's worst
    * losses, numbered like their rows in the ranking). */
   markers?: Array<{ ms: number; label: string }>;
@@ -186,28 +193,30 @@ export function SpeedChart({
 
   return (
     <div className="sf-chartpanel" ref={wrapRef}>
-      <div className={styles.head}>
-        <span className="sf-muted" style={{ fontSize: "0.8rem" }}>
-          {t("race.speedRange")} 0–{fmtKnots(maxSog)}
-        </span>
-        {!!vmg?.length && (
-          <Popover
-            trigger={({ toggle }) => (
-              <button className="sf-btn sf-btn--ghost sf-btn--sm" aria-label="Chart options" onClick={toggle}>
-                <Settings size={16} />
-              </button>
-            )}
-          >
-            {() => (
-              <label className="sf-check">
-                <input type="checkbox" checked={showVmg} onChange={(e) => setShowVmg(e.target.checked)} />
-                <span>{t("sessions.vmg")}</span>
-              </label>
-            )}
-          </Popover>
-        )}
-      </div>
-      <ResponsiveContainer width="100%" height={H}>
+      {!compact && (
+        <div className={styles.head}>
+          <span className="sf-muted" style={{ fontSize: "0.8rem" }}>
+            {t("race.speedRange")} 0–{fmtKnots(maxSog)}
+          </span>
+          {!!vmg?.length && (
+            <Popover
+              trigger={({ toggle }) => (
+                <button className="sf-btn sf-btn--ghost sf-btn--sm" aria-label="Chart options" onClick={toggle}>
+                  <Settings size={16} />
+                </button>
+              )}
+            >
+              {() => (
+                <label className="sf-check">
+                  <input type="checkbox" checked={showVmg} onChange={(e) => setShowVmg(e.target.checked)} />
+                  <span>{t("sessions.vmg")}</span>
+                </label>
+              )}
+            </Popover>
+          )}
+        </div>
+      )}
+      <ResponsiveContainer width="100%" height={compact ? H_COMPACT : H}>
         <AreaChart
           data={data}
           margin={{ top: 4, right: 4, bottom: 0, left: 0 }}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, NotebookPen, NotebookText, Pencil, Share2, Video } from "lucide-react";
@@ -7,9 +7,13 @@ import { ApiError } from "@/api/client";
 import { sessionsService, sessionKeys } from "@/services/sessions";
 import { activitiesService, activityKeys } from "@/services/activities";
 import { boatsService, boatKeys } from "@/services/boats";
+import { polarsService, polarKeys } from "@/services/polars";
 import { useAuth } from "@/hooks/useAuth";
 import { useCapabilities } from "@/hooks/useCapabilities";
 import { useStreamJson } from "@/hooks/useStreamJson";
+import { useWindAt } from "@/hooks/useWindAt";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useUnpinnedSectionTabs } from "@/components/layout/SectionLayout";
 import { useToast } from "@/hooks/useToast";
 import { useAutoSaveOnClose } from "@/hooks/useAutoSaveOnClose";
 import { timeController } from "@/stores/timeController";
@@ -19,6 +23,7 @@ import { Timeline } from "@/components/race/Timeline";
 import { SpeedChart } from "@/components/race/SpeedChart";
 import { PlaybackIndicators } from "@/components/session/PlaybackIndicators";
 import { Section } from "@/components/ui/Section";
+import { TabList, tabId, tabPanelId, type TabItem } from "@/components/ui/TabList";
 import { Button } from "@/components/ui/Button";
 import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Modal } from "@/components/ui/Modal";
@@ -32,13 +37,17 @@ import { Avatar } from "@/components/ui/Avatar";
 import { UserPicker } from "@/components/common/UserPicker";
 import { WindCard } from "@/components/common/WindCard";
 import { PhotoGallery, type GalleryPhoto } from "@/components/common/PhotoGallery";
-import { SessionAnalysis } from "@/components/session/SessionAnalysis";
+import { SessionAnalysis, analysisParts } from "@/components/session/SessionAnalysis";
 import { ShareImageModal } from "@/components/session/ShareImageModal";
 import { HealthCard } from "@/components/session/HealthCard";
 import { NavSourceModal } from "@/components/session/NavSourceModal";
-import { LossBoard, LossStepper } from "@/components/session/LossBoard";
+import { LossBoard } from "@/components/session/LossBoard";
 import { NextOuting } from "@/components/session/NextOuting";
+import { ReplayProgress } from "@/components/session/ReplayProgress";
+import { BackLink } from "@/components/ui/BackLink";
+import { SessionHighlights } from "@/components/session/SessionHighlights";
 import { sessionLosses } from "@/utils/sessionLosses";
+import { highlightsLead } from "@/utils/sessionHighlights";
 import { SessionSummaryRow } from "@/components/session/SessionSummaryRow";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
 import { fmtDateTime, userLabel } from "@/utils/format";
@@ -46,7 +55,7 @@ import { legSequence } from "@/utils/legSequence";
 import { richTextExcerpt } from "@/utils/richTextExcerpt";
 import { sessionStatusBadge } from "@/utils/badges";
 import { SAILING_ROLES } from "@/utils/sailingRoles";
-import type { GpsPoint, SailingRole, UUID } from "@/types";
+import type { GpsPoint, SailingRole, SessionPhoto, UUID } from "@/types";
 import photoGridStyles from "@/components/common/photoGrid.module.css";
 import legendStyles from "@/components/race/legend.module.css";
 import styles from "./SessionDetail.module.css";
@@ -65,21 +74,21 @@ const MAP_LEGEND_DOT_CLASS: Record<string, string> = {
 // map toggle each (see the marks useMemo and the "Mostra su mappa" submenu).
 type MapShowState = Record<"upwind" | "downwind" | "reach" | "tack" | "gybe" | "course_change", boolean>;
 
-/** A "this is missing, add it" affordance for content that belongs to the
- * session (photo/video/notes) — rendered as a visible icon button rather
- * than tucked inside the ⋮ menu, since it's the one thing actually worth
- * doing on an otherwise-empty session. See `onQuickActions` below. */
-export interface QuickAction {
+/** A title-bar action — share, the boat's notebook — rendered as a visible
+ * button rather than tucked inside the ⋮ menu. */
+interface QuickAction {
   key: string;
   icon: ReactNode;
   label: string;
+  /** The word shown beside the icon when `labelled`. Must be contained in
+   * `label`, which stays the accessible name (WCAG 2.5.3, label in name). */
+  shortLabel: string;
   onClick: () => void;
 }
 
-/** Renders a QuickAction list as circular ghost icon buttons. Shared so the
- * standalone session page and ActivityDetailPage (which receives the same
- * arrays via `onQuickActions`/`onHeaderActions`) render them identically. */
-export function QuickActionButtons({ actions }: { actions: QuickAction[] }) {
+/** Renders a QuickAction list as ghost buttons: icon-only with a tooltip, or
+ * `labelled` with a short visible word. */
+function QuickActionButtons({ actions, labelled = false }: { actions: QuickAction[]; labelled?: boolean }) {
   return (
     <>
       {actions.map((a) => (
@@ -87,11 +96,13 @@ export function QuickActionButtons({ actions }: { actions: QuickAction[] }) {
           key={a.key}
           type="button"
           variant="ghost"
-          className="sf-btn--icon-sm"
+          className={labelled ? "sf-btn--sm" : "sf-btn--icon-sm"}
           aria-label={a.label}
+          title={a.label}
           onClick={a.onClick}
         >
           {a.icon}
+          {labelled && <span>{a.shortLabel}</span>}
         </Button>
       ))}
     </>
@@ -107,29 +118,47 @@ export function QuickActionButtons({ actions }: { actions: QuickAction[] }) {
  * marks/boe) overlay additional pins on this session's map; `pickMode`/
  * `onMapClick` let it drive the same map's "pick a point" mode (e.g. placing
  * a race mark) instead of duplicating a second map just for that.
- * `onMenuSections`/`onQuickActions`/`onHeaderActions` are how "embedded" hands
- * its ⋮ menu sections, "Aggiungi" icon row and toolbar icon buttons (Share)
- * up to the caller instead of rendering its own — see the effect below. */
+ *
+ * The page owns its title bar in both variants; an embedding page supplies
+ * its own `heading`, merges its actions into the one ⋮ menu through
+ * `menuBefore`/`menuAfter`, and puts its own details (`details`) at the top of
+ * the Analisi tab. */
 export function SessionDetail({
   sessionId,
   variant = "page",
   extraMarks = [],
   pickMode = false,
   onMapClick,
-  onMenuSections,
-  onQuickActions,
-  onHeaderActions,
+  back,
+  heading,
+  menuBefore = [],
+  menuAfter = [],
+  details,
+  mapOverlay,
 }: {
   sessionId: UUID;
   variant?: "page" | "embedded";
   extraMarks?: MapMark[];
   pickMode?: boolean;
   onMapClick?: (lat: number, lng: number) => void;
-  onMenuSections?: (sections: MenuSection[]) => void;
-  onQuickActions?: (actions: QuickAction[]) => void;
-  onHeaderActions?: (actions: QuickAction[]) => void;
+  /** The way out: an icon in the title bar on a phone, a link above it on a
+   * wide screen. */
+  back: { fallback: string; label: string };
+  /** "embedded": the caller's own name and dates in place of the boat's. */
+  heading?: { title: ReactNode; meta: ReactNode };
+  /** "embedded": the caller's actions, around this page's in the one ⋮. */
+  menuBefore?: MenuSection[];
+  menuAfter?: MenuSection[];
+  /** "embedded": the caller's details, the first block of the Analisi tab. */
+  details?: ReactNode;
+  /** The caller's own map control (the activity's course marks), stacked
+   * with the map's controls; kept in a slot of its own with no map. */
+  mapOverlay?: ReactNode;
 }) {
   const { t } = useTranslation();
+  // Below the two-column breakpoint (matching SessionDetail.module.css) the
+  // title bar, replay and tabs are pinned chrome, and space is short.
+  const pinnedOnTop = useMediaQuery("(max-width: 999px)");
   const { isBoatManager } = useCapabilities();
   const { user } = useAuth();
   const { notify, update } = useToast();
@@ -276,6 +305,13 @@ export function SessionDetail({
   const videos = useQuery({
     queryKey: sessionKeys.videos(sessionId),
     queryFn: () => sessionsService.videos(sessionId),
+    enabled: !!sessionId,
+  });
+  // HealthCard's own query (deduped) — read here only so the section index
+  // links to it exactly when it renders.
+  const physio = useQuery({
+    queryKey: sessionKeys.physio(sessionId),
+    queryFn: () => sessionsService.physio(sessionId),
     enabled: !!sessionId,
   });
   // Fetched by id rather than via boatsService.list(), which excludes guest
@@ -640,56 +676,33 @@ export function SessionDetail({
   // to anyone who can see the analysis) and GPX download (visible to any
   // viewer — matches the backend's _require_visible permission, not the
   // edit-only _can_edit the other actions use).
-  const menuSections: MenuSection[] = [];
-  // Whatever hasn't been added yet (and the viewer may add) gets a visible
-  // icon button instead of its own empty Section or a buried menu entry —
-  // see the Foto/Video/Annotazioni Sections below (each hidden while empty)
-  // and the quickActions row rendered in the title Card / handed up via
-  // `onQuickActions` further down.
-  const quickActions: QuickAction[] = [];
-  // Toolbar-level icon buttons, rendered immediately left of the ⋮ trigger
-  // (here for variant="page", by the caller for "embedded"). Share stays in
-  // this component because ShareImageModal needs its tracks/stats/crew.
-  const headerActions: QuickAction[] = [
-    {
-      key: "share",
-      icon: <span className={styles.shareIcon}><Share2 size={16} /></span>,
-      label: t("sessions.share"),
-      onClick: () => setSharing(true),
-    },
-  ];
-  if (crewOrManager) {
-    if (!photos.data?.length) {
-      quickActions.push({
-        key: "photo", icon: <ImagePlus size={16} />, label: t("sessions.addPhoto"),
-        onClick: () => photoInputRef.current?.click(),
-      });
-    }
-    if (!videos.data?.length) {
-      quickActions.push({
-        key: "video", icon: <Video size={16} />, label: t("sessions.addVideo"),
-        onClick: () => videoInputRef.current?.click(),
-      });
-    }
-    if (!richTextExcerpt(session.data?.notes, 1)) {
-      quickActions.push({
-        key: "notes", icon: <NotebookPen size={16} />, label: t("sessions.addNotes"),
-        onClick: openNotes,
-      });
-    }
-  }
-  // Not gated on "missing content" like the ones above — the boat's setup
-  // notebook is always relevant to whoever manages the boat.
-  if (manager) {
-    quickActions.push({
+  const menuSections: MenuSection[] = [...menuBefore];
+  const openNotebook = () =>
+    navigate(`/profilo/barche/${session.data?.boat_id}/quaderno`, {
+      state: { backLabel: t("boatNotes.backToSession") },
+    });
+  // Share stays in this component because ShareImageModal needs its tracks/
+  // stats/crew. The notebook, always relevant to whoever manages the boat,
+  // is a visible button on a wide screen and a ⋮ item in a phone's title bar.
+  const titleActions: QuickAction[] = [];
+  if (manager && !pinnedOnTop) {
+    titleActions.push({
       key: "notebook",
       icon: <NotebookText size={16} />,
       label: t("sessions.openBoatNotebook"),
-      onClick: () =>
-        navigate(`/profilo/barche/${session.data?.boat_id}/quaderno`, {
-          state: { backLabel: t("boatNotes.backToSession") },
-        }),
+      shortLabel: t("sessions.actionShort.notebook"),
+      onClick: openNotebook,
     });
+  }
+  titleActions.push({
+    key: "share",
+    icon: <span className={styles.shareIcon}><Share2 size={pinnedOnTop ? 18 : 16} /></span>,
+    label: t("sessions.share"),
+    shortLabel: t("sessions.share"),
+    onClick: () => setSharing(true),
+  });
+  if (manager && pinnedOnTop) {
+    menuSections.push({ items: [{ label: t("sessions.openBoatNotebook"), onClick: openNotebook }] });
   }
   if (manager) {
     menuSections.push({
@@ -789,70 +802,183 @@ export function SessionDetail({
     });
   }
   // Embedded (solo-activity) sessions are deleted via the activity's own
-  // Delete action, which cascades to the session — a separate session-level
-  // delete here would leave an orphaned, session-less activity behind.
+  // Delete action (in `menuAfter`), which cascades to the session — a
+  // session-level delete there would leave a session-less activity behind.
   if (manager && variant === "page") {
     menuSections.push({ items: [{ label: t("common.delete"), danger: true, onClick: () => setDeleting(true) }] });
   }
-  // Embedded mode has no menu of its own — the caller (ActivityDetailPage,
-  // for a solo activity) merges these sections into its own single ⋮ menu
-  // instead of showing a second, redundant one here. `menuSections` is a
-  // fresh array/closures every render (same reasoning as `tracks` above,
-  // see `sessionAnalysesKey`), so the effect is gated on a primitive
-  // signature of its actual inputs instead of `menuSections` itself —
-  // otherwise calling `onMenuSections` would hand the parent a "new" array
-  // every render, which (since it's stored in the parent's state) would
-  // re-render this component too, rebuilding the array again, forever.
-  const menuSignature = JSON.stringify([
-    manager,
-    crewOrManager,
-    maneuverEditMode,
-    trimMode,
-    reanalyze.isPending,
-    reanalysisPolling,
-    refreshWind.isPending,
-    currentActivity.data?.type,
-    analysis.data?.legs.length ?? 0,
-    analysis.data?.maneuvers.length ?? 0,
-    photos.data?.length ?? 0,
-    videos.data?.length ?? 0,
-    !!richTextExcerpt(session.data?.notes, 1),
-    navSources.data?.length ?? 0,
-    mapShow,
-    variant,
-    // `headerActions` needs no entry of its own: Share is unconditional, so
-    // the array's contents never vary — anything added there that *is*
-    // conditional must contribute its inputs here, or the parent goes stale.
-  ]);
-  useEffect(() => {
-    if (variant === "embedded") {
-      onMenuSections?.(menuSections);
-      onQuickActions?.(quickActions);
-      onHeaderActions?.(headerActions);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- gated on
-    // `menuSignature`, not the arrays or callbacks themselves, see comment
-    // above.
-  }, [menuSignature]);
+  menuSections.push(...menuAfter);
 
+  const losses = useMemo(
+    () => (analysis.data ? sessionLosses(analysis.data.legs, analysis.data.maneuvers) : []),
+    [analysis.data],
+  );
   // The five worst moments, numbered on the speed strip in ranking order so a
   // dip in the line and its row in "Where you lost" carry the same number.
   const lossMarkers = useMemo(
-    () =>
-      analysis.data
-        ? sessionLosses(analysis.data.legs, analysis.data.maneuvers)
-            .slice(0, 5)
-            .map((l, i) => ({ ms: l.atSec * 1000, label: String(i + 1) }))
-        : [],
-    [analysis.data],
+    () => losses.slice(0, 5).map((l, i) => ({ ms: l.atSec * 1000, label: String(i + 1) })),
+    [losses],
   );
+  // The session's cover is its oldest photo, same rule as the diary entry's.
+  const coverPhoto = useMemo(
+    () =>
+      (photos.data ?? []).reduce<SessionPhoto | null>(
+        (a, b) => (!a || b.created_at < a.created_at ? b : a),
+        null,
+      ),
+    [photos.data],
+  );
+
+  // The replay and the tab bar pin to the top of a phone; the section's own
+  // tabs above would leave too little screen, so they scroll away here.
+  useUnpinnedSectionTabs();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Both deduped against SessionAnalysis/WindCard's own queries — read here
+  // only to offer the Wind tab exactly when it has something to show.
+  const polar = useQuery({
+    queryKey: polarKeys.session(sessionId),
+    queryFn: () => polarsService.forSession(sessionId),
+    enabled: !!sessionId,
+  });
+  const startPoint = tracks[0]?.pts[0];
+  const windAtStart = useWindAt(startPoint?.lat, startPoint?.lon, session.data?.started_at);
+
+  // The tab bar pins right under the replay on a phone, and a panel needs
+  // enough height to keep both pinned; both depend on the replay's measured
+  // height (the map, plus a legend or trim bar when shown).
+  const stageRef = useRef<HTMLDivElement>(null);
+  const replayRef = useRef<HTMLDivElement>(null);
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const tabsColumnRef = useRef<HTMLDivElement>(null);
+  const titleBarRef = useRef<HTMLElement>(null);
+  const hasReplay = !!session.data && tracks.length > 0;
+  useEffect(() => {
+    const stage = stageRef.current;
+    const replay = replayRef.current;
+    const bar = tabBarRef.current;
+    const title = titleBarRef.current;
+    if (!stage || !replay || !bar || !title) return;
+    const measure = () => {
+      stage.style.setProperty("--titlebar-h", `${title.offsetHeight}px`);
+      stage.style.setProperty("--replay-h", `${replay.offsetHeight}px`);
+      stage.style.setProperty("--tabbar-h", `${bar.offsetHeight}px`);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(title);
+    observer.observe(replay);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [!!session.data, hasReplay]);
+
+  // On a phone the replay folds (shorter map, the strip down to a progress
+  // bar) once the panel has scrolled a little under it, and unfolds back at
+  // the top. Two discrete states, switched from a passive, rAF-throttled
+  // scroll listener with hysteresis; CSS animates between them. How far the
+  // panel has gone under the pinned chrome does not depend on the replay's
+  // own height, so the switch cannot feed back into itself.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    if (!pinnedOnTop || !hasReplay) {
+      setCollapsed(false);
+      return;
+    }
+    let frame = 0;
+    const check = () => {
+      frame = 0;
+      const stage = stageRef.current;
+      const title = titleBarRef.current;
+      if (!stage || !title) return;
+      const under = title.getBoundingClientRect().bottom - stage.getBoundingClientRect().top;
+      setCollapsed((was) => (was ? under > 8 : under > 48));
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(check);
+    };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [pinnedOnTop, hasReplay]);
 
   if (session.isLoading) return <Spinner />;
   if (!session.data) return null;
   const s = session.data;
 
+  const parts = analysis.data ? analysisParts(analysis.data, maneuverEditMode) : null;
+  const hasNotes = !!richTextExcerpt(s.notes, 1);
+  const photoCount = photos.data?.length ?? 0;
+  // A tab shows when it has something in it, or an add action this viewer
+  // may use; Analysis always shows, it is where the page opens.
+  const tabs: TabItem[] = [{ id: "analisi", label: t("sessions.tabs.analysis") }];
+  if (parts?.wind || polar.data?.length || windAtStart.data) {
+    tabs.push({ id: "vento", label: t("sessions.tabs.wind") });
+  }
+  if (crew.data?.length || hasNotes || physio.data?.length || crewOrManager) {
+    tabs.push({
+      id: "equipaggio",
+      label: t("sessions.tabs.crew"),
+      // Health only mounts with this tab open, so the tour points here.
+      dataTour: physio.data?.length ? "activity-health" : undefined,
+    });
+  }
+  const mediaCount = photoCount + (videos.data?.length ?? 0);
+  if (mediaCount || crewOrManager) {
+    tabs.push({
+      id: "foto",
+      label: (
+        <>
+          {t("sessions.tabs.photos")}
+          {mediaCount > 0 && <span className={styles.tabCount}>{mediaCount}</span>}
+        </>
+      ),
+    });
+  }
+  const requestedTab = searchParams.get("tab");
+  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab! : "analisi";
+  // Replace, not push: switching tabs is not a page the back button should
+  // step through, but reload and a shared link keep the tab.
+  const selectTab = (id: string, reveal = false) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (id === "analisi") next.delete("tab");
+        else next.set("tab", id);
+        return next;
+      },
+      { replace: true },
+    );
+    // Once the tab bar is pinned, a new tab starts at its top rather than
+    // wherever the last one had been scrolled to; `reveal` scrolls there from
+    // anywhere. The bar's sticky offset is where it pins.
+    const column = tabsColumnRef.current;
+    const bar = tabBarRef.current;
+    if (!column || !bar) return;
+    const pinAt = parseFloat(getComputedStyle(bar).top) || 0;
+    const top = column.getBoundingClientRect().top;
+    if (reveal || top < pinAt) window.scrollTo({ top: window.scrollY + top - pinAt });
+  };
+
+  const stepMs = tracks[0] ? medianIntervalMs(tracks[0]) * 5 : 5000;
+  const lossBoard = analysis.data && <LossBoard legs={analysis.data.legs} maneuvers={analysis.data.maneuvers} />;
+  const highlights = analysis.data && (
+    <SessionHighlights
+      legs={analysis.data.legs}
+      maneuvers={analysis.data.maneuvers}
+      maxSpeedKts={stats.data?.max_speed_kts}
+      points={tracks[0]?.pts ?? []}
+    />
+  );
+  // A clean day opens on what went well; otherwise the losses keep the lead
+  // and the good part follows them.
+  const leadWithHighlights = highlightsLead(
+    losses.reduce((sum, l) => sum + l.lostM, 0),
+    stats.data?.distance_m,
+  );
+
   return (
-    <div className="sf-section__body">
+    <div className={`sf-section__body ${styles.root}`}>
       <input
         ref={photoInputRef}
         type="file"
@@ -897,92 +1023,103 @@ export function SessionDetail({
           {t("sessions.photoUploading", { done: photoUpload.progress.done, total: photoUpload.progress.total })}
         </p>
       )}
-      {variant === "page" && (
-        // Plain header row, not a `Card` — it's the page's own name, and
-        // boxing it just repeats the chrome of every `Section` below it.
-        <header className={styles.header}>
-          <div className="sf-toolbar">
-            <div className={styles.titleBlock}>
-              <h1 className="sf-page-title">{boat.data?.name ?? t("sessions.boat")}</h1>
-              <p className={styles.meta}>
-                <time dateTime={s.started_at ?? undefined}>{fmtDateTime(s.started_at)}</time>
-                {/* A processed session is the normal case — only a state that
-                    needs attention earns a tag next to the date. */}
-                {reanalysisPolling ? (
-                  <span className="sf-badge sf-badge--pending">
-                    <Spinner inline /> {t("sessions.reanalyzing")}
-                  </span>
-                ) : (
-                  s.status !== "processed" && <span className={sessionStatusBadge(s.status)}>{s.status}</span>
-                )}
-              </p>
-            </div>
-            <div className={styles.headerActions}>
-              {quickActions.length > 0 && (
-                <span className={styles.headerActions} data-tour="activity-quick-actions">
-                  <QuickActionButtons actions={quickActions} />
-                </span>
+      <header ref={titleBarRef} className={styles.titleBar}>
+        <BackLink fallback={back.fallback} label={back.label} iconOnly={pinnedOnTop} className={styles.back} />
+        <div className={styles.titleRow}>
+          {coverPhoto && (
+            <button
+              type="button"
+              className={styles.cover}
+              aria-label={t("sessions.coverPhoto", { count: photoCount })}
+              title={t("sessions.coverPhoto", { count: photoCount })}
+              onClick={() => selectTab("foto", true)}
+            >
+              <img src={coverPhoto.url} alt="" />
+              {photoCount > 1 && (
+                <span className={styles.coverCount} aria-hidden="true">{photoCount}</span>
               )}
-              <QuickActionButtons actions={headerActions} />
-              {menuSections.length > 0 && <Menu sections={menuSections} triggerDataTour="activity-menu" />}
-            </div>
+            </button>
+          )}
+          <div className={styles.titleText}>
+            <h1 className={`sf-page-title ${styles.title}`}>{heading?.title ?? boat.data?.name ?? t("sessions.boat")}</h1>
+            <p className={styles.meta}>
+              {heading?.meta ?? <time dateTime={s.started_at ?? undefined}>{fmtDateTime(s.started_at)}</time>}
+              {/* A processed session is the normal case — only a state that
+                  needs attention earns a tag next to the date. */}
+              {reanalysisPolling ? (
+                <span className="sf-badge sf-badge--pending">
+                  <Spinner inline /> {t("sessions.reanalyzing")}
+                </span>
+              ) : (
+                s.status !== "processed" && <span className={sessionStatusBadge(s.status)}>{s.status}</span>
+              )}
+            </p>
           </div>
-        </header>
-      )}
-
-      {stats.data && (
-        <div data-tour="activity-stats">
-          <SessionSummaryRow
-            stats={stats.data}
-            maneuverCount={analysis.data?.maneuvers.filter((m) => !m.rejected).length}
+          <div className={styles.titleActions} data-tour="activity-quick-actions">
+            <QuickActionButtons actions={titleActions} labelled={!pinnedOnTop} />
+          </div>
+          <Menu
+            sections={menuSections}
+            triggerDataTour="activity-menu"
+            triggerLabel={pinnedOnTop ? undefined : t("sessions.actionShort.more")}
           />
         </div>
-      )}
+      </header>
 
-      {streams.isLoading || gps === null ? (
-        <Spinner />
-      ) : tracks.length === 0 ? (
-        <p className="sf-muted">{t("sessions.noGps")}</p>
-      ) : (
-        <div className="sf-section__body">
-          {/* "Where you lost" leads, the replay sits beside it: the ranking is
-              the answer, the map is where each row goes to be seen. */}
-          <div className={analysis.data ? styles.lead : undefined}>
-            {analysis.data && <LossBoard legs={analysis.data.legs} maneuvers={analysis.data.maneuvers} />}
-            <div className={styles.replay}>
-              <div className="sf-bleed" data-tour="activity-map">
+      <div ref={stageRef} className={`${styles.stage} ${collapsed ? styles.collapsed : ""}`}>
+        <div ref={replayRef} className={hasReplay ? styles.replay : undefined}>
+          {streams.isLoading || gps === null ? (
+            <Spinner />
+          ) : tracks.length === 0 ? (
+            <>
+              <p className="sf-muted">{t("sessions.noGps")}</p>
+              {/* With no map to lay it on, the caller's control keeps a slot. */}
+              {mapOverlay && <div className={styles.overlaySlot}>{mapOverlay}</div>}
+            </>
+          ) : (
+            <>
+              <div className={`sf-bleed ${styles.mapSlot}`} data-tour="activity-map">
                 <MapView
                   nautical
                   tracks={tracks}
                   marks={marks}
                   variant="session"
+                  compact={collapsed}
+                  mapOptions={mapOverlay}
                   vmg={analysis.data?.vmg_series}
                   sessionWind={analysis.data?.true_wind}
-                  wind={
-                    tracks[0]?.pts[0]
-                      ? { lat: tracks[0].pts[0].lat, lng: tracks[0].pts[0].lon, at: s.started_at }
-                      : undefined
-                  }
-                  controls={
-                    <Timeline
-                      overlay
-                      stepMs={medianIntervalMs(tracks[0]) * 5}
-                      extra={
-                        analysis.data && (
-                          <LossStepper legs={analysis.data.legs} maneuvers={analysis.data.maneuvers} />
-                        )
-                      }
-                    />
-                  }
+                  wind={startPoint ? { lat: startPoint.lat, lng: startPoint.lon, at: s.started_at } : undefined}
                   placementMode={maneuverEditMode}
                   onManeuverPlacement={handleManeuverPlacement}
                   pickMode={pickMode}
                   onMapClick={onMapClick}
                   showBoatInfo={false}
-                  onOpenSession={() =>
-                    document.getElementById("session-analysis")?.scrollIntoView({ behavior: "smooth" })
-                  }
+                  onOpenSession={() => selectTab("analisi", true)}
                 />
+              </div>
+              {/* The scrubber: transport above the speed strip, under the map
+                  rather than on it. On a phone the strip folds to a slim
+                  progress bar while the panel is scrolled. */}
+              <Timeline stepMs={stepMs} className={styles.transport} />
+              <div className={styles.scrub} data-tour="activity-speed-chart">
+                <div className={styles.scrubChart}>
+                  <SpeedChart
+                    tracks={tracks}
+                    vmg={analysis.data?.vmg_series}
+                    markers={lossMarkers}
+                    compact={pinnedOnTop}
+                    trimMode={trimMode}
+                    trimStartMs={trimDraftStartMs}
+                    trimEndMs={trimDraftEndMs}
+                    onTrimStartChange={setTrimDraftStartMs}
+                    onTrimEndChange={setTrimDraftEndMs}
+                  />
+                </div>
+                {pinnedOnTop && (
+                  <div className={styles.scrubBar}>
+                    <ReplayProgress markers={lossMarkers} stepMs={stepMs} label={t("sessions.replayPosition")} />
+                  </div>
+                )}
               </div>
               {maneuverEditMode && (
                 <p className="sf-muted">
@@ -1010,190 +1147,265 @@ export function SessionDetail({
                   ))}
                 </div>
               )}
-            </div>
+            </>
+          )}
+        </div>
+
+        <div ref={tabsColumnRef} className={styles.tabsColumn}>
+          <div ref={tabBarRef} className={styles.tabBar}>
+            <TabList
+              tabs={tabs}
+              active={activeTab}
+              onChange={(id) => selectTab(id)}
+              label={t("sessions.tabs.label")}
+              idPrefix="session"
+              className={styles.tabList}
+            />
           </div>
-          <div className="sf-section__body">
-            <div data-tour="activity-speed-chart">
-              <SpeedChart
-                tracks={tracks}
-                vmg={analysis.data?.vmg_series}
-                markers={lossMarkers}
-                trimMode={trimMode}
-                trimStartMs={trimDraftStartMs}
-                trimEndMs={trimDraftEndMs}
-                onTrimStartChange={setTrimDraftStartMs}
-                onTrimEndChange={setTrimDraftEndMs}
-              />
-            </div>
-            <PlaybackIndicators track={tracks[0]} vmg={analysis.data?.vmg_series} />
+          <div
+            role="tabpanel"
+            id={tabPanelId("session", activeTab)}
+            aria-labelledby={tabId("session", activeTab)}
+            className={`sf-section__body ${styles.panel}`}
+          >
+            {activeTab === "analisi" && (
+              <>
+                {details}
+                {stats.data && (
+                  <div data-tour="activity-stats">
+                    <SessionSummaryRow
+                      stats={stats.data}
+                      maneuverCount={analysis.data?.maneuvers.filter((m) => !m.rejected).length}
+                    />
+                  </div>
+                )}
+                {/* The readouts at the replay cursor: under the totals rather
+                    than pinned, where they would cost the panel a row. */}
+                {tracks.length > 0 && <PlaybackIndicators track={tracks[0]} vmg={analysis.data?.vmg_series} />}
+                {analysis.data && tracks.length > 0 && (
+                  <div className={styles.ranking}>
+                    {leadWithHighlights ? highlights : lossBoard}
+                    {leadWithHighlights ? lossBoard : highlights}
+                  </div>
+                )}
+                {analysis.data && <NextOuting legs={analysis.data.legs} maneuvers={analysis.data.maneuvers} />}
+                <div data-tour="activity-analysis">
+                  <SessionAnalysis
+                    sessionId={sessionId}
+                    part="performance"
+                    editMode={maneuverEditMode}
+                    maxSpeedKts={stats.data?.max_speed_kts}
+                    onRefreshWind={manager ? () => refreshWind.mutate() : undefined}
+                    refreshingWind={refreshWind.isPending || reanalysisPolling}
+                  />
+                </div>
+              </>
+            )}
+
+            {activeTab === "vento" && (
+              <>
+                <SessionAnalysis sessionId={sessionId} part="wind" />
+                {startPoint && <WindCard lat={startPoint.lat} lng={startPoint.lon} at={s.started_at} />}
+              </>
+            )}
+
+            {activeTab === "equipaggio" && (
+              <>
+                <Section
+                  title={t("sessions.crew")}
+                  actions={
+                    manager && (
+                      <Button className="sf-btn--sm" onClick={() => setAddingCrew(true)}>
+                        {t("sessions.addCrew")}
+                      </Button>
+                    )
+                  }
+                >
+                  {crew.data?.length ? (
+                    <div className="sf-strip">
+                      {crew.data.map((c) => {
+                        // Mirrors the backend rule exactly (PATCH /sessions/{id}/crew/{user_id}):
+                        // a manager, or the crew member correcting their own role.
+                        const canEditRole = manager || c.user_id === user?.id;
+                        return (
+                          <div key={c.user_id} className="sf-strip__item sf-strip__item--muted">
+                            <span className="sf-crew-row">
+                              <Avatar
+                                profileImage={c.user?.profile_image}
+                                firstName={c.user?.first_name}
+                                lastName={c.user?.last_name}
+                                size="sm"
+                              />
+                              <span>
+                                <strong>{userLabel(c.user)}</strong>{" "}
+                                {canEditRole ? (
+                                  <select
+                                    className="sf-badge sf-badge--select"
+                                    value={c.sailing_role}
+                                    disabled={updateCrewRole.isPending}
+                                    onChange={(e) =>
+                                      updateCrewRole.mutate({ userId: c.user_id, role: e.target.value as SailingRole })
+                                    }
+                                  >
+                                    {SAILING_ROLES.map((role) => (
+                                      <option key={role} value={role}>
+                                        {t(`sessions.sailingRoles.${role}`)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span className="sf-badge">{t(`sessions.sailingRoles.${c.sailing_role}`)}</span>
+                                )}
+                              </span>
+                            </span>
+                            {manager && (
+                              <Button
+                                variant="ghost"
+                                className="sf-btn--sm"
+                                onClick={() => setRemovingCrewId(c.user_id)}
+                              >
+                                {t("common.remove")}
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="sf-muted">{t("common.none")}</p>
+                  )}
+                </Section>
+
+                {(hasNotes || crewOrManager) && (
+                  <Section
+                    title={
+                      <>
+                        {t("sessions.notes")}{" "}
+                        {hasNotes && s.notes_shared && <span className="sf-badge">{t("sessions.notesSharedBadge")}</span>}
+                      </>
+                    }
+                    actions={
+                      hasNotes && crewOrManager && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="sf-btn--icon-sm"
+                          aria-label={t("common.edit")}
+                          title={t("common.edit")}
+                          onClick={openNotes}
+                        >
+                          <Pencil size={16} />
+                        </Button>
+                      )
+                    }
+                  >
+                    {hasNotes ? (
+                      <RichText html={s.notes} tier="full" />
+                    ) : (
+                      <div>
+                        <Button type="button" variant="ghost" className="sf-btn--sm" onClick={openNotes}>
+                          <NotebookPen size={16} />
+                          {t("sessions.addNotes")}
+                        </Button>
+                      </div>
+                    )}
+                  </Section>
+                )}
+
+                {/* Renders nothing unless this viewer may see someone's health
+                    data — see HealthCard, which also handles the multi-crew case. */}
+                <HealthCard sessionId={sessionId} />
+              </>
+            )}
+
+            {activeTab === "foto" && (
+              <>
+                {(photoCount > 0 || crewOrManager) && (
+                  <Section
+                    title={t("sessions.photos")}
+                    actions={
+                      photoCount > 0 && crewOrManager && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="sf-btn--icon-sm"
+                          disabled={photoUpload.busy}
+                          aria-label={t("sessions.addPhoto")}
+                          title={t("sessions.addPhoto")}
+                          onClick={() => photoInputRef.current?.click()}
+                        >
+                          <ImagePlus size={16} />
+                        </Button>
+                      )
+                    }
+                  >
+                    {photoCount > 0 ? (
+                      <PhotoGallery photos={sessionGalleryPhotos} />
+                    ) : (
+                      <div className={styles.emptyAdd}>
+                        <p className="sf-muted">{t("sessions.noPhotos")}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="sf-btn--sm"
+                          disabled={photoUpload.busy}
+                          onClick={() => photoInputRef.current?.click()}
+                        >
+                          <ImagePlus size={16} />
+                          {t("sessions.addPhoto")}
+                        </Button>
+                      </div>
+                    )}
+                  </Section>
+                )}
+
+                {(videos.data?.length || crewOrManager) && (
+                  <Section
+                    title={t("sessions.videos")}
+                    actions={
+                      !!videos.data?.length && crewOrManager && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="sf-btn--icon-sm"
+                          disabled={videoUpload.busy}
+                          aria-label={t("sessions.addVideo")}
+                          title={t("sessions.addVideo")}
+                          onClick={() => videoInputRef.current?.click()}
+                        >
+                          <Video size={16} />
+                        </Button>
+                      )
+                    }
+                  >
+                    {videos.data?.length ? (
+                      <div className={photoGridStyles.grid}>
+                        {videos.data.map((v) => (
+                          <video key={v.file_id} src={v.url} controls style={{ width: "100%" }} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={styles.emptyAdd}>
+                        <p className="sf-muted">{t("sessions.noVideos")}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="sf-btn--sm"
+                          disabled={videoUpload.busy}
+                          onClick={() => videoInputRef.current?.click()}
+                        >
+                          <Video size={16} />
+                          {t("sessions.addVideo")}
+                        </Button>
+                      </div>
+                    )}
+                  </Section>
+                )}
+              </>
+            )}
           </div>
         </div>
-      )}
-
-      {/* The diagnosis continues straight from the losses and replay above;
-          crew, notes and photos are the session's record, read after. */}
-      <div id="session-analysis" data-tour="activity-analysis">
-        <SessionAnalysis
-          sessionId={sessionId}
-          editMode={maneuverEditMode}
-          maxSpeedKts={stats.data?.max_speed_kts}
-          onRefreshWind={manager ? () => refreshWind.mutate() : undefined}
-          refreshingWind={refreshWind.isPending || reanalysisPolling}
-        />
       </div>
-      {analysis.data && <NextOuting legs={analysis.data.legs} maneuvers={analysis.data.maneuvers} />}
-
-      {/* Everything below is the outing's record (health, wind, crew, notes,
-          media): read after the diagnosis, so it sits under a quieter divider
-          rather than as one more equal-weight section. */}
-      <hr className={styles.recordDivider} />
-
-      {/* Renders nothing unless this viewer may see someone's health data —
-          see HealthCard, which also handles the multi-crew case. */}
-      <HealthCard sessionId={sessionId} />
-
-      {tracks[0]?.pts[0] && (
-        <WindCard lat={tracks[0].pts[0].lat} lng={tracks[0].pts[0].lon} at={s.started_at} />
-      )}
-
-      <Section
-        title={t("sessions.crew")}
-        actions={
-          manager && (
-            <Button className="sf-btn--sm" onClick={() => setAddingCrew(true)}>
-              {t("sessions.addCrew")}
-            </Button>
-          )
-        }
-      >
-        {crew.data?.length ? (
-          <div className="sf-strip">
-            {crew.data.map((c) => {
-              // Mirrors the backend rule exactly (PATCH /sessions/{id}/crew/{user_id}):
-              // a manager, or the crew member correcting their own role.
-              const canEditRole = manager || c.user_id === user?.id;
-              return (
-                <div key={c.user_id} className="sf-strip__item sf-strip__item--muted">
-                  <span className="sf-crew-row">
-                    <Avatar
-                      profileImage={c.user?.profile_image}
-                      firstName={c.user?.first_name}
-                      lastName={c.user?.last_name}
-                      size="sm"
-                    />
-                    <span>
-                      <strong>{userLabel(c.user)}</strong>{" "}
-                      {canEditRole ? (
-                        <select
-                          className="sf-badge sf-badge--select"
-                          value={c.sailing_role}
-                          disabled={updateCrewRole.isPending}
-                          onChange={(e) =>
-                            updateCrewRole.mutate({ userId: c.user_id, role: e.target.value as SailingRole })
-                          }
-                        >
-                          {SAILING_ROLES.map((role) => (
-                            <option key={role} value={role}>
-                              {t(`sessions.sailingRoles.${role}`)}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="sf-badge">{t(`sessions.sailingRoles.${c.sailing_role}`)}</span>
-                      )}
-                    </span>
-                  </span>
-                  {manager && (
-                    <Button
-                      variant="ghost"
-                      className="sf-btn--sm"
-                      onClick={() => setRemovingCrewId(c.user_id)}
-                    >
-                      {t("common.remove")}
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="sf-muted">{t("common.none")}</p>
-        )}
-      </Section>
-
-      {richTextExcerpt(s.notes, 1) && (
-        <Section
-          title={
-            <>
-              {t("sessions.notes")}{" "}
-              {s.notes_shared && <span className="sf-badge">{t("sessions.notesSharedBadge")}</span>}
-            </>
-          }
-          actions={
-            crewOrManager && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="sf-btn--icon-sm"
-                aria-label={t("common.edit")}
-                onClick={openNotes}
-              >
-                <Pencil size={16} />
-              </Button>
-            )
-          }
-        >
-          <RichText html={s.notes} tier="full" />
-        </Section>
-      )}
-
-      {photos.data?.length ? (
-        <Section
-          title={t("sessions.photos")}
-          actions={
-            crewOrManager && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="sf-btn--icon-sm"
-                disabled={photoUpload.busy}
-                aria-label={t("sessions.addPhoto")}
-                onClick={() => photoInputRef.current?.click()}
-              >
-                <ImagePlus size={16} />
-              </Button>
-            )
-          }
-        >
-          <PhotoGallery photos={sessionGalleryPhotos} />
-        </Section>
-      ) : null}
-
-      {videos.data?.length ? (
-        <Section
-          title={t("sessions.videos")}
-          actions={
-            crewOrManager && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="sf-btn--icon-sm"
-                disabled={videoUpload.busy}
-                aria-label={t("sessions.addVideo")}
-                onClick={() => videoInputRef.current?.click()}
-              >
-                <Video size={16} />
-              </Button>
-            )
-          }
-        >
-          <div className={photoGridStyles.grid}>
-            {videos.data.map((v) => (
-              <video key={v.file_id} src={v.url} controls style={{ width: "100%" }} />
-            ))}
-          </div>
-        </Section>
-      ) : null}
 
       {addingCrew && (
         <Modal

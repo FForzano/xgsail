@@ -54,3 +54,46 @@
   line-height: 1;
   flex-shrink: 0;
 }
+
+/* A solo activity's details at the top of its session's Analisi tab. */
+.soloDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.soloDetails p {
+  margin: 0;
+}
+
+/* The course marks control: one of the map's square chips (MapView sizes and
+   inks any .sf-btn in its control stack), with the mark count in a corner. */
+.marksButton {
+  position: relative;
+}
+.marksCount {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 0.66rem;
+  font-weight: 750;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--sf-chrome-muted);
+}
+/* While a mark is being picked the chip becomes the hint and a way out. */
+.pickHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.pickHintText {
+  max-width: min(14rem, 55vw);
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--sf-radius);
+  background: var(--sf-overlay);
+  color: var(--sf-overlay-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.3;
+}

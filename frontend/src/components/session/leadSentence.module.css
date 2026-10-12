@@ -1,0 +1,12 @@
+/* The one size for a sentence that leads a session block — the costliest
+   habit over "Dove hai perso", the advice under "Da allenare". Larger than
+   body copy, smaller than a heading, the same in every block that has one. */
+.lead {
+  margin: 0;
+  max-width: 48ch;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  text-wrap: pretty;
+}

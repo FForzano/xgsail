@@ -360,3 +360,55 @@
     margin-bottom: 3.5rem;
   }
 }
+
+/* Session replay ("session" variant): the playback bar lives under this map,
+   so every control stacks down the top-right corner instead — layers, the
+   caller's options (course marks), recenter, then the zoom pair (kept: it is
+   the single-pointer alternative to pinch) — and the credit's "(i)" sits
+   bottom-left. Chips are 44px on a phone, 40px from the two-column layout up. */
+.mapSession {
+  --chip: 44px;
+}
+@media (min-width: 1000px) {
+  .mapSession {
+    --chip: 40px;
+  }
+}
+.mapSession .options {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+/* Layers first: it is the map's own control, the caller's come after it. */
+.mapSession .options > :last-child {
+  order: -1;
+}
+.mapSession .options :global(.sf-btn) {
+  width: var(--chip);
+  height: var(--chip);
+}
+/* --stack-offset is the options column's height, set from MapView. */
+.mapSession :global(.leaflet-top.leaflet-right) {
+  top: calc(var(--stack-offset, 0px) + 4px);
+}
+.mapSession :global(.leaflet-top .leaflet-control) {
+  margin-top: 6px;
+}
+.mapSession .recenter {
+  width: var(--chip);
+  height: var(--chip);
+  margin-top: 6px;
+}
+.mapSession :global(.leaflet-control-zoom) {
+  flex-direction: column;
+}
+.mapSession :global(.leaflet-control-zoom) a {
+  width: var(--chip);
+  height: var(--chip);
+  line-height: var(--chip);
+}
+/* Shrunk to make room: recenter and zoom stay, the rest return on expand. */
+.mapSession.compact .options {
+  display: none;
+}

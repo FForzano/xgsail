@@ -1,0 +1,46 @@
+/* Same sheet as "Dove hai perso" (head, codes and type come from
+   LossBoard.module.css): hairline rows, figures right-aligned. No rank and no
+   share bar — these are not ranked against each other. */
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 0 0.9rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--sf-border);
+  cursor: pointer;
+  transition: background 0.15s ease-out;
+}
+.row:hover {
+  background: color-mix(in srgb, var(--sf-text) 4%, transparent);
+}
+.event {
+  min-width: 0;
+}
+.time {
+  white-space: nowrap;
+  font-size: 0.84rem;
+  color: var(--sf-muted);
+}
+.figure {
+  white-space: nowrap;
+  text-align: right;
+  font-size: 1.15rem;
+  font-weight: 750;
+  color: var(--sf-text);
+}
+
+/* Same reason as the loss table: the row already seeks the replay there. */
+@media (max-width: 520px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .time {
+    display: none;
+  }
+}

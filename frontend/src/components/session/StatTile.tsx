@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import styles from "./statTiles.module.css";
 
-// A labelled value, and a row of them. Used both for readouts that follow the
-// playback cursor (PlaybackIndicators) and for session aggregates (HealthCard).
+// A labelled value, and a row of them: session aggregates (HealthCard, wind,
+// the polar) and the race pages' readouts.
 export function StatTile({ label, value }: { label: ReactNode; value: ReactNode }) {
   return (
     <div className={styles.tile}>

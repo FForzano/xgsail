@@ -12,7 +12,7 @@ import { timeController } from "@/stores/timeController";
 import { buildTracks, medianIntervalMs, timeBounds } from "@/components/race/raceModel";
 import { MapView, type MapMark } from "@/components/race/MapView";
 import { BoatSessionCarousel, type BoatSessionCarouselItem } from "@/components/diario/BoatSessionCarousel";
-import { SessionDetail, QuickActionButtons, type QuickAction } from "@/components/session/SessionDetail";
+import { SessionDetail } from "@/components/session/SessionDetail";
 import { Timeline } from "@/components/race/Timeline";
 import { SpeedChart } from "@/components/race/SpeedChart";
 import { Section } from "@/components/ui/Section";
@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/Button";
 import { InputField } from "@/components/ui/InputField";
 import { Select } from "@/components/ui/Select";
 import { OptionsMenu } from "@/components/ui/OptionsMenu";
-import { Menu, type MenuSection } from "@/components/ui/Menu";
 import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PhotoGallery, type GalleryPhoto } from "@/components/common/PhotoGallery";
@@ -29,8 +28,11 @@ import { fmtDateTime, fmtDistance, fmtKnots, userLabel } from "@/utils/format";
 import { MARK_ROLES, MARK_ROLE_LETTERS } from "@/utils/markRoles";
 import type { MarkRole, UUID, Visibility } from "@/types";
 import { BackLink } from "@/components/ui/BackLink";
+import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Modal } from "@/components/ui/Modal";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { MapPin, X } from "lucide-react";
 import pageStyles from "./ActivityDetailPage.module.css";
-import sessionStyles from "@/components/session/SessionDetail.module.css";
 
 const VISIBILITIES: Visibility[] = ["public", "club", "group", "private"];
 
@@ -51,17 +53,8 @@ export function ActivityDetailPage() {
     lng: "",
   });
   const [pickingMarkOnMap, setPickingMarkOnMap] = useState(false);
-  // Sections handed up by the embedded SessionDetail (solo activities) — see
-  // its `onMenuSections` — merged into this page's own single ⋮ menu instead
-  // of showing a second, redundant one on the map card.
-  const [soloMenuSections, setSoloMenuSections] = useState<MenuSection[]>([]);
-  // Same idea, for the "add photo/video/notes" icon row — see
-  // SessionDetail's `onQuickActions` and the QuickAction row rendered below,
-  // next to the solo session's boat name.
-  const [soloQuickActions, setSoloQuickActions] = useState<QuickAction[]>([]);
-  // Toolbar icon buttons (Share) handed up the same way — see
-  // SessionDetail's `onHeaderActions`; rendered left of this page's own ⋮.
-  const [soloHeaderActions, setSoloHeaderActions] = useState<QuickAction[]>([]);
+  const [marksOpen, setMarksOpen] = useState(false);
+  const wideScreen = useMediaQuery("(min-width: 701px)");
   // Set while editing an already-placed mark — the same form is reused for
   // both add and edit, submitting to `updateMark` instead of `addMark`.
   const [editingMarkId, setEditingMarkId] = useState<UUID | null>(null);
@@ -321,172 +314,358 @@ export function ActivityDetailPage() {
         : undefined,
   }));
 
+  // The activity's name, click-to-rename for whoever may edit it.
+  const titleName = editingName ? (
+    <input
+      className="sf-page-title-input"
+      autoFocus
+      defaultValue={nameDraft}
+      onFocus={(e) => e.currentTarget.select()}
+      onBlur={(e) => {
+        const v = e.target.value.trim();
+        if (v === (a.name ?? "")) {
+          setEditingName(false);
+          return;
+        }
+        renameActivity.mutate(v);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") setEditingName(false);
+      }}
+    />
+  ) : (
+    <span
+      className={canEdit ? "sf-card__title--editable" : undefined}
+      role={canEdit ? "button" : undefined}
+      tabIndex={canEdit ? 0 : undefined}
+      onClick={() => {
+        if (!canEdit) return;
+        setNameDraft(a.name ?? "");
+        setEditingName(true);
+      }}
+    >
+      {activityDisplayName(a, t)}
+    </span>
+  );
+  const dateRange = `${fmtDateTime(a.started_at)} — ${fmtDateTime(a.ended_at)}`;
+  const importAction = { label: t("sessions.import"), onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`) };
+  const deleteAction = { label: t("common.delete"), danger: true, onClick: () => setDeleting(true) };
+  const badgeRow = (
+    <div className={pageStyles.badgeRow}>
+      <span className="sf-badge">{t(`activities.types.${a.type}`)}</span>
+      {canChangeVisibility ? (
+        <select
+          className="sf-badge sf-badge--select"
+          value={a.visibility}
+          disabled={updateVisibility.isPending}
+          onChange={(e) => updateVisibility.mutate(e.target.value as Visibility)}
+        >
+          {VISIBILITIES.map((v) => (
+            <option key={v} value={v}>
+              {t(`activities.visibility.${v}`)}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span className="sf-badge">{t(`activities.visibility.${a.visibility}`)}</span>
+      )}
+    </div>
+  );
+  const raceLink = a.race_id && (
+    <p>
+      <Link to={`/diario/regate/race/${a.race_id}`}>{t("regate.open")}</Link>
+    </p>
+  );
+  // Plain header row, not a `Card` — it's the page's own name, and boxing it
+  // just repeats the chrome of every `Section` below it. A solo activity has
+  // none: its one session's title bar carries the name instead.
+  const titleBlock = (
+    <div className="sf-block">
+      <div className="sf-toolbar">
+        <h1 className="sf-page-title">{titleName}</h1>
+        <OptionsMenu triggerDataTour="activity-menu" items={canEdit ? [importAction, deleteAction] : [importAction]} />
+      </div>
+      {badgeRow}
+      <p className="sf-muted">{dateRange}</p>
+      {raceLink}
+    </div>
+  );
+  // A solo activity's details lead its Analisi tab: the kind and visibility,
+  // and which boat it was — a solo activity renders its one session inline
+  // with no boats list, so this is the only place that says so. Same
+  // thumbnail+name treatment as that list, not just a muted line of text.
+  const soloBoat = soloSession && boatsById.get(soloSession.boat_id);
+  const soloDetails = soloSession && (
+    <div className={pageStyles.soloDetails}>
+      {badgeRow}
+      <p className="sf-crew-row" data-tour="activity-boats">
+        {soloBoat?.photos[0]?.url ? (
+          <img src={soloBoat.photos[0].url} alt="" className="sf-session-thumb" />
+        ) : (
+          <span className="sf-session-thumb sf-session-thumb--empty" aria-hidden />
+        )}
+        <strong>{soloBoat?.name ?? t("sessions.boat")}</strong>
+      </p>
+      {raceLink}
+    </div>
+  );
+
+  const pickMarkAt = (lat: number, lng: number) => {
+    setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
+    setPickingMarkOnMap(false);
+    setMarksOpen(true);
+  };
+  // The course is drawn on the map and edited by picking on it, so its control
+  // is one of the map's own: a square chip in the map's control stack opening
+  // the marks sheet, or, while a point is being picked, the hint and a way
+  // out. Hidden when there is nothing to show and nothing this viewer may add.
+  const marksControl = pickingMarkOnMap ? (
+    <div className={pageStyles.pickHint}>
+      <span className={pageStyles.pickHintText} role="status">
+        {t("activities.pickOnMapHint")}
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        className="sf-btn--icon-sm"
+        aria-label={t("common.cancel")}
+        title={t("common.cancel")}
+        onClick={() => {
+          setPickingMarkOnMap(false);
+          setMarksOpen(true);
+        }}
+      >
+        <X size={18} aria-hidden="true" />
+      </Button>
+    </div>
+  ) : marks.data?.length || canEdit ? (
+    <Button
+      type="button"
+      variant="ghost"
+      className={`sf-btn--icon-sm ${pageStyles.marksButton}`}
+      data-tour="activity-marks"
+      aria-haspopup="dialog"
+      aria-label={
+        marks.data?.length ? `${t("activities.marks")} (${marks.data.length})` : t("activities.marks")
+      }
+      title={t("activities.marks")}
+      onClick={() => setMarksOpen(true)}
+    >
+      <MapPin size={18} aria-hidden="true" />
+      {!!marks.data?.length && (
+        <span className={pageStyles.marksCount} aria-hidden="true">
+          {marks.data.length}
+        </span>
+      )}
+    </Button>
+  ) : null;
+
+  const marksPanel = (
+    <>
+      {marks.data?.length ? (
+        <div className="sf-strip">
+          {marks.data.map((m) => (
+            <div
+              key={m.id}
+              className={`sf-strip__item sf-strip__item--muted ${pageStyles.markRow}${
+                m.id === editingMarkId ? " sf-strip__item--active" : ""
+              }`}
+            >
+              <span className={pageStyles.markInfo}>
+                <span className={pageStyles.markBadge} aria-hidden>
+                  {MARK_ROLE_LETTERS[m.mark_role]}
+                </span>
+                <span className={pageStyles.markText}>
+                  <strong>{t(`activities.markRoles.${m.mark_role}`)}</strong>
+                  <span className="sf-muted">
+                    {m.lat.toFixed(5)}, {m.lng.toFixed(5)}
+                  </span>
+                </span>
+              </span>
+              {canEdit && (
+                <span className="sf-strip__actions">
+                  <Button
+                    variant="ghost"
+                    className="sf-btn--icon-sm"
+                    title={t("activities.editMark")}
+                    aria-label={t("activities.editMark")}
+                    onClick={() => {
+                      setEditingMarkId(m.id);
+                      setMarkForm({ mark_role: m.mark_role, lat: String(m.lat), lng: String(m.lng) });
+                    }}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                      <path
+                        d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4L6 12.4l-2.8.7.7-2.8 7.4-7.4Z"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.3"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </Button>
+                  <Button
+                    variant="danger"
+                    className="sf-btn--icon-sm"
+                    title={t("common.remove")}
+                    aria-label={t("common.remove")}
+                    onClick={() => {
+                      if (m.id === editingMarkId) {
+                        setEditingMarkId(null);
+                        setMarkForm({ mark_role: MARK_ROLES[0], lat: "", lng: "" });
+                      }
+                      removeMark.mutate(m.id);
+                    }}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                      <path
+                        d="M3 4h10M6.5 4V2.5h3V4M4.5 4l.6 9.5a1 1 0 0 0 1 .95h3.8a1 1 0 0 0 1-.95L11.5 4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </Button>
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="sf-muted">{t("activities.marksEmpty")}</p>
+      )}
+      {canEdit && (
+        <form
+          className="sf-form__row"
+          style={{ alignItems: "end", marginTop: "0.75rem" }}
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            if (editingMarkId) updateMark.mutate();
+            else addMark.mutate();
+          }}
+        >
+          <Select
+            label={t("activities.markRole")}
+            id="mark-role"
+            value={markForm.mark_role}
+            onChange={(e) =>
+              setMarkForm((f) => ({ ...f, mark_role: e.target.value as MarkRole }))
+            }
+          >
+            {MARK_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {t(`activities.markRoles.${role}`)}
+              </option>
+            ))}
+          </Select>
+          <InputField
+            label="Lat"
+            id="mark-lat"
+            type="number"
+            step="any"
+            value={markForm.lat}
+            onChange={(e) => setMarkForm((f) => ({ ...f, lat: e.target.value }))}
+            required
+          />
+          <InputField
+            label="Lng"
+            id="mark-lng"
+            type="number"
+            step="any"
+            value={markForm.lng}
+            onChange={(e) => setMarkForm((f) => ({ ...f, lng: e.target.value }))}
+            required
+          />
+          {(tracks.length > 0 || soloSession) && (
+            <div className="sf-field">
+              <Button
+                type="button"
+                variant={pickingMarkOnMap ? "primary" : "ghost"}
+                onClick={() => {
+                  // The sheet covers the map: close it while the point is
+                  // picked, and the map click reopens it with the position.
+                  setPickingMarkOnMap(true);
+                  setMarksOpen(false);
+                  mapCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              >
+                {t(pickingMarkOnMap ? "activities.pickingOnMap" : "activities.pickOnMap")}
+              </Button>
+            </div>
+          )}
+          {/* Convenience autofill: a finish line very often coincides with
+              the start line, so offer to copy the matching start mark's
+              position instead of requiring it to be re-entered/re-picked. */}
+          {(markForm.mark_role === "finish_pin" || markForm.mark_role === "finish_rc") &&
+            (() => {
+              const startRole = markForm.mark_role === "finish_pin" ? "pin" : "rc";
+              const startMark = marks.data?.find((m) => m.mark_role === startRole);
+              if (!startMark) return null;
+              return (
+                <div className="sf-field">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() =>
+                      setMarkForm((f) => ({ ...f, lat: String(startMark.lat), lng: String(startMark.lng) }))
+                    }
+                  >
+                    {t(markForm.mark_role === "finish_pin" ? "activities.sameAsStartPin" : "activities.sameAsStartRc")}
+                  </Button>
+                </div>
+              );
+            })()}
+          <div className="sf-field">
+            <Button type="submit" disabled={addMark.isPending || updateMark.isPending}>
+              {t(editingMarkId ? "activities.saveMark" : "activities.addMark")}
+            </Button>
+          </div>
+          {editingMarkId && (
+            <div className="sf-field">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setEditingMarkId(null);
+                  setMarkForm({ mark_role: MARK_ROLES[0], lat: "", lng: "" });
+                  setPickingMarkOnMap(false);
+                }}
+              >
+                {t("activities.cancelEditMark")}
+              </Button>
+            </div>
+          )}
+        </form>
+      )}
+    </>
+  );
+
   return (
     <div className="sf-section__body">
-      <BackLink fallback="/diario/personale" label={t("activities.backToActivities")} />
-      {/* Plain header row, not a `Card` — it's the page's own name, and boxing
-          it just repeats the chrome of every `Section` below it. */}
-      <div className="sf-block">
-        <div className="sf-toolbar">
-          <h1 className="sf-page-title">
-            {editingName ? (
-              <input
-                className="sf-page-title-input"
-                autoFocus
-                defaultValue={nameDraft}
-                onFocus={(e) => e.currentTarget.select()}
-                onBlur={(e) => {
-                  const v = e.target.value.trim();
-                  if (v === (a.name ?? "")) {
-                    setEditingName(false);
-                    return;
-                  }
-                  renameActivity.mutate(v);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur();
-                  if (e.key === "Escape") setEditingName(false);
-                }}
-              />
-            ) : (
-              <>
-                <span
-                  className={canEdit ? "sf-card__title--editable" : undefined}
-                  role={canEdit ? "button" : undefined}
-                  tabIndex={canEdit ? 0 : undefined}
-                  onClick={() => {
-                    if (!canEdit) return;
-                    setNameDraft(a.name ?? "");
-                    setEditingName(true);
-                  }}
-                >
-                  {activityDisplayName(a, t)}
-                </span>
-              </>
-            )}
-          </h1>
-          <div className={sessionStyles.headerActions}>
-            <QuickActionButtons actions={soloHeaderActions} />
-            {soloSession ? (
-              // Single merged menu for solo activities — combines this page's
-              // own actions (Import, Delete) with the ones handed up by the
-              // embedded SessionDetail (see soloMenuSections/onMenuSections),
-              // instead of showing a second ⋮ menu on the map card below.
-              <Menu
-                triggerDataTour="activity-menu"
-                sections={[
-                  {
-                    items: [
-                      {
-                        label: t("sessions.import"),
-                        onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`),
-                      },
-                    ],
-                  },
-                  ...soloMenuSections,
-                  ...(canEdit
-                    ? [
-                        {
-                          items: [{ label: t("common.delete"), danger: true, onClick: () => setDeleting(true) }],
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            ) : (
-              <OptionsMenu
-                triggerDataTour="activity-menu"
-                items={[
-                  {
-                    label: t("sessions.import"),
-                    onClick: () => navigate(`/diario/activities/import?activityId=${a.id}`),
-                  },
-                  ...(canEdit
-                    ? [
-                        {
-                          label: t("common.delete"),
-                          danger: true,
-                          onClick: () => setDeleting(true),
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            )}
-          </div>
-        </div>
-        <div className={pageStyles.badgeRow}>
-          <span className="sf-badge">{t(`activities.types.${a.type}`)}</span>
-          {canChangeVisibility ? (
-            <select
-              className="sf-badge sf-badge--select"
-              value={a.visibility}
-              disabled={updateVisibility.isPending}
-              onChange={(e) => updateVisibility.mutate(e.target.value as Visibility)}
-            >
-              {VISIBILITIES.map((v) => (
-                <option key={v} value={v}>
-                  {t(`activities.visibility.${v}`)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span className="sf-badge">{t(`activities.visibility.${a.visibility}`)}</span>
-          )}
-        </div>
-        <p className="sf-muted">
-          {fmtDateTime(a.started_at)} — {fmtDateTime(a.ended_at)}
-        </p>
-        {/* For a multi-boat activity, which boat is which is shown in the
-            boats list/table below (thumbnail + name) — but a solo activity
-            renders its one session inline with no such list, so this is the
-            only place left to say which boat it was. Same thumbnail+name
-            treatment as that table, not just a muted line of text. */}
-        {soloSession &&
-          (() => {
-            const boat = boatsById.get(soloSession.boat_id);
-            return (
-              <p className="sf-crew-row" data-tour="activity-boats">
-                {boat?.photos[0]?.url ? (
-                  <img src={boat.photos[0].url} alt="" className="sf-session-thumb" />
-                ) : (
-                  <span className="sf-session-thumb sf-session-thumb--empty" aria-hidden />
-                )}
-                <strong>{boat?.name ?? t("sessions.boat")}</strong>
-              </p>
-            );
-          })()}
-        {soloQuickActions.length > 0 && (
-          <div className={sessionStyles.quickActions} data-tour="activity-quick-actions">
-            <QuickActionButtons actions={soloQuickActions} />
-          </div>
-        )}
-        {a.race_id && (
-          <p>
-            <Link to={`/diario/regate/race/${a.race_id}`}>{t("regate.open")}</Link>
-          </p>
-        )}
-      </div>
-
+      {/* A solo activity's session draws the way back in its own title bar. */}
+      {!soloSession && <BackLink fallback="/diario/personale" label={t("activities.backToActivities")} />}
       {soloSession ? (
         <div ref={mapCardRef}>
-          {pickingMarkOnMap && <p className="sf-muted">{t("activities.pickOnMapHint")}</p>}
           <SessionDetail
             sessionId={soloSession.id}
             variant="embedded"
+            back={{ fallback: "/diario/personale", label: t("activities.backToActivities") }}
+            heading={{ title: titleName, meta: dateRange }}
+            menuBefore={[{ items: [importAction] }]}
+            menuAfter={canEdit ? [{ items: [deleteAction] }] : []}
+            details={soloDetails}
+            mapOverlay={marksControl}
             extraMarks={mapMarksWithPreview}
             pickMode={pickingMarkOnMap}
-            onMapClick={(lat, lng) => {
-              setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
-              setPickingMarkOnMap(false);
-            }}
-            onMenuSections={setSoloMenuSections}
-            onQuickActions={setSoloQuickActions}
-            onHeaderActions={setSoloHeaderActions}
+            onMapClick={pickMarkAt}
           />
         </div>
       ) : (
         <>
+          {titleBlock}
           <div ref={mapCardRef}>
           <Section title={t("activities.map")}>
             {activityData.isLoading ? (
@@ -494,10 +673,22 @@ export function ActivityDetailPage() {
             ) : activityData.isError ? (
               <p className="sf-muted">{t("errors.generic")}</p>
             ) : tracks.length === 0 ? (
-              <p className="sf-muted">{t("activities.noGps")}</p>
+              <>
+                <p className="sf-muted">{t("activities.noGps")}</p>
+                {/* No track to draw on, so no map control: the marks open from a
+                    labelled button on the page instead. */}
+                {(marks.data?.length || canEdit) && (
+                  <div>
+                    <Button type="button" variant="ghost" className="sf-btn--sm" onClick={() => setMarksOpen(true)}>
+                      <MapPin size={16} aria-hidden="true" />
+                      {t("activities.marks")}
+                      {!!marks.data?.length && ` (${marks.data.length})`}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <>
-                {pickingMarkOnMap && <p className="sf-muted">{t("activities.pickOnMapHint")}</p>}
                 <div className="sf-bleed" data-tour="activity-map">
                   <MapView
                     nautical
@@ -514,10 +705,8 @@ export function ActivityDetailPage() {
                     onOpenSession={(sessionId) => navigate(`/diario/activities/${activityId}/barche/${sessionId}`)}
                     showBoatInfo
                     pickMode={pickingMarkOnMap}
-                    onMapClick={(lat, lng) => {
-                      setMarkForm((f) => ({ ...f, lat: lat.toFixed(6), lng: lng.toFixed(6) }));
-                      setPickingMarkOnMap(false);
-                    }}
+                    onMapClick={pickMarkAt}
+                    mapOptions={marksControl}
                   />
                 </div>
                 <div data-tour="activity-speed-chart">
@@ -619,184 +808,18 @@ export function ActivityDetailPage() {
         </>
       )}
 
-      <div data-tour="activity-marks">
-      <Section title={t("activities.marks")}>
-        {marks.data?.length ? (
-          <div className="sf-strip">
-            {marks.data.map((m) => (
-              <div
-                key={m.id}
-                className={`sf-strip__item sf-strip__item--muted ${pageStyles.markRow}${
-                  m.id === editingMarkId ? " sf-strip__item--active" : ""
-                }`}
-              >
-                <span className={pageStyles.markInfo}>
-                  <span className={pageStyles.markBadge} aria-hidden>
-                    {MARK_ROLE_LETTERS[m.mark_role]}
-                  </span>
-                  <span className={pageStyles.markText}>
-                    <strong>{t(`activities.markRoles.${m.mark_role}`)}</strong>
-                    <span className="sf-muted">
-                      {m.lat.toFixed(5)}, {m.lng.toFixed(5)}
-                    </span>
-                  </span>
-                </span>
-                {canEdit && (
-                  <span className="sf-strip__actions">
-                    <Button
-                      variant="ghost"
-                      className="sf-btn--icon-sm"
-                      title={t("activities.editMark")}
-                      aria-label={t("activities.editMark")}
-                      onClick={() => {
-                        setEditingMarkId(m.id);
-                        setMarkForm({ mark_role: m.mark_role, lat: String(m.lat), lng: String(m.lng) });
-                      }}
-                    >
-                      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                        <path
-                          d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4L6 12.4l-2.8.7.7-2.8 7.4-7.4Z"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.3"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </Button>
-                    <Button
-                      variant="danger"
-                      className="sf-btn--icon-sm"
-                      title={t("common.remove")}
-                      aria-label={t("common.remove")}
-                      onClick={() => {
-                        if (m.id === editingMarkId) {
-                          setEditingMarkId(null);
-                          setMarkForm({ mark_role: MARK_ROLES[0], lat: "", lng: "" });
-                        }
-                        removeMark.mutate(m.id);
-                      }}
-                    >
-                      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                        <path
-                          d="M3 4h10M6.5 4V2.5h3V4M4.5 4l.6 9.5a1 1 0 0 0 1 .95h3.8a1 1 0 0 0 1-.95L11.5 4"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </Button>
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+      {/* A sheet from the bottom on a phone, a dialog on a wide screen, where
+          a full-width sheet would stretch the short list across the page. */}
+      {marksOpen &&
+        (wideScreen ? (
+          <Modal title={t("activities.marks")} onClose={() => setMarksOpen(false)}>
+            {marksPanel}
+          </Modal>
         ) : (
-          <p className="sf-muted">{t("common.none")}</p>
-        )}
-        {canEdit && (
-          <form
-            className="sf-form__row"
-            style={{ alignItems: "end", marginTop: "0.75rem" }}
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              if (editingMarkId) updateMark.mutate();
-              else addMark.mutate();
-            }}
-          >
-            <Select
-              label={t("activities.markRole")}
-              id="mark-role"
-              value={markForm.mark_role}
-              onChange={(e) =>
-                setMarkForm((f) => ({ ...f, mark_role: e.target.value as MarkRole }))
-              }
-            >
-              {MARK_ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {t(`activities.markRoles.${role}`)}
-                </option>
-              ))}
-            </Select>
-            <InputField
-              label="Lat"
-              id="mark-lat"
-              type="number"
-              step="any"
-              value={markForm.lat}
-              onChange={(e) => setMarkForm((f) => ({ ...f, lat: e.target.value }))}
-              required
-            />
-            <InputField
-              label="Lng"
-              id="mark-lng"
-              type="number"
-              step="any"
-              value={markForm.lng}
-              onChange={(e) => setMarkForm((f) => ({ ...f, lng: e.target.value }))}
-              required
-            />
-            {(tracks.length > 0 || soloSession) && (
-              <div className="sf-field">
-                <Button
-                  type="button"
-                  variant={pickingMarkOnMap ? "primary" : "ghost"}
-                  onClick={() => {
-                    setPickingMarkOnMap((v) => !v);
-                    mapCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                >
-                  {t(pickingMarkOnMap ? "activities.pickingOnMap" : "activities.pickOnMap")}
-                </Button>
-              </div>
-            )}
-            {/* Convenience autofill: a finish line very often coincides with
-                the start line, so offer to copy the matching start mark's
-                position instead of requiring it to be re-entered/re-picked. */}
-            {(markForm.mark_role === "finish_pin" || markForm.mark_role === "finish_rc") &&
-              (() => {
-                const startRole = markForm.mark_role === "finish_pin" ? "pin" : "rc";
-                const startMark = marks.data?.find((m) => m.mark_role === startRole);
-                if (!startMark) return null;
-                return (
-                  <div className="sf-field">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() =>
-                        setMarkForm((f) => ({ ...f, lat: String(startMark.lat), lng: String(startMark.lng) }))
-                      }
-                    >
-                      {t(markForm.mark_role === "finish_pin" ? "activities.sameAsStartPin" : "activities.sameAsStartRc")}
-                    </Button>
-                  </div>
-                );
-              })()}
-            <div className="sf-field">
-              <Button type="submit" disabled={addMark.isPending || updateMark.isPending}>
-                {t(editingMarkId ? "activities.saveMark" : "activities.addMark")}
-              </Button>
-            </div>
-            {editingMarkId && (
-              <div className="sf-field">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditingMarkId(null);
-                    setMarkForm({ mark_role: MARK_ROLES[0], lat: "", lng: "" });
-                    setPickingMarkOnMap(false);
-                  }}
-                >
-                  {t("activities.cancelEditMark")}
-                </Button>
-              </div>
-            )}
-          </form>
-        )}
-      </Section>
-      </div>
+          <BottomSheet open onClose={() => setMarksOpen(false)} title={t("activities.marks")}>
+            {marksPanel}
+          </BottomSheet>
+        ))}
 
       {deleting && (
         <ConfirmDialog

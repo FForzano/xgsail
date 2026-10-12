@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MoreVertical } from "lucide-react";
 import { Popover } from "@/components/ui/Popover";
 import styles from "./Menu.module.css";
@@ -89,25 +90,32 @@ function MenuRow({ item, depth }: { item: MenuItem; depth: number }) {
 export function Menu({
   sections,
   triggerDataTour,
+  triggerLabel,
 }: {
   sections: MenuSection[];
   /** `data-tour` anchor for the trigger button, for callers whose menu is a
    * guided-tour step target (see `OptionsMenu`'s `triggerDataTour`). */
   triggerDataTour?: string;
+  /** A visible word beside the ⋮, for a header whose other actions carry
+   * theirs. Without it the trigger is icon-only, named for screen readers. */
+  triggerLabel?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Popover
       panelClassName={styles.panel}
       trigger={({ open, toggle }) => (
         <button
           data-tour={triggerDataTour}
-          className="sf-btn sf-btn--ghost sf-btn--icon-sm"
-          aria-label="Options"
+          className={`sf-btn sf-btn--ghost ${triggerLabel ? "sf-btn--sm" : "sf-btn--icon-sm"}`}
+          aria-label={triggerLabel ? undefined : t("common.moreActions")}
+          title={t("common.moreActions")}
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={toggle}
         >
           <MoreVertical size={16} />
+          {triggerLabel && <span>{triggerLabel}</span>}
         </button>
       )}
     >

@@ -30,12 +30,28 @@
   white-space: nowrap;
 }
 
-/* Three to a line on a phone, set small: the totals are context, and the
-   losses below them are what the first screen is for. */
-@media (max-width: 560px) {
-  .row {
+.frame {
+  container-type: inline-size;
+}
+
+/* Three to a line whenever six don't fit — a phone, or the session page's
+   narrower panel column — so a wrapped line never starts with a divider. */
+@container (max-width: 45rem) {
+  .row:not(.compact) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  .row:not(.compact) .cell:nth-child(3n + 1) {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .row:not(.compact) .cell:nth-child(n + 4) {
+    border-top: 1px solid var(--sf-border);
+  }
+}
+
+/* Set small on a phone: the totals are context, and the losses below them
+   are what the first screen is for. */
+@media (max-width: 560px) {
   .cell {
     padding: 0.4rem 0.5rem 0.45rem;
     border-left: 1px solid var(--sf-border);
@@ -43,9 +59,6 @@
   .cell:nth-child(3n + 1) {
     border-left: 0;
     padding-left: 0;
-  }
-  .cell:nth-child(n + 4) {
-    border-top: 1px solid var(--sf-border);
   }
   .label {
     font-size: 0.64rem;
@@ -77,12 +90,5 @@
   }
   .compact .value {
     font-size: 1.02rem;
-  }
-  .compact .cell:nth-child(n + 4) {
-    border-top: 0;
-  }
-  .compact .cell:nth-child(3n + 1) {
-    border-left: 0;
-    padding-left: 0;
   }
 }

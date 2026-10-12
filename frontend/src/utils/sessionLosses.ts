@@ -3,7 +3,7 @@ import type { SessionLeg, SessionManeuver } from "@/types";
 const KN_TO_MS = 0.514444;
 // A leg shorter than this is a transition between maneuvers, not a leg the
 // sailor could have sailed better — it would top the ranking on noise alone.
-const MIN_LEG_SEC = 60;
+export const MIN_LEG_SEC = 60;
 // Below this a leg's VMG gap to the best one is inside what GPS speed and an
 // estimated wind direction can resolve; ranking it would present noise with
 // the same certainty as a slow tack.
@@ -33,7 +33,7 @@ export type SessionLoss =
  * The worker doesn't populate `distance_lost_m` yet, so the fallback treats
  * the dip as a triangle: down from `speed_before` to `speed_min` over the
  * turn, back up over the recovery. */
-function maneuverLossM(m: SessionManeuver): { lostM: number; estimated: boolean } | null {
+export function maneuverLossM(m: SessionManeuver): { lostM: number; estimated: boolean } | null {
   if (m.distance_lost_m != null) return { lostM: m.distance_lost_m, estimated: false };
   const dipKts = m.speed_before_kts - m.speed_min_kts;
   const spanSec = m.duration_sec + m.recovery_time_sec;

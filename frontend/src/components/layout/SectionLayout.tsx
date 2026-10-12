@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import type { ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { PullRefreshIndicator } from "@/components/layout/PullRefreshIndicator";
 import { TourHelpButton } from "@/onboarding/TourHelpButton";
 
@@ -14,6 +14,21 @@ export interface SectionTab {
    * step (see onboarding/tours.ts) — set on one tab per section, enough to
    * anchor the step. */
   dataTour?: string;
+}
+
+const UnpinTabsContext = createContext<((unpinned: boolean) => void) | null>(null);
+
+/** Lets the section's tab bar scroll away with the page, on a phone, while
+ * the calling page is mounted: for a page that pins chrome of its own (the
+ * session replay) and would otherwise lose most of the screen to two pinned
+ * bars. A no-op outside a SectionLayout. */
+export function useUnpinnedSectionTabs() {
+  const setUnpinned = useContext(UnpinTabsContext);
+  useEffect(() => {
+    if (!setUnpinned) return;
+    setUnpinned(true);
+    return () => setUnpinned(false);
+  }, [setUnpinned]);
 }
 
 /** Macro-section layout: sub-page tabs (real routes, not UI tabs) + outlet.
@@ -43,10 +58,11 @@ export function SectionLayout({
    * pin to the viewport top on mobile. */
   sticky?: boolean;
 }) {
+  const [unpinned, setUnpinned] = useState(false);
   return (
     <div className="sf-section">
       <nav
-        className={`sf-tabs${sticky ? " sf-tabs--with-help" : " sf-tabs--static"}`}
+        className={`sf-tabs${sticky ? " sf-tabs--with-help" : ""}${!sticky || unpinned ? " sf-tabs--static" : ""}`}
         aria-label="Section"
       >
         <div className="sf-tabs__scroll">
@@ -65,7 +81,9 @@ export function SectionLayout({
       {sticky && <PullRefreshIndicator />}
       {header}
       <div className="sf-section__body">
-        <Outlet context={context} />
+        <UnpinTabsContext.Provider value={setUnpinned}>
+          <Outlet context={context} />
+        </UnpinTabsContext.Provider>
       </div>
       {footer}
     </div>

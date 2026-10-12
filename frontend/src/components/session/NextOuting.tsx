@@ -16,9 +16,11 @@ export function NextOuting({ legs, maneuvers }: { legs: SessionLeg[]; maneuvers:
 
   return (
     <section className={styles.next} aria-labelledby="next-outing-title">
-      <h2 id="next-outing-title" className={styles.title}>
-        {t("sessions.nextOuting.title")}
-      </h2>
+      <div className="sf-block__head">
+        <h2 id="next-outing-title" className="sf-block__title">
+          {t("sessions.nextOuting.title")}
+        </h2>
+      </div>
       {top ? (
         <>
           <p className={styles.focus} data-kind={top.kind}>

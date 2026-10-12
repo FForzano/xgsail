@@ -16,7 +16,7 @@
   border-radius: 50%;
   background: rgba(20, 50, 77, 0.85);
   color: #fff;
-  font: 600 12px/1 system-ui, sans-serif;
+  font: 600 12px/1 var(--sf-font);
 }
 /* Element-qualified: `.leaflet-control` sets `cursor: auto` at the same
    specificity, and whichever stylesheet lands last would otherwise win. */

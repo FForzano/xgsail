@@ -1,32 +1,16 @@
-/* Closes the analysis like the bottom line of a results sheet: an ink rule,
-   a condensed title, then one sentence set large enough to remember. */
+/* The same block head as every other session section, then the one advice
+   sentence at the shared lead size, with the numbers behind it in Pencil. */
 .next {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 1.1rem 0 1.25rem;
-  border-top: 2px solid var(--sf-rule);
-}
-.title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 800;
-  font-stretch: var(--sf-condensed);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 .focus {
+  composes: lead from "./leadSentence.module.css";
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.25rem 0.6rem;
-  margin: 0;
-  max-width: 40ch;
-  font-size: clamp(1.25rem, 1.05rem + 0.9vw, 1.6rem);
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
 }
 .code {
   display: inline-flex;
@@ -36,7 +20,7 @@
   font-weight: 800;
   font-stretch: var(--sf-condensed);
   letter-spacing: 0.06em;
-  transform: translateY(-0.15em);
+  transform: translateY(-0.1em);
 }
 .code::before {
   content: "";

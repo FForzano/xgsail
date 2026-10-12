@@ -687,6 +687,12 @@ Capacitor plugin changes, which still require a store release.
   exist (`/profilo/barche/{id}/quaderno` matches the boat tour). Without
   the `anyStepShown` guard in `OnboardingContext`, that run would spend
   the one automatic showing the account ever gets, in silence.
+- **The session page mounts only its active tab, so a tour target in another
+  tab does not exist.** `SessionDetail` splits the session into Analisi/Vento/
+  Equipaggio/Foto (`?tab=`), rendering just the selected panel. A step anchored
+  inside a non-default panel is silently skipped, like any missing target —
+  anchor it on the tab button instead (`TabItem.dataTour`, as
+  `activity-health` is on the Equipaggio tab), or keep the target in Analisi.
 - **Native auth is Bearer, not cookie.** Adding an endpoint that reads
   auth state directly from the request cookie (instead of going
   through `current_user()`) silently breaks it for the native apps —

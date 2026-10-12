@@ -80,7 +80,8 @@
     "to": "Al",
     "reset": "Reimposta",
     "previousImage": "Immagine precedente",
-    "nextImage": "Immagine successiva"
+    "nextImage": "Immagine successiva",
+    "moreActions": "Altre azioni"
   },
   "support": {
     "title": "Sostieni XGSail",
@@ -819,8 +820,6 @@
       "avgPolar": "% della polare",
       "habitLead": "Hai perso di più {{kind}}: {{count}} volte, {{metres}} m, il {{share}}% del totale.",
       "count": "N.",
-      "previous": "Perdita precedente",
-      "next": "Perdita successiva",
       "habitIn": {
         "tack": "nelle virate",
         "gybe": "nelle abbattute",
@@ -834,9 +833,7 @@
         "course_change": "Cambi di rotta",
         "upwind": "Bolina",
         "downwind": "Poppa"
-      },
-      "stepperRest_one": "{{count}} perdita",
-      "stepperRest_other": "{{count}} perdite"
+      }
     },
     "nextOuting": {
       "title": "Da allenare alla prossima uscita",
@@ -851,7 +848,32 @@
       "clean": "Uscita pulita: nessuna perdita misurabile da allenare. Ripeti così."
     },
     "removeCrewConfirm": "Togliere {{name}} dall'equipaggio di questa sessione?",
-    "polarScale": "Scala: velocità della barca 0–{{max}} kn"
+    "polarScale": "Scala: velocità della barca 0–{{max}} kn",
+    "highlights": {
+      "title": "Il meglio della giornata",
+      "topSpeed": "Velocità massima",
+      "speedCode": "MAX",
+      "legDetail_one": "VMG più alto di {{count}} bordo, tenuto per {{duration}}",
+      "legDetail_other": "VMG più alto di {{count}} bordi, tenuto per {{duration}}",
+      "maneuverDetail_one": "La più pulita di {{count}}: da {{before}} a {{min}}",
+      "maneuverDetail_other": "La più pulita di {{count}}: da {{before}} a {{min}}"
+    },
+    "actionShort": {
+      "notebook": "Quaderno",
+      "more": "Altro"
+    },
+    "coverPhoto_one": "Vai alla foto",
+    "coverPhoto_other": "Vai alle {{count}} foto",
+    "tabs": {
+      "label": "Sezioni della sessione",
+      "analysis": "Analisi",
+      "wind": "Vento",
+      "crew": "Equipaggio",
+      "photos": "Galleria"
+    },
+    "noPhotos": "Ancora nessuna foto di questa uscita.",
+    "noVideos": "Ancora nessun video di questa uscita.",
+    "replayPosition": "Posizione nel replay"
   },
   "map": {
     "layers": {
@@ -1028,7 +1050,8 @@
     "viewDetails": "Vedi dettagli",
     "photos": "Foto",
     "photosFrom": "Foto di {{name}}",
-    "addPhotoToMySession": "Aggiungi foto"
+    "addPhotoToMySession": "Aggiungi foto",
+    "marksEmpty": "Ancora nessuna boa di percorso."
   },
   "regate": {
     "title": "Regate",
@@ -1372,8 +1395,8 @@
         "body": "La barca con cui hai fatto questa uscita."
       },
       "quickActions": {
-        "title": "Aggiungi contenuti",
-        "body": "Aggiungi foto, video o annotazioni alla sessione, oppure apri il quaderno regolazioni della barca."
+        "title": "Condividi e quaderno",
+        "body": "Condividi l'uscita come immagine, con la traccia e i numeri, e apri il quaderno regolazioni della barca."
       },
       "map": {
         "title": "La mappa",
@@ -1393,15 +1416,15 @@
       },
       "health": {
         "title": "Dati biometrici",
-        "body": "Il battito cardiaco registrato durante la sessione, con le tue zone cardio."
+        "body": "Nella scheda Equipaggio: il battito registrato durante la sessione, con le zone cardio di ognuno."
       },
       "analysis": {
         "title": "Analisi",
-        "body": "Bordi, virate e abbattute, VMG e confronto con il polare della barca."
+        "body": "Bordi, virate e abbattute, con il VMG di ciascuno. Vento e polare hanno la loro scheda."
       },
       "marks": {
         "title": "Boe",
-        "body": "Aggiungi le boe di percorso per calcolare i bordi e affinare l'analisi VMG."
+        "body": "Il pulsante con la boa, tra i comandi della mappa: aggiungi le boe di percorso per calcolare i bordi e affinare l'analisi VMG."
       }
     },
     "registraOverview": {

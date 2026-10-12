@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { fmtTime } from "@/utils/format";
@@ -10,22 +9,20 @@ import styles from "./Timeline.module.css";
 export function Timeline({
   stepMs = 5000,
   overlay = false,
-  extra,
+  className = "",
 }: {
   stepMs?: number;
   /** Floats the bar on top of the map (see MapView's `controls` prop) instead
    * of its plain inline look. */
   overlay?: boolean;
-  /** Page-specific controls appended to the bar (the session page's loss
-   * stepper), so they ride with the replay instead of floating on their own. */
-  extra?: ReactNode;
+  className?: string;
 }) {
   const { tMin, tMax, cursor, playing, speed } = useTimeState();
 
   return (
-    <div className={`${styles.timeline} ${overlay ? styles.overlay : ""} ${extra ? styles.withExtra : ""}`}>
+    <div className={`${styles.timeline} ${overlay ? styles.overlay : ""} ${className}`}>
       <button
-        className={`sf-btn sf-btn--ghost sf-btn--sm ${styles.secondary}`}
+        className={`sf-btn sf-btn--ghost sf-btn--sm`}
         onClick={() => timeController.step(-stepMs)}
         aria-label="Step back"
       >
@@ -39,21 +36,20 @@ export function Timeline({
         {playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
       </button>
       <button
-        className={`sf-btn sf-btn--ghost sf-btn--sm ${styles.secondary}`}
+        className={`sf-btn sf-btn--ghost sf-btn--sm`}
         onClick={() => timeController.step(stepMs)}
         aria-label="Step forward"
       >
         <SkipForward size={16} fill="currentColor" />
       </button>
       <button
-        className={`sf-btn sf-btn--ghost sf-btn--sm ${styles.speed} ${styles.secondary}`}
+        className={`sf-btn sf-btn--ghost sf-btn--sm ${styles.speed}`}
         onClick={() => timeController.cycleSpeed()}
         aria-label="Cycle playback speed"
       >
         {speed}×
       </button>
       <span className={styles.clock}>{tMax > tMin ? fmtTime(cursor) : "--:--:--"}</span>
-      {extra}
     </div>
   );
 }

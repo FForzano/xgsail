@@ -14,15 +14,28 @@ import styles from "./BackLink.module.css";
  *   falling back to a fixed URL when there's no in-app history to unwind
  *   (e.g. the page was opened directly via a deep link). React Router marks
  *   the initial history entry's `location.key` as `"default"`. */
-export function BackLink({ to, fallback, label }: { label: string; to?: string; fallback?: string }) {
+export function BackLink({
+  to,
+  fallback,
+  label,
+  iconOnly = false,
+  className = "",
+}: {
+  label: string;
+  to?: string;
+  fallback?: string;
+  /** Just the chevron, named by `label`: for a compact title bar. */
+  iconOnly?: boolean;
+  className?: string;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
 
   if (to) {
     return (
-      <Link to={to} className={styles.backlink}>
-        <ChevronLeft size={16} />
-        {label}
+      <Link to={to} className={`${styles.backlink} ${className}`} aria-label={iconOnly ? label : undefined}>
+        <ChevronLeft size={iconOnly ? 22 : 16} />
+        {!iconOnly && label}
       </Link>
     );
   }
@@ -30,13 +43,15 @@ export function BackLink({ to, fallback, label }: { label: string; to?: string; 
   return (
     <button
       type="button"
-      className={styles.backlink}
+      className={`${styles.backlink} ${className}`}
+      aria-label={iconOnly ? label : undefined}
+      title={iconOnly ? label : undefined}
       onClick={() =>
         location.key !== "default" ? navigate(-1) : navigate(fallback ?? "/", { replace: true })
       }
     >
-      <ChevronLeft size={16} />
-      {label}
+      <ChevronLeft size={iconOnly ? 22 : 16} />
+      {!iconOnly && label}
     </button>
   );
 }

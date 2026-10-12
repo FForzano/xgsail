@@ -16,7 +16,7 @@ import { WindChart } from "./WindChart";
 import { PolarChart } from "./PolarChart";
 import { LegsTable, TackBreakdown } from "./AnalysisLegs";
 import { ManeuverSummary, ManeuversTable } from "./AnalysisManeuvers";
-import type { PolarPoint, SessionManeuver, UUID } from "@/types";
+import type { PolarPoint, SessionAnalysis as SessionAnalysisData, SessionManeuver, UUID } from "@/types";
 
 /** Rich per-session analysis (maneuvers, polar, VMG, …), assembled from its
  * normalized DB homes. 404 until the processing pipeline has run.
@@ -32,15 +32,20 @@ import type { PolarPoint, SessionManeuver, UUID } from "@/types";
  * `backend/routers/sessions.py::correct_maneuver/reject_maneuver/
  * delete_maneuver`. Outside edit mode, rejected maneuvers are hidden from
  * both the table and the summary/comparison charts below (they're not real
- * maneuvers, by the user's own say-so). */
+ * maneuvers, by the user's own say-so).
+ *
+ * `part` picks which tab of the session page this is: "performance" (legs,
+ * maneuvers) or "wind" (the session's wind and its polar). */
 export function SessionAnalysis({
   sessionId,
+  part,
   editMode = false,
   maxSpeedKts,
   onRefreshWind,
   refreshingWind = false,
 }: {
   sessionId: UUID;
+  part: "performance" | "wind";
   editMode?: boolean;
   maxSpeedKts?: number | null;
   /** Reuses the boat manager's existing "refresh wind" action (see
@@ -86,18 +91,16 @@ export function SessionAnalysis({
   const a = analysis.data;
   const noWindData = a.unavailable_reason === "no_wind_data";
   const visibleManeuvers = editMode ? a.maneuvers : a.maneuvers.filter((m) => !m.rejected);
-  // No sensor and no station/model source means no wind-derived maneuvers
-  // either, but a user-edited one (added by hand on the map) doesn't depend
-  // on wind — this block still shows those exactly like the normal path.
-  const hasManeuverBlock = !!(a.maneuver_summary || a.violin || visibleManeuvers.length);
-  const wind = windSummary(a.true_wind);
+  const parts = analysisParts(a, editMode);
+  if (part === "wind" && !parts.wind && !polar.data?.length) return null;
+  if (part === "performance" && !noWindData && !parts.legs && !parts.maneuvers) return null;
 
   return (
     // No "Analysis" heading of its own: its first block's title would sit
     // right under it with nothing between, two ruled heads in a row.
     <Section>
       <div className="sf-section__body">
-        {noWindData && (
+        {part === "performance" && noWindData && (
           <p className={styles.noWindData}>
             {t("sessions.analysisNoWindData")}
             {onRefreshWind && (
@@ -107,25 +110,25 @@ export function SessionAnalysis({
             )}
           </p>
         )}
-        {wind && (
-          <AnalysisBlock title={t("wind.title")}>
+        {part === "wind" && parts.wind && (
+          <Section title={t("wind.title")}>
             <WindChart points={a.true_wind} />
-          </AnalysisBlock>
+          </Section>
         )}
-        {!!polar.data?.length && (
-          <AnalysisBlock title={t("sessions.polar")}>
+        {part === "wind" && !!polar.data?.length && (
+          <Section title={t("sessions.polar")}>
             <PolarChart points={polar.data} targetPoints={a.polar_target} />
             <OptimalAngles points={polar.data} targetPoints={a.polar_target} />
-          </AnalysisBlock>
+          </Section>
         )}
-        {!!a.legs.length && (
-          <AnalysisBlock title={t("sessions.legsSection")}>
+        {part === "performance" && parts.legs && (
+          <Section title={t("sessions.legsSection")}>
             <TackBreakdown legs={a.legs} maxSpeedKts={maxSpeedKts} />
             <LegsTable legs={a.legs} />
-          </AnalysisBlock>
+          </Section>
         )}
-        {hasManeuverBlock && (
-          <AnalysisBlock title={t("sessions.maneuvers")}>
+        {part === "performance" && parts.maneuvers && (
+          <Section title={t("sessions.maneuvers")}>
             <ManeuverSummary summary={a.maneuver_summary} violin={a.violin} maneuvers={visibleManeuvers} />
             {!!visibleManeuvers.length && (
               <CollapsibleList label={t("sessions.maneuversList")} count={visibleManeuvers.length}>
@@ -138,7 +141,7 @@ export function SessionAnalysis({
                 />
               </CollapsibleList>
             )}
-          </AnalysisBlock>
+          </Section>
         )}
       </div>
       {deletingManeuverId && (
@@ -154,13 +157,18 @@ export function SessionAnalysis({
   );
 }
 
-function AnalysisBlock({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className={styles.analysisBlock}>
-      <h4 className={styles.analysisTitle}>{title}</h4>
-      {children}
-    </div>
-  );
+/** Which of the analysis blocks below have anything to show — shared with the
+ * session page, which offers its Wind tab only when there is one to open. */
+export function analysisParts(a: SessionAnalysisData, editMode = false) {
+  const visibleManeuvers = editMode ? a.maneuvers : a.maneuvers.filter((m) => !m.rejected);
+  return {
+    wind: !!windSummary(a.true_wind),
+    legs: !!a.legs.length,
+    // No sensor and no station/model source means no wind-derived maneuvers
+    // either, but a user-edited one (added by hand on the map) doesn't depend
+    // on wind — this block still shows those exactly like the normal path.
+    maneuvers: !!(a.maneuver_summary || a.violin || visibleManeuvers.length),
+  };
 }
 
 /** A raw list kept out of the way until asked for. The count sits in the

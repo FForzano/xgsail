@@ -256,10 +256,10 @@ export const demoClubActivities: Activity[] = [
   },
   {
     id: DEMO_PAST_ACTIVITY_ID,
-    name: "Allenamento poppa e strambate",
+    name: "Allenamento poppa e abbattute",
     type: "training",
     status: "completed",
-    description: "<p>Lavoro sulle strambate con onda formata.</p>",
+    description: "<p>Lavoro sulle abbattute con onda formata.</p>",
     visibility: "club",
     club_id: DEMO_CLUB_ID,
     group_id: null,
@@ -366,11 +366,11 @@ export const demoActivityPhotos: ActivityPhoto[] = demoSessionPhotos.map((p) => 
 
 export const demoActivity: Activity = {
   id: DEMO_ACTIVITY_ID,
-  name: "Allenamento con l'Ora — Campione",
+  name: "Allenamento con l'Ora — Gargnano",
   type: "solo",
   status: "completed",
   description:
-    "<p>Bolina lunga controvento verso Gargnano, poppa di rientro su Campione. " +
+    "<p>Bolina lunga controvento verso Castelletto, poppa di rientro su Gargnano. " +
     "Ora stabile da sud sui 12 nodi.</p>",
   visibility: "private",
   club_id: DEMO_CLUB_ID,

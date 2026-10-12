@@ -111,12 +111,15 @@ export function MapView({
   onOpenSession,
   showBoatInfo,
   nautical = false,
+  compact = false,
 }: {
   tracks: Track[];
   marks?: MapMark[];
-  /** "session" applies the session-detail map's shorter height (see
-   * .mapSession in MapView.module.css). Omit for the default (race/activity
-   * map) height. */
+  /** "session" is the session page's replay: its own height (set by that
+   * page), and every control in one stack down the top-right corner — layers,
+   * `mapOptions`, recenter, zoom — with the credit's "(i)" bottom-left, since
+   * the playback bar sits outside this map there. Omit for the default
+   * (race/activity map) layout. */
   variant?: "session";
   /** Enables the wind direction/speed overlay, and says which instant to look
    * up (`at`, e.g. the session's start time) — omit to hide it entirely. The
@@ -168,8 +171,13 @@ export function MapView({
    * own toggle panel in the map's top-right slot. Off by default so maps that
    * are purely about one recorded track stay uncluttered. */
   nautical?: boolean;
+  /** "session" only: the map has been shrunk to make room, so only recenter
+   * and zoom stay in the stack; the rest come back once it expands. */
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const optionsRef = useRef<HTMLDivElement>(null);
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   // The same map instance as `mapRef`, but as state: the nautical-overlay
@@ -232,7 +240,10 @@ export function MapView({
   useEffect(() => {
     if (!elRef.current) return;
     const map = L.map(elRef.current, { zoomControl: false, preferCanvas: true });
-    L.control.zoom({ position: "bottomright" }).addTo(map);
+    const stacked = variant === "session";
+    const corner = stacked ? "topright" : "bottomright";
+    if (stacked) map.attributionControl?.setPosition("bottomleft");
+    else L.control.zoom({ position: corner }).addTo(map);
     installCompactAttribution(map, t("map.attribution"));
 
     const RecenterControl = L.Control.extend({
@@ -257,7 +268,9 @@ export function MapView({
         return btn;
       },
     });
-    new RecenterControl({ position: "bottomright" }).addTo(map);
+    new RecenterControl({ position: corner }).addTo(map);
+    // Stacked: recenter above the zoom pair, both under layers/options.
+    if (stacked) L.control.zoom({ position: corner }).addTo(map);
     createBaseLayers().base.addTo(map);
     mapRef.current = map;
     setMapInstance(map);
@@ -443,7 +456,47 @@ export function MapView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `marks` intentionally
     // excluded: only used above for the one-time initial bounds fit.
-  }, [tracks, vmg, t, !!onOpenSession]);
+  }, [tracks, vmg, t, !!onOpenSession, variant]);
+
+  // The map's box changes height when the session replay collapses or
+  // expands: once it has settled (not on every frame of the transition),
+  // tell Leaflet, and keep the boat in view.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    let timer = 0;
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const map = mapRef.current;
+        // Leaflet keeps no public "has a view yet" flag; a map still waiting
+        // for its first fit throws on getBounds, and has nothing to keep.
+        if (!map || !(map as L.Map & { _loaded?: boolean })._loaded) return;
+        map.invalidateSize({ pan: false });
+        const p = tracks.length ? pointAt(tracks[0], cursorRef.current) : null;
+        if (p && !map.getBounds().pad(-0.1).contains([p.lat, p.lon])) map.panTo([p.lat, p.lon]);
+      }, 80);
+    });
+    observer.observe(root);
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [tracks]);
+
+  // In the stacked layout Leaflet's own corner (recenter, zoom) starts under
+  // the options column, whatever that holds right now.
+  useEffect(() => {
+    const root = rootRef.current;
+    const options = optionsRef.current;
+    if (variant !== "session" || !root || !options) return;
+    const observer = new ResizeObserver(() =>
+      // 6px of gap under the column, none when it is hidden (compact).
+      root.style.setProperty("--stack-offset", `${options.offsetHeight ? options.offsetHeight + 6 : 0}px`),
+    );
+    observer.observe(options);
+    return () => observer.disconnect();
+  }, [variant]);
 
   // Marks (legs/maneuvers/race marks) on their own layer group, redrawn
   // whenever they change without touching the map/tiles/tracks above.
@@ -569,10 +622,13 @@ export function MapView({
   }, [cursor, tracks]);
 
   return (
-    <div className={`${styles.map} ${variant === "session" ? styles.mapSession : ""}`}>
+    <div
+      ref={rootRef}
+      className={`${styles.map} ${variant === "session" ? styles.mapSession : ""} ${compact ? styles.compact : ""}`}
+    >
       <div ref={elRef} className={styles.surface} />
       {(mapOptions || nautical) && (
-        <div className={styles.options}>
+        <div ref={optionsRef} className={styles.options}>
           {mapOptions}
           {nautical && (
             <MapLayerToggles

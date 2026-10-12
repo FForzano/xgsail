@@ -2,8 +2,8 @@
    one feature area, one stylesheet. */
 
 /* The "no wind data" explainer — muted prose with its optional refresh
-   action inline, same spacing rhythm as .analysisBlock but no heading of
-   its own since it replaces the blocks rather than introducing one. */
+   action inline, and no heading of its own since it replaces the blocks
+   rather than introducing one. */
 .noWindData {
   display: flex;
   flex-wrap: wrap;
@@ -13,27 +13,6 @@
   color: var(--sf-muted);
 }
 
-/* A top-level region of the analysis (polar / legs / maneuvers). Same rule as
-   .sf-block + .sf-block in global.css: with no border or surface of their own,
-   stacked regions read apart via a hairline plus air, never by boxing each one.
-   Only between adjacent blocks — the first sits under the section heading,
-   which already separates it. */
-.analysisBlock + .analysisBlock {
-  padding-top: 1.5rem;
-}
-/* Quieter than the section's own .sf-block__title (which is accent-tinted) but
-   still unmistakably a heading rather than another small caption. */
-.analysisTitle {
-  margin: 0 0 0.75rem;
-  padding-bottom: 0.3rem;
-  border-bottom: 1px solid var(--sf-rule);
-  font-size: 0.9rem;
-  font-weight: 800;
-  font-stretch: var(--sf-condensed);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--sf-text);
-}
 .tackblock {
   margin-top: 1rem;
 }
@@ -306,6 +285,18 @@
   text-align: right;
 }
 @media (max-width: 700px) {
+  .sheet th,
+  .sheet td {
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+  .sheet .optional {
+    display: none;
+  }
+}
+/* The same by the width the table actually gets: beside the replay on a wide
+   screen the session page's panel is about as narrow as a phone. */
+@container (max-width: 560px) {
   .sheet th,
   .sheet td {
     padding-left: 0.4rem;

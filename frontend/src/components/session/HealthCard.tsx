@@ -82,14 +82,14 @@ export function HealthCard({ sessionId }: { sessionId: UUID }) {
   // and the UI must not distinguish the two either.
   if (!physio.data?.length) return null;
 
+  // The guided tour's "activity-health" anchor is the Crew tab that holds
+  // this, not the card: the card only mounts while that tab is open.
   return (
-    <div data-tour="activity-health">
-      <Section title={<HealthTitle />}>
-        {physio.data.map((entry) => (
-          <MemberHealth key={entry.session_upload_id} sessionId={sessionId} entry={entry} />
-        ))}
-      </Section>
-    </div>
+    <Section title={<HealthTitle />}>
+      {physio.data.map((entry) => (
+        <MemberHealth key={entry.session_upload_id} sessionId={sessionId} entry={entry} />
+      ))}
+    </Section>
   );
 }
 

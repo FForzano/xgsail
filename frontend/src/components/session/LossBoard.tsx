@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { timeController, useTimeState } from "@/stores/timeController";
 import { fmtKnots, fmtSeconds, fmtTime } from "@/utils/format";
@@ -11,6 +10,14 @@ import type { SessionLeg, SessionManeuver } from "@/types";
 import styles from "./LossBoard.module.css";
 
 const COLLAPSED_ROWS = 5;
+
+/** Pauses the replay at `ms` — what selecting any row that names a moment of
+ * the outing does. The replay is pinned beside or above the list, so the page
+ * stays where it is and the reader keeps their place. */
+export function seekReplay(ms: number) {
+  timeController.pause();
+  timeController.seek(ms);
+}
 
 /** "Where you lost": the session's maneuvers and legs ranked by metres lost,
  * worst first, set as the results sheet the club pins up after a race. A row
@@ -28,20 +35,12 @@ export function LossBoard({ legs, maneuvers }: { legs: SessionLeg[]; maneuvers: 
   const total = losses.reduce((sum, l) => sum + l.lostM, 0);
   const rows = expanded ? losses : losses.slice(0, COLLAPSED_ROWS);
 
-  const jump = (loss: SessionLoss) => {
-    timeController.pause();
-    timeController.seek(loss.atSec * 1000);
-    const map = document.querySelector<HTMLElement>("[data-tour='activity-map']");
-    const r = map?.getBoundingClientRect();
-    if (map && r && (r.top < 0 || r.top > window.innerHeight * 0.5)) {
-      map.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  };
+  const jump = (loss: SessionLoss) => seekReplay(loss.atSec * 1000);
 
   return (
     <section className={styles.board} aria-labelledby="loss-board-title">
-      <div className={styles.head}>
-        <h2 id="loss-board-title" className={styles.title}>
+      <div className="sf-block__head">
+        <h2 id="loss-board-title" className="sf-block__title">
           {t("sessions.losses.title")}
         </h2>
         {losses.length > 0 && (
@@ -187,48 +186,5 @@ function HabitStrip({ habits }: { habits: LossHabit[] }) {
         ))}
       </ul>
     </div>
-  );
-}
-
-/** Walks the ranking from the replay itself: ‹ 2/11 › on the transport bar
- * seeks to each loss in turn, so on a phone the sailor can go through them on
- * the map instead of scrolling back up to the table for every one. */
-export function LossStepper({ legs, maneuvers }: { legs: SessionLeg[]; maneuvers: SessionManeuver[] }) {
-  const { t } = useTranslation();
-  const losses = useMemo(() => sessionLosses(legs, maneuvers), [legs, maneuvers]);
-  const [index, setIndex] = useState<number | null>(null);
-  if (!losses.length) return null;
-
-  const go = (next: number) => {
-    const i = (next + losses.length) % losses.length;
-    setIndex(i);
-    timeController.pause();
-    timeController.seek(losses[i].atSec * 1000);
-  };
-
-  return (
-    <span className={styles.stepper} role="group" aria-label={t("sessions.losses.title")}>
-      <button
-        type="button"
-        className="sf-btn sf-btn--ghost sf-btn--sm"
-        onClick={() => go((index ?? 0) - 1)}
-        aria-label={t("sessions.losses.previous")}
-      >
-        <ChevronLeft size={16} />
-      </button>
-      <span className={styles.stepperCount} aria-live="polite">
-        {index == null
-          ? t("sessions.losses.stepperRest", { count: losses.length })
-          : `${index + 1}/${losses.length}`}
-      </span>
-      <button
-        type="button"
-        className="sf-btn sf-btn--ghost sf-btn--sm"
-        onClick={() => go(index == null ? 0 : index + 1)}
-        aria-label={t("sessions.losses.next")}
-      >
-        <ChevronRight size={16} />
-      </button>
-    </span>
   );
 }

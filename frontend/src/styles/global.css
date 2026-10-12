@@ -21,12 +21,20 @@
   --sf-primary: #1f55a6;
   --sf-primary-hover: #17468c;
   --sf-primary-ink: #ffffff;
+  /* Sea accent, from the logo's cyan sail: wayfinding only (the active nav
+     item, the active tab's rule), never actions or data. */
+  --sf-accent: #0b7590;
   --sf-danger: #b8262d;
   --sf-success: #1d7346;
   --sf-warning: #95600a;
   /* App chrome (navbar, mobile action bar): an ink band in both themes. */
   --sf-chrome: #16181b;
+  /* Hairline where the band meets the page. Only dark needs one: there the
+     band and the night ground are a few L* apart. */
+  --sf-chrome-edge: transparent;
   --sf-chrome-text: #f2f4f6;
+  /* The chrome is dark in both themes, so its accent is the logo cyan in both. */
+  --sf-chrome-accent: #3dd3f5;
   --sf-chrome-muted: #a9aeb4;
   --sf-chrome-warning: #e2b553;
   /* Controls floating over a map tile, readable on any tile colour. */
@@ -61,57 +69,62 @@
   --sf-condensed: 72%;
 }
 
-/* Dark is the same sheet read at night: graphite ground, paper ink. Defined
-   twice on purpose — once for the OS preference (unless the page pins light)
-   and once for an explicit data-theme="dark". */
+/* Dark is the same sheet read on night water: a deep navy ground, paper
+   ink, the chrome a darker band with a hairline edge. Defined twice on
+   purpose — once for the OS preference (unless the page pins light) and once
+   for an explicit data-theme="dark". */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --sf-bg: #131416;
-    --sf-bg-2: #1a1c1f;
-    --sf-surface: #1d1f22;
-    --sf-surface-2: #282b2f;
-    --sf-border: #34383d;
-    --sf-rule: #e9eae6;
-    --sf-text: #e9eae6;
-    --sf-muted: #a0a6ad;
-    --sf-primary: #84aef0;
-    --sf-primary-hover: #a3c3f5;
-    --sf-primary-ink: #0d1726;
+    --sf-bg: #101b27;
+    --sf-bg-2: #13202d;
+    --sf-surface: #172534;
+    --sf-surface-2: #1f2f40;
+    --sf-border: #2b3d52;
+    --sf-rule: #e6ebf0;
+    --sf-text: #e6ebf0;
+    --sf-muted: #9eabba;
+    --sf-primary: #7cb0f7;
+    --sf-primary-hover: #a2c6fa;
+    --sf-primary-ink: #0a1726;
+    --sf-accent: #3dd3f5;
     --sf-danger: #f07272;
     --sf-success: #5cc995;
     --sf-warning: #e2b553;
-    --sf-chrome: #0c0d0e;
-    --sf-chrome-text: #e9eae6;
-    --sf-chrome-muted: #9097a0;
-    --sf-overlay: rgba(12, 13, 14, 0.86);
-    --sf-overlay-text: #e9eae6;
-    --sf-scrim: rgba(0, 0, 0, 0.7);
+    --sf-chrome: #050a10;
+    --sf-chrome-edge: #1f2f40;
+    --sf-chrome-text: #e6ebf0;
+    --sf-chrome-muted: #909eaf;
+    --sf-overlay: rgba(5, 10, 16, 0.86);
+    --sf-overlay-text: #e6ebf0;
+    --sf-scrim: rgba(2, 6, 12, 0.72);
     --sf-shadow-pop: 0 6px 20px rgba(0, 0, 0, 0.5);
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --sf-bg: #131416;
-  --sf-bg-2: #1a1c1f;
-  --sf-surface: #1d1f22;
-  --sf-surface-2: #282b2f;
-  --sf-border: #34383d;
-  --sf-rule: #e9eae6;
-  --sf-text: #e9eae6;
-  --sf-muted: #a0a6ad;
-  --sf-primary: #84aef0;
-  --sf-primary-hover: #a3c3f5;
-  --sf-primary-ink: #0d1726;
+  --sf-bg: #101b27;
+  --sf-bg-2: #13202d;
+  --sf-surface: #172534;
+  --sf-surface-2: #1f2f40;
+  --sf-border: #2b3d52;
+  --sf-rule: #e6ebf0;
+  --sf-text: #e6ebf0;
+  --sf-muted: #9eabba;
+  --sf-primary: #7cb0f7;
+  --sf-primary-hover: #a2c6fa;
+  --sf-primary-ink: #0a1726;
+  --sf-accent: #3dd3f5;
   --sf-danger: #f07272;
   --sf-success: #5cc995;
   --sf-warning: #e2b553;
-  --sf-chrome: #0c0d0e;
-  --sf-chrome-text: #e9eae6;
-  --sf-chrome-muted: #9097a0;
-  --sf-overlay: rgba(12, 13, 14, 0.86);
-  --sf-overlay-text: #e9eae6;
-  --sf-scrim: rgba(0, 0, 0, 0.7);
+  --sf-chrome: #050a10;
+  --sf-chrome-edge: #1f2f40;
+  --sf-chrome-text: #e6ebf0;
+  --sf-chrome-muted: #909eaf;
+  --sf-overlay: rgba(5, 10, 16, 0.86);
+  --sf-overlay-text: #e6ebf0;
+  --sf-scrim: rgba(2, 6, 12, 0.72);
   --sf-shadow-pop: 0 6px 20px rgba(0, 0, 0, 0.5);
 }
 
@@ -137,6 +150,20 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Form controls don't inherit the page font by default, and Leaflet sets its
+   own (Helvetica on the map, Lucida Console on the zoom buttons): without
+   this, a role picker or a mark label switches typeface mid-page. */
+button,
+input,
+select,
+textarea,
+:root .leaflet-control-zoom-in,
+:root .leaflet-control-zoom-out {
+  font-family: inherit;
+}
+:root .leaflet-container {
+  font-family: var(--sf-font);
+}
 
 a {
   color: var(--sf-primary);
@@ -255,6 +282,7 @@ body.sf-nav-mode .sf-shell {
   height: var(--sf-navbar-h);
   padding: 0 1.25rem;
   background: var(--sf-chrome);
+  box-shadow: inset 0 -1px 0 var(--sf-chrome-edge);
   color: var(--sf-chrome-text);
   position: sticky;
   top: 0;
@@ -292,7 +320,7 @@ body.sf-nav-mode .sf-shell {
 
 .sf-navlink.active {
   color: var(--sf-chrome-text);
-  box-shadow: inset 0 -2px 0 var(--sf-chrome-text);
+  box-shadow: inset 0 -2px 0 var(--sf-chrome-accent);
   border-radius: 0;
 }
 
@@ -417,6 +445,7 @@ body.sf-nav-mode .sf-shell {
     height: calc(var(--sf-actionbar-h) + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: var(--sf-chrome);
+    box-shadow: inset 0 1px 0 var(--sf-chrome-edge);
   }
   .sf-actionbar__item {
     flex: 1;
@@ -429,8 +458,12 @@ body.sf-nav-mode .sf-shell {
     font-size: 0.72rem;
     font-weight: 650;
   }
+  /* Colour alone (white vs grey) was too faint a cue at arm's length in
+     sun: the active item also carries the top rule and a heavier label. */
   .sf-actionbar__item.active {
-    color: var(--sf-chrome-text);
+    color: var(--sf-chrome-accent);
+    font-weight: 800;
+    box-shadow: inset 0 2px 0 var(--sf-chrome-accent);
   }
   .sf-actionbar__icon {
     position: relative;
@@ -505,15 +538,19 @@ body.sf-nav-mode .sf-shell {
   .sf-tabs__scroll {
     gap: 0;
   }
+  /* Sized so Diario's three tabs, active one included, fit a 390px phone. */
   .sf-tabs__scroll .sf-tab {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+    font-size: 0.92rem;
+  }
+  .sf-tabs__scroll .sf-tab.active {
+    font-weight: 750;
   }
 }
 .sf-tab {
   padding: 0.6rem 0.9rem;
-  color: var(--sf-muted);
-  font-weight: 650;
+  color: color-mix(in srgb, var(--sf-muted) 80%, var(--sf-text));
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   white-space: nowrap;
@@ -522,7 +559,9 @@ body.sf-nav-mode .sf-shell {
   border-left: none;
   border-right: none;
   border-radius: 0;
+  /* After `font: inherit`, which would otherwise reset it to body weight. */
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
@@ -537,7 +576,8 @@ body.sf-nav-mode .sf-shell {
 }
 .sf-tab.active {
   color: var(--sf-text);
-  border-bottom-color: var(--sf-rule);
+  font-weight: 800;
+  border-bottom-color: var(--sf-accent);
 }
 
 .sf-tab__badge {

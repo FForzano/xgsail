@@ -43,11 +43,13 @@
   border-color: color-mix(in srgb, currentColor 45%, transparent);
 }
 
-/* A phone's map is too narrow for every control on one line: when the bar
-   carries page extras (the loss stepper) the fine steps and the speed cycle
-   give way — the speed chart below is the scrubber anyway. */
-@media (max-width: 560px) {
-  .overlay.withExtra .secondary {
-    display: none;
-  }
+/* Play is the bar's one primary control: filled in the overlay's own ink.
+   Results Blue on this dark bar read washed out (dark theme) or sank into it
+   (light theme). */
+.overlay :global(.sf-btn--primary) {
+  background: var(--sf-overlay-text);
+  color: var(--sf-chrome);
+}
+.overlay :global(.sf-btn--primary):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sf-overlay-text) 82%, var(--sf-chrome-accent));
 }
