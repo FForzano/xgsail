@@ -30,7 +30,9 @@ export function installCompactAttribution(map: L.Map, label: string): void {
   const corner = container?.parentElement;
   if (!container || !corner) return;
 
-  container.classList.add(styles.collapsed);
+  // Both classes sit on Leaflet's own container, so they survive the
+  // `innerHTML` rewrites described above.
+  container.classList.add(styles.attribution, styles.collapsed);
 
   const toggle = document.createElement("button");
   toggle.type = "button";

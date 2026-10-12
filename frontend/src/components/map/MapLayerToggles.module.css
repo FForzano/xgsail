@@ -10,7 +10,7 @@
   padding: 8px 10px;
   border-radius: var(--sf-radius);
   background: rgba(20, 50, 77, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--sf-overlay-border);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
   color: #fff;
   display: flex;

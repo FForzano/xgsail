@@ -849,7 +849,9 @@
       "noReading": "Nessuna lettura recente",
       "ago": "{{minutes}} min fa"
     },
-    "attribution": "Crediti e licenze della mappa"
+    "attribution": "Crediti e licenze della mappa",
+    "follow": "Segui la barca",
+    "overview": "Mostra tutta la traccia"
   },
   "registra": {
     "title": "Registra traccia GPS",

@@ -29,86 +29,122 @@
   cursor: crosshair;
 }
 
-/* Zoom control: bottom-right, small, horizontal (instead of Leaflet's
-   default stacked top-left). */
+/* Map chrome: every control drawn over the tiles (zoom, layers, follow,
+   transport, credits) shares the overlay surface, border and shadow tokens,
+   and a round silhouette — none of Leaflet's white squares. */
+
+/* Zoom control: bottom-right, a horizontal pill (instead of Leaflet's default
+   white stack top-left). */
 .map :global(.leaflet-control-zoom) {
   display: flex;
   flex-direction: row;
-  border: none;
-  border-radius: 6px;
+  border: 1px solid var(--sf-overlay-border);
+  border-radius: 999px;
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  background: var(--sf-overlay);
+  box-shadow: var(--sf-overlay-shadow);
 }
 .map :global(.leaflet-control-zoom) a {
-  width: 22px;
-  height: 22px;
-  line-height: 22px;
-  font-size: 14px;
-  border-bottom: none;
+  width: 32px;
+  height: 30px;
+  line-height: 30px;
+  font-size: 16px;
+  font-weight: 500;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sf-text);
 }
-.map :global(.leaflet-control-zoom-in) {
-  border-right: 1px solid var(--sf-border);
+.map :global(.leaflet-control-zoom) a:hover {
+  background: color-mix(in srgb, var(--sf-text) 12%, transparent);
+  color: var(--sf-text);
+}
+/* Qualified past Leaflet's `.leaflet-touch .leaflet-bar a` border reset. */
+.map :global(.leaflet-control-zoom) a:global(.leaflet-control-zoom-in) {
+  border-right: 1px solid var(--sf-overlay-border);
 }
 /* A finger zooms by pinching, as on every native phone map, so the +/−
-   buttons are a mouse affordance: at a usable 44px they collided with the
-   playback bar, at 22px they were too small to hit. */
+   buttons are a mouse affordance. */
 @media (pointer: coarse) {
   .map :global(.leaflet-control-zoom) {
     display: none;
   }
 }
-/* With 44px touch buttons the floating transport bar is wide enough to reach
-   the bottom-right corner, so on touch that corner's controls (recenter,
-   credits) sit above it instead of underneath. */
+/* On a phone the transport pill spans most of the map's bottom edge, so the
+   bottom-right corner (the credits) sits just above its row. */
 @media (pointer: coarse) {
   .withTransport :global(.leaflet-bottom.leaflet-right) {
-    bottom: 64px;
+    bottom: 58px;
   }
 }
 
-/* Recenter control: pans/fits the map back to the current playback position.
-   Box-model centering (not line-height) + an inline SVG rather than a glyph
-   — text/emoji glyphs are rarely optically centered in their em-box. */
-.recenter {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-  color: #1a1a1a;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  margin-top: 6px;
-}
-@media (pointer: coarse) {
-  .recenter {
-    width: 44px;
-    height: 44px;
-  }
-}
-
-/* Map overlays: options popover (top-right) and playback transport (bottom-center). */
+/* Top-right column of round map tools: the layers toggle and, on replay
+   maps, follow-the-boat. */
 .options {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 /* Fixed opaque background regardless of variant/what's underneath — a plain
    ghost button (transparent bg) reads fine on the page but disappears or
    clashes depending on which map tile happens to sit behind it. */
 .options :global(.sf-btn) {
-  background: rgba(20, 50, 77, 0.85);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  background: var(--sf-overlay);
+  border-color: var(--sf-overlay-border);
+  color: var(--sf-text);
+  box-shadow: var(--sf-overlay-shadow);
 }
 .options :global(.sf-btn):hover:not(:disabled) {
-  background: rgba(20, 50, 77, 1);
+  background: var(--sf-surface);
+}
+/* The recording screen's 52px icon button is a primary tap target; over a
+   replay map it is a tool, sized like one. */
+.options :global(.sf-btn--icon),
+.tool {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+@media (pointer: coarse) {
+  .options :global(.sf-btn--icon),
+  .tool {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+/* Follow-the-boat toggle. Pressed, it fills with the one interactive colour:
+   the camera is on the boat. */
+.tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--sf-overlay-border);
+  border-radius: 50%;
+  background: var(--sf-overlay);
+  color: var(--sf-text);
+  box-shadow: var(--sf-overlay-shadow);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.tool:hover {
+  background: var(--sf-surface);
+}
+.tool[aria-pressed="true"] {
+  background: var(--sf-primary);
+  border-color: var(--sf-primary);
+  color: var(--sf-primary-ink);
+}
+.tool:focus-visible {
+  outline: 2px solid var(--sf-primary);
+  outline-offset: 2px;
 }
 .controls {
   position: absolute;

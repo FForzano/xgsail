@@ -25,6 +25,12 @@
   --sf-leg-upwind: #9b6fe0;
   --sf-leg-reach: #0e93a8;
   --sf-leg-downwind: #a5760a;
+  /* Map chrome: controls floating over map tiles (transport, layer/follow
+     buttons, zoom, credits). Hull Surface at 85% so the chart shows through
+     without the control dissolving into a light or dark tile. */
+  --sf-overlay: rgba(20, 50, 77, 0.85);
+  --sf-overlay-border: rgba(255, 255, 255, 0.15);
+  --sf-overlay-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   /* Horizontal page inset (.sf-main); .sf-bleed cancels exactly this much. */
   --sf-page-pad: 1.25rem;
   --sf-radius: 10px;
@@ -1146,18 +1152,6 @@ body.sf-nav-mode .sf-shell {
   font-weight: 600;
   color: var(--sf-text);
   font-size: 0.85em;
-}
-
-/* ---------- Race dashboard ---------- */
-/* .sf-timeline--overlay is a modifier applied to Timeline's own base
-   .sf-timeline class (see Session analysis below) when it floats on top of
-   MapView as playback transport — kept next to that base class rather than
-   with the rest of the (now-modularized) map internals. */
-.sf-timeline--overlay {
-  background: rgba(20, 50, 77, 0.85);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px);
 }
 
 /* ---------- Session analysis ---------- */

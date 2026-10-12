@@ -4,9 +4,12 @@ import { timeController, useTimeState } from "@/stores/timeController";
 import { fmtTime } from "@/utils/format";
 import styles from "./Timeline.module.css";
 
-// Compact transport bar: step back, play/pause, step forward, a speed-cycle
+// Compact transport pill: step back, play/pause, step forward, a speed-cycle
 // button, and the clock. The speed chart itself is the scrubber (drag/tap to
-// seek) — no separate progress bar, so this row stays narrow on mobile.
+// seek) — no separate progress bar, so the pill stays small over the map.
+// Its own buttons rather than `sf-btn`: the app's touch rule sizes every
+// `sf-btn` box to 44px, which made the pill cover a phone map; here the
+// boxes stay small and only the hit area is touch-sized (see the CSS).
 export function Timeline({
   stepMs = 5000,
   overlay = false,
@@ -22,28 +25,32 @@ export function Timeline({
   return (
     <div className={`${styles.timeline} ${overlay ? styles.overlay : ""}`}>
       <button
-        className="sf-btn sf-btn--ghost sf-btn--sm"
+        type="button"
+        className={styles.btn}
         onClick={() => timeController.step(-stepMs)}
         aria-label={t("playback.stepBack")}
       >
-        <SkipBack size={16} fill="currentColor" />
+        <SkipBack size={15} fill="currentColor" aria-hidden />
       </button>
       <button
-        className="sf-btn sf-btn--primary sf-btn--sm"
+        type="button"
+        className={`${styles.btn} ${styles.play}`}
         onClick={() => timeController.toggle()}
         aria-label={playing ? t("playback.pause") : t("playback.play")}
       >
-        {playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+        {playing ? <Pause size={15} fill="currentColor" aria-hidden /> : <Play size={15} fill="currentColor" aria-hidden />}
       </button>
       <button
-        className="sf-btn sf-btn--ghost sf-btn--sm"
+        type="button"
+        className={styles.btn}
         onClick={() => timeController.step(stepMs)}
         aria-label={t("playback.stepForward")}
       >
-        <SkipForward size={16} fill="currentColor" />
+        <SkipForward size={15} fill="currentColor" aria-hidden />
       </button>
       <button
-        className={`sf-btn sf-btn--ghost sf-btn--sm ${styles.speed}`}
+        type="button"
+        className={`${styles.btn} ${styles.speed}`}
         onClick={() => timeController.cycleSpeed()}
         aria-label={t("playback.speed", { speed })}
       >
