@@ -31,9 +31,11 @@ import styles from "./MapView.module.css";
 /** Follow mode flies in to at least this zoom: close enough to see the boat
  * work the wind, far enough to keep the next mark in view. */
 const FOLLOW_ZOOM = 15;
-/** Fraction of the view, from each edge, the boat may drift into before the
- * camera recentres it. */
-const FOLLOW_DEADZONE = 0.3;
+/** How often, and for how long each glide, the camera re-centres on the boat
+ * while following. Equal on purpose: one glide ends as the next begins. */
+const FOLLOW_PAN_MS = 300;
+/** Duration of the fly-in / fly-out between the overview and the boat. */
+const FLIGHT_MS = 800;
 
 function isMarkRole(role: string): role is MarkRole {
   return role in MARK_ROLE_LETTERS;
@@ -586,15 +588,17 @@ export function MapView({
       // A fleet: frame every boat, never closer than one boat would get.
       const pts = tracks.map((tr) => pointAt(tr, cursorRef.current)).filter((p): p is TrackPoint => p != null);
       const fleet = L.latLngBounds(pts.map((p) => [p.lat, p.lon] as [number, number])).pad(0.3);
-      map.flyToBounds(fleet, { maxZoom: FOLLOW_ZOOM, duration: 0.8 });
+      flightEndsRef.current = performance.now() + FLIGHT_MS;
+      map.flyToBounds(fleet, { maxZoom: FOLLOW_ZOOM, duration: FLIGHT_MS / 1000 });
       return;
     }
-    map.flyTo(target, Math.max(map.getZoom(), FOLLOW_ZOOM), { duration: 0.8 });
+    flightEndsRef.current = performance.now() + FLIGHT_MS;
+    map.flyTo(target, Math.max(map.getZoom(), FOLLOW_ZOOM), { duration: FLIGHT_MS / 1000 });
   }, [focusPoint, tracks]);
 
   const showOverview = useCallback(() => {
     const map = mapRef.current;
-    if (map && overviewRef.current) map.flyToBounds(overviewRef.current, { duration: 0.8 });
+    if (map && overviewRef.current) map.flyToBounds(overviewRef.current, { duration: FLIGHT_MS / 1000 });
   }, []);
 
   // Play starts the follow (flying in to the boat); reaching the end of the
@@ -612,17 +616,25 @@ export function MapView({
     }
   }, [playing, tMax, flyToBoat, showOverview]);
 
-  // While following, the camera only moves once the boat leaves the middle
-  // of the view, then glides to recentre it: a pan per animation frame would
-  // redraw every track segment 60 times a second and make the map swim.
+  // While following, the boat stays at the centre of the view. The camera is
+  // nudged a few times a second with short, linear glides rather than once per
+  // animation frame: each glide is a cheap CSS-style translate of the map, and
+  // the canvas (every track segment) is redrawn only when one finishes, so the
+  // motion reads as continuous without redrawing the track 60 times a second.
+  const lastPanRef = useRef(0);
+  const flightEndsRef = useRef(0);
   useEffect(() => {
     if (!following) return;
     const map = mapRef.current;
     const target = focusPoint();
     if (!map || !target || draggingRef.current.size) return;
-    if (!map.getBounds().pad(-FOLLOW_DEADZONE).contains(target)) {
-      map.panTo(target, { animate: true, duration: 0.6, easeLinearity: 0.5 });
-    }
+    const now = performance.now();
+    // Let the fly-in finish before gliding, and keep to the pan cadence.
+    if (now < flightEndsRef.current || now - lastPanRef.current < FOLLOW_PAN_MS) return;
+    const offset = map.latLngToContainerPoint(target).distanceTo(map.getSize().divideBy(2));
+    if (offset < 2) return;
+    lastPanRef.current = now;
+    map.panTo(target, { animate: true, duration: FOLLOW_PAN_MS / 1000, easeLinearity: 1, noMoveStart: true });
   }, [cursor, following, focusPoint]);
 
   const toggleFollow = () => {
