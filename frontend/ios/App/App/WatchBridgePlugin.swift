@@ -8,7 +8,8 @@ import WatchConnectivity
 /// (`WCSession.transferFile`), stores them under the app's Documents dir where
 /// `@capacitor/filesystem` `Directory.Data` reads them, and emits
 /// `watchSessionReceived` once a session's manifest arrives. Also pushes the
-/// selected boat / recording mode / claim state out to the watch.
+/// selected boat / recording mode / claim state / wind snapshot out to the
+/// watch.
 ///
 /// Data lifecycle (no unbounded accumulation): each session's metadata is
 /// persisted to `manifest.json` on arrival so `listPendingSessions` can find it
@@ -95,7 +96,15 @@ public class WatchBridgePlugin: CAPPlugin, CAPBridgedPlugin, WCSessionDelegate {
             "deviceClaimed": call.getBool("deviceClaimed") ?? false,
         ]
         if let boatId = call.getString("boatId") { context["boatId"] = boatId }
+        if let boatName = call.getString("boatName") { context["boatName"] = boatName }
         if let mode = call.getString("mode") { context["mode"] = mode }
+        // Live wind snapshot (GET /wind/nearest) — the watch's TWA/VMG start
+        // from it until a value set or refined on the water is newer.
+        if let twd = call.getDouble("windTwdDeg"), let at = call.getString("windObservedAt") {
+            context["windTwdDeg"] = twd
+            context["windObservedAt"] = at
+            if let tws = call.getDouble("windTwsKts") { context["windTwsKts"] = tws }
+        }
         do {
             try WCSession.default.updateApplicationContext(context)
             call.resolve()

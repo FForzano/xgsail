@@ -23,11 +23,21 @@ not just a reference.
 
 | File | Role |
 |---|---|
-| `XGSailWatchApp.swift` | `@main` App; activates WatchConnectivity, requests HealthKit auth. |
-| `ContentView.swift` | Glanceable UI: clock, SOG (kn), COG (°), start/pause/stop. |
-| `SessionRecorder.swift` | `HKWorkoutSession`+`HKLiveWorkoutBuilder` (background) + `CLLocationManager`; writes the 5 CSVs. |
+| `XGSailWatchApp.swift` | `@main` App; injects `Sailing.shared`'s models, activates WatchConnectivity, requests HealthKit auth. |
+| `ContentView.swift` | Root (idle / session / summary), the idle screen, the start-sequence setup sheet and the post-outing summary. |
+| `SessionView.swift` | A recording in progress: Workout-style pager, controls page (start/line pings/finish, wind, Water Lock, pause, end). |
+| `InstrumentsPage.swift` | Underway readouts (SOG, VMG, TWA, COG, TWD) and the countdown page (Sync, line distance, burn). |
+| `WindSetView.swift` | Set TWD on the Crown — the phone-free wind source. |
+| `SessionRecorder.swift` | `HKWorkoutSession`+`HKLiveWorkoutBuilder` (background) + `CLLocationManager`; writes the CSVs; smoothed SOG/COG, distance. |
+| `RaceTimer.swift` | Start sequence state, its own ticker (haptics + gun even wrist-down), line ends; logs `watch_race.csv` events. |
+| `WindEstimator.swift` | Working TWD: phone snapshot, manual, refined from tacks/gybes; persisted. |
+| `Sailing.swift` | Owns the three models and the cross-model rules (start an outing, start a sequence, what the Action button does). |
+| `ActionButtonIntents.swift` | Ultra Action button: `StartWorkoutIntent` + the per-press race intent + pause/resume. |
+| `NavMath.swift` | Pure geometry: TWA/VMG, sync rounding, tack bisector, start-line distance. |
+| `Theme.swift` | DESIGN.md tokens for the watch (true-black ground), readout font, primary button. |
 | `WatchConnectivityClient.swift` | Transfers the finished CSV bundle + manifest to the phone; receives context/acks. |
-| `WatchContextStore.swift` | Holds boat/mode/claim state pushed from the phone. |
+| `WatchContextStore.swift` | Boat/mode/claim/wind context pushed from the phone, persisted for phoneless launches. |
+| `Localizable.xcstrings` | English + Italian copy. |
 
 The phone side is `frontend/ios/App/App/WatchBridgePlugin.swift` (+ `.m`) and
 the JS is `frontend/src/plugins/watchBridge.ts` / `services/nativeWatch.ts`.
@@ -41,7 +51,7 @@ the JS is `frontend/src/plugins/watchBridge.ts` / `services/nativeWatch.ts`.
    `com.xgsail.app.watchkitapp` (fix it by hand in Signing & Capabilities if
    the wizard doesn't land on it exactly).
 2. **Replace the generated sources** with the files in this folder (delete the
-   stub `ContentView.swift`/`…App.swift` Xcode created, drag these 5 files in
+   stub `ContentView.swift`/`…App.swift` Xcode created, drag this folder's files in
    from Finder — **Action: "Move files to destination"**, not Copy, since the
    target's synchronized folder needs the real files inside it, and Move
    avoids leaving a duplicate copy elsewhere).
@@ -84,8 +94,10 @@ the JS is `frontend/src/plugins/watchBridge.ts` / `services/nativeWatch.ts`.
 1. Phone (`nativeWatch.claimWatch`) claims the watch as a `wearable` device and
    stores its `device_api_key`; `sendContext` pushes the selected boat + mode.
 2. Watch records standalone (works wrist-down / backgrounded via the workout
-   session), showing SOG/COG live.
-3. On stop, the watch `transferFile`s the 5 CSVs + a manifest to the phone.
+   session, and with no phone in range at all: context is persisted and
+   recording is never blocked on the claim), showing SOG/VMG/TWA live and
+   running regatta start sequences inside the recording.
+3. On stop, the watch `transferFile`s its CSVs (5, plus `watch_race.csv` if a start sequence ran) + a manifest to the phone.
 4. `WatchBridgePlugin` stores them and emits `watchSessionReceived`;
    `useWatchRelay` → `nativeWatch.relaySession` uploads them via the device
    protocol (GPS as the boat track, physiological streams as the wearer's

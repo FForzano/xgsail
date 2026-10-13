@@ -240,6 +240,34 @@ account** to build to a device — the same gate as the Share Extension above.
   `useE1AutoSync` — the watch pushes finished sessions rather than being
   polled). Pairing is the "Apple Watch" card in `AddDeviceDialog` →
   `WatchClaimDialog`, shown only on iOS.
+- **Context to the watch**: `useWatchContextSync` (also in `AppShell`, plus a
+  push right after a Registra start) sends `nativeWatch.syncContext()`'s boat
+  (the phone's last-used boat, with its name), claim state and a live
+  `GET /wind/nearest` snapshot near the phone's position. On launch, on
+  foreground and every 10 min. All best-effort.
+- **Works without the phone**: the watch persists the last context it got
+  (and reads `receivedApplicationContext` on activation), records whether or
+  not it is claimed, and keeps every session on the wrist until a claimed
+  phone relays and acks it. Its wind (for TWA/VMG) is the phone snapshot when
+  one is newer, otherwise a value set with the Crown, refined on each
+  tack/gybe on the watch itself (`WindEstimator.swift`). A session that
+  reaches the phone without a `boatId` (recorded before any context arrived)
+  relays under the phone's last-used boat rather than being stuck forever.
+- **On-wrist UI**: one flow, not two modes. A recording is the outing; a race
+  is a start sequence inside it (Crown-set length, Sync to the nearest minute,
+  haptic minute/30 s/last-10 s cues fired by a model-side ticker so they work
+  wrist-down, boat/pin line pings with distance and time to burn, Finish,
+  Cancel for a recall). Pages follow the Workout app: controls (incl. Water
+  Lock) one swipe left of the instruments (SOG, VMG, TWA, COG, TWD + source).
+  Italian and English live in the target's `Localizable.xcstrings`.
+- **Ultra Action button** (`ActionButtonIntents.swift`): a `StartWorkoutIntent`
+  (styles "Regatta start" / "Outing") makes XGSail selectable under Settings →
+  Action Button → Workout. Each intent returns `.result(actionButtonIntent:
+  RaceActionIntent())`, so every later press in that workout runs
+  `Sailing.actionButton()`: start a sequence → Sync → Finish → re-finish. It
+  never pauses or ends; Action + side button does that via the pause/resume
+  intents. The models are shared through `Sailing.shared` because intents run
+  outside any view.
 - **Attribution**: the watch's GPS uploads as the boat track
   (`subject_type=boat`) so a single-hander with no onboard tracker still gets
   a track; heart rate / energy / HRV / respiration upload as the wearer's own

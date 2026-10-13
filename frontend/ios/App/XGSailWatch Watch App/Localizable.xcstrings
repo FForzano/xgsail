@@ -1,0 +1,597 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%lld recordings waiting for iPhone": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 recording waiting for iPhone"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld recordings waiting for iPhone"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "1 registrazione in attesa dell'iPhone"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld registrazioni in attesa dell'iPhone"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Boat end": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Barca giuria"
+          }
+        }
+      }
+    },
+    "Burn": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Margine"
+          }
+        }
+      }
+    },
+    "COG": {
+      "shouldTranslate": false
+    },
+    "Cancel start": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Annulla partenza"
+          }
+        }
+      }
+    },
+    "Distance": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distanza"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fatto"
+          }
+        }
+      }
+    },
+    "End": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Termina"
+          }
+        }
+      }
+    },
+    "End recording": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Termina registrazione"
+          }
+        }
+      }
+    },
+    "End this recording?": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminare la registrazione?"
+          }
+        }
+      }
+    },
+    "Finish": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrivo"
+          }
+        }
+      }
+    },
+    "From heading": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalla rotta"
+          }
+        }
+      }
+    },
+    "GPS": {
+      "shouldTranslate": false
+    },
+    "Go": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Via"
+          }
+        }
+      }
+    },
+    "Gun now": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partenza ora"
+          }
+        }
+      }
+    },
+    "It goes to your iPhone when the two are next together, then on to XGSail.": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passa all'iPhone appena sono di nuovo vicini, poi su XGSail."
+          }
+        }
+      }
+    },
+    "Line": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linea"
+          }
+        }
+      }
+    },
+    "No boat from iPhone": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessuna barca dall'iPhone"
+          }
+        }
+      }
+    },
+    "No wind yet. Set it on the water.": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vento non ancora impostato. Impostalo in acqua."
+          }
+        }
+      }
+    },
+    "Not paired in XGSail on iPhone. Recordings wait on the watch until you pair it.": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non abbinato in XGSail sull'iPhone. Le registrazioni restano sull'orologio finché non lo abbini."
+          }
+        }
+      }
+    },
+    "Now: iPhone, %@ ago": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ora: iPhone, %@ fa"
+          }
+        }
+      }
+    },
+    "Now: refined by %lld maneuvers": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Now: refined by 1 maneuver"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Now: refined by %lld maneuvers"
+                }
+              }
+            }
+          }
+        },
+        "it": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Ora: affinato da 1 manovra"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Ora: affinato da %lld manovre"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Now: set by hand, %@ ago": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ora: impostato a mano, %@ fa"
+          }
+        }
+      }
+    },
+    "Outing": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uscita"
+          }
+        }
+      }
+    },
+    "Outing saved": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uscita salvata"
+          }
+        }
+      }
+    },
+    "Over": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oltre"
+          }
+        }
+      }
+    },
+    "Pause": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pausa"
+          }
+        }
+      }
+    },
+    "Pause recording": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metti in pausa la registrazione"
+          }
+        }
+      }
+    },
+    "Paused": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In pausa"
+          }
+        }
+      }
+    },
+    "Personal data only": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo dati personali"
+          }
+        }
+      }
+    },
+    "Pin end": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boa"
+          }
+        }
+      }
+    },
+    "Race action": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Azione regata"
+          }
+        }
+      }
+    },
+    "Record outing": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registra uscita"
+          }
+        }
+      }
+    },
+    "Regatta start": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partenza regata"
+          }
+        }
+      }
+    },
+    "Resume": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riprendi"
+          }
+        }
+      }
+    },
+    "Resume recording": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riprendi la registrazione"
+          }
+        }
+      }
+    },
+    "SOG": {
+      "shouldTranslate": false
+    },
+    "Sailing": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vela"
+          }
+        }
+      }
+    },
+    "Set": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imposta"
+          }
+        }
+      }
+    },
+    "Set wind": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imposta vento"
+          }
+        }
+      }
+    },
+    "Start": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partenza"
+          }
+        }
+      }
+    },
+    "Start in": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partenza tra"
+          }
+        }
+      }
+    },
+    "Start sailing": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inizia a navigare"
+          }
+        }
+      }
+    },
+    "Start sequence": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avvia regata"
+          }
+        }
+      }
+    },
+    "Style": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tipo"
+          }
+        }
+      }
+    },
+    "TWA": {
+      "shouldTranslate": false
+    },
+    "Tap Go on the warning signal.": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Premi Via al segnale di avviso."
+          }
+        }
+      }
+    },
+    "Time": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempo"
+          }
+        }
+      }
+    },
+    "Top speed": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Velocità max"
+          }
+        }
+      }
+    },
+    "VMG": {
+      "shouldTranslate": false
+    },
+    "Water Lock": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocco acqua"
+          }
+        }
+      }
+    },
+    "Wind": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vento"
+          }
+        }
+      }
+    },
+    "Wind %@ · %@": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vento %@ · %@"
+          }
+        }
+      }
+    },
+    "Wind from": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vento da"
+          }
+        }
+      }
+    },
+    "XGSail": {
+      "shouldTranslate": false
+    },
+    "kn": {
+      "shouldTranslate": false
+    },
+    "port": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sx"
+          }
+        }
+      }
+    },
+    "stbd": {
+      "localizations": {
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dx"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

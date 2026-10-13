@@ -556,6 +556,15 @@ Capacitor plugin changes, which still require a store release.
 - **The native watchOS app doesn't rebuild from the React frontend.**
   It's a hand-added Xcode target at `frontend/ios/App/XGSailWatch Watch
   App/`, maintained separately — editing `frontend/src` has no effect on it.
+- **The watch must sail with no phone, so nothing on it may depend on the
+  phone being there.** Its context (boat, claim, wind) is persisted
+  (`WatchContextStore`), recording is never gated on the claim, and sessions
+  wait on the wrist until a claimed phone relays and acks them. Until the
+  phone sent `syncContext()` at all, every watch session reached the relay
+  without a `boatId` and was rejected forever. `relaySession` now falls back
+  to the phone's last-used boat; don't turn that back into a hard failure.
+  The race `start` is fired and logged by `RaceTimer`'s own ticker, not by a
+  view: with the wrist down no view draws, and the gun instant is the data.
 - **Devices have no separate upload path in the router layer.** All
   device data flows through the same presigned-upload + webhook
   pipeline as manual imports; don't add a device-specific endpoint,

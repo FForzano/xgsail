@@ -6,7 +6,9 @@ import { devicesService, XGSAIL_WATCH_PARSER_KEY } from "@/services/devices";
 import { relayBundle } from "@/services/deviceUpload";
 import type { BundleFile } from "@/services/deviceUpload";
 import { WatchBridge } from "@/plugins/watchBridge";
-import type { WatchSessionReceivedEvent } from "@/plugins/watchBridge";
+import type { WatchContext, WatchSessionReceivedEvent } from "@/plugins/watchBridge";
+import { cachedMyBoats, lastBoatId } from "@/services/boats";
+import { windService } from "@/services/wind";
 import type { UUID } from "@/types";
 
 // Native-only (iOS) glue for the Apple Watch companion. The watch records a
@@ -103,14 +105,38 @@ export async function forgetWatch(): Promise<void> {
   await SecureStorage.removeItem(WATCH_EXTERNAL_ID_KEY);
 }
 
-/** Push boat + recording mode to the watch so its readouts and the upload
- * subject are set before the operator starts recording. */
-export async function sendContext(opts: {
-  boatId?: UUID | null;
-  mode?: "boat" | "personal";
-}): Promise<void> {
+/** Push what the watch needs to sail on its own: the boat it records for
+ * (the last one used on this phone), whether it is claimed, and a live wind
+ * snapshot near the phone for its TWA/VMG. Best-effort throughout — the watch
+ * keeps the last context it received and works without any of it. */
+export async function syncContext(): Promise<void> {
+  if (!(await isSupported())) return;
   const deviceClaimed = (await getClaimedDeviceId()) !== null;
-  await WatchBridge.sendContext({ boatId: opts.boatId ?? null, mode: opts.mode, deviceClaimed });
+  const boatId = lastBoatId();
+  const boatName = cachedMyBoats()?.find((b) => b.id === boatId)?.name ?? null;
+  await WatchBridge.sendContext({ boatId, boatName, deviceClaimed, ...(await nearbyWind()) });
+}
+
+async function nearbyWind(): Promise<Pick<WatchContext, "windTwdDeg" | "windTwsKts" | "windObservedAt">> {
+  try {
+    const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        timeout: 10_000,
+        maximumAge: 10 * 60_000,
+      }),
+    );
+    const snap = await windService.nearest(pos.coords.latitude, pos.coords.longitude);
+    if (snap.twd_deg == null) return {};
+    return {
+      windTwdDeg: snap.twd_deg,
+      windTwsKts: snap.tws_kts ?? undefined,
+      // The watch parses ISO 8601 with milliseconds; the backend's
+      // microseconds and +00:00 offset are normalised here.
+      windObservedAt: new Date(snap.latest_observed_at ?? snap.observed_at).toISOString(),
+    };
+  } catch {
+    return {};
+  }
 }
 
 // Filename suffix → which subject the file belongs to. GPS (and the race-mode
@@ -146,7 +172,11 @@ export async function relaySession(
   if (!deviceId) throw new Error("Apple Watch is not claimed on this phone");
   const deviceKey = await keyStore.load(deviceId);
   if (!deviceKey) throw new Error("No device key stored for the watch");
-  if (!event.boatId) throw new Error("Watch session has no boat selected");
+  // A session recorded before the phone ever told the watch a boat (a fresh
+  // pairing, a phoneless first outing) carries none; the boat last used here
+  // is the best guess, and far better than a recording stuck forever.
+  const boatId = (event.boatId as UUID | null) ?? lastBoatId();
+  if (!boatId) throw new Error("Watch session has no boat selected");
 
   const gpsFiles = event.files.filter(
     (f) => f.includes(GPS_SUFFIX) || f.includes(RACE_SUFFIX),
@@ -159,7 +189,7 @@ export async function relaySession(
     const files = await Promise.all(gpsFiles.map((n) => readBundleFile(event.dir, n)));
     await relayBundle({
       deviceKey,
-      boatId: event.boatId as UUID,
+      boatId,
       startedAt: event.startedAt,
       endedAt: event.endedAt,
       sequenceNumber: 0,
@@ -174,7 +204,7 @@ export async function relaySession(
     const files = await Promise.all(physioFiles.map((n) => readBundleFile(event.dir, n)));
     await relayBundle({
       deviceKey,
-      boatId: event.boatId as UUID,
+      boatId,
       startedAt: event.startedAt,
       endedAt: event.endedAt,
       sequenceNumber: 1,

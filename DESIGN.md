@@ -289,6 +289,17 @@ Every control drawn over the map tiles shares one chrome: the overlay surface (`
 - **Zoom (desktop, bottom-right):** a horizontal pill. It is hidden on touch, because pinch is how a finger zooms.
 - **Credits:** a small overlay pill ("© OpenStreetMap contributors"). On phones it is collapsed behind a 24px "i" toggle, which turns light when open.
 
+### Apple Watch (signature, native SwiftUI)
+The wrist is the one surface used on the water, so it is built for a glance in sunlight with wet or gloved hands (`frontend/ios/App/XGSailWatch Watch App/`, tokens in `Theme.swift`).
+- **Ground:** true black, not Night Harbour. On an OLED wrist in sun, black is both the contrast ceiling and the cheapest pixel.
+- **One flow:** a recording is the outing, and a race is a start sequence inside it. "Start sequence" from idle starts both.
+- **Pages:** the Workout app's model. Controls sit one swipe left of the main page (tinted 52pt discs, Tint-Not-Fill). The main page is the countdown during a sequence and the instruments otherwise.
+- **Readouts:** heavy, rounded, tabular (`Font.readout`), sized large and allowed to shrink so one layout holds from the 40mm SE to the 49mm Ultra. SOG leads; VMG and TWA sit under it. An unknown value is "–", never 0.
+- **Colour:** Chart Blue is the only "act here". The countdown turns Signal Amber in its last minute, the race clock is Starboard Green, and TWA's tack is green/red *and* a word (STBD/PORT, DX/SX).
+- **Touch:** the primary action is a full-width capsule at least 48pt tall. The Digital Crown sets the sequence length and the wind, which works with gloves and through spray.
+- **Ultra Action button:** it does the most time-critical tap of the moment, blind: start a sequence, then Sync, then Finish (pressing again replaces the finish). It never pauses or ends a recording.
+- **Haptics carry the start**, so the screen is not needed: a strong cue on each minute and at 30s, ticks at 20s and 15s, then every second of the last ten.
+
 ## Do's and Don'ts
 
 ### Do:

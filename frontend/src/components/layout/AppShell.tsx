@@ -10,6 +10,7 @@ import { PullRefreshProvider } from "@/contexts/PullRefreshContext";
 import * as nativeRecording from "@/services/nativeRecording";
 import { useE1AutoSync } from "@/services/e1Sync";
 import { useWatchRelay } from "@/hooks/useWatchRelay";
+import { useWatchContextSync } from "@/hooks/useWatchContextSync";
 import { useLiveRecordingPresence } from "@/hooks/useLiveRecordingPresence";
 import { ToastViewport } from "@/components/ui/ToastViewport";
 import { Avatar } from "@/components/ui/Avatar";
@@ -72,6 +73,8 @@ function AppShellInner() {
   // silent, event-driven; uploads land under the signed-in user as the
   // crew_member subject for the physiological streams.
   useWatchRelay(queryClient, user?.id, !navMode);
+  // ...and the other direction: boat, claim and live wind out to the watch.
+  useWatchContextSync(user?.id, !navMode);
 
   // Tells the boat's other crew that a recording is under way, so they can
   // join the same outing rather than discovering afterwards that their track

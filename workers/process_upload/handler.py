@@ -1273,7 +1273,8 @@ def process_scalar(csv_content: str, value_col: str) -> list:
 def process_events(csv_content: str) -> list:
     """Parse the Apple Watch race-mode marker stream, ``watch_race.csv``
     (docs/device-protocol.md) — ``t,phase`` with an ISO 8601 UTC ``t`` and a
-    string ``phase`` (``countdown_start``/``resync``/``start``). Unlike
+    string ``phase`` (``countdown_start``/``resync``/``cancel``/``start``/
+    ``finish``). Unlike
     ``process_scalar`` the value is kept as a label, not cast to a float: this
     is an observational marker, not a measurement, and is never written to
     ``races.start_time`` or used by any scoring computation.

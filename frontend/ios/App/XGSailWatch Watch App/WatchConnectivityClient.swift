@@ -77,9 +77,20 @@ final class WatchConnectivityClient: NSObject, WCSessionDelegate {
 
     // MARK: - WCSessionDelegate
 
+    /// Recordings still on the watch — transferred or not, a folder lives
+    /// until the phone acks its upload, so this is "not on XGSail yet".
+    func pendingSessionCount() -> Int {
+        let dirs = (try? FileManager.default.contentsOfDirectory(atPath: sessionsRoot().path)) ?? []
+        return dirs.filter { !$0.hasPrefix(".") }.count
+    }
+
+    /// The last context the phone sent survives in `receivedApplicationContext`
+    /// even when this launch never hears from the phone.
     func session(_ session: WCSession,
                  activationDidCompleteWith activationState: WCSessionActivationState,
-                 error: Error?) {}
+                 error: Error?) {
+        WatchContextStore.shared.update(from: session.receivedApplicationContext)
+    }
 
     func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
         WatchContextStore.shared.update(from: context)

@@ -571,13 +571,20 @@ Two consequences worth knowing when integrating:
 
 ### 9.3 Race-mode marker (`watch_race.csv`) — observational only
 
-The watch's optional race-mode UI runs a countdown to a start time, with a
-"resync" action that realigns the countdown target to the nearest whole
-minute (correcting drift against the committee boat's minute signals, same
-idea as a dedicated regatta watch). `watch_race.csv` logs each event as it
-happens: `phase` is `countdown_start`, `resync` (one row per tap), or `start`
-(the countdown reaching zero). It's parsed by
-`workers/process_upload/handler.py::process_events` into
+The watch's start-sequence UI runs a countdown to the gun inside a recording
+(starting a sequence from idle starts the recording too, so the pre-start is
+on the track), and a recording can hold several races. "Sync" realigns the
+countdown on a committee minute signal by rounding the **remaining** time to
+the nearest whole minute (not the target to a wall-clock minute, since a
+committee rarely starts on one); a tap within 30 s of the gun means the gun is
+now. `watch_race.csv` logs each event: `phase` is `countdown_start`, `resync`
+(one row per tap), `cancel` (postponement or general recall, back to no race),
+`start` or `finish`. Several `finish` rows can follow one `start` (the
+Action button re-finishes, so an accidental early press is corrected by the
+real one): the **last** `finish` after a `start` is the one that counts.
+`start` is stamped with the gun instant itself, fired by
+the watch's own ticker even wrist-down, never with when a screen next woke up.
+It's parsed by `workers/process_upload/handler.py::process_events` into
 `{'t': <iso>, 'phase': <str>}` rows, stored as an ordinary `session_streams`
 row (`sensor_type=race_marker`) — same storage path as any other stream.
 

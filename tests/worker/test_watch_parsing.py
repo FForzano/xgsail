@@ -114,6 +114,23 @@ def test_process_events_race_marker():
     assert out[-1]['t'] == "2026-07-24T14:05:00.000Z"
 
 
+def test_process_events_keeps_multi_race_phases():
+    # One recording, two races: a recalled sequence (`cancel`), then a start
+    # and a `finish`, as the watch's start-sequence UI logs them.
+    csv = (
+        "t,phase\n"
+        "2026-07-24T14:00:00.000Z,countdown_start\n"
+        "2026-07-24T14:03:10.000Z,cancel\n"
+        "2026-07-24T14:10:00.000Z,countdown_start\n"
+        "2026-07-24T14:15:00.000Z,start\n"
+        "2026-07-24T14:52:41.000Z,finish\n"
+    )
+    out = h.process_events(csv)
+    assert [r['phase'] for r in out] == [
+        "countdown_start", "cancel", "countdown_start", "start", "finish",
+    ]
+
+
 def test_process_events_skips_bad_rows():
     csv = (
         "t,phase\n"

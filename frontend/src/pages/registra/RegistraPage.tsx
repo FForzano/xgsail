@@ -14,6 +14,7 @@ import { useImportUpload } from "@/hooks/useImportUpload";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import * as nativeRecording from "@/services/nativeRecording";
+import * as nativeWatch from "@/services/nativeWatch";
 import { ERROR_LOCATION_SERVICES_DISABLED, ERROR_PERMISSION_DENIED } from "@/services/nativeRecording";
 import type { RecordingMeta } from "@/services/nativeRecording";
 import { activityDisplayName } from "@/utils/activityName";
@@ -619,6 +620,7 @@ export function RegistraPage() {
     try {
       const id = await nativeRecording.start(boatId as UUID, activityId ? (activityId as UUID) : null);
       rememberLastBoatId(boatId as UUID);
+      void nativeWatch.syncContext().catch(() => {});
       setActiveId(id);
       setSheetOpen(false);
       refresh();

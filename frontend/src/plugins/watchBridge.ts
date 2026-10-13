@@ -30,10 +30,17 @@ export interface WatchSessionReceivedEvent {
 
 export interface WatchContext {
   boatId?: string | null;
+  /** Shown on the watch; the id alone means nothing to a sailor. */
+  boatName?: string | null;
   mode?: "boat" | "personal";
   /** Whether the phone holds a device key for the watch (claimed here). The
    * watch UI can block recording until it's claimed. */
   deviceClaimed: boolean;
+  /** Live wind near the phone (`GET /wind/nearest`), the watch's starting
+   * TWD for TWA/VMG. `windObservedAt` is ISO 8601 with milliseconds + Z. */
+  windTwdDeg?: number;
+  windTwsKts?: number;
+  windObservedAt?: string;
 }
 
 export interface WatchBridgePlugin {
