@@ -22,9 +22,10 @@ export interface Track {
    * has a different series and the map-wide `vmg` prop doesn't apply. Falls
    * back to the `vmg` prop when absent (the single-track session map case). */
   vmg?: VmgPoint[] | null;
-  /** Picks the replay marker's silhouette (see boatIcons.ts); unset draws the
-   * monohull. */
+  /** Pick the replay marker's drawing (see boatIcons.ts): the class
+   * silhouette, else the generic for the hull type, else the monohull. */
   hullType?: HullType | null;
+  silhouette?: string | null;
 }
 
 // Distinct, colorblind-ish palette assigned by track order.
@@ -170,7 +171,7 @@ export function buildTrack(
   name: string,
   points: GpsPoint[],
   color: string,
-  extra?: { boatImageUrl?: string | null; vmg?: VmgPoint[] | null; hullType?: HullType | null },
+  extra?: Pick<Track, "boatImageUrl" | "vmg" | "hullType" | "silhouette">,
 ): Track {
   const pts: TrackPoint[] = points
     .filter((p) => p.lat != null && p.lon != null)
@@ -198,6 +199,7 @@ export function buildTracks(data: { sessions: ActivitySessionData }): Track[] {
     tracks.push(
       buildTrack(sessionId, entry.boat?.name ?? sessionId.slice(0, 8), gps, trackColor(i), {
         hullType: entry.boat?.hull_type,
+        silhouette: entry.boat?.silhouette,
       }),
     );
     i++;

@@ -61,6 +61,10 @@ class BoatClassORM(UUIDPKMixin, CreatedAtMixin, Base):
     spinnaker_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     py_rating: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     rya_class_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Which class-specific top-down drawing the replay map uses. No CHECK: the
+    # catalogue of drawings lives in the frontend (boatSilhouettes.ts), and an
+    # id it doesn't know falls back to the generic hull for ``hull_type``.
+    silhouette: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 class BoatORM(UUIDPKMixin, TimestampMixin, Base):

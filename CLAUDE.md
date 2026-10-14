@@ -1273,6 +1273,16 @@ Capacitor plugin changes, which still require a store release.
   endpoints deliberately serve a `has_notes` boolean and never `sessions.notes`.
   Being able to read a row is not being entitled to its private content; a new
   admin view that "just includes the session payload" reintroduces that leak.
+- **`boat_classes.silhouette` is an id into a frontend catalogue, not a
+  backend enum.** The drawings are generated from plan dimensions in
+  `frontend/src/components/race/boatSilhouettes.ts`; the column has no CHECK
+  and `boatIconFor` falls back to the hull-type generic for an id it doesn't
+  know, so a typo or a renamed id stores fine and silently draws the generic
+  hull. Hence: add ids, never rename them, and keep the class defaults
+  (`scripts/data/class_silhouettes.json`, applied by `seed_boat_classes.py`
+  only where the column is NULL, and `0068`'s frozen copy) pointing at real
+  ids — `tests/backend/test_class_silhouettes.py` parses the TS file to check.
+  The replay payload carries it next to `hull_type` (`_common._class_shape`).
 If new gotchas turn up (a non-obvious break, a silent trap), add them
 here — this is the highest-value section for avoiding a wrong change.
 

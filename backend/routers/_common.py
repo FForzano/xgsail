@@ -180,13 +180,13 @@ def activity_sensor_data(activity_id: uuid.UUID, sensors: str,
 
     wanted = [s.strip() for s in sensors.split(",") if s.strip()]
     out = {}
-    hull_types: dict = {}
+    class_shapes: dict = {}
     for session in repos.sessions.list(activity_id=activity_id):
         boat = repos.boats.get(session.boat_id)
         entry = {
             "session_id": session.id,
             "boat": {"id": boat.id, "name": boat.name, "sail_number": boat.sail_number,
-                     "hull_type": _class_hull_type(boat.boat_class_id, hull_types)}
+                     **_class_shape(boat.boat_class_id, class_shapes)}
             if boat else None,
             "sensors": {},
         }
@@ -229,14 +229,18 @@ def activity_sensor_data(activity_id: uuid.UUID, sensors: str,
     return out
 
 
-def _class_hull_type(class_id, cache: dict) -> Optional[str]:
-    """A boat class's hull type, or None without a class or a hull type.
+def _class_shape(class_id, cache: dict) -> dict:
+    """What the replay marker draws for a boat class: its ``hull_type`` and
+    ``silhouette`` (each None without a class or without the field set).
     ``cache`` memoises per class id so sessions sharing a class cost one lookup."""
     if class_id is None:
-        return None
+        return {"hull_type": None, "silhouette": None}
     if class_id not in cache:
         boat_class = repos.boats.get_class(class_id)
-        cache[class_id] = boat_class.hull_type if boat_class else None
+        cache[class_id] = {
+            "hull_type": boat_class.hull_type if boat_class else None,
+            "silhouette": boat_class.silhouette if boat_class else None,
+        }
     return cache[class_id]
 
 

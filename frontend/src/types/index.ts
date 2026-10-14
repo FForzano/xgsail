@@ -152,6 +152,9 @@ export interface BoatClass {
   spinnaker_type: SpinnakerType | null;
   py_rating: number | null;
   rya_class_id: number | null;
+  /** Class drawing on the replay map (components/race/boatSilhouettes.ts);
+   * null, or an id the frontend doesn't know, draws the `hull_type` generic. */
+  silhouette: string | null;
   logo: ImageRef | null;
 }
 
@@ -988,7 +991,13 @@ export type ActivitySessionData = Record<
   UUID,
   {
     session_id: UUID;
-    boat: { id: UUID; name: string; sail_number: string | null; hull_type?: HullType | null } | null;
+    boat: {
+      id: UUID;
+      name: string;
+      sail_number: string | null;
+      hull_type?: HullType | null;
+      silhouette?: string | null;
+    } | null;
     sensors: Record<string, GpsPoint[]>;
   }
 >;

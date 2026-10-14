@@ -1,5 +1,5 @@
-"""``hull_type`` on the boat embedded in the replay data endpoints
-(``activity_sensor_data``), resolved once per distinct boat class.
+"""``hull_type`` and ``silhouette`` on the boat embedded in the replay data
+endpoints (``activity_sensor_data``), resolved once per distinct boat class.
 
 Database-free: ``backend.routers`` is pre-seeded as a bare package so
 ``_common`` imports without Postgres, and the repos are fakes.
@@ -41,23 +41,30 @@ def _boat(class_id):
                                  boat_class_id=class_id)
 
 
-def _cls(hull_type):
-    return types.SimpleNamespace(hull_type=hull_type)
+def _cls(hull_type, silhouette=None):
+    return types.SimpleNamespace(hull_type=hull_type, silhouette=silhouette)
 
 
-@pytest.mark.parametrize("hull_type", ["multihull", "monohull", None])
-def test_helper_returns_class_hull_type(common, monkeypatch, hull_type):
+@pytest.mark.parametrize("hull_type,silhouette", [
+    ("multihull", "nacra17"), ("monohull", "ilca"), ("monohull", None), (None, None),
+])
+def test_helper_returns_class_shape(common, monkeypatch, hull_type, silhouette):
     cid = uuid.uuid4()
     monkeypatch.setattr(common, "repos", types.SimpleNamespace(
-        boats=FakeBoats({}, {cid: _cls(hull_type)})))
-    assert common._class_hull_type(cid, {}) == hull_type
+        boats=FakeBoats({}, {cid: _cls(hull_type, silhouette)})))
+    assert common._class_shape(cid, {}) == {"hull_type": hull_type, "silhouette": silhouette}
 
 
 def test_helper_without_class_is_none_and_skips_lookup(common, monkeypatch):
     boats = FakeBoats({}, {})
     monkeypatch.setattr(common, "repos", types.SimpleNamespace(boats=boats))
-    assert common._class_hull_type(None, {}) is None
+    assert common._class_shape(None, {}) == {"hull_type": None, "silhouette": None}
     assert boats.class_calls == []
+
+
+def test_helper_with_missing_class_is_none(common, monkeypatch):
+    monkeypatch.setattr(common, "repos", types.SimpleNamespace(boats=FakeBoats({}, {})))
+    assert common._class_shape(uuid.uuid4(), {}) == {"hull_type": None, "silhouette": None}
 
 
 def test_activity_sensor_data_embeds_hull_type_with_one_lookup_per_class(common, monkeypatch):
@@ -67,7 +74,7 @@ def test_activity_sensor_data_embeds_hull_type_with_one_lookup_per_class(common,
     boats = [_boat(multi), _boat(multi), _boat(mono), _boat(None)]
     sessions = [types.SimpleNamespace(id=uuid.uuid4(), boat_id=b.id) for b in boats]
     fake_boats = FakeBoats({b.id: b for b in boats},
-                           {multi: _cls("multihull"), mono: _cls("monohull")})
+                           {multi: _cls("multihull", "f18"), mono: _cls("monohull")})
     monkeypatch.setattr(common, "repos", types.SimpleNamespace(
         boats=fake_boats, sessions=types.SimpleNamespace(list=lambda activity_id: sessions)))
     monkeypatch.setattr(nav_source, "resolve_nav_streams", lambda sid: {})
@@ -77,4 +84,6 @@ def test_activity_sensor_data_embeds_hull_type_with_one_lookup_per_class(common,
 
     hulls = [out[str(s.id)]["boat"]["hull_type"] for s in sessions]
     assert hulls == ["multihull", "multihull", "monohull", None]
+    shapes = [out[str(s.id)]["boat"]["silhouette"] for s in sessions]
+    assert shapes == ["f18", "f18", None, None]
     assert sorted(fake_boats.class_calls, key=str) == sorted([multi, mono], key=str)
