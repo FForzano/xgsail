@@ -52,61 +52,85 @@ const MONOHULL: BoatIcon = {
 
 const r = (n: number) => Math.round(n * 10) / 10;
 
-/** Half-breadth plan of one hull on centreline `cx`, bow at `y0`, in cm. The
- * forward curve runs from the bow (a point, or a pram bow `bow` wide) out to the
- * maximum beam at `maxAt`; `entry` is how quickly it gets there (0 a fine bow,
- * 1 a full round one). Even the finest stays convex — a deck plan has no
- * hollow, only the waterlines below it do. The aft curve then closes in to a
- * flat transom `transom` wide.
+type Pt = readonly [number, number];
+/** One cubic Bézier segment: two control points and the end point. */
+type Seg = readonly [Pt, Pt, Pt];
+
+export interface HullPlan {
+  length: number;
+  beam: number;
+  maxAt: number;
+  transom: number;
+  bow?: number;
+  entry: number;
+  /** Measured deck widths, `[fraction of length from the bow, full width in
+   * cm]`, bow to stern. When given, the outline is a spline through them
+   * instead of the `maxAt`/`entry` curve. */
+  offsets?: readonly (readonly [number, number])[];
+  asymmetry?: number;
+}
+
+/** Catmull-Rom through `pts` as cubic Béziers: a smooth curve that passes
+ * exactly through every measured station. */
+function splineThrough(pts: Pt[]): Seg[] {
+  const segs: Seg[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    segs.push([
+      [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6],
+      [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6],
+      p2,
+    ]);
+  }
+  return segs;
+}
+
+/** Plan of one hull on centreline `cx`, bow at `y0`, in cm.
+ *
+ * Without `offsets`, the forward curve runs from the bow (a point, or a pram
+ * bow `bow` wide) out to the maximum beam at `maxAt`; `entry` is how quickly it
+ * gets there (0 a fine bow, 1 a full round one). Even the finest stays convex
+ * — a deck plan has no hollow, only the waterlines below it do. The aft curve
+ * then closes in to a flat transom `transom` wide.
  *
  * `asymmetry` (0–1) shifts beam to the `outboard` side (+1 starboard, -1 port)
  * and straightens the other: a board-less catamaran's hull (Hobie 16) is
  * nearly flat inboard and carries its curve outboard, so it grips like a foil. */
-function hullPath(
-  cx: number,
-  y0: number,
-  h: {
-    length: number;
-    beam: number;
-    maxAt: number;
-    transom: number;
-    bow?: number;
-    entry: number;
-    asymmetry?: number;
-  },
-  outboard: 1 | -1 = 1,
-): string {
+function hullPath(cx: number, y0: number, h: HullPlan, outboard: 1 | -1 = 1): string {
   const L = h.length;
   const b = (h.bow ?? 0) / 2;
   const a = h.asymmetry ?? 0;
   const Y = h.maxAt * L;
-  const p = (x: number, y: number) => `${r(cx + x)} ${r(y0 + y)}`;
-  // One side's control points, from the bow round to the transom; `sign` is
-  // the side (+1 starboard).
-  const side = (sign: 1 | -1) => {
+  // One side's half-breadth, bow to transom, as positive x.
+  const side = (sign: 1 | -1): Seg[] => {
     const inboard = a > 0 && sign !== outboard;
     const share = inboard ? 1 - a : 1 + a;
-    const m = (h.beam / 2) * share;
     const t = (Math.min(h.transom, h.beam) / 2) * share;
+    if (h.offsets) {
+      const stations = h.offsets.map(([f, w]): Pt => [(w / 2) * share, f * L]);
+      return splineThrough([[b, 0], ...stations, [t, L]]);
+    }
+    const m = (h.beam / 2) * share;
     const entry = inboard ? 1 : h.entry;
-    const x = (v: number) => sign * v;
-    return {
-      fwd1: [x(b + (m - b) * (0.4 + 0.5 * entry)), Y * 0.3] as const,
-      fwd2: [x(m), Y * 0.65] as const,
-      max: [x(m), Y] as const,
-      aft1: [x(m), Y + (L - Y) * 0.45] as const,
-      aft2: [x(t + (m - t) * 0.55), L - (L - Y) * 0.12] as const,
-      transom: [x(t), L] as const,
-    };
+    return [
+      [[b + (m - b) * (0.4 + 0.5 * entry), Y * 0.3], [m, Y * 0.65], [m, Y]],
+      [[m, Y + (L - Y) * 0.45], [t + (m - t) * 0.55, L - (L - Y) * 0.12], [t, L]],
+    ];
   };
-  const s = side(1);
-  const q = side(-1);
-  const pt = (c: readonly [number, number]) => p(c[0], c[1]);
+  const p = (sign: number, c: Pt) => `${r(cx + sign * c[0])} ${r(y0 + c[1])}`;
+  const stbd = side(1);
+  const port = side(-1);
+  // Port runs stern to bow: each segment reversed (controls swapped, ending
+  // at the previous segment's end, or the bow).
+  const portBack = port
+    .map((seg, i) => `C ${p(-1, seg[1])} ${p(-1, seg[0])} ${p(-1, i ? port[i - 1][2] : [b, 0])}`)
+    .reverse();
   return (
-    `M ${p(b, 0)} C ${pt(s.fwd1)} ${pt(s.fwd2)} ${pt(s.max)} ` +
-    `C ${pt(s.aft1)} ${pt(s.aft2)} ${pt(s.transom)} L ${pt(q.transom)} ` +
-    `C ${pt(q.aft2)} ${pt(q.aft1)} ${pt(q.max)} ` +
-    `C ${pt(q.fwd2)} ${pt(q.fwd1)} ${p(-b, 0)} Z`
+    `M ${p(1, [b, 0])} ${stbd.map((seg) => `C ${seg.map((c) => p(1, c)).join(" ")}`).join(" ")} ` +
+    `L ${p(-1, port[port.length - 1][2])} ${portBack.join(" ")} Z`
   );
 }
 

@@ -26,6 +26,9 @@ interface MonohullSpec {
   entry: number;
   /** Bowsprit/pole projecting past the stem. */
   sprit?: number;
+  /** Measured deck widths `[fraction from bow, full width]`: when the class
+   * rules give stations, the outline goes through them (see HullPlan). */
+  offsets?: readonly (readonly [number, number])[];
   /** Racks or wings, spanning `from`–`to` (fractions of length). */
   wings?: { width: number; from: number; to: number };
 }
