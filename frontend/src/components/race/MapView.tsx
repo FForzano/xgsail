@@ -416,7 +416,7 @@ export function MapView({
       // hull is easy to grab for scrubbing; only the inner hull rotates.
       const icon = L.divIcon({
         className: styles.posmarker,
-        html: boatMarkerHtml(boatIconFor(tr.hullType), tr.color, styles.hull),
+        html: boatMarkerHtml(boatIconFor(tr.silhouette, tr.hullType), tr.color, styles.hull),
         iconSize: [BOAT_MARKER_BOX, BOAT_MARKER_BOX],
         iconAnchor: [BOAT_MARKER_BOX / 2, BOAT_MARKER_BOX / 2],
       });

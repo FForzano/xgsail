@@ -3,7 +3,7 @@
 import uuid
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..richtext import RichTextBasic, RichTextFull
 
@@ -63,3 +63,5 @@ class BoatClassWriteModel(BaseModel):
     spinnaker_type: Optional[str] = None  # none | asymmetric | symmetric (RYA "Spinnaker": 0/A/C)
     py_rating: Optional[int] = None  # RYA "Number" column
     rya_class_id: Optional[int] = None  # official RYA Class ID, reference only
+    # Replay-map drawing id (frontend boatSilhouettes.ts); unknown ids fall back.
+    silhouette: Optional[str] = Field(None, pattern=r"^[a-z0-9_]{1,40}$")

@@ -30,7 +30,7 @@ _NOTE_FIELDS = ("title", "body")
 _CLASS_FIELDS = (
     "name", "description", "logo_id",
     "loa_m", "beam_m", "sail_area_sqm", "crew_size", "hull_type",
-    "rig_type", "spinnaker_type", "py_rating", "rya_class_id",
+    "rig_type", "spinnaker_type", "py_rating", "rya_class_id", "silhouette",
 )
 
 

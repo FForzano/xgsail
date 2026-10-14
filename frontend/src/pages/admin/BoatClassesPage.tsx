@@ -9,9 +9,17 @@ import { InputField } from "@/components/ui/InputField";
 import { RichTextField } from "@/components/ui/RichTextField";
 import { Modal } from "@/components/ui/Modal";
 import { ImageUploader } from "@/components/common/ImageUploader";
+import { BoatSilhouette } from "@/components/race/BoatSilhouette";
+import { SILHOUETTE_SPECS, type SilhouetteGroup } from "@/components/race/boatSilhouettes";
 import type { BoatClass, HullType, RigType, SpinnakerType, UUID } from "@/types";
 
 const CLASS_PAGE_SIZE = 20;
+
+const SILHOUETTE_GROUPS: SilhouetteGroup[] = ["olympic", "dinghy", "catamaran", "keelboat"];
+const silhouetteOptions = (group: SilhouetteGroup) =>
+  Object.entries(SILHOUETTE_SPECS)
+    .filter(([, spec]) => spec.group === group)
+    .sort(([, a], [, b]) => a.label.localeCompare(b.label));
 
 const emptyClassForm = {
   name: "",
@@ -25,6 +33,7 @@ const emptyClassForm = {
   spinnaker_type: "",
   py_rating: "",
   rya_class_id: "",
+  silhouette: "",
 };
 
 export function BoatClassesPage() {
@@ -67,6 +76,7 @@ export function BoatClassesPage() {
         spinnaker_type: editing.spinnaker_type ?? "",
         py_rating: editing.py_rating?.toString() ?? "",
         rya_class_id: editing.rya_class_id?.toString() ?? "",
+        silhouette: editing.silhouette ?? "",
       });
     }
   }, [editing]);
@@ -106,6 +116,7 @@ export function BoatClassesPage() {
         spinnaker_type: (form.spinnaker_type || null) as SpinnakerType | null,
         py_rating: form.py_rating ? Math.round(Number(form.py_rating)) : null,
         rya_class_id: form.rya_class_id ? Math.round(Number(form.rya_class_id)) : null,
+        silhouette: form.silhouette || null,
       }),
     onSuccess: async () => {
       setEditing(null);
@@ -175,6 +186,7 @@ export function BoatClassesPage() {
               <th />
               <th>{t("common.name")}</th>
               <th>{t("admin.hullType")}</th>
+              <th>{t("admin.silhouette")}</th>
               <th>{t("admin.loa")}</th>
               <th>{t("admin.sailArea")}</th>
               <th>{t("admin.crewSize")}</th>
@@ -199,6 +211,9 @@ export function BoatClassesPage() {
                   <strong>{c.name}</strong>
                 </td>
                 <td>{c.hull_type ? t(`admin.${c.hull_type}`) : "—"}</td>
+                <td>
+                  <BoatSilhouette silhouette={c.silhouette} hullType={c.hull_type} height={28} />
+                </td>
                 <td>{c.loa_m ?? "—"}</td>
                 <td>{c.sail_area_sqm ?? "—"}</td>
                 <td>{c.crew_size ?? "—"}</td>
@@ -404,6 +419,30 @@ export function BoatClassesPage() {
                 step="1"
                 value={form.rya_class_id}
                 onChange={(e) => setForm((f) => ({ ...f, rya_class_id: e.target.value }))}
+              />
+            </div>
+            <div className="sf-form__row" style={{ alignItems: "end" }}>
+              <Select
+                label={t("admin.silhouette")}
+                id="bce-silhouette"
+                value={form.silhouette}
+                onChange={(e) => setForm((f) => ({ ...f, silhouette: e.target.value }))}
+              >
+                <option value="">{t("admin.silhouetteGeneric")}</option>
+                {SILHOUETTE_GROUPS.map((group) => (
+                  <optgroup key={group} label={t(`admin.silhouetteGroup_${group}`)}>
+                    {silhouetteOptions(group).map(([id, spec]) => (
+                      <option key={id} value={id}>
+                        {spec.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </Select>
+              <BoatSilhouette
+                silhouette={form.silhouette}
+                hullType={(form.hull_type || null) as HullType | null}
+                height={56}
               />
             </div>
           </form>

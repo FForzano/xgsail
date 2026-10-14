@@ -30,6 +30,10 @@ Only RYA-published fields are ever touched: ``name``, ``rya_class_id``,
 touched — those are admin-filled extras outside the RYA lists' scope, and
 this script must not clobber whatever an admin has already entered there.
 
+The one non-RYA field it fills is ``silhouette`` (the replay map's class
+drawing), from ``data/class_silhouettes.json`` — and only where it is still
+NULL, so an admin's choice always wins.
+
 Idempotent and safe to re-run every time the RYA republishes a list: matches
 existing rows by ``rya_class_id`` first, falling back to a case-insensitive
 exact ``name`` match for a class created locally (or sourced from the
@@ -58,6 +62,7 @@ DATA_DIR = Path(__file__).parent / "data"
 PN_FILE = DATA_DIR / "rya_py_list_2026.json"
 LIMITED_FILE = DATA_DIR / "rya_py_limited_data_2026.json"
 MASTER_FILE = DATA_DIR / "rya_class_master_2026.json"
+SILHOUETTES_FILE = DATA_DIR / "class_silhouettes.json"
 
 RYA_FIELDS = ("name", "rya_class_id", "crew_size", "rig_type", "spinnaker_type",
               "py_rating", "hull_type")
@@ -104,12 +109,19 @@ def build_merged_rows() -> list[dict]:
     return list(merged.values())
 
 
+def silhouette_for(row: dict, silhouettes: dict):
+    """The drawing a class gets by default: by RYA Class ID, else by name."""
+    by_id = silhouettes["by_rya_class_id"].get(str(row.get("rya_class_id")))
+    return by_id or silhouettes["by_name"].get(row["name"].strip().lower())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="preview changes, write nothing")
     args = parser.parse_args()
 
     rows = build_merged_rows()
+    silhouettes = json.loads(SILHOUETTES_FILE.read_text())
     repos = get_repos()
     existing = repos.boats.list_classes(limit=10_000)
     by_rya_id = {c.rya_class_id: c for c in existing if c.rya_class_id is not None}
@@ -132,12 +144,16 @@ def main() -> None:
         if match is None:
             print(f"CREATE  {row['name']!r} (RYA ID {row['rya_class_id']})")
             if not args.dry_run:
-                repos.boats.create_class({k: row[k] for k in RYA_FIELDS})
+                repos.boats.create_class({k: row[k] for k in RYA_FIELDS}
+                                         | {"silhouette": silhouette_for(row, silhouettes)})
             created += 1
             continue
 
         changes = {k: row[k] for k in RYA_FIELDS
                    if row[k] is not None and getattr(match, k) != row[k]}
+        silhouette = silhouette_for(row, silhouettes)
+        if match.silhouette is None and silhouette is not None:
+            changes["silhouette"] = silhouette
         if not changes:
             unchanged += 1
             continue
