@@ -47,6 +47,8 @@ interface CatamaranSpec {
   beams: [number, number];
   /** Spinnaker pole projecting ahead of the bows, from the front beam. */
   sprit?: number;
+  /** Board-less asymmetric hulls (0–1): flat inboard, curved outboard. */
+  asymmetry?: number;
 }
 
 export type SilhouetteSpec = MonohullSpec | CatamaranSpec;
@@ -174,15 +176,18 @@ export const SILHOUETTE_SPECS = {
     length: 470, beam: 235, hullBeam: 38, maxAt: 0.55, transom: 28, entry: 0.18,
     beams: [0.36, 0.86], sprit: 45,
   },
+  // Hobies: asymmetric "banana" hulls with no daggerboards, and a square
+  // frame (side rails 73" on the 16, 70" on the 14) sitting over the aft half
+  // of the hulls, so the bows run far ahead of the trampoline.
   hobie16: {
     kind: "catamaran", label: "Hobie Cat 16", group: "catamaran",
-    length: 504, beam: 241, hullBeam: 48, maxAt: 0.5, transom: 22, entry: 0.4,
-    beams: [0.33, 0.92],
+    length: 504, beam: 241, hullBeam: 48, maxAt: 0.55, transom: 22, entry: 0.3,
+    beams: [0.56, 0.94], asymmetry: 0.4,
   },
   hobie14: {
     kind: "catamaran", label: "Hobie Cat 14", group: "catamaran",
-    length: 427, beam: 231, hullBeam: 46, maxAt: 0.5, transom: 22, entry: 0.4,
-    beams: [0.35, 0.92],
+    length: 427, beam: 231, hullBeam: 46, maxAt: 0.55, transom: 22, entry: 0.3,
+    beams: [0.52, 0.94], asymmetry: 0.4,
   },
   a_class: {
     kind: "catamaran", label: "A-Class", group: "catamaran",

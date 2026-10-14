@@ -57,27 +57,56 @@ const r = (n: number) => Math.round(n * 10) / 10;
  * maximum beam at `maxAt`; `entry` is how quickly it gets there (0 a fine bow,
  * 1 a full round one). Even the finest stays convex — a deck plan has no
  * hollow, only the waterlines below it do. The aft curve then closes in to a
- * flat transom `transom` wide. */
+ * flat transom `transom` wide.
+ *
+ * `asymmetry` (0–1) shifts beam to the `outboard` side (+1 starboard, -1 port)
+ * and straightens the other: a board-less catamaran's hull (Hobie 16) is
+ * nearly flat inboard and carries its curve outboard, so it grips like a foil. */
 function hullPath(
   cx: number,
   y0: number,
-  h: { length: number; beam: number; maxAt: number; transom: number; bow?: number; entry: number },
+  h: {
+    length: number;
+    beam: number;
+    maxAt: number;
+    transom: number;
+    bow?: number;
+    entry: number;
+    asymmetry?: number;
+  },
+  outboard: 1 | -1 = 1,
 ): string {
   const L = h.length;
   const b = (h.bow ?? 0) / 2;
-  const m = h.beam / 2;
-  const t = Math.min(h.transom, h.beam) / 2;
+  const a = h.asymmetry ?? 0;
   const Y = h.maxAt * L;
-  const fwd1 = { x: b + (m - b) * (0.4 + 0.5 * h.entry), y: Y * 0.3 };
-  const fwd2 = { y: Y * 0.65 };
-  const aft1 = { y: Y + (L - Y) * 0.45 };
-  const aft2 = { x: t + (m - t) * 0.55, y: L - (L - Y) * 0.12 };
   const p = (x: number, y: number) => `${r(cx + x)} ${r(y0 + y)}`;
+  // One side's control points, from the bow round to the transom; `sign` is
+  // the side (+1 starboard).
+  const side = (sign: 1 | -1) => {
+    const inboard = a > 0 && sign !== outboard;
+    const share = inboard ? 1 - a : 1 + a;
+    const m = (h.beam / 2) * share;
+    const t = (Math.min(h.transom, h.beam) / 2) * share;
+    const entry = inboard ? 1 : h.entry;
+    const x = (v: number) => sign * v;
+    return {
+      fwd1: [x(b + (m - b) * (0.4 + 0.5 * entry)), Y * 0.3] as const,
+      fwd2: [x(m), Y * 0.65] as const,
+      max: [x(m), Y] as const,
+      aft1: [x(m), Y + (L - Y) * 0.45] as const,
+      aft2: [x(t + (m - t) * 0.55), L - (L - Y) * 0.12] as const,
+      transom: [x(t), L] as const,
+    };
+  };
+  const s = side(1);
+  const q = side(-1);
+  const pt = (c: readonly [number, number]) => p(c[0], c[1]);
   return (
-    `M ${p(b, 0)} C ${p(fwd1.x, fwd1.y)} ${p(m, fwd2.y)} ${p(m, Y)} ` +
-    `C ${p(m, aft1.y)} ${p(aft2.x, aft2.y)} ${p(t, L)} H ${r(cx - t)} ` +
-    `C ${p(-aft2.x, aft2.y)} ${p(-m, aft1.y)} ${p(-m, Y)} ` +
-    `C ${p(-m, fwd2.y)} ${p(-fwd1.x, fwd1.y)} ${p(-b, 0)} Z`
+    `M ${p(b, 0)} C ${pt(s.fwd1)} ${pt(s.fwd2)} ${pt(s.max)} ` +
+    `C ${pt(s.aft1)} ${pt(s.aft2)} ${pt(s.transom)} L ${pt(q.transom)} ` +
+    `C ${pt(q.aft2)} ${pt(q.aft1)} ${pt(q.max)} ` +
+    `C ${pt(q.fwd2)} ${pt(q.fwd1)} ${p(-b, 0)} Z`
   );
 }
 
@@ -133,9 +162,10 @@ function buildIcon(spec: SilhouetteSpec): BoatIcon {
       maxAt: spec.maxAt,
       transom,
       entry: spec.entry,
+      asymmetry: spec.asymmetry,
     };
-    parts.push({ d: hullPath(-c, 0, hull) }, { d: hullPath(c, 0, hull) });
-    halfWidth = c + hullBeam / 2;
+    parts.push({ d: hullPath(-c, 0, hull, -1) }, { d: hullPath(c, 0, hull, 1) });
+    halfWidth = c + (hullBeam / 2) * (1 + (spec.asymmetry ?? 0));
   } else {
     const beam = Math.max(spec.beam, L * MIN_HULL_BEAM);
     if (spec.wings) {
