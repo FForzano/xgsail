@@ -66,12 +66,12 @@ export const SILHOUETTE_SPECS = {
   },
   "470": {
     kind: "monohull", label: "470", group: "olympic",
-    length: 470, beam: 168, maxAt: 0.52, transom: 98, entry: 0.3,
+    length: 470, beam: 169, maxAt: 0.52, transom: 98, entry: 0.3,
   },
   "49er": {
     kind: "monohull", label: "49er / 49erFX", group: "olympic",
     length: 499, beam: 175, maxAt: 0.7, transom: 150, entry: 0.22, sprit: 95,
-    wings: { width: 274, from: 0.38, to: 0.94 },
+    wings: { width: 290, from: 0.38, to: 0.94 },
   },
   nacra17: {
     kind: "catamaran", label: "Nacra 17", group: "olympic",
@@ -94,7 +94,7 @@ export const SILHOUETTE_SPECS = {
   },
   "420": {
     kind: "monohull", label: "420", group: "dinghy",
-    length: 420, beam: 171, maxAt: 0.55, transom: 110, entry: 0.35,
+    length: 420, beam: 163, maxAt: 0.55, transom: 110, entry: 0.35,
   },
   "29er": {
     kind: "monohull", label: "29er", group: "dinghy",
@@ -118,7 +118,7 @@ export const SILHOUETTE_SPECS = {
   },
   flying_dutchman: {
     kind: "monohull", label: "Flying Dutchman", group: "dinghy",
-    length: 605, beam: 178, maxAt: 0.46, transom: 80, entry: 0.28,
+    length: 605, beam: 180, maxAt: 0.46, transom: 80, entry: 0.28,
   },
   "505": {
     kind: "monohull", label: "505", group: "dinghy",
@@ -138,7 +138,7 @@ export const SILHOUETTE_SPECS = {
   },
   dinghy_12: {
     kind: "monohull", label: "Dinghy 12'", group: "dinghy",
-    length: 366, beam: 141, maxAt: 0.5, transom: 56, entry: 0.6,
+    length: 366, beam: 143, maxAt: 0.5, transom: 56, entry: 0.6,
   },
   rs_feva: {
     kind: "monohull", label: "RS Feva", group: "dinghy",
@@ -160,7 +160,7 @@ export const SILHOUETTE_SPECS = {
   waszp: {
     kind: "monohull", label: "WASZP", group: "dinghy",
     length: 335, beam: 52, maxAt: 0.55, transom: 40, entry: 0.3,
-    wings: { width: 170, from: 0.28, to: 0.78 },
+    wings: { width: 225, from: 0.28, to: 0.78 },
   },
 
   // Catamarans.
@@ -172,7 +172,7 @@ export const SILHOUETTE_SPECS = {
   f18: {
     kind: "catamaran", label: "F18", group: "catamaran",
     length: 552, beam: 260, hullBeam: 42, maxAt: 0.55, transom: 30, entry: 0.18,
-    beams: [0.36, 0.86], sprit: 90,
+    beams: [0.36, 0.86], sprit: 80,
   },
   nacra15: {
     kind: "catamaran", label: "Nacra 15", group: "catamaran",
